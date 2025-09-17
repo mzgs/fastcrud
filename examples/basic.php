@@ -12,16 +12,13 @@ use CodexCrud\CrudConfig;
 CrudConfig::setDbConfig([
     'database' => 'codexcrud',
     'username' => 'root',
-    'password' => '1',
+    'password' => '1ss',
 ]);
 
-try {
+ 
     $crud = new Crud('users');
     $tableHtml = $crud->render();
-} catch (Throwable $exception) {
-    $error = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $tableHtml = '<div class="alert alert-danger">' . $error . '</div>';
-}
+ 
 
 ?>
 <!DOCTYPE html>
