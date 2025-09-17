@@ -47,13 +47,13 @@ class Crud
 
         return <<<HTML
 <div class="table-responsive">
-    <table id="$id" class="table table-hover align-middle">
-        <thead class="table-light">
+    <table id="$id" class="table table-hover align-middle" >
+        <thead>
             <tr>
 $headerHtml
             </tr>
         </thead>
-        <tbody class="table-group-divider">
+        <tbody>
 $bodyHtml
         </tbody>
     </table>
