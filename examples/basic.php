@@ -38,6 +38,24 @@ CrudConfig::setDbConfig([
 <body data-bs-theme="dark" >
     <div class="container py-5">
         <div class="row justify-content-center">
+
+         <div class="col">
+                <div class="text-center mb-4">
+                    <h1 class="display-5">CodexCrud Demo</h1>
+                    <p class="lead">Dynamically rendered records for the configured table.</p>
+                </div>
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        Posts Table Preview
+                    </div>
+                    <div class="card-body">
+                        <?= new Crud('posts')->render(); ?>
+                    </div>
+                </div>
+
+            </div>
+
+            
             <div class="col">
                 <div class="text-center mb-4">
                     <h1 class="display-5">CodexCrud Demo</h1>
@@ -52,6 +70,8 @@ CrudConfig::setDbConfig([
                     </div>
                 </div>
             </div>
+
+           
         </div>
     </div>
     <script

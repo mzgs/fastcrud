@@ -12,6 +12,7 @@ class Crud
 {
     private string $table;
     private PDO $connection;
+    private string $id;
 
     public function __construct(string $table, ?PDO $connection = null)
     {
@@ -26,6 +27,7 @@ class Crud
 
         $this->table = $table;
         $this->connection = $connection ?? DB::connection();
+        $this->id = $this->generateId();
     }
 
     /**
@@ -41,9 +43,10 @@ class Crud
 
         $headerHtml = $this->buildHeader($columns);
         $bodyHtml = $this->buildBody($rows, $columns);
+        $id = $this->escapeHtml($this->id);
 
         return <<<HTML
-<table class="table table-striped table-bordered">
+<table id="$id" class="table table-striped table-bordered">
     <thead>
         <tr>
 $headerHtml
@@ -54,6 +57,11 @@ $bodyHtml
     </tbody>
 </table>
 HTML;
+    }
+
+    public function getId(): string
+    {
+        return $this->id;
     }
 
     /**
@@ -170,5 +178,16 @@ HTML;
     private function formatValue(mixed $value): string
     {
         return (string) $value;
+    }
+
+    private function generateId(): string
+    {
+        try {
+            $suffix = bin2hex(random_bytes(8));
+        } catch (\Exception) {
+            $suffix = str_replace('.', '', uniqid('', true));
+        }
+
+        return 'codexcrud-' . $suffix;
     }
 }
