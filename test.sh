@@ -10,7 +10,13 @@ if ! npm test; then
   test_exit=$?
 fi
 
-# Always attempt to open the most recent report for inspection.
-npx playwright show-report || true
+# Print report location instead of launching the long-lived viewer so the
+# script exits promptly. Users can run `npx playwright show-report` manually
+# whenever they want to inspect it interactively.
+report_dir="$repo_root/uitest/playwright-report"
+if [ -d "$report_dir" ]; then
+  echo "Playwright HTML report generated at: $report_dir"
+  echo "Open it later with: (cd uitest && npx playwright show-report)"
+fi
 
 exit "$test_exit"
