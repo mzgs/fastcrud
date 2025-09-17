@@ -169,18 +169,6 @@ HTML;
 
     private function formatValue(mixed $value): string
     {
-        if ($value === null) {
-            return 'NULL';
-        }
-
-        if (is_bool($value)) {
-            return $value ? 'true' : 'false';
-        }
-
-        if ($value instanceof \DateTimeInterface) {
-            return $value->format('c');
-        }
-
         return (string) $value;
     }
 }

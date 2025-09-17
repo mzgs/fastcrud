@@ -12,7 +12,7 @@ use CodexCrud\CrudConfig;
 CrudConfig::setDbConfig([
     'database' => 'codexcrud',
     'username' => 'root',
-    'password' => '1ss',
+    'password' => '1',
 ]);
 
  
