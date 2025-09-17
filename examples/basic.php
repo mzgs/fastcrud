@@ -4,19 +4,24 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use CodexCrud\CrudConfig;
 use CodexCrud\Crud;
+use CodexCrud\CrudConfig;
+
  
 
-$dbOverrides = [
+CrudConfig::setDbConfig([
     'database' => 'codexcrud',
-    'username' => 'demo',
-    'password' => 'secret',
-];
+    'username' => 'root',
+    'password' => '1',
+]);
 
-CrudConfig::setDbConfig($dbOverrides);
-
- 
+try {
+    $crud = new Crud('users');
+    $tableHtml = $crud->render();
+} catch (Throwable $exception) {
+    $error = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $tableHtml = '<div class="alert alert-danger">' . $error . '</div>';
+}
 
 ?>
 <!DOCTYPE html>
@@ -34,26 +39,19 @@ CrudConfig::setDbConfig($dbOverrides);
 <body class="bg-light">
     <div class="container py-5">
         <div class="row justify-content-center">
-            <div class="col-lg-8">
+            <div class="col">
                 <div class="text-center mb-4">
                     <h1 class="display-5">CodexCrud Demo</h1>
+                    <p class="lead">Dynamically rendered records for the configured table.</p>
                 </div>
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-primary text-white">
-                        Example
+                        Users Table Preview
                     </div>
                     <div class="card-body">
-
-                    <?php
-
-                        $crud = new Crud("users");
-                        echo $crud->render();
-                        
-                    ?>
-                         
+                        <?= $tableHtml ?>
                     </div>
                 </div>
-        
             </div>
         </div>
     </div>
