@@ -34,4 +34,12 @@ class CrudConfig
 
         self::$dbConfig = array_replace($defaults, $configuration);
     }
+
+    /**
+     * Retrieve the currently stored database configuration.
+     */
+    public static function getDbConfig(): array
+    {
+        return self::$dbConfig;
+    }
 }
