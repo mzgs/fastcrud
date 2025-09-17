@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use CodexCrud\CrudConfig;
+use CodexCrud\Crud;
  
 
 $dbOverrides = [
@@ -42,7 +43,14 @@ CrudConfig::setDbConfig($dbOverrides);
                         Example
                     </div>
                     <div class="card-body">
-                        <p class="mb-0">Welcome message: </strong></p>
+
+                    <?php
+
+                        $crud = new Crud("users");
+                        echo $crud->render();
+                        
+                    ?>
+                         
                     </div>
                 </div>
         
