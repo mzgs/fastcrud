@@ -1,0 +1,21 @@
+{
+    "name": "codexcrud/library",
+    "description": "Simple demo library",
+    "type": "library",
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Mustafa",
+            "email": "mustafa@example.com"
+        }
+    ],
+    "require": {},
+    "autoload": {
+        "psr-4": {
+            "CodexCrud\\": "src/"
+        }
+    }
+}
