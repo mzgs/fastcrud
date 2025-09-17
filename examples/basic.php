@@ -32,6 +32,8 @@ CrudConfig::setDbConfig([
         rel="stylesheet"
         crossorigin="anonymous"
     >
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
+
 </head>
 <body data-bs-theme="dark" >
     <div class="container py-5">
