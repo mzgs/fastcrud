@@ -36,11 +36,10 @@ CrudConfig::setDbConfig($dbOverrides);
             <div class="col-lg-8">
                 <div class="text-center mb-4">
                     <h1 class="display-5">CodexCrud Demo</h1>
-                    <p class="lead">Greeter output and current database config defaults.</p>
                 </div>
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-primary text-white">
-                        Greeting Sample
+                        Example
                     </div>
                     <div class="card-body">
                         <p class="mb-0">Welcome message: </strong></p>
