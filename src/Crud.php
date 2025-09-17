@@ -46,16 +46,18 @@ class Crud
         $id = $this->escapeHtml($this->id);
 
         return <<<HTML
-<table id="$id" class="table table-striped table-bordered">
-    <thead>
-        <tr>
+<div class="table-responsive">
+    <table id="$id" class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
 $headerHtml
-        </tr>
-    </thead>
-    <tbody>
+            </tr>
+        </thead>
+        <tbody class="table-group-divider">
 $bodyHtml
-    </tbody>
-</table>
+        </tbody>
+    </table>
+</div>
 HTML;
     }
 
