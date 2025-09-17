@@ -34,8 +34,8 @@ test('basic', async ({ page }) => {
   const tableCount = await tableLocator.count();
   expect(tableCount, 'Expected at least one table element on the page').toBeGreaterThan(0);
 
-  const rowCount = await page.locator('table tr').count();
-  expect(rowCount, 'Expected the table to render at least one row').toBeGreaterThan(0);
+  const headerCount = await page.locator('table th').count();
+  expect(headerCount, 'Expected the table to render at least one header cell').toBeGreaterThan(0);
 
   expect(consoleErrors, formatConsoleErrors(consoleErrors)).toEqual([]);
   expect(pageErrors, formatPageErrors(pageErrors)).toEqual([]);
