@@ -47,14 +47,17 @@ class CrudAjax
         }
         
         $table = $_GET['table'];
-        $crud = new Crud($table);
+        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        $perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : null;
         
-        $data = $crud->getTableData();
+        $crud = new Crud($table);
+        $data = $crud->getTableData($page, $perPage);
         
         echo json_encode([
             'success' => true,
             'data' => $data['rows'],
             'columns' => $data['columns'],
+            'pagination' => $data['pagination'],
             'id' => $_GET['id'] ?? null
         ]);
     }
