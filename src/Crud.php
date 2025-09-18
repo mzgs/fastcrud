@@ -81,6 +81,7 @@ class Crud
 
         $headerHtml = $this->buildHeader($columns);
         $script     = $this->generateAjaxScript();
+        $styles     = $this->buildActionColumnStyles($this->id);
         $colspan    = $this->escapeHtml((string) (count($columns) + 1));
         $offcanvas  = $this->buildEditOffcanvas($id);
 
@@ -110,6 +111,7 @@ $headerHtml
         </ul>
     </nav>
 </div>
+$styles
 $offcanvas
 $script
 HTML;
@@ -183,7 +185,7 @@ HTML;
                 );
             }
 
-            $cells[] = '            <td class="text-end"><div class="btn-group btn-group-sm" role="group"><button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn">Edit</button><button type="button" class="btn btn-sm btn-outline-danger fastcrud-delete-btn">Delete</button></div></td>';
+            $cells[] = '            <td class="text-end fastcrud-actions-cell"><div class="btn-group btn-group-sm" role="group"><button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn">Edit</button><button type="button" class="btn btn-sm btn-outline-danger fastcrud-delete-btn">Delete</button></div></td>';
 
             $bodyRows[] = "        <tr>\n" . implode("\n", $cells) . "\n        </tr>";
         }
@@ -207,7 +209,7 @@ HTML;
             );
         }
 
-        $cells[] = '            <th scope="col" class="text-end">Actions</th>';
+        $cells[] = '            <th scope="col" class="text-end fastcrud-actions fastcrud-actions-header">Actions</th>';
 
         return implode("\n", $cells);
     }
@@ -288,6 +290,36 @@ HTML;
         </form>
     </div>
 </div>
+HTML;
+    }
+
+    private function buildActionColumnStyles(string $id): string
+    {
+        $containerId = $this->escapeHtml($id . '-container');
+
+        return <<<HTML
+<style>
+#{$containerId} table {
+    position: relative;
+}
+
+#{$containerId} table thead th.fastcrud-actions,
+#{$containerId} table tbody td.fastcrud-actions-cell {
+    position: sticky;
+    right: 0;
+    background-color: var(--bs-body-bg, #ffffff);
+    min-width: 9.5rem;
+}
+
+#{$containerId} table thead th.fastcrud-actions {
+    z-index: 3;
+}
+
+#{$containerId} table tbody td.fastcrud-actions-cell {
+    z-index: 2;
+    box-shadow: -6px 0 6px -6px rgba(0, 0, 0, 0.2);
+}
+</style>
 HTML;
     }
 
@@ -726,7 +758,7 @@ HTML;
                     tableRow.append($('<td></td>').text(value));
                 });
 
-                var actionCell = $('<td class="text-end"></td>');
+                var actionCell = $('<td class="text-end fastcrud-actions-cell"></td>');
                 var buttonGroup = $('<div class="btn-group btn-group-sm" role="group"></div>');
 
                 var editButton = $('<button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn">Edit</button>');
