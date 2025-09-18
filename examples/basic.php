@@ -5,11 +5,8 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use CodexCrud\Crud;
-use CodexCrud\CrudConfig;
 
- 
-
-CrudConfig::setDbConfig([
+Crud::init([
     'database' => 'codexcrud',
     'username' => 'root',
     'password' => '1',
