@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace CodexCrud;
+namespace FastCrud;
 
 use Exception;
 use InvalidArgumentException;
