@@ -27,7 +27,7 @@ class Crud
         if ($dbConfig !== null) {
             CrudConfig::setDbConfig($dbConfig);
         }
-        
+
         CrudAjax::autoHandle();
     }
 
@@ -42,11 +42,11 @@ class Crud
             throw new InvalidArgumentException('Only alphanumeric table names with underscores are supported.');
         }
 
-        $this->table = $table;
+        $this->table      = $table;
         $this->connection = $connection ?? DB::connection();
-        $this->id = $this->generateId();
+        $this->id         = $this->generateId();
     }
-    
+
     /**
      * Set the number of items per page.
      * 
@@ -58,7 +58,7 @@ class Crud
         if ($perPage < 1) {
             throw new InvalidArgumentException('Items per page must be at least 1.');
         }
-        
+
         $this->perPage = $perPage;
         return $this;
     }
@@ -68,21 +68,21 @@ class Crud
      */
     public function render(): string
     {
-        $id = $this->escapeHtml($this->id);
-        $table = $this->escapeHtml($this->table);
+        $id      = $this->escapeHtml($this->id);
+        $table   = $this->escapeHtml($this->table);
         $perPage = $this->perPage;
-        
+
         // Get column names for headers
         $columns = $this->getColumnNames();
-        
+
         if ($columns === []) {
             return '<div class="alert alert-warning">No columns available for this table.</div>';
         }
-        
+
         $headerHtml = $this->buildHeader($columns);
-        $script = $this->generateAjaxScript();
-        $colspan = $this->escapeHtml((string) (count($columns) + 1));
-        $offcanvas = $this->buildEditOffcanvas($id);
+        $script     = $this->generateAjaxScript();
+        $colspan    = $this->escapeHtml((string) (count($columns) + 1));
+        $offcanvas  = $this->buildEditOffcanvas($id);
 
         return <<<HTML
 <div id="{$id}-container">
@@ -130,7 +130,7 @@ HTML;
     private function fetchData(?int $limit = null, ?int $offset = null): array
     {
         $sql = sprintf('SELECT * FROM %s', $this->table);
-        
+
         if ($limit !== null) {
             $sql .= sprintf(' LIMIT %d', $limit);
             if ($offset !== null) {
@@ -142,12 +142,12 @@ HTML;
             $statement = $this->connection->query($sql);
         } catch (PDOException $exception) {
             $message = sprintf('Failed to query table "%s".', $this->table);
-            $code = (int) $exception->getCode();
+            $code    = (int) $exception->getCode();
 
             throw new PDOException($message, $code, $exception);
         }
 
-        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        $rows    = $statement->fetchAll(PDO::FETCH_ASSOC);
         $columns = $this->extractColumnNames($statement, $rows);
 
         return [$rows, $columns];
@@ -176,7 +176,7 @@ HTML;
             $cells = [];
 
             foreach ($columns as $column) {
-                $value = $row[$column] ?? null;
+                $value   = $row[$column] ?? null;
                 $cells[] = sprintf(
                     '            <td>%s</td>',
                     $this->escapeHtml($this->formatValue($value))
@@ -224,10 +224,10 @@ HTML;
         }
 
         $columns = [];
-        $count = $statement->columnCount();
+        $count   = $statement->columnCount();
 
         for ($index = 0; $index < $count; $index++) {
-            $meta = $statement->getColumnMeta($index) ?: [];
+            $meta      = $statement->getColumnMeta($index) ?: [];
             $columns[] = is_string($meta['name'] ?? null) ? $meta['name'] : 'column_' . $index;
         }
 
@@ -263,12 +263,12 @@ HTML;
     private function buildEditOffcanvas(string $id): string
     {
         $escapedId = $this->escapeHtml($id);
-        $labelId = $escapedId . '-edit-label';
-        $formId = $escapedId . '-edit-form';
-        $panelId = $escapedId . '-edit-panel';
-        $errorId = $escapedId . '-edit-error';
+        $labelId   = $escapedId . '-edit-label';
+        $formId    = $escapedId . '-edit-form';
+        $panelId   = $escapedId . '-edit-panel';
+        $errorId   = $escapedId . '-edit-error';
         $successId = $escapedId . '-edit-success';
-        $fieldsId = $escapedId . '-edit-fields';
+        $fieldsId  = $escapedId . '-edit-fields';
 
         return <<<HTML
 <div class="offcanvas offcanvas-start" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}">
@@ -276,12 +276,12 @@ HTML;
         <h5 class="offcanvas-title" id="{$labelId}">Edit Record</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
-    <div class="offcanvas-body">
-        <form id="{$formId}" novalidate>
+    <div class="offcanvas-body d-flex flex-column">
+        <form id="{$formId}" novalidate class="d-flex flex-column h-100">
             <div class="alert alert-danger d-none" id="{$errorId}" role="alert"></div>
             <div class="alert alert-success d-none" id="{$successId}" role="alert">Changes saved successfully.</div>
-            <div id="{$fieldsId}"></div>
-            <div class="d-flex justify-content-end gap-2 mt-4">
+            <div id="{$fieldsId}" class="flex-grow-1 overflow-auto"></div>
+            <div class="d-flex justify-content-end gap-2 mt-auto pt-3 border-top bg-white sticky-bottom">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save Changes</button>
             </div>
@@ -301,32 +301,32 @@ HTML;
     public function getTableData(int $page = 1, ?int $perPage = null): array
     {
         $perPage = $perPage ?? $this->perPage;
-        $page = max(1, $page);
-        
+        $page    = max(1, $page);
+
         // Get total count
-        $countSql = sprintf('SELECT COUNT(*) as total FROM %s', $this->table);
+        $countSql  = sprintf('SELECT COUNT(*) as total FROM %s', $this->table);
         $totalRows = (int) $this->connection->query($countSql)->fetch(PDO::FETCH_ASSOC)['total'];
-        
+
         // Calculate pagination
         $totalPages = max(1, (int) ceil($totalRows / $perPage));
-        $page = min($page, $totalPages);
-        $offset = ($page - 1) * $perPage;
-        
+        $page       = min($page, $totalPages);
+        $offset     = ($page - 1) * $perPage;
+
         // Fetch paginated data
         [$rows, $columns] = $this->fetchData($perPage, $offset);
-        
+
         return [
-            'rows' => $rows,
-            'columns' => $columns,
+            'rows'       => $rows,
+            'columns'    => $columns,
             'pagination' => [
                 'current_page' => $page,
-                'total_pages' => $totalPages,
-                'total_rows' => $totalRows,
-                'per_page' => $perPage
-            ]
+                'total_pages'  => $totalPages,
+                'total_rows'   => $totalRows,
+                'per_page'     => $perPage,
+            ],
         ];
     }
-    
+
     /**
      * Get column names without fetching all data.
      *
@@ -335,21 +335,21 @@ HTML;
     private function getColumnNames(): array
     {
         $sql = sprintf('SELECT * FROM %s LIMIT 0', $this->table);
-        
+
         try {
             $statement = $this->connection->query($sql);
         } catch (PDOException $exception) {
             return [];
         }
-        
+
         $columns = [];
-        $count = $statement->columnCount();
-        
+        $count   = $statement->columnCount();
+
         for ($index = 0; $index < $count; $index++) {
-            $meta = $statement->getColumnMeta($index) ?: [];
+            $meta      = $statement->getColumnMeta($index) ?: [];
             $columns[] = is_string($meta['name'] ?? null) ? $meta['name'] : 'column_' . $index;
         }
-        
+
         return $columns;
     }
 
@@ -393,11 +393,11 @@ HTML;
 
         if ($filtered !== []) {
             $placeholders = [];
-            $parameters = [];
+            $parameters   = [];
 
             foreach ($filtered as $column => $value) {
-                $placeholder = ':col_' . $column;
-                $placeholders[] = sprintf('%s = %s', $column, $placeholder);
+                $placeholder              = ':col_' . $column;
+                $placeholders[]           = sprintf('%s = %s', $column, $placeholder);
                 $parameters[$placeholder] = $value;
             }
 
@@ -432,7 +432,7 @@ HTML;
      */
     private function findRowByPrimaryKey(string $primaryKeyColumn, mixed $primaryKeyValue): ?array
     {
-        $sql = sprintf('SELECT * FROM %s WHERE %s = :pk LIMIT 1', $this->table, $primaryKeyColumn);
+        $sql       = sprintf('SELECT * FROM %s WHERE %s = :pk LIMIT 1', $this->table, $primaryKeyColumn);
         $statement = $this->connection->prepare($sql);
 
         if ($statement === false) {
@@ -456,7 +456,7 @@ HTML;
     private function generateAjaxScript(): string
     {
         $id = $this->escapeHtml($this->id);
-        
+
         return <<<SCRIPT
 <script>
 (function($) {
