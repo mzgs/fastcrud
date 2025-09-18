@@ -103,7 +103,7 @@ $headerHtml
         </table>
     </div>
     <nav aria-label="Table pagination">
-        <ul id="{$id}-pagination" class="pagination justify-content-center">
+        <ul id="{$id}-pagination" class="pagination justify-content-start">
         </ul>
     </nav>
 </div>
@@ -454,8 +454,8 @@ HTML;
                 }));
             paginationContainer.append(nextItem);
             
-            // Add info text
-            var infoText = $('<li class="page-item disabled"><span class="page-link border-0 bg-transparent text-muted">Showing ' + 
+            // Add info text to the right
+            var infoText = $('<li class="page-item disabled ms-auto"><span class="page-link border-0 bg-transparent text-muted">Showing ' + 
                 ((currentPage - 1) * pagination.per_page + 1) + '-' + 
                 Math.min(currentPage * pagination.per_page, pagination.total_rows) + 
                 ' of ' + pagination.total_rows + '</span></li>');
