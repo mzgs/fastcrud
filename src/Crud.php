@@ -53,6 +53,14 @@ class Crud
         $id = $this->escapeHtml($this->id);
         $table = $this->escapeHtml($this->table);
         
+        // Get column names for headers
+        $columns = $this->getColumnNames();
+        
+        if ($columns === []) {
+            return '<div class="alert alert-warning">No columns available for this table.</div>';
+        }
+        
+        $headerHtml = $this->buildHeader($columns);
         $script = $this->generateAjaxScript();
 
         return <<<HTML
@@ -60,15 +68,18 @@ class Crud
     <table id="$id" class="table table-hover align-middle" data-table="$table">
         <thead>
             <tr>
-                <th colspan="100%" class="text-center">
-                    <div class="spinner-border spinner-border-sm" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    Loading table data...
-                </th>
+$headerHtml
             </tr>
         </thead>
         <tbody>
+            <tr>
+                <td colspan="{$this->escapeHtml((string)count($columns))}" class="text-center">
+                    <div class="spinner-border spinner-border-sm" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    Loading data...
+                </td>
+            </tr>
         </tbody>
     </table>
 </div>
@@ -222,6 +233,32 @@ HTML;
             'columns' => $columns
         ];
     }
+    
+    /**
+     * Get column names without fetching all data.
+     *
+     * @return array<int, string>
+     */
+    private function getColumnNames(): array
+    {
+        $sql = sprintf('SELECT * FROM %s LIMIT 0', $this->table);
+        
+        try {
+            $statement = $this->connection->query($sql);
+        } catch (PDOException $exception) {
+            return [];
+        }
+        
+        $columns = [];
+        $count = $statement->columnCount();
+        
+        for ($index = 0; $index < $count; $index++) {
+            $meta = $statement->getColumnMeta($index) ?: [];
+            $columns[] = is_string($meta['name'] ?? null) ? $meta['name'] : 'column_' . $index;
+        }
+        
+        return $columns;
+    }
 
     /**
      * Generate jQuery AJAX script for loading table data.
@@ -250,41 +287,26 @@ HTML;
             dataType: 'json',
             success: function(response) {
                 if (response.success) {
-                    var thead = table.find('thead');
                     var tbody = table.find('tbody');
-                    
-                    thead.empty();
                     tbody.empty();
                     
-                    if (response.columns && response.columns.length > 0) {
-                        var headerRow = $('<tr></tr>');
-                        $.each(response.columns, function(index, column) {
-                            var label = column.replace(/_/g, ' ').replace(/\b\w/g, function(l) {
-                                return l.toUpperCase();
+                    if (response.data && response.data.length > 0) {
+                        $.each(response.data, function(rowIndex, row) {
+                            var bodyRow = $('<tr></tr>');
+                            $.each(response.columns, function(colIndex, column) {
+                                var value = row[column] || '';
+                                bodyRow.append($('<td></td>').text(value));
                             });
-                            headerRow.append($('<th scope="col"></th>').text(label));
+                            tbody.append(bodyRow);
                         });
-                        thead.append(headerRow);
-                        
-                        if (response.data && response.data.length > 0) {
-                            $.each(response.data, function(rowIndex, row) {
-                                var bodyRow = $('<tr></tr>');
-                                $.each(response.columns, function(colIndex, column) {
-                                    var value = row[column] || '';
-                                    bodyRow.append($('<td></td>').text(value));
-                                });
-                                tbody.append(bodyRow);
-                            });
-                        } else {
-                            var emptyRow = $('<tr></tr>');
-                            emptyRow.append($('<td></td>')
-                                .attr('colspan', response.columns.length)
-                                .addClass('text-center text-muted')
-                                .text('No records found.'));
-                            tbody.append(emptyRow);
-                        }
                     } else {
-                        thead.append($('<tr><th class="text-warning">No columns available for this table.</th></tr>'));
+                        var emptyRow = $('<tr></tr>');
+                        var colspan = table.find('thead th').length;
+                        emptyRow.append($('<td></td>')
+                            .attr('colspan', colspan)
+                            .addClass('text-center text-muted')
+                            .text('No records found.'));
+                        tbody.append(emptyRow);
                     }
                 } else {
                     var errorRow = $('<tr></tr>');
