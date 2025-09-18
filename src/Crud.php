@@ -406,7 +406,7 @@ HTML;
             
             // Records per page selector
             var perPageOptions = [5, 10, 25, 50, 100];
-            var perPageHtml = '<select class="form-select form-select-sm rounded" style="width: auto;">';
+            var perPageHtml = '<select class="form-select form-select-sm border-secondary" style="width: auto; height: 38px; padding: 0.375rem 2rem 0.375rem 0.75rem;">';
             $.each(perPageOptions, function(i, val) {
                 var selected = (val == perPage) ? 'selected' : '';
                 perPageHtml += '<option value="' + val + '" ' + selected + '>' + val + '</option>';
@@ -414,13 +414,11 @@ HTML;
             perPageHtml += '</select>';
             
             var selectItem = $('<li class="page-item me-3"></li>');
-            var selectWrapper = $('<span class="page-link border-0 bg-transparent p-1"></span>');
-            selectWrapper.html(perPageHtml);
-            selectWrapper.find('select').on('change', function() {
+            selectItem.html(perPageHtml);
+            selectItem.find('select').on('change', function() {
                 perPage = parseInt($(this).val());
                 loadTableData(1);
             });
-            selectItem.append(selectWrapper);
             paginationContainer.append(selectItem);
             
             // Previous button
