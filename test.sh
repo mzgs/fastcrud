@@ -5,8 +5,37 @@ set -uo pipefail
 repo_root="$(cd "$(dirname "$0")" && pwd)"
 cd "$repo_root/uitest"
 
+headed_run=false
+
+while (($#)); do
+  case "$1" in
+    --headed|--show)
+      headed_run=true
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      echo "Usage: $0 [--show]" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
+command=(npm test)
+if $headed_run; then
+  command=(npm run test:headed)
+fi
+
+if [ "$#" -gt 0 ]; then
+  command+=(-- "$@")
+fi
+
 test_exit=0
-if ! npm test; then
+if ! "${command[@]}"; then
   test_exit=$?
 fi
 

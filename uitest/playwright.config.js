@@ -1,4 +1,7 @@
 const { defineConfig, devices } = require('@playwright/test');
+const path = require('path');
+
+const repoRoot = path.resolve(__dirname, '..');
 
 /**
  * Playwright project configuration.
@@ -18,6 +21,15 @@ module.exports = defineConfig({
     video: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
+  webServer: process.env.UI_SKIP_WEB_SERVER
+    ? undefined
+    : {
+        command: 'php -S 127.0.0.1:8000 -t examples',
+        cwd: repoRoot,
+        port: 8000,
+        reuseExistingServer: !process.env.CI,
+        timeout: 30_000,
+      },
   projects: [
     {
       name: 'chromium',
