@@ -834,6 +834,11 @@ HTML;
             var originalText = submitButton.text();
             submitButton.prop('disabled', true).text('Saving...');
 
+            var offcanvas = getOffcanvasInstance();
+            if (offcanvas) {
+                offcanvas.hide();
+            }
+
             $.ajax({
                 url: window.location.pathname,
                 type: 'POST',
@@ -849,22 +854,20 @@ HTML;
                 },
                 success: function(response) {
                     if (response && response.success) {
-                        editSuccess.removeClass('d-none');
                         loadTableData(currentPage);
-                        var offcanvas = getOffcanvasInstance();
-                        if (offcanvas) {
-                            setTimeout(function() {
-                                editSuccess.addClass('d-none');
-                                offcanvas.hide();
-                            }, 400);
-                        }
                     } else {
                         var message = response && response.error ? response.error : 'Failed to update record.';
                         showFormError(message);
+                        if (offcanvas) {
+                            offcanvas.show();
+                        }
                     }
                 },
                 error: function(_, __, error) {
                     showFormError('Failed to update record: ' + error);
+                    if (offcanvas) {
+                        offcanvas.show();
+                    }
                 },
                 complete: function() {
                     submitButton.prop('disabled', false).text(originalText);
