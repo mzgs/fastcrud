@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use CodexCrud\Crud;
+use FastCrud\Crud;
 
 Crud::init([
-    'database' => 'codexcrud',
+    'database' => 'fastcrud',
     'username' => 'root',
     'password' => '1',
 ]);
@@ -20,7 +20,7 @@ Crud::init([
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>CodexCrud Demo</title>
+    <title>FastCRUD Demo</title>
     <link
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         rel="stylesheet"
@@ -35,7 +35,7 @@ Crud::init([
 
          <div class="col">
                 <div class="text-center mb-4">
-                    <h1 class="display-5">CodexCrud Demo</h1>
+                    <h1 class="display-5">FastCRUD Demo</h1>
                     <p class="lead">Dynamically rendered records for the configured table.</p>
                 </div>
                 <div class="card shadow-sm mb-4">
@@ -52,7 +52,7 @@ Crud::init([
             
             <div class="col">
                 <div class="text-center mb-4">
-                    <h1 class="display-5">CodexCrud Demo</h1>
+                    <h1 class="display-5">FastCRUD Demo</h1>
                     <p class="lead">Dynamically rendered records for the configured table.</p>
                 </div>
                 <div class="card shadow-sm mb-4">

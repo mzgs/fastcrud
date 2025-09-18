@@ -16,7 +16,7 @@ class CrudConfig
      * Missing keys default to MySQL on localhost port 3306.
      *
      * Example usage:
-     *     use CodexCrud\CrudConfig;
+     *     use FastCrud\CrudConfig;
      *
      *     CrudConfig::setDbConfig([
      *         'database' => 'app',

@@ -249,7 +249,7 @@ HTML;
             $suffix = str_replace('.', '', uniqid('', true));
         }
 
-        return 'codexcrud-' . $suffix;
+        return 'fastcrud-' . $suffix;
     }
 
     /**
@@ -347,7 +347,7 @@ HTML;
                 url: window.location.pathname,
                 type: 'GET',
                 data: {
-                    codexcrud_ajax: '1',
+                    fastcrud_ajax: '1',
                     action: 'fetch',
                     table: tableName,
                     id: tableId,

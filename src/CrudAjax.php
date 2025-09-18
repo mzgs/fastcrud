@@ -67,7 +67,7 @@ class CrudAjax
      */
     public static function isAjaxRequest(): bool
     {
-        return isset($_GET['codexcrud_ajax']) && $_GET['codexcrud_ajax'] === '1';
+        return isset($_GET['fastcrud_ajax']) && $_GET['fastcrud_ajax'] === '1';
     }
     
     /**
