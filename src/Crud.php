@@ -404,12 +404,31 @@ HTML;
             var currentPage = pagination.current_page;
             var totalPages = pagination.total_pages;
             
+            // Records per page selector
+            var perPageOptions = [5, 10, 25, 50, 100];
+            var perPageHtml = '<select class="form-select form-select-sm rounded" style="width: auto;">';
+            $.each(perPageOptions, function(i, val) {
+                var selected = (val == perPage) ? 'selected' : '';
+                perPageHtml += '<option value="' + val + '" ' + selected + '>' + val + '</option>';
+            });
+            perPageHtml += '</select>';
+            
+            var selectItem = $('<li class="page-item me-3"></li>');
+            var selectWrapper = $('<span class="page-link border-0 bg-transparent p-1"></span>');
+            selectWrapper.html(perPageHtml);
+            selectWrapper.find('select').on('change', function() {
+                perPage = parseInt($(this).val());
+                loadTableData(1);
+            });
+            selectItem.append(selectWrapper);
+            paginationContainer.append(selectItem);
+            
             // Previous button
             var prevItem = $('<li class="page-item"></li>');
             if (currentPage === 1) {
                 prevItem.addClass('disabled');
             }
-            prevItem.append($('<a class="page-link" href="javascript:void(0)" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a>')
+            prevItem.append($('<a class="page-link rounded-start" href="javascript:void(0)" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a>')
                 .on('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
@@ -445,7 +464,7 @@ HTML;
             if (currentPage === totalPages) {
                 nextItem.addClass('disabled');
             }
-            nextItem.append($('<a class="page-link" href="javascript:void(0)" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>')
+            nextItem.append($('<a class="page-link rounded-end" href="javascript:void(0)" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>')
                 .on('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();

@@ -12,10 +12,7 @@ Crud::init([
     'password' => '1',
 ]);
 
- 
-    $crud = new Crud('users');
-    $tableHtml = $crud->render();
- 
+  
 
 ?>
 <!DOCTYPE html>
@@ -63,7 +60,7 @@ Crud::init([
                         Users Table Preview
                     </div>
                     <div class="card-body">
-                        <?= $tableHtml ?>
+                        <?= new Crud('users')->render(); ?>
                     </div>
                 </div>
             </div>
