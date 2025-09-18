@@ -16,13 +16,16 @@ class CrudAjax
         header('Content-Type: application/json');
         
         try {
-            $action = $_GET['action'] ?? 'fetch';
+            $request = self::getRequestData();
+            $action = $request['action'] ?? 'fetch';
             
             switch ($action) {
                 case 'fetch':
-                    self::handleFetchTable();
+                    self::handleFetchTable($request);
                     break;
-                    
+                case 'update':
+                    self::handleUpdate($request);
+                    break;
                 default:
                     throw new InvalidArgumentException('Invalid action: ' . $action);
             }
@@ -40,15 +43,15 @@ class CrudAjax
     /**
      * Handle fetching table data.
      */
-    private static function handleFetchTable(): void
+    private static function handleFetchTable(array $request): void
     {
-        if (!isset($_GET['table'])) {
+        if (!isset($request['table'])) {
             throw new InvalidArgumentException('Table parameter is required');
         }
         
-        $table = $_GET['table'];
-        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-        $perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : null;
+        $table = $request['table'];
+        $page = isset($request['page']) ? (int) $request['page'] : 1;
+        $perPage = isset($request['per_page']) ? (int) $request['per_page'] : null;
         
         $crud = new Crud($table);
         $data = $crud->getTableData($page, $perPage);
@@ -58,7 +61,58 @@ class CrudAjax
             'data' => $data['rows'],
             'columns' => $data['columns'],
             'pagination' => $data['pagination'],
-            'id' => $_GET['id'] ?? null
+            'id' => $request['id'] ?? null
+        ]);
+    }
+
+    /**
+     * Handle record updates via AJAX.
+     *
+     * @param array<string, mixed> $request
+     */
+    private static function handleUpdate(array $request): void
+    {
+        if (!isset($request['table'])) {
+            throw new InvalidArgumentException('Table parameter is required');
+        }
+
+        if (!isset($request['primary_key_column']) || !is_string($request['primary_key_column'])) {
+            throw new InvalidArgumentException('Primary key column is required.');
+        }
+
+        if (!array_key_exists('primary_key_value', $request)) {
+            throw new InvalidArgumentException('Primary key value is required.');
+        }
+
+        $fieldsPayload = $request['fields'] ?? [];
+        $fields = [];
+
+        if (is_string($fieldsPayload) && $fieldsPayload !== '') {
+            $decoded = json_decode($fieldsPayload, true);
+            if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                throw new InvalidArgumentException('Invalid fields payload.');
+            }
+            $fields = $decoded;
+        } elseif (is_array($fieldsPayload)) {
+            $fields = $fieldsPayload;
+        }
+
+        if (!is_array($fields)) {
+            throw new InvalidArgumentException('Invalid fields payload.');
+        }
+
+        $crud = new Crud((string) $request['table']);
+        $updatedRow = $crud->updateRecord(
+            (string) $request['primary_key_column'],
+            $request['primary_key_value'],
+            $fields
+        );
+
+        echo json_encode([
+            'success' => true,
+            'row' => $updatedRow,
+            'columns' => $updatedRow !== null ? array_keys($updatedRow) : [],
+            'id' => $request['id'] ?? null,
         ]);
     }
     
@@ -67,7 +121,9 @@ class CrudAjax
      */
     public static function isAjaxRequest(): bool
     {
-        return isset($_GET['fastcrud_ajax']) && $_GET['fastcrud_ajax'] === '1';
+        $flag = $_GET['fastcrud_ajax'] ?? $_POST['fastcrud_ajax'] ?? null;
+
+        return $flag === '1';
     }
     
     /**
@@ -79,5 +135,19 @@ class CrudAjax
         if (self::isAjaxRequest()) {
             self::handle();
         }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function getRequestData(): array
+    {
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+
+        if ($method === 'POST') {
+            return $_POST;
+        }
+
+        return $_GET;
     }
 }
