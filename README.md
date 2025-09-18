@@ -79,6 +79,7 @@ Crud::init([
 - Built-in pagination
 - AJAX support with CrudAjax class
 - Customizable per-page records
+- Inline editing and record deletion
 - Clean and responsive table rendering
 
 ## Requirements

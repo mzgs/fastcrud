@@ -26,6 +26,9 @@ class CrudAjax
                 case 'update':
                     self::handleUpdate($request);
                     break;
+                case 'delete':
+                    self::handleDelete($request);
+                    break;
                 default:
                     throw new InvalidArgumentException('Invalid action: ' . $action);
             }
@@ -114,6 +117,40 @@ class CrudAjax
             'columns' => $updatedRow !== null ? array_keys($updatedRow) : [],
             'id' => $request['id'] ?? null,
         ]);
+    }
+
+    /**
+     * Handle record deletions via AJAX.
+     *
+     * @param array<string, mixed> $request
+     */
+    private static function handleDelete(array $request): void
+    {
+        if (!isset($request['table'])) {
+            throw new InvalidArgumentException('Table parameter is required');
+        }
+
+        if (!isset($request['primary_key_column']) || !is_string($request['primary_key_column'])) {
+            throw new InvalidArgumentException('Primary key column is required.');
+        }
+
+        if (!array_key_exists('primary_key_value', $request)) {
+            throw new InvalidArgumentException('Primary key value is required.');
+        }
+
+        $crud     = new Crud((string) $request['table']);
+        $deleted  = $crud->deleteRecord((string) $request['primary_key_column'], $request['primary_key_value']);
+        $response = [
+            'success' => $deleted,
+            'deleted' => $deleted,
+            'id'      => $request['id'] ?? null,
+        ];
+
+        if (!$deleted) {
+            $response['error'] = 'Record not found or already deleted.';
+        }
+
+        echo json_encode($response);
     }
     
     /**

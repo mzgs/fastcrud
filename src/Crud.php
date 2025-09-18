@@ -183,7 +183,7 @@ HTML;
                 );
             }
 
-            $cells[] = '            <td class="text-end"><button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn">Edit</button></td>';
+            $cells[] = '            <td class="text-end"><div class="btn-group btn-group-sm" role="group"><button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn">Edit</button><button type="button" class="btn btn-sm btn-outline-danger fastcrud-delete-btn">Delete</button></div></td>';
 
             $bodyRows[] = "        <tr>\n" . implode("\n", $cells) . "\n        </tr>";
         }
@@ -423,6 +423,38 @@ HTML;
         }
 
         return $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
+    }
+
+    /**
+     * Delete a record by its primary key value.
+     */
+    public function deleteRecord(string $primaryKeyColumn, mixed $primaryKeyValue): bool
+    {
+        $primaryKeyColumn = trim($primaryKeyColumn);
+        if ($primaryKeyColumn === '') {
+            throw new InvalidArgumentException('Primary key column is required.');
+        }
+
+        $columns = $this->getColumnNames();
+        if (!in_array($primaryKeyColumn, $columns, true)) {
+            $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
+            throw new InvalidArgumentException($message);
+        }
+
+        $sql       = sprintf('DELETE FROM %s WHERE %s = :pk', $this->table, $primaryKeyColumn);
+        $statement = $this->connection->prepare($sql);
+
+        if ($statement === false) {
+            throw new RuntimeException('Failed to prepare delete statement.');
+        }
+
+        try {
+            $statement->execute([':pk' => $primaryKeyValue]);
+        } catch (PDOException $exception) {
+            throw new RuntimeException('Failed to delete record.', 0, $exception);
+        }
+
+        return $statement->rowCount() > 0;
     }
 
     /**
@@ -695,9 +727,17 @@ HTML;
                 });
 
                 var actionCell = $('<td class="text-end"></td>');
+                var buttonGroup = $('<div class="btn-group btn-group-sm" role="group"></div>');
+
                 var editButton = $('<button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn">Edit</button>');
                 editButton.data('row', $.extend({}, row));
-                actionCell.append(editButton);
+                buttonGroup.append(editButton);
+
+                var deleteButton = $('<button type="button" class="btn btn-sm btn-outline-danger fastcrud-delete-btn">Delete</button>');
+                deleteButton.data('row', $.extend({}, row));
+                buttonGroup.append(deleteButton);
+
+                actionCell.append(buttonGroup);
                 tableRow.append(actionCell);
                 tbody.append(tableRow);
             });
@@ -882,6 +922,57 @@ HTML;
             event.stopPropagation();
             var row = $(this).data('row');
             showEditForm(row || {});
+            return false;
+        });
+
+        function requestDelete(row) {
+            if (!primaryKeyColumn) {
+                showError('Unable to determine primary key for deletion.');
+                return;
+            }
+
+            if (!row || typeof row[primaryKeyColumn] === 'undefined') {
+                showError('Missing primary key value for selected record.');
+                return;
+            }
+
+            var primaryValue = row[primaryKeyColumn];
+            var confirmationMessage = 'Are you sure you want to delete record ' + primaryValue + '?';
+            if (!window.confirm(confirmationMessage)) {
+                return;
+            }
+
+            $.ajax({
+                url: window.location.pathname,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    fastcrud_ajax: '1',
+                    action: 'delete',
+                    table: tableName,
+                    id: tableId,
+                    primary_key_column: primaryKeyColumn,
+                    primary_key_value: primaryValue
+                },
+                success: function(response) {
+                    if (response && response.success) {
+                        loadTableData(currentPage);
+                    } else {
+                        var message = response && response.error ? response.error : 'Failed to delete record.';
+                        showError(message);
+                    }
+                },
+                error: function(_, __, error) {
+                    showError('Failed to delete record: ' + error);
+                }
+            });
+        }
+
+        table.on('click', '.fastcrud-delete-btn', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            var row = $(this).data('row');
+            requestDelete(row || {});
             return false;
         });
 
