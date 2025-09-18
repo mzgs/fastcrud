@@ -6,11 +6,15 @@ repo_root="$(cd "$(dirname "$0")" && pwd)"
 cd "$repo_root/uitest"
 
 headed_run=false
+video_mode=""
 
 while (($#)); do
   case "$1" in
     --headed|--show)
       headed_run=true
+      ;;
+    --video|--videos)
+      video_mode="on"
       ;;
     --)
       shift
@@ -18,7 +22,7 @@ while (($#)); do
       ;;
     *)
       echo "Unknown option: $1" >&2
-      echo "Usage: $0 [--show]" >&2
+      echo "Usage: $0 [--show] [--video]" >&2
       exit 2
       ;;
   esac
@@ -32,6 +36,12 @@ fi
 
 if [ "$#" -gt 0 ]; then
   command+=(-- "$@")
+fi
+
+if [ -n "$video_mode" ]; then
+  export UI_VIDEO_MODE="$video_mode"
+else
+  unset UI_VIDEO_MODE
 fi
 
 test_exit=0
