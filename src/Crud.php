@@ -83,7 +83,7 @@ class Crud
         $script     = $this->generateAjaxScript();
         $styles     = $this->buildActionColumnStyles($this->id);
         $colspan    = $this->escapeHtml((string) (count($columns) + 1));
-        $offcanvas  = $this->buildEditOffcanvas($id);
+        $offcanvas  = $this->buildEditOffcanvas($id) . $this->buildViewOffcanvas($id);
 
         return <<<HTML
 <div id="{$id}-container">
@@ -185,7 +185,11 @@ HTML;
                 );
             }
 
-            $cells[] = '            <td class="text-end fastcrud-actions-cell"><div class="btn-group btn-group-sm" role="group"><button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn">Edit</button><button type="button" class="btn btn-sm btn-outline-danger fastcrud-delete-btn">Delete</button></div></td>';
+            $cells[] = '            <td class="text-end fastcrud-actions-cell"><div class="btn-group btn-group-sm" role="group">'
+                . '<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-view-btn">View</button>'
+                . '<button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn">Edit</button>'
+                . '<button type="button" class="btn btn-sm btn-outline-danger fastcrud-delete-btn">Delete</button>'
+                . '</div></td>';
 
             $bodyRows[] = "        <tr>\n" . implode("\n", $cells) . "\n        </tr>";
         }
@@ -293,6 +297,28 @@ HTML;
 HTML;
     }
 
+    private function buildViewOffcanvas(string $id): string
+    {
+        $escapedId = $this->escapeHtml($id);
+        $labelId   = $escapedId . '-view-label';
+        $panelId   = $escapedId . '-view-panel';
+        $contentId = $escapedId . '-view-content';
+        $emptyId   = $escapedId . '-view-empty';
+
+        return <<<HTML
+<div class="offcanvas offcanvas-start" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}">
+    <div class="offcanvas-header border-bottom">
+        <h5 class="offcanvas-title" id="{$labelId}">View Record</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column">
+        <div class="alert alert-info d-none" id="{$emptyId}" role="alert">No record selected.</div>
+        <div id="{$contentId}" class="list-group list-group-flush flex-grow-1 overflow-auto"></div>
+    </div>
+</div>
+HTML;
+    }
+
     private function buildActionColumnStyles(string $id): string
     {
         $containerId = $this->escapeHtml($id . '-container');
@@ -308,7 +334,7 @@ HTML;
     position: sticky;
     right: 0;
     background-color: var(--bs-body-bg, #ffffff);
-    min-width: 9.5rem;
+    min-width: 14rem;
 }
 
 #{$containerId} table thead th.fastcrud-actions {
@@ -544,11 +570,17 @@ HTML;
         var editSuccess = $('#' + tableId + '-edit-success');
         var editLabel = $('#' + tableId + '-edit-label');
         var editOffcanvasElement = $('#' + tableId + '-edit-panel');
-        var offcanvasInstance = null;
+        var editOffcanvasInstance = null;
 
-        function getOffcanvasInstance() {
-            if (offcanvasInstance) {
-                return offcanvasInstance;
+        var viewOffcanvasElement = $('#' + tableId + '-view-panel');
+        var viewContentContainer = $('#' + tableId + '-view-content');
+        var viewEmptyNotice = $('#' + tableId + '-view-empty');
+        var viewHeading = $('#' + tableId + '-view-label');
+        var viewOffcanvasInstance = null;
+
+        function getEditOffcanvasInstance() {
+            if (editOffcanvasInstance) {
+                return editOffcanvasInstance;
             }
 
             var element = editOffcanvasElement.get(0);
@@ -556,8 +588,22 @@ HTML;
                 return null;
             }
 
-            offcanvasInstance = bootstrap.Offcanvas.getOrCreateInstance(element);
-            return offcanvasInstance;
+            editOffcanvasInstance = bootstrap.Offcanvas.getOrCreateInstance(element);
+            return editOffcanvasInstance;
+        }
+
+        function getViewOffcanvasInstance() {
+            if (viewOffcanvasInstance) {
+                return viewOffcanvasInstance;
+            }
+
+            var element = viewOffcanvasElement.get(0);
+            if (!element) {
+                return null;
+            }
+
+            viewOffcanvasInstance = bootstrap.Offcanvas.getOrCreateInstance(element);
+            return viewOffcanvasInstance;
         }
 
         function findPrimaryKey(columns) {
@@ -761,6 +807,10 @@ HTML;
                 var actionCell = $('<td class="text-end fastcrud-actions-cell"></td>');
                 var buttonGroup = $('<div class="btn-group btn-group-sm" role="group"></div>');
 
+                var viewButton = $('<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-view-btn">View</button>');
+                viewButton.data('row', $.extend({}, row));
+                buttonGroup.append(viewButton);
+
                 var editButton = $('<button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn">Edit</button>');
                 editButton.data('row', $.extend({}, row));
                 buttonGroup.append(editButton);
@@ -827,6 +877,10 @@ HTML;
         function showEditForm(row) {
             clearFormAlerts();
 
+            if (viewOffcanvasInstance) {
+                viewOffcanvasInstance.hide();
+            }
+
             if (!row || !primaryKeyColumn) {
                 showFormError('Unable to determine primary key for editing.');
                 return;
@@ -872,10 +926,79 @@ HTML;
                 editFieldsContainer.append(group);
             });
 
-            var offcanvas = getOffcanvasInstance();
+            var offcanvas = getEditOffcanvasInstance();
             if (offcanvas) {
                 offcanvas.show();
             }
+        }
+
+        function showViewPanel(row) {
+            if (editOffcanvasInstance) {
+                editOffcanvasInstance.hide();
+            }
+
+            var offcanvas = getViewOffcanvasInstance();
+            if (!offcanvas) {
+                return;
+            }
+
+            viewContentContainer.empty();
+            viewEmptyNotice.addClass('d-none').text('No record selected.');
+
+            if (!row || $.isEmptyObject(row)) {
+                viewEmptyNotice.removeClass('d-none');
+                offcanvas.show();
+                return;
+            }
+
+            if (!columnsCache || columnsCache.length === 0) {
+                viewEmptyNotice.text('Column metadata unavailable.').removeClass('d-none');
+                offcanvas.show();
+                return;
+            }
+
+            if (viewHeading.length) {
+                var headingText = 'View Record';
+                var primaryValue = primaryKeyColumn ? row[primaryKeyColumn] : null;
+                if (typeof primaryValue !== 'undefined' && primaryValue !== null && String(primaryValue).length > 0) {
+                    headingText += ' ' + primaryValue;
+                }
+                viewHeading.text(headingText);
+            }
+
+            var hasContent = false;
+            $.each(columnsCache, function(_, column) {
+                var label = makeLabel(column);
+                var value = row[column];
+                if (typeof value === 'undefined' || value === null) {
+                    value = '';
+                }
+
+                if (typeof value === 'object') {
+                    try {
+                        value = JSON.stringify(value);
+                    } catch (serializationError) {
+                        value = String(value);
+                    }
+                }
+
+                var displayValue = String(value);
+                if (displayValue.length === 0) {
+                    displayValue = 'N/A';
+                }
+
+                var item = $('<div class="list-group-item"></div>');
+                item.append($('<div class="fw-semibold text-muted mb-1"></div>').text(label));
+                item.append($('<div class="text-break"></div>').text(displayValue));
+                viewContentContainer.append(item);
+                hasContent = true;
+            });
+
+            if (!hasContent) {
+                viewEmptyNotice.text('No fields available for this record.').removeClass('d-none');
+            }
+
+            offcanvas.show();
         }
 
         function submitEditForm(event) {
@@ -906,7 +1029,7 @@ HTML;
             var originalText = submitButton.text();
             submitButton.prop('disabled', true).text('Saving...');
 
-            var offcanvas = getOffcanvasInstance();
+            var offcanvas = getEditOffcanvasInstance();
             if (offcanvas) {
                 offcanvas.hide();
             }
@@ -948,6 +1071,14 @@ HTML;
 
             return false;
         }
+
+        table.on('click', '.fastcrud-view-btn', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            var row = $(this).data('row');
+            showViewPanel(row || {});
+            return false;
+        });
 
         table.on('click', '.fastcrud-edit-btn', function(event) {
             event.preventDefault();
