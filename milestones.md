@@ -6,9 +6,10 @@
 - Return enriched metadata via AJAX for search/filter UI scaffolding
 
 ## 2. Column & Table Presentation
-- Add column configuration APIs: `columns`, `label`/`column_name`, `column_pattern`, `column_callback`
-- Enable visual enhancements: `highlight`, `highlight_row`, `column_class`, `column_width`, `column_cut`, custom buttons, duplicate toggle
-- Surface table-level info (`table_name`, tooltips, icons) and summary `sum` rows
+- **Column configuration APIs**: Extend `FastCrud\Crud` with fluent methods (`set_column_labels`, `column_pattern`, `column_callback`, `column_class`, `column_width`, `column_cut`, `column_buttons`) that normalize column identifiers, persist metadata in the existing config array, and serialize safe values through `buildClientConfigPayload()`/`buildMeta()` for AJAX consumers. Callbacks execute server-side so HTML stays escaped by default.
+- **Rendering pipeline updates**: Teach `buildHeader()` and `buildBody()` to honour the new metadata—apply custom labels, inject Bootstrap utility classes for width/highlights, truncate values when `column_cut` is set, and render optional per-column button groups or duplicate toggles. Ensure every rendered fragment routes through `escapeHtml()` unless an explicit `no_escape` flag is supplied.
+- **Table metadata & summaries**: Allow table-level descriptors (`table_name`, tooltip text, icon class) plus per-column summary aggregations (`sum`, `avg`, etc.). Surface these via `buildMeta()` and append summary rows after the body using Bootstrap table helpers. Aggregate calculations must use prepared statements and reuse the existing query builder to respect filters.
+- **jQuery integration**: Update `generateAjaxScript()` to hydrate column metadata (classes, widths, tooltips, highlight rules) on the client, render summary rows, and wire delegated handlers for custom column buttons plus the duplicate toggle. Follow the documented AJAX pattern, use Bootstrap 5 components (tooltips, buttons), and keep all DOM work inside the jQuery wrapper.
 
 ## 3. Form Engine
 - Provide field layout controls: `fields`, tab support, default tab, reverse modes per operation
@@ -19,4 +20,3 @@
 - Add CRUD lifecycle callbacks: before/after insert, update, delete, replace/delete actions
 - Implement creation/duplication flows, custom actions, nested tables, FK relations
 - Wire advanced features: alerts, mass alerts, interactive callbacks, file uploads, custom actions
-

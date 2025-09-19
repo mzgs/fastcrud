@@ -6,6 +6,37 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use FastCrud\Crud;
 
+function fc_format_post_date(?string $value, array $row, string $column, string $formatted): array
+{
+    if ($value === null || $value === '') {
+        return ['text' => '—'];
+    }
+
+    try {
+        $date = new \DateTime($value);
+    } catch (\Exception) {
+        return ['text' => $formatted !== '' ? $formatted : (string) $value];
+    }
+
+    return [
+        'text'    => $date->format('M j, Y'),
+        'tooltip' => $date->format(DATE_ATOM),
+    ];
+}
+
+function fc_render_user_role(?string $value, array $row, string $column, string $formatted): array
+{
+    $label = strtoupper($formatted !== '' ? $formatted : (string) $value);
+    $variant = $label === 'ADMIN' ? 'danger' : 'secondary';
+    $safe = htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+    return [
+        'html'  => '<span class="badge bg-' . $variant . '">' . $safe . '</span>',
+        'text'  => $label,
+        'class' => 'text-uppercase',
+    ];
+}
+
 Crud::init([
     'database' => 'fastcrud',
     'username' => 'root',
@@ -23,6 +54,11 @@ Crud::init([
     <title>FastCRUD Demo</title>
     <link
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+        crossorigin="anonymous"
+    >
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
         rel="stylesheet"
         crossorigin="anonymous"
     >
@@ -51,7 +87,27 @@ Crud::init([
                     ->relation('user_id', 'users', 'id', 'username')
                     // ->join('user_id', 'users', 'id','user')
                     // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
-                    ->search_columns('title,content', 'title');
+                    ->columns('user_id,title,slug,content,created_at')
+                    ->search_columns('title,content', 'title')
+                    ->set_column_labels([
+                        'user_id'    => 'Author',
+                        'title'      => 'Title',
+                        'content'    => 'Content',
+                        'created_at' => 'Published',
+                    ])
+                    ->column_pattern('slug', '<strong>{value} - {status}</strong>')
+                    ->column_callback('created_at', 'fc_format_post_date')
+                    ->column_class('user_id', 'text-muted')
+                    ->column_width('title', '30%')
+                    ->column_cut('content', 12)
+                  
+                    // ->highlight('id', ['operator' => 'equals', 'value' => 32], 'bg-info')
+                    ->highlight_row(['column' => 'id', 'operator' => 'equals', 'value' => 23], 'table-info')
+                    ->enable_duplicate_toggle()
+                    ->table_name('Posts Overview')
+                    // ->table_tooltip('FastCRUD live preview of posts')
+                    ->table_icon('bi bi-newspaper')
+                    ->column_summary('id', 'count', 'Total');
                 ?>
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-primary text-white">
@@ -77,7 +133,20 @@ Crud::init([
                     
                     ->order_by('role', 'asc')
                     ->order_by('id', 'desc')
-                    ->search_columns('name,email', 'name');
+                    ->search_columns('name,email', 'name')
+                    ->set_column_labels([
+                        'name'  => 'Name',
+                        'email' => 'Email Address',
+                        'role'  => 'Role',
+                    ])
+                    ->column_callback('role', 'fc_render_user_role', true)
+                    ->column_width('email', '30%')
+                    ->highlight('role', ['operator' => 'equals', 'value' => 'admin'], 'fw-semibold text-danger')
+                    ->highlight_row(['column' => 'role', 'operator' => 'equals', 'value' => 'admin'], 'table-warning')
+                    ->table_name('User Directory')
+                    ->table_tooltip('Core application users')
+                    ->table_icon('bi bi-people')
+                    ->column_summary('id', 'count', 'Total Users');
                 ?>
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-primary text-white">

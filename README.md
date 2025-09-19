@@ -81,6 +81,8 @@ Crud::init([
 - Relation helpers for lookup columns and joins
 - Built-in search toolbar powered by `search_columns`
 - Inline editing, deletion, and metadata-backed JavaScript hooks
+- Column presentation controls (labels, patterns, callbacks, classes, widths, highlights)
+- Table metadata, summary rows, custom column buttons, and duplicate toggles
 
 The sections below show how to enable each data-layer feature introduced in the latest release.
 
@@ -222,6 +224,110 @@ $articles = new Crud('articles');
 $articles->search_columns('title,content', 'title');
 echo $articles->render();
 ```
+
+## Column & Table Presentation
+
+### Column Labels & Patterns
+
+```php
+$posts = new Crud('posts');
+$posts
+    ->set_column_labels([
+        'user_id' => 'Author',
+        'title'   => 'Headline',
+    ])
+    ->column_pattern(['created_at', 'updated_at'], '{value} UTC')
+    ->column_pattern('status', '<span class="badge bg-{raw}">{value}</span>');
+
+// Lightweight example:
+$posts->column_pattern('slug', '<strong>{value} - {title}</strong>');
+```
+
+Available placeholders:
+
+```text
+{value}     – formatted value (includes effects of callbacks, cuts, etc.)
+{raw}       – raw database value for the column
+{column}    – column name (after normalization)
+{label}     – resolved label/title for the column
+{other}     – raw value from another column in the same row (e.g. {title})
+```
+
+Pattern output is injected as-is, so HTML fragments (badges, icons, etc.) can be returned directly.
+
+### Server-Side Callbacks
+
+```php
+function render_status($value, array $row, string $column, string $formatted): array
+{
+    $label = strtoupper($formatted);
+    $tone = $label === 'ACTIVE' ? 'success' : 'secondary';
+
+    return [
+        'html'  => '<span class="badge bg-' . $tone . '">' . htmlspecialchars($label, ENT_QUOTES) . '</span>',
+        'text'  => $label,
+        'class' => 'text-uppercase',
+    ];
+}
+
+$users = new Crud('users');
+$users->column_callback('status', 'render_status', true);
+```
+
+Callbacks must be serialisable (string callables or `Class::method`) because FastCRUD rebuilds them during each AJAX request. They receive the raw value, the full row, the column name, and the current formatted string. Return a string for simple overrides or an array with keys like `html`, `text`, `class`, `tooltip`, and `attributes` for richer control.
+
+### Classes, Widths & Truncation
+
+```php
+$posts
+    ->column_class('user_id', 'text-muted')
+    ->column_width('title', '40%')
+    ->column_cut('content', 120, '…');
+```
+
+Provide Bootstrap utility classes or explicit dimensions to `column_width()`. The helper synchronises header and body widths, and `column_cut()` safely shortens long text before it reaches the browser.
+
+### Highlights
+
+```php
+$posts
+    ->highlight('status', ['operator' => 'equals', 'value' => 'draft'], 'text-warning')
+    ->highlight_row(['column' => 'priority', 'operator' => 'gt', 'value' => 3], 'table-warning');
+```
+
+Highlight conditions support `equals`, `not_equals`, `contains`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in`, `empty`, and `not_empty`. Cell highlights append Bootstrap text/background classes, while row highlights add table-level classes (e.g. `table-success`).
+
+### Custom Buttons & Duplicate Toggle
+
+```php
+$posts
+   
+    ->enable_duplicate_toggle();
+
+$(document).on('fastcrud:action', '#posts-table', function(event, payload) {
+    if (payload.action === 'preview-post') {
+        console.log('Preview row', payload.row);
+    }
+});
+
+$(document).on('fastcrud:duplicate', '#posts-table', function(event, payload) {
+    console.log('Duplicate requested for', payload.row);
+});
+```
+
+Column buttons render Bootstrap button groups inside the specified column, and every click triggers a `fastcrud:action` event so you can react without forking the core script. `enable_duplicate_toggle()` adds a Duplicate button to the action column and emits `fastcrud:duplicate` with the row payload.
+
+### Table Metadata & Summary Rows
+
+```php
+$posts
+    ->table_name('Posts Overview')
+    ->table_icon('bi bi-newspaper')
+    ->table_tooltip('FastCRUD live preview of posts')
+    ->column_summary('total', 'sum', 'Grand Total', 2);
+```
+
+Metadata renders above the toolbar (icon + title + tooltip) while summaries appear in a Bootstrap-styled footer row. Summary queries respect the current filters/search term and support the aggregation types `sum`, `avg`, `min`, `max`, and `count`.
 
 ### JavaScript Helpers (`window.FastCrudTables`)
 

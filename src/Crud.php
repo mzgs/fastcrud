@@ -20,6 +20,22 @@ class Crud
      * @var array<string, array<int, string>>
      */
     private array $tableColumnCache = [];
+    private const SUPPORTED_CONDITION_OPERATORS = [
+        'equals',
+        'not_equals',
+        'contains',
+        'gt',
+        'gte',
+        'lt',
+        'lte',
+        'in',
+        'not_in',
+        'empty',
+        'not_empty',
+    ];
+
+    private const SUPPORTED_SUMMARY_TYPES = ['sum', 'avg', 'min', 'max', 'count'];
+
     /**
      * @var array<string, mixed>
      */
@@ -37,6 +53,21 @@ class Crud
         'subselects' => [],
         'visible_columns' => null,
         'columns_reverse' => false,
+        'column_labels' => [],
+        'column_patterns' => [],
+        'column_callbacks' => [],
+        'column_classes' => [],
+        'column_widths' => [],
+        'column_cuts' => [],
+        'column_highlights' => [],
+        'row_highlights' => [],
+        'duplicate_toggle' => false,
+        'table_meta' => [
+            'name'    => null,
+            'tooltip' => null,
+            'icon'    => null,
+        ],
+        'column_summaries' => [],
     ];
 
     /**
@@ -144,6 +175,445 @@ class Crud
         return array_values(array_unique($normalized));
     }
 
+    private function normalizeCssClassList(string $classes): string
+    {
+        $list = $this->normalizeList($classes);
+        return implode(' ', $list);
+    }
+
+    private function normalizeCallable(callable|string|array $callback): string
+    {
+        if (is_string($callback)) {
+            return $callback;
+        }
+
+        if ($callback instanceof \Closure) {
+            throw new InvalidArgumentException('Closures cannot be serialized for AJAX callbacks. Use a named function or static method instead.');
+        }
+
+        if (is_array($callback) && count($callback) === 2) {
+            [$target, $method] = $callback;
+            if (is_object($target)) {
+                $class = get_class($target);
+                if (is_string($method) && $method !== '') {
+                    return $class . '::' . $method;
+                }
+            }
+
+            if (is_string($target) && is_string($method) && $target !== '' && $method !== '') {
+                return $target . '::' . $method;
+            }
+        }
+
+        throw new InvalidArgumentException('Unsupported callback type. Provide a string callable or [ClassName, method] pair.');
+    }
+
+    /**
+     * @param array<string, mixed>|string $condition
+     *
+     * @return array{column: string, operator: string, value: mixed}
+     */
+    private function normalizeCondition(array|string $condition, ?string $defaultColumn): array
+    {
+        if (is_string($condition)) {
+            $condition = trim($condition);
+            if ($condition === '') {
+                throw new InvalidArgumentException('Highlight conditions cannot be empty.');
+            }
+
+            $normalized = strtolower($condition);
+            if ($normalized === 'empty' || $normalized === '!value') {
+                return [
+                    'column'   => $defaultColumn ?? '',
+                    'operator' => 'empty',
+                    'value'    => null,
+                ];
+            }
+
+            if ($normalized === 'not_empty' || $normalized === '!empty' || $normalized === 'has_value') {
+                return [
+                    'column'   => $defaultColumn ?? '',
+                    'operator' => 'not_empty',
+                    'value'    => null,
+                ];
+            }
+
+            return [
+                'column'   => $defaultColumn ?? '',
+                'operator' => 'equals',
+                'value'    => $condition,
+            ];
+        }
+
+        $normalized = [];
+        foreach ($condition as $key => $value) {
+            if (!is_string($key)) {
+                continue;
+            }
+            $normalized[strtolower($key)] = $value;
+        }
+
+        $column = isset($normalized['column']) && is_string($normalized['column'])
+            ? $this->normalizeColumnReference($normalized['column'])
+            : ($defaultColumn ?? '');
+
+        if ($column === '') {
+            throw new InvalidArgumentException('Highlight conditions must reference a column.');
+        }
+
+        $operator = isset($normalized['operator']) ? strtolower((string) $normalized['operator']) : 'equals';
+        if (!in_array($operator, self::SUPPORTED_CONDITION_OPERATORS, true)) {
+            throw new InvalidArgumentException('Unsupported condition operator: ' . $operator);
+        }
+
+        $value = $normalized['value'] ?? null;
+
+        if (in_array($operator, ['in', 'not_in'], true)) {
+            if (is_string($value)) {
+                $value = $this->normalizeList($value);
+            }
+
+            if (!is_array($value) || $value === []) {
+                throw new InvalidArgumentException('IN/NOT IN conditions require a non-empty array of values.');
+            }
+        }
+
+        if (in_array($operator, ['gt', 'gte', 'lt', 'lte'], true)) {
+            if (!is_numeric($value)) {
+                throw new InvalidArgumentException('Comparison operators require numeric values.');
+            }
+            $value = (float) $value;
+        }
+
+        if ($operator === 'contains' && !is_string($value)) {
+            throw new InvalidArgumentException('Contains operator requires a string value.');
+        }
+
+        return [
+            'column'   => $column,
+            'operator' => $operator,
+            'value'    => $value,
+        ];
+    }
+
+    private function evaluateCondition(array $condition, array $row): bool
+    {
+        $column = $condition['column'];
+        $operator = $condition['operator'];
+        $value = $condition['value'];
+
+        $current = $row[$column] ?? null;
+
+        switch ($operator) {
+            case 'empty':
+                return $current === null || $current === '';
+            case 'not_empty':
+                return !($current === null || $current === '');
+            case 'equals':
+                return $current == $value; // intentional loose comparison for DB values
+            case 'not_equals':
+                return $current != $value;
+            case 'contains':
+                return is_string($current) && strpos($current, (string) $value) !== false;
+            case 'gt':
+                return (float) $current > (float) $value;
+            case 'gte':
+                return (float) $current >= (float) $value;
+            case 'lt':
+                return (float) $current < (float) $value;
+            case 'lte':
+                return (float) $current <= (float) $value;
+            case 'in':
+                return in_array((string) $current, array_map('strval', (array) $value), true);
+            case 'not_in':
+                return !in_array((string) $current, array_map('strval', (array) $value), true);
+        }
+
+        return false;
+    }
+
+    private function stringifyValue(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        if (is_string($value) || is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        if (is_object($value)) {
+            if (method_exists($value, '__toString')) {
+                return (string) $value;
+            }
+
+            try {
+                return json_encode($value, JSON_THROW_ON_ERROR);
+            } catch (JsonException) {
+                return get_class($value);
+            }
+        }
+
+        if (is_array($value)) {
+            try {
+                return json_encode($value, JSON_THROW_ON_ERROR);
+            } catch (JsonException) {
+                return '[array]';
+            }
+        }
+
+        return (string) $value;
+    }
+
+    private function truncateString(string $value, int $length, string $suffix = '…'): string
+    {
+        $length = max(1, $length);
+        $stringLength = function_exists('mb_strlen') ? mb_strlen($value) : strlen($value);
+
+        if ($stringLength <= $length) {
+            return $value;
+        }
+
+        $substr = function_exists('mb_substr') ? mb_substr($value, 0, $length) : substr($value, 0, $length);
+
+        return $substr . $suffix;
+    }
+
+    private const PATTERN_TOKEN_REGEX = '/\{([A-Za-z0-9_]+)\}/';
+
+    private function applyPattern(string $pattern, string $display, mixed $raw, string $column, array $row): string
+    {
+        return preg_replace_callback(
+            self::PATTERN_TOKEN_REGEX,
+            function (array $matches) use ($display, $raw, $column, $row): string {
+                $token = strtolower($matches[1]);
+
+                return match ($token) {
+                    'value'  => $display,
+                    'raw'    => $this->stringifyValue($raw),
+                    'column' => $column,
+                    'label'  => $this->resolveColumnLabel($column),
+                    default  => $this->stringifyValue($row[$token] ?? ''),
+                };
+            },
+            $pattern
+        );
+    }
+
+    private function resolveColumnLabel(string $column): string
+    {
+        return $this->config['column_labels'][$column] ?? $this->makeTitle($column);
+    }
+
+    private function buildColumnSlug(string $column): string
+    {
+        $slug = preg_replace('/[^A-Za-z0-9]+/', '-', $column);
+        $slug = trim((string) $slug, '-');
+
+        return $slug === '' ? 'column' : strtolower($slug);
+    }
+
+    /**
+     * @return array{class: string|null, style: string|null}
+     */
+    private function interpretWidth(string $width): array
+    {
+        $width = trim($width);
+        if ($width === '') {
+            return ['class' => null, 'style' => null];
+        }
+
+        $lower = strtolower($width);
+        $styleUnits = ['px', 'rem', 'em', '%', 'vw', 'vh'];
+        foreach ($styleUnits as $unit) {
+            if (substr($lower, -strlen($unit)) === $unit) {
+                return ['class' => null, 'style' => 'width: ' . $width . ';'];
+            }
+        }
+
+        if (strpos($lower, 'calc(') !== false) {
+            return ['class' => null, 'style' => 'width: ' . $width . ';'];
+        }
+
+        return ['class' => $this->normalizeCssClassList($width), 'style' => null];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function presentRow(array $row, array $columns): array
+    {
+        $cells = [];
+        $rawValues = [];
+
+        if (isset($row['__fastcrud_raw']) && is_array($row['__fastcrud_raw'])) {
+            $rawValues = $row['__fastcrud_raw'];
+        }
+
+        foreach ($columns as $column) {
+            $value = $row[$column] ?? null;
+            $rawOriginal = $rawValues[$column] ?? $value;
+            $cells[$column] = $this->presentCell($column, $value, $row, $rawOriginal);
+        }
+
+        $rowClasses = [];
+        foreach ($this->config['row_highlights'] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $condition = $entry['condition'] ?? null;
+            $class = isset($entry['class']) ? (string) $entry['class'] : '';
+            if (!is_array($condition) || $class === '') {
+                continue;
+            }
+
+            if ($this->evaluateCondition($condition, $row)) {
+                $rowClasses[] = $class;
+            }
+        }
+
+        $meta = ['cells' => $cells];
+        if ($rawValues !== []) {
+            $meta['raw'] = $rawValues;
+        }
+        if ($rowClasses !== []) {
+            $meta['row_class'] = implode(' ', $rowClasses);
+        }
+
+        return $meta;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @param array<int, string> $columns
+     * @return array<int, array<string, mixed>>
+     */
+    private function decorateRows(array $rows, array $columns): array
+    {
+        foreach ($rows as $index => $row) {
+            $rows[$index]['__fastcrud'] = $this->presentRow($row, $columns);
+            if (isset($rows[$index]['__fastcrud_raw'])) {
+                unset($rows[$index]['__fastcrud_raw']);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function presentCell(string $column, mixed $value, array $row, mixed $rawOriginal): array
+    {
+        $display = $this->stringifyValue($value);
+        $displayOriginal = $display;
+
+        $html = null;
+
+        $patternEntry = $this->config['column_patterns'][$column] ?? null;
+        if ($patternEntry !== null) {
+            $patternTemplate = trim((string) $patternEntry);
+            if ($patternTemplate !== '') {
+                $patternOutput = $this->applyPattern($patternTemplate, $display, $value, $column, $row);
+                $html = $patternOutput;
+                $display = $displayOriginal;
+            }
+        }
+
+        if (isset($this->config['column_cuts'][$column])) {
+            $cut = $this->config['column_cuts'][$column];
+            if (is_array($cut) && isset($cut['length'])) {
+                $suffix = isset($cut['suffix']) ? (string) $cut['suffix'] : '…';
+                $display = $this->truncateString($display, (int) $cut['length'], $suffix);
+            }
+        }
+
+        $tooltip = null;
+        $attributes = [];
+        $cellClasses = [];
+
+        if (isset($this->config['column_callbacks'][$column])) {
+            $callbackEntry = $this->config['column_callbacks'][$column];
+            if (is_array($callbackEntry) && isset($callbackEntry['callable'])) {
+                $callable = $callbackEntry['callable'];
+                $allowHtml = (bool) ($callbackEntry['allow_html'] ?? false);
+
+                if (is_callable($callable)) {
+                    $result = call_user_func($callable, $value, $row, $column, $display);
+
+                    if (is_array($result)) {
+                        if (isset($result['text'])) {
+                            $display = $this->stringifyValue($result['text']);
+                        }
+                        if ($allowHtml && isset($result['html'])) {
+                            $html = (string) $result['html'];
+                        }
+                        if (isset($result['class'])) {
+                            $cellClasses[] = $this->normalizeCssClassList((string) $result['class']);
+                        }
+                        if (isset($result['tooltip'])) {
+                            $tooltip = trim((string) $result['tooltip']);
+                        }
+                        if (isset($result['attributes']) && is_array($result['attributes'])) {
+                            foreach ($result['attributes'] as $attrKey => $attrValue) {
+                                if (!is_string($attrKey)) {
+                                    continue;
+                                }
+                                $attributes[$attrKey] = (string) $attrValue;
+                            }
+                        }
+                    } elseif ($allowHtml) {
+                        $html = (string) $result;
+                        $display = $this->stringifyValue($result);
+                    } else {
+                        $display = $this->stringifyValue($result);
+                    }
+                }
+            }
+        }
+
+        if (isset($this->config['column_classes'][$column])) {
+            $cellClasses[] = $this->config['column_classes'][$column];
+        }
+
+        if (isset($this->config['column_highlights'][$column])) {
+            foreach ($this->config['column_highlights'][$column] as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $condition = $entry['condition'] ?? null;
+                $class = isset($entry['class']) ? (string) $entry['class'] : '';
+                if (!is_array($condition) || $class === '') {
+                    continue;
+                }
+
+                if ($this->evaluateCondition($condition, $row)) {
+                    $cellClasses[] = $class;
+                }
+            }
+        }
+
+        $width = $this->config['column_widths'][$column] ?? null;
+
+        return [
+            'display'    => $display,
+            'html'       => $html,
+            'class'      => trim(implode(' ', array_filter($cellClasses, static fn(string $class): bool => $class !== ''))),
+            'tooltip'    => $tooltip,
+            'attributes' => $attributes,
+            'width'      => $width,
+            'raw'        => $rawOriginal,
+        ];
+    }
+
     public function limit(int $limit): self
     {
         return $this->setPerPage($limit);
@@ -212,6 +682,248 @@ class Crud
 
         $this->config['visible_columns'] = $transformed;
         $this->config['columns_reverse'] = $reverse;
+
+        return $this;
+    }
+
+    /**
+     * @param array<string, string>|string $labels
+     */
+    public function set_column_labels(array|string $labels, ?string $label = null): self
+    {
+        if (is_array($labels)) {
+            foreach ($labels as $column => $value) {
+                if (!is_string($column)) {
+                    continue;
+                }
+
+                $this->set_column_labels($column, is_string($value) ? $value : null);
+            }
+            return $this;
+        }
+
+        $column = $this->normalizeColumnReference($labels);
+        if ($column === '') {
+            throw new InvalidArgumentException('Column name cannot be empty when setting labels.');
+        }
+
+        $resolvedLabel = trim((string) $label);
+        if ($resolvedLabel === '') {
+            throw new InvalidArgumentException('Column label cannot be empty.');
+        }
+
+        $this->config['column_labels'][$column] = $resolvedLabel;
+
+        return $this;
+    }
+
+  
+    /**
+     * Apply a simple HTML/text template to the column's rendered value.
+     *
+     * Example:
+     * ```php
+     * // Produces "slug - original title" inside a <strong> wrapper
+     * $crud->column_pattern('slug', '<strong>{value} - {title}</strong>');
+     * ```
+     */
+    public function column_pattern(string|array $columns, string $pattern): self
+    {
+        if (is_array($columns)) {
+            foreach ($columns as $column) {
+                if (!is_string($column)) {
+                    continue;
+                }
+                $this->column_pattern($column, $pattern);
+            }
+            return $this;
+        }
+
+        $column = $this->normalizeColumnReference($columns);
+        if ($column === '') {
+            throw new InvalidArgumentException('Column name cannot be empty when assigning a pattern.');
+        }
+
+        $pattern = trim($pattern);
+        if ($pattern === '') {
+            throw new InvalidArgumentException('Column pattern cannot be empty.');
+        }
+
+        $this->config['column_patterns'][$column] = $pattern;
+
+        return $this;
+    }
+
+    public function column_callback(string $column, callable|string|array $callback, bool $allowHtml = false): self
+    {
+        $column = $this->normalizeColumnReference($column);
+        if ($column === '') {
+            throw new InvalidArgumentException('Column name cannot be empty when assigning a callback.');
+        }
+
+        $serialized = $this->normalizeCallable($callback);
+
+        if (!is_callable($serialized)) {
+            throw new InvalidArgumentException('Provided callback is not callable: ' . $serialized);
+        }
+
+        $this->config['column_callbacks'][$column] = [
+            'callable'   => $serialized,
+            'allow_html' => $allowHtml,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * @param string|array<int, string> $classes
+     */
+    public function column_class(string $column, string|array $classes): self
+    {
+        $column = $this->normalizeColumnReference($column);
+        if ($column === '') {
+            throw new InvalidArgumentException('Column name cannot be empty when assigning classes.');
+        }
+
+        $normalized = is_array($classes) ? $this->normalizeList($classes) : $this->normalizeList((string) $classes);
+        $this->config['column_classes'][$column] = implode(' ', $normalized);
+
+        return $this;
+    }
+
+    public function column_width(string $column, string $width): self
+    {
+        $column = $this->normalizeColumnReference($column);
+        if ($column === '') {
+            throw new InvalidArgumentException('Column name cannot be empty when assigning widths.');
+        }
+
+        $width = trim($width);
+        if ($width === '') {
+            throw new InvalidArgumentException('Column width cannot be empty.');
+        }
+
+        $this->config['column_widths'][$column] = $width;
+
+        return $this;
+    }
+
+    public function column_cut(string $column, int $length, string $suffix = '…'): self
+    {
+        $column = $this->normalizeColumnReference($column);
+        if ($column === '') {
+            throw new InvalidArgumentException('Column name cannot be empty when setting cut length.');
+        }
+
+        if ($length < 1) {
+            throw new InvalidArgumentException('Column cut length must be at least 1.');
+        }
+
+        $this->config['column_cuts'][$column] = [
+            'length' => $length,
+            'suffix' => $suffix,
+        ];
+
+        return $this;
+    }
+
+
+    /**
+     * @param array<string, mixed>|string $condition
+     */
+    public function highlight(string $column, array|string $condition, string $class = 'text-warning'): self
+    {
+        $column = $this->normalizeColumnReference($column);
+        if ($column === '') {
+            throw new InvalidArgumentException('Column name cannot be empty when defining highlights.');
+        }
+
+        $normalizedCondition = $this->normalizeCondition($condition, $column);
+        $class = $this->normalizeCssClassList($class);
+
+        $this->config['column_highlights'][$column][] = [
+            'condition' => $normalizedCondition,
+            'class'     => $class,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * @param array<string, mixed>|string $condition
+     */
+    public function highlight_row(array|string $condition, string $class = 'table-warning'): self
+    {
+        $normalizedCondition = $this->normalizeCondition($condition, null);
+        $class = $this->normalizeCssClassList($class);
+
+        $this->config['row_highlights'][] = [
+            'condition' => $normalizedCondition,
+            'class'     => $class,
+        ];
+
+        return $this;
+    }
+
+    public function table_name(string $name): self
+    {
+        $name = trim($name);
+        if ($name === '') {
+            throw new InvalidArgumentException('Table name cannot be empty.');
+        }
+
+        $this->config['table_meta']['name'] = $name;
+
+        return $this;
+    }
+
+    public function table_tooltip(string $tooltip): self
+    {
+        $tooltip = trim($tooltip);
+        $this->config['table_meta']['tooltip'] = $tooltip === '' ? null : $tooltip;
+
+        return $this;
+    }
+
+    public function table_icon(string $iconClass): self
+    {
+        $iconClass = $this->normalizeCssClassList($iconClass);
+        $this->config['table_meta']['icon'] = $iconClass === '' ? null : $iconClass;
+
+        return $this;
+    }
+
+    public function enable_duplicate_toggle(bool $enabled = true): self
+    {
+        $this->config['duplicate_toggle'] = $enabled;
+
+        return $this;
+    }
+
+    public function column_summary(string $column, string $type = 'sum', ?string $label = null, ?int $precision = null): self
+    {
+        $column = $this->normalizeColumnReference($column);
+        if ($column === '') {
+            throw new InvalidArgumentException('Column name cannot be empty when defining summaries.');
+        }
+
+        $type = strtolower(trim($type));
+        if (!in_array($type, self::SUPPORTED_SUMMARY_TYPES, true)) {
+            throw new InvalidArgumentException('Unsupported summary type: ' . $type . '| Supported types: ' . implode(', ', self::SUPPORTED_SUMMARY_TYPES) . '.');
+        }
+
+        if ($precision !== null && $precision < 0) {
+            throw new InvalidArgumentException('Summary precision cannot be negative.');
+        }
+
+        $entry = [
+            'column'    => $column,
+            'type'      => $type,
+            'label'     => $label ? trim($label) : null,
+            'precision' => $precision,
+        ];
+
+        $this->config['column_summaries'][] = $entry;
 
         return $this;
     }
@@ -806,6 +1518,12 @@ class Crud
 
                 $currentValue = $row[$field];
 
+                if (!isset($rows[$rowIndex]['__fastcrud_raw']) || !is_array($rows[$rowIndex]['__fastcrud_raw'])) {
+                    $rows[$rowIndex]['__fastcrud_raw'] = [];
+                }
+
+                $rows[$rowIndex]['__fastcrud_raw'][$field] = $currentValue;
+
                 if (!empty($relation['multi']) && is_string($currentValue)) {
                     $labels = [];
                     foreach ($this->splitValues($currentValue) as $value) {
@@ -951,6 +1669,11 @@ class Crud
         return $column;
     }
 
+    private function denormalizeColumnReference(string $column): string
+    {
+        return str_replace('__', '.', $column);
+    }
+
     /**
      * Render all records from the configured table as an HTML table.
      */
@@ -983,6 +1706,7 @@ class Crud
 
         return <<<HTML
 <div id="{$id}-container" data-fastcrud-config="{$configAttr}">
+    <div id="{$id}-meta" class="d-flex flex-wrap align-items-center gap-2 mb-2"></div>
     <div id="{$id}-toolbar" class="d-flex flex-wrap align-items-center gap-2 mb-3"></div>
     <div class="table-responsive">
         <table id="$id" class="table table-hover align-middle" data-table="$table" data-per-page="$perPage">
@@ -1001,6 +1725,7 @@ $headerHtml
                     </td>
                 </tr>
             </tbody>
+            <tfoot id="{$id}-summary" class="fastcrud-summary"></tfoot>
         </table>
     </div>
     <nav aria-label="Table pagination">
@@ -1050,6 +1775,8 @@ HTML;
 
         $columns = $this->extractColumnNames($statement, $rows);
         [$rows, $columns] = $this->applyColumnVisibility($rows, $columns);
+
+        $rows = $this->decorateRows($rows, $columns);
 
         return [$rows, $columns];
     }
@@ -1104,10 +1831,31 @@ HTML;
         $cells = [];
 
         foreach ($columns as $column) {
-            $label = $this->makeTitle($column);
+            $label = $this->resolveColumnLabel($column);
+            $classes = ['fastcrud-column', 'fastcrud-column-' . $this->buildColumnSlug($column)];
+
+            $width = isset($this->config['column_widths'][$column])
+                ? $this->interpretWidth((string) $this->config['column_widths'][$column])
+                : ['class' => null, 'style' => null];
+
+            if ($width['class']) {
+                $classes[] = $width['class'];
+            }
+
+            $attributes = ['scope="col"', 'data-column="' . $this->escapeHtml($column) . '"'];
+
+            $classString = trim(implode(' ', array_filter($classes, static fn(string $value): bool => $value !== '')));
+            if ($classString !== '') {
+                $attributes[] = 'class="' . $this->escapeHtml($classString) . '"';
+            }
+
+            if ($width['style']) {
+                $attributes[] = 'style="' . $this->escapeHtml($width['style']) . '"';
+            }
 
             $cells[] = sprintf(
-                '            <th scope="col">%s</th>',
+                '            <th %s>%s</th>',
+                implode(' ', $attributes),
                 $this->escapeHtml($label)
             );
         }
@@ -1125,7 +1873,12 @@ HTML;
     private function extractColumnNames(PDOStatement $statement, array $rows): array
     {
         if ($rows !== []) {
-            return array_keys($rows[0]);
+            $columns = array_keys($rows[0]);
+
+            return array_values(array_filter(
+                $columns,
+                static fn(string $column): bool => strpos($column, '__fastcrud') !== 0
+            ));
         }
 
         $columns = [];
@@ -1141,7 +1894,8 @@ HTML;
 
     private function makeTitle(string $column): string
     {
-        return ucwords(str_replace('_', ' ', $column));
+        $normalized = str_replace('__', ' ', $column);
+        return ucwords(str_replace('_', ' ', $normalized));
     }
 
     private function escapeHtml(?string $value): string
@@ -1305,15 +2059,49 @@ HTML;
                 'total_rows'   => $totalRows,
                 'per_page'     => $effectivePerPage,
             ],
-            'meta'       => $this->buildMeta($columns),
+            'meta'       => $this->buildMetaWithSummaries($columns, $searchTerm, $searchColumn),
         ];
+    }
+
+    private function buildMetaWithSummaries(array $columns, ?string $searchTerm, ?string $searchColumn): array
+    {
+        $meta = $this->buildMeta($columns);
+        $meta['summaries'] = $this->buildSummaries($searchTerm, $searchColumn);
+
+        return $meta;
     }
 
     private function buildMeta(array $columns): array
     {
+        $columnLookup = array_flip($columns);
+
+        $filterColumns = static function (array $source) use ($columnLookup): array {
+            $filtered = [];
+            foreach ($source as $column => $value) {
+                if (isset($columnLookup[$column])) {
+                    $filtered[$column] = $value;
+                }
+            }
+            return $filtered;
+        };
+
+        $tableMeta = $this->config['table_meta'];
+        $tableName = isset($tableMeta['name']) && is_string($tableMeta['name']) && $tableMeta['name'] !== ''
+            ? $tableMeta['name']
+            : $this->makeTitle($this->table);
+
         return [
-            'table'          => $this->table,
+            'table' => [
+                'key'       => $this->table,
+                'name'      => $tableName,
+                'tooltip'   => $tableMeta['tooltip'] ?? null,
+                'icon'      => $tableMeta['icon'] ?? null,
+                'duplicate' => $this->config['duplicate_toggle'],
+            ],
             'columns'        => $columns,
+            'labels'         => $filterColumns($this->config['column_labels']),
+            'column_classes' => $filterColumns($this->config['column_classes']),
+            'column_widths'  => $filterColumns($this->config['column_widths']),
             'limit_options'  => $this->config['limit_options'],
             'default_limit'  => $this->config['limit_default'] ?? $this->perPage,
             'search'         => [
@@ -1328,6 +2116,90 @@ HTML;
                 $this->config['order_by']
             ),
         ];
+    }
+
+    private function buildSummaries(?string $searchTerm, ?string $searchColumn): array
+    {
+        if ($this->config['column_summaries'] === []) {
+            return [];
+        }
+
+        $parameters = [];
+        $whereClause = $this->buildWhereClause($parameters, $searchTerm, $searchColumn);
+        $fromClause = $this->buildFromClause();
+        $joins = $this->buildJoinClauses();
+
+        $baseSql = sprintf('FROM %s', $fromClause);
+        if ($joins !== '') {
+            $baseSql .= ' ' . $joins;
+        }
+        if ($whereClause !== '') {
+            $baseSql .= ' WHERE ' . $whereClause;
+        }
+
+        $summaries = [];
+
+        foreach ($this->config['column_summaries'] as $entry) {
+            if (!is_array($entry) || !isset($entry['column'], $entry['type'])) {
+                continue;
+            }
+
+            $column = (string) $entry['column'];
+            $type = strtolower((string) $entry['type']);
+
+            if (!in_array($type, self::SUPPORTED_SUMMARY_TYPES, true)) {
+                continue;
+            }
+
+            $label = isset($entry['label']) && is_string($entry['label']) && $entry['label'] !== ''
+                ? $entry['label']
+                : $this->resolveColumnLabel($column);
+
+            $precision = isset($entry['precision']) && is_numeric($entry['precision'])
+                ? (int) $entry['precision']
+                : null;
+
+            $columnExpression = $this->denormalizeColumnReference($column);
+            if (strpos($columnExpression, '.') === false && strpos($columnExpression, '(') === false) {
+                $columnExpression = 'main.' . $columnExpression;
+            }
+
+            $aggregateSql = sprintf(
+                'SELECT %s(%s) AS aggregate %s',
+                strtoupper($type),
+                $columnExpression,
+                $baseSql
+            );
+
+            $statement = $this->connection->prepare($aggregateSql);
+            if ($statement === false) {
+                continue;
+            }
+
+            try {
+                $statement->execute($parameters);
+            } catch (PDOException) {
+                continue;
+            }
+
+            $value = $statement->fetchColumn();
+            if ($value === false) {
+                $value = null;
+            }
+
+            if ($precision !== null && $value !== null && is_numeric($value)) {
+                $value = number_format((float) $value, $precision, '.', '');
+            }
+
+            $summaries[] = [
+                'column' => $column,
+                'type'   => $type,
+                'label'  => $label,
+                'value'  => $value,
+            ];
+        }
+
+        return $summaries;
     }
 
     /**
@@ -1350,6 +2222,17 @@ HTML;
             'subselects'     => $this->config['subselects'],
             'visible_columns' => $this->config['visible_columns'],
             'columns_reverse' => $this->config['columns_reverse'],
+            'column_labels'   => $this->config['column_labels'],
+            'column_patterns' => $this->config['column_patterns'],
+            'column_callbacks' => $this->config['column_callbacks'],
+            'column_classes'  => $this->config['column_classes'],
+            'column_widths'   => $this->config['column_widths'],
+            'column_cuts'     => $this->config['column_cuts'],
+            'column_highlights' => $this->config['column_highlights'],
+            'row_highlights'    => $this->config['row_highlights'],
+            'duplicate_toggle'  => $this->config['duplicate_toggle'],
+            'table_meta'        => $this->config['table_meta'],
+            'column_summaries'  => $this->config['column_summaries'],
         ];
     }
 
@@ -1369,7 +2252,23 @@ HTML;
             }
         }
 
-        $arrayKeys = ['where', 'order_by', 'no_quotes', 'joins', 'relations', 'subselects'];
+        $arrayKeys = [
+            'where',
+            'order_by',
+            'no_quotes',
+            'joins',
+            'relations',
+            'subselects',
+            'column_labels',
+            'column_patterns',
+            'column_callbacks',
+            'column_classes',
+            'column_widths',
+            'column_cuts',
+            'column_highlights',
+            'row_highlights',
+            'column_summaries',
+        ];
         foreach ($arrayKeys as $key) {
             if (isset($payload[$key]) && is_array($payload[$key])) {
                 $this->config[$key] = $payload[$key];
@@ -1415,6 +2314,199 @@ HTML;
 
         if (isset($payload['columns_reverse'])) {
             $this->config['columns_reverse'] = (bool) $payload['columns_reverse'];
+        }
+
+        if (isset($payload['duplicate_toggle'])) {
+            $this->config['duplicate_toggle'] = (bool) $payload['duplicate_toggle'];
+        }
+
+        if (isset($payload['table_meta']) && is_array($payload['table_meta'])) {
+            $meta = $payload['table_meta'];
+            $this->config['table_meta'] = [
+                'name'    => isset($meta['name']) && is_string($meta['name']) ? $meta['name'] : null,
+                'tooltip' => isset($meta['tooltip']) && is_string($meta['tooltip']) ? $meta['tooltip'] : null,
+                'icon'    => isset($meta['icon']) && is_string($meta['icon']) ? $meta['icon'] : null,
+            ];
+        }
+
+        if (isset($payload['column_callbacks']) && is_array($payload['column_callbacks'])) {
+            $normalized = [];
+            foreach ($payload['column_callbacks'] as $column => $entry) {
+                if (!is_string($column) || !is_array($entry) || !isset($entry['callable'])) {
+                    continue;
+                }
+
+                $callable = $entry['callable'];
+                if (!is_string($callable) || $callable === '' || !is_callable($callable)) {
+                    continue;
+                }
+
+                $normalized[$column] = [
+                    'callable'   => $callable,
+                    'allow_html' => (bool) ($entry['allow_html'] ?? false),
+                ];
+            }
+
+            if ($normalized !== []) {
+                $this->config['column_callbacks'] = $normalized;
+            }
+        }
+
+        if (isset($payload['column_labels']) && is_array($payload['column_labels'])) {
+            $labels = [];
+            foreach ($payload['column_labels'] as $column => $label) {
+                if (!is_string($column) || !is_string($label)) {
+                    continue;
+                }
+                $normalizedColumn = $this->normalizeColumnReference($column);
+                if ($normalizedColumn === '') {
+                    continue;
+                }
+                $trimmed = trim($label);
+                if ($trimmed === '') {
+                    continue;
+                }
+                $labels[$normalizedColumn] = $trimmed;
+            }
+            $this->config['column_labels'] = $labels;
+        }
+
+        if (isset($payload['column_classes']) && is_array($payload['column_classes'])) {
+            $classes = [];
+            foreach ($payload['column_classes'] as $column => $value) {
+                if (!is_string($column) || !is_string($value)) {
+                    continue;
+                }
+                $classes[$this->normalizeColumnReference($column)] = $this->normalizeCssClassList($value);
+            }
+            $this->config['column_classes'] = $classes;
+        }
+
+        if (isset($payload['column_widths']) && is_array($payload['column_widths'])) {
+            $widths = [];
+            foreach ($payload['column_widths'] as $column => $width) {
+                if (!is_string($column) || !is_string($width)) {
+                    continue;
+                }
+                $widths[$this->normalizeColumnReference($column)] = trim($width);
+            }
+            $this->config['column_widths'] = $widths;
+        }
+
+        if (isset($payload['column_patterns']) && is_array($payload['column_patterns'])) {
+            $patterns = [];
+            foreach ($payload['column_patterns'] as $column => $patternEntry) {
+                if (!is_string($column)) {
+                    continue;
+                }
+
+                $normalizedColumn = $this->normalizeColumnReference($column);
+                if ($normalizedColumn === '') {
+                    continue;
+                }
+
+                if (is_array($patternEntry)) {
+                    $patternEntry = isset($patternEntry['template']) ? (string) $patternEntry['template'] : '';
+                }
+
+                if (!is_string($patternEntry)) {
+                    continue;
+                }
+
+                $template = trim($patternEntry);
+                if ($template === '') {
+                    continue;
+                }
+
+                $patterns[$normalizedColumn] = $template;
+            }
+            $this->config['column_patterns'] = $patterns;
+        }
+
+        if (isset($payload['column_cuts']) && is_array($payload['column_cuts'])) {
+            $cuts = [];
+            foreach ($payload['column_cuts'] as $column => $cut) {
+                if (!is_string($column) || !is_array($cut) || !isset($cut['length'])) {
+                    continue;
+                }
+                $cuts[$this->normalizeColumnReference($column)] = [
+                    'length' => (int) $cut['length'],
+                    'suffix' => isset($cut['suffix']) ? (string) $cut['suffix'] : '…',
+                ];
+            }
+            $this->config['column_cuts'] = $cuts;
+        }
+
+
+        if (isset($payload['column_highlights']) && is_array($payload['column_highlights'])) {
+            $highlights = [];
+            foreach ($payload['column_highlights'] as $column => $entries) {
+                if (!is_string($column) || !is_array($entries)) {
+                    continue;
+                }
+                $normalizedColumn = $this->normalizeColumnReference($column);
+                $normalizedEntries = [];
+                foreach ($entries as $entry) {
+                    if (!is_array($entry) || !isset($entry['condition'], $entry['class'])) {
+                        continue;
+                    }
+                    $condition = $entry['condition'];
+                    $class = (string) $entry['class'];
+                    if (!is_array($condition) || $class === '') {
+                        continue;
+                    }
+                    $normalizedEntries[] = [
+                        'condition' => $condition,
+                        'class'     => $class,
+                    ];
+                }
+                if ($normalizedEntries !== []) {
+                    $highlights[$normalizedColumn] = $normalizedEntries;
+                }
+            }
+            $this->config['column_highlights'] = $highlights;
+        }
+
+        if (isset($payload['row_highlights']) && is_array($payload['row_highlights'])) {
+            $rowHighlights = [];
+            foreach ($payload['row_highlights'] as $entry) {
+                if (!is_array($entry) || !isset($entry['condition'], $entry['class'])) {
+                    continue;
+                }
+                $condition = $entry['condition'];
+                $class = (string) $entry['class'];
+                if (!is_array($condition) || $class === '') {
+                    continue;
+                }
+                $rowHighlights[] = [
+                    'condition' => $condition,
+                    'class'     => $class,
+                ];
+            }
+            $this->config['row_highlights'] = $rowHighlights;
+        }
+
+        if (isset($payload['column_summaries']) && is_array($payload['column_summaries'])) {
+            $summaries = [];
+            foreach ($payload['column_summaries'] as $entry) {
+                if (!is_array($entry) || !isset($entry['column'], $entry['type'])) {
+                    continue;
+                }
+                $column = $this->normalizeColumnReference((string) $entry['column']);
+                $type = strtolower((string) $entry['type']);
+                if (!in_array($type, self::SUPPORTED_SUMMARY_TYPES, true)) {
+                    continue;
+                }
+                $summaries[] = [
+                    'column'    => $column,
+                    'type'      => $type,
+                    'label'     => isset($entry['label']) ? (string) $entry['label'] : null,
+                    'precision' => isset($entry['precision']) && is_numeric($entry['precision'])
+                        ? (int) $entry['precision']
+                        : null,
+                ];
+            }
+            $this->config['column_summaries'] = $summaries;
         }
     }
 
@@ -1612,8 +2704,13 @@ HTML;
         var searchConfig = { columns: [], default: null };
         var currentSearchTerm = '';
         var currentSearchColumn = null;
+        var columnLabels = {};
+        var columnClasses = {};
+        var columnWidths = {};
+        var duplicateEnabled = false;
 
         var toolbar = $('#' + tableId + '-toolbar');
+        var metaContainer = $('#' + tableId + '-meta');
         var searchGroup = null;
         var searchInput = null;
         var searchSelect = null;
@@ -1634,6 +2731,7 @@ HTML;
         var viewEmptyNotice = $('#' + tableId + '-view-empty');
         var viewHeading = $('#' + tableId + '-view-label');
         var viewOffcanvasInstance = null;
+        var summaryFooter = $('#' + tableId + '-summary');
 
         function getEditOffcanvasInstance() {
             if (editOffcanvasInstance) {
@@ -1670,6 +2768,20 @@ HTML;
 
             metaConfig = meta;
 
+            if (Array.isArray(meta.columns)) {
+                columnsCache = meta.columns;
+            }
+
+            columnLabels = meta.labels && typeof meta.labels === 'object' ? meta.labels : {};
+            columnClasses = meta.column_classes && typeof meta.column_classes === 'object' ? meta.column_classes : {};
+            columnWidths = meta.column_widths && typeof meta.column_widths === 'object' ? meta.column_widths : {};
+
+            var tableMeta = meta.table && typeof meta.table === 'object' ? meta.table : {};
+            duplicateEnabled = !!tableMeta.duplicate;
+
+            updateMetaContainer(tableMeta);
+            applyHeaderMetadata();
+
             if (Array.isArray(meta.limit_options) && meta.limit_options.length) {
                 perPageOptions = meta.limit_options;
                 clientConfig.limit_options = meta.limit_options;
@@ -1700,6 +2812,9 @@ HTML;
                 searchConfig = { columns: [], default: null };
                 ensureSearchControls();
             }
+
+            renderSummaries(meta.summaries || []);
+            refreshTooltips();
 
             metaInitialized = true;
         }
@@ -1771,6 +2886,246 @@ HTML;
             toolbar.append(searchGroup);
         }
 
+        function updateMetaContainer(tableMeta) {
+            if (!metaContainer.length) {
+                return;
+            }
+
+            metaContainer.empty();
+
+            if (!tableMeta || (!tableMeta.name && !tableMeta.icon && !tableMeta.tooltip)) {
+                metaContainer.addClass('d-none');
+                return;
+            }
+
+            var wrapper = $('<div class="d-flex align-items-center gap-2"></div>');
+
+            if (tableMeta.icon) {
+                wrapper.append($('<i></i>').addClass(tableMeta.icon));
+            }
+
+            if (tableMeta.name) {
+                var title = $('<h5 class="mb-0"></h5>').text(tableMeta.name);
+                if (tableMeta.tooltip) {
+                    title.attr('title', tableMeta.tooltip).attr('data-bs-toggle', 'tooltip');
+                }
+                wrapper.append(title);
+            } else if (tableMeta.tooltip) {
+                wrapper.append($('<span class="text-muted"></span>').text(tableMeta.tooltip));
+            }
+
+            metaContainer.removeClass('d-none').append(wrapper);
+        }
+
+        function applyHeaderMetadata() {
+            var headerCells = table.find('thead th').not('.fastcrud-actions');
+            headerCells.each(function(index) {
+                var column = columnsCache[index];
+                if (!column) {
+                    return;
+                }
+
+                var cell = $(this);
+                cell.text(makeLabel(column));
+                applyWidthToElement(cell, columnWidths[column]);
+            });
+        }
+
+        function applyWidthToElement(element, widthValue) {
+            if (!element || !element.length) {
+                return;
+            }
+
+            element.css('width', '');
+
+            if (!widthValue) {
+                return;
+            }
+
+            var width = String(widthValue).trim();
+            if (!width) {
+                return;
+            }
+
+            if (/\s/.test(width)) {
+                width.split(/\s+/).forEach(function(token) {
+                    if (token) {
+                        element.addClass(token);
+                    }
+                });
+                return;
+            }
+
+            var lower = width.toLowerCase();
+            var units = ['px', 'rem', 'em', '%', 'vw', 'vh'];
+            var useStyle = false;
+            for (var index = 0; index < units.length; index++) {
+                var unit = units[index];
+                if (lower.slice(-unit.length) === unit) {
+                    useStyle = true;
+                    break;
+                }
+            }
+
+            if (!useStyle && lower.indexOf('calc(') !== -1) {
+                useStyle = true;
+            }
+
+            if (useStyle) {
+                element.css('width', width);
+            } else {
+                element.addClass(width);
+            }
+        }
+
+        function renderSummaries(summaries) {
+            if (!summaryFooter.length) {
+                return;
+            }
+
+            summaryFooter.empty();
+
+            if (!Array.isArray(summaries) || !summaries.length || !columnsCache.length) {
+                summaryFooter.addClass('d-none');
+                return;
+            }
+
+            summaryFooter.removeClass('d-none');
+
+            $.each(summaries, function(_, summary) {
+                var row = $('<tr class="table-light"></tr>');
+                var targetColumn = summary.column;
+                var labelText = summary.label || makeLabel(targetColumn);
+                var renderedValue = summary.value === null || typeof summary.value === 'undefined' || summary.value === ''
+                    ? '—'
+                    : String(summary.value);
+
+                $.each(columnsCache, function(columnIndex, column) {
+                    var cell = $('<td></td>');
+                    applyWidthToElement(cell, columnWidths[column]);
+
+                    if (columnIndex === 0) {
+                        if (column === targetColumn) {
+                            cell.text(labelText + ': ' + renderedValue).addClass('fw-semibold');
+                        } else {
+                            cell.text(labelText).addClass('text-muted');
+                        }
+                    } else if (column === targetColumn) {
+                        cell.text(renderedValue).addClass('fw-semibold');
+                    } else {
+                        cell.html('&nbsp;');
+                    }
+
+                    row.append(cell);
+                });
+
+                row.append('<td class="text-end fastcrud-actions-cell">&nbsp;</td>');
+                summaryFooter.append(row);
+            });
+        }
+
+        function refreshTooltips() {
+            if (!window.bootstrap || !bootstrap.Tooltip) {
+                return;
+            }
+
+            var tooltipTargets = table.find('[data-bs-toggle="tooltip"]').get();
+            tooltipTargets.forEach(function(target) {
+                var existing = bootstrap.Tooltip.getInstance(target);
+                if (existing) {
+                    existing.dispose();
+                }
+                bootstrap.Tooltip.getOrCreateInstance(target);
+            });
+
+            var metaTargets = metaContainer.find('[data-bs-toggle="tooltip"]').get();
+            metaTargets.forEach(function(target) {
+                var existing = bootstrap.Tooltip.getInstance(target);
+                if (existing) {
+                    existing.dispose();
+                }
+                bootstrap.Tooltip.getOrCreateInstance(target);
+            });
+        }
+
+        function buildCustomButton(button, row) {
+            if (!button || !button.action) {
+                return $('<span></span>');
+            }
+
+            var btn = $('<button type="button" class="btn btn-sm fastcrud-custom-btn"></button>');
+            var variantRaw = (button.variant || 'outline-secondary').trim();
+            if (!variantRaw) {
+                variantRaw = 'outline-secondary';
+            }
+
+            var variantTokens;
+            if (/\s/.test(variantRaw)) {
+                variantTokens = variantRaw.split(/\s+/);
+            } else if (variantRaw.indexOf('btn-') === 0) {
+                variantTokens = [variantRaw];
+            } else if (variantRaw.indexOf('outline-') === 0) {
+                variantTokens = ['btn-' + variantRaw];
+            } else {
+                variantTokens = ['btn-outline-' + variantRaw];
+            }
+
+            variantTokens.forEach(function(token) {
+                if (token) {
+                    btn.addClass(token);
+                }
+            });
+            btn.attr('data-action', button.action);
+            btn.data('row', row);
+            btn.data('definition', button);
+
+            if (button.confirm) {
+                btn.attr('data-confirm', button.confirm);
+            }
+
+            var iconRendered = false;
+            if (button.icon) {
+                var icon = $('<i></i>').addClass(button.icon);
+                btn.append(icon);
+                iconRendered = true;
+            }
+
+            if (button.label) {
+                if (iconRendered) {
+                    btn.append(' ');
+                }
+                btn.append(document.createTextNode(button.label));
+            }
+
+            return btn;
+        }
+
+        function buildActionCell(row) {
+            var actionCell = $('<td class="text-end fastcrud-actions-cell"></td>');
+            var buttonGroup = $('<div class="btn-group btn-group-sm" role="group"></div>');
+
+            var viewButton = $('<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-view-btn">View</button>');
+            viewButton.data('row', $.extend({}, row));
+            buttonGroup.append(viewButton);
+
+            var editButton = $('<button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn">Edit</button>');
+            editButton.data('row', $.extend({}, row));
+            buttonGroup.append(editButton);
+
+            var deleteButton = $('<button type="button" class="btn btn-sm btn-outline-danger fastcrud-delete-btn">Delete</button>');
+            deleteButton.data('row', $.extend({}, row));
+            buttonGroup.append(deleteButton);
+
+            if (duplicateEnabled) {
+                var duplicateButton = $('<button type="button" class="btn btn-sm btn-outline-info fastcrud-duplicate-btn">Duplicate</button>');
+                duplicateButton.data('row', $.extend({}, row));
+                buttonGroup.append(duplicateButton);
+            }
+
+            actionCell.append(buttonGroup);
+            return actionCell;
+        }
+
         function triggerSearch() {
             if (!searchInput) {
                 return;
@@ -1792,6 +3147,10 @@ HTML;
         }
 
         function makeLabel(column) {
+            if (columnLabels && Object.prototype.hasOwnProperty.call(columnLabels, column)) {
+                return columnLabels[column];
+            }
+
             var words = column.replace(/_/g, ' ').split(' ');
 
             for (var index = 0; index < words.length; index++) {
@@ -1992,31 +3351,74 @@ HTML;
             }
 
             $.each(rows, function(rowIndex, row) {
+                var rowMeta = row.__fastcrud || {};
+                var cellsMeta = rowMeta.cells || {};
+                var rawValues = rowMeta.raw || {};
+                var rowData = $.extend({}, row);
+                delete rowData.__fastcrud;
+                if (rowData.__fastcrud_raw) {
+                    delete rowData.__fastcrud_raw;
+                }
+
+                if (rawValues && typeof rawValues === 'object') {
+                    Object.keys(rawValues).forEach(function(key) {
+                        var rawValue = rawValues[key];
+                        if (typeof rawValue !== 'undefined') {
+                            rowData[key] = rawValue;
+                        }
+                    });
+                }
+
                 var tableRow = $('<tr></tr>');
+                if (rowMeta.row_class) {
+                    tableRow.addClass(rowMeta.row_class);
+                }
+
                 $.each(columnsCache, function(colIndex, column) {
-                    var value = row[column];
-                    if (value === null || typeof value === 'undefined') {
-                        value = '';
+                    var cellMeta = cellsMeta[column] || {};
+                    var cell = $('<td></td>');
+                    var displayValue;
+
+                    if (typeof cellMeta.display !== 'undefined') {
+                        displayValue = cellMeta.display;
+                    } else {
+                        var rawValue = row[column];
+                        if (rawValue === null || typeof rawValue === 'undefined') {
+                            displayValue = '';
+                        } else {
+                            displayValue = rawValue;
+                        }
                     }
-                    tableRow.append($('<td></td>').text(value));
+
+                    if (cellMeta.class) {
+                        cell.addClass(cellMeta.class);
+                    } else if (columnClasses[column]) {
+                        cell.addClass(columnClasses[column]);
+                    }
+
+                    applyWidthToElement(cell, (cellMeta.width || columnWidths[column]));
+
+                    if (cellMeta.tooltip) {
+                        cell.attr('title', cellMeta.tooltip).attr('data-bs-toggle', 'tooltip');
+                    }
+
+                    if (cellMeta.attributes && typeof cellMeta.attributes === 'object') {
+                        $.each(cellMeta.attributes, function(attrKey, attrValue) {
+                            cell.attr(attrKey, attrValue);
+                        });
+                    }
+
+                    if (cellMeta.html) {
+                        cell.html(cellMeta.html);
+                    } else {
+                        cell.text(displayValue);
+                    }
+
+
+                    tableRow.append(cell);
                 });
 
-                var actionCell = $('<td class="text-end fastcrud-actions-cell"></td>');
-                var buttonGroup = $('<div class="btn-group btn-group-sm" role="group"></div>');
-
-                var viewButton = $('<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-view-btn">View</button>');
-                viewButton.data('row', $.extend({}, row));
-                buttonGroup.append(viewButton);
-
-                var editButton = $('<button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn">Edit</button>');
-                editButton.data('row', $.extend({}, row));
-                buttonGroup.append(editButton);
-
-                var deleteButton = $('<button type="button" class="btn btn-sm btn-outline-danger fastcrud-delete-btn">Delete</button>');
-                deleteButton.data('row', $.extend({}, row));
-                buttonGroup.append(deleteButton);
-
-                actionCell.append(buttonGroup);
+                var actionCell = buildActionCell(rowData);
                 tableRow.append(actionCell);
                 tbody.append(tableRow);
             });
@@ -2052,13 +3454,19 @@ HTML;
                     if (response && response.success) {
                         applyMeta(response.meta || {});
 
-                        columnsCache = response.columns || [];
+                        if (Array.isArray(response.columns) && response.columns.length) {
+                            columnsCache = response.columns;
+                        }
                         primaryKeyColumn = findPrimaryKey(columnsCache);
 
                         tbody.fadeOut(100, function() {
                             populateTableRows(response.data || []);
-                            tbody.fadeIn(100);
+                            tbody.fadeIn(100, function() {
+                                refreshTooltips();
+                            });
                         });
+
+                        renderSummaries(metaConfig.summaries || []);
 
                         if (response.pagination) {
                             buildPagination(response.pagination);
@@ -2348,6 +3756,38 @@ HTML;
             event.stopPropagation();
             var row = $(this).data('row');
             requestDelete(row || {});
+            return false;
+        });
+
+        table.on('click', '.fastcrud-custom-btn', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            var button = $(this);
+            var confirmMessage = button.attr('data-confirm');
+            if (confirmMessage && !window.confirm(confirmMessage)) {
+                return false;
+            }
+
+            var row = button.data('row') || {};
+            var payload = {
+                tableId: tableId,
+                action: button.attr('data-action'),
+                row: row,
+                definition: button.data('definition') || null
+            };
+
+            table.trigger('fastcrud:action', payload);
+            return false;
+        });
+
+        table.on('click', '.fastcrud-duplicate-btn', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            var row = $(this).data('row') || {};
+            table.trigger('fastcrud:duplicate', {
+                tableId: tableId,
+                row: row
+            });
             return false;
         });
 

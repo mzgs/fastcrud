@@ -69,7 +69,21 @@ test('edit record workflow', async ({ page }) => {
   await targetInput.fill(newValue);
 
   const saveButton = page.locator(`${offcanvasSelector} button[type="submit"]`);
-  await saveButton.click();
+
+  const [updateResponse] = await Promise.all([
+    page.waitForResponse((resp) => {
+      if (resp.request().method() !== 'POST') {
+        return false;
+      }
+      const urlMatches = resp.url().endsWith('/basic.php');
+      const body = resp.request().postData() || '';
+      return urlMatches && body.includes('action=update');
+    }),
+    saveButton.click(),
+  ]);
+
+  const updatePayload = await updateResponse.json().catch(() => ({}));
+  expect(updatePayload && updatePayload.success, `Expected a successful update payload, received: ${JSON.stringify(updatePayload)}`).toBeTruthy();
 
   const successAlert = page.locator(`#${tableId}-edit-success`);
   await expect(successAlert, 'Expected success alert after saving changes').toBeVisible({ timeout: 5000 });
@@ -84,7 +98,7 @@ test('edit record workflow', async ({ page }) => {
   expect(columnIndex, `Expected to locate column header for ${columnLabel}`).toBeGreaterThan(-1);
 
   const firstRowCell = table.locator('tbody tr').first().locator('td').nth(columnIndex);
-  await expect(firstRowCell, 'Expected table to reflect edited value').toHaveText(newValue, {
+  await expect(firstRowCell, 'Expected table to reflect edited value').toContainText(newValue, {
     timeout: 5000,
   });
 
@@ -185,6 +199,93 @@ test('filtering and pagination controls', async ({ page }) => {
 
   const html = await page.content();
   const serverErrors = findServerErrorMarkers(html);
+  expect(serverErrors, formatServerErrors(serverErrors)).toEqual([]);
+
+  expect(consoleErrors, formatConsoleErrors(consoleErrors)).toEqual([]);
+  expect(pageErrors, formatPageErrors(pageErrors)).toEqual([]);
+});
+
+test('presentation and metadata features', async ({ page }) => {
+  const { consoleErrors, pageErrors } = setupErrorTracking(page);
+
+  const response = await page.goto(TARGET_URL, { waitUntil: 'networkidle' });
+  expect(response && response.ok(), 'Expected a successful HTTP response').toBeTruthy();
+
+  const postsCard = page.locator('.card').first();
+  await expect(postsCard, 'Expected posts card to render').toBeVisible();
+
+  const table = postsCard.locator('table').first();
+  await expect(table, 'Expected posts table to render').toBeVisible();
+
+  const tableId = await table.getAttribute('id');
+  expect(tableId, 'Expected table to expose an id attribute').toBeTruthy();
+
+  await page.waitForSelector(`#${tableId}-summary tr`, { timeout: 10000 });
+
+  const heading = page.locator(`#${tableId}-meta h5`).first();
+  await expect(heading, 'Expected metadata heading to reflect table name').toHaveText('Posts Overview');
+
+  const icon = page.locator(`#${tableId}-meta i`).first();
+  await expect(icon, 'Expected metadata icon to render').toHaveClass(/bi-newspaper/);
+
+  const customButton = table.locator('.fastcrud-custom-btn').first();
+  await expect(customButton, 'Expected custom column button to render').toBeVisible();
+
+  const duplicateButton = table.locator('.fastcrud-duplicate-btn').first();
+  await expect(duplicateButton, 'Expected duplicate toggle to render').toBeVisible();
+
+  const summaryRow = page.locator(`#${tableId}-summary tr`).first();
+  await expect(summaryRow, 'Expected summary row to render').toBeVisible();
+  await expect(summaryRow.locator('td').first(), 'Expected summary label cell to describe the aggregate').toContainText(/Total Posts/i);
+
+  const meta = await page.evaluate((id) => {
+    if (window.FastCrudTables && window.FastCrudTables[id]) {
+      return window.FastCrudTables[id].getMeta();
+    }
+    return null;
+  }, tableId);
+  expect(meta, 'Expected metadata payload to be available').toBeTruthy();
+
+  const slugIndex = meta.columns.findIndex((column) => column === 'slug');
+  expect(slugIndex, 'Expected slug column to be present in metadata').toBeGreaterThan(-1);
+  const slugCell = table.locator('tbody tr').first().locator('td').nth(slugIndex);
+  const slugHtml = await slugCell.evaluate((element) => element.innerHTML);
+  expect(slugHtml, 'Expected slug cell to render column_pattern HTML').toContain('<strong>');
+
+  const titleIndex = meta.columns.findIndex((column) => column === 'title');
+  expect(titleIndex, 'Expected title column to exist').toBeGreaterThan(-1);
+  const titleText = (await table.locator('tbody tr').first().locator('td').nth(titleIndex).innerText()).trim();
+  expect(slugHtml, 'Expected slug pattern to include the title value').toContain(titleText);
+
+  await page.evaluate((id) => {
+    window.__fastcrudActionEvents = [];
+    window.__fastcrudDuplicateEvents = [];
+    if (window.jQuery) {
+      const tableElement = window.jQuery('#' + id);
+      tableElement.on('fastcrud:action.test', function (_event, payload) {
+        window.__fastcrudActionEvents.push(payload);
+      });
+      tableElement.on('fastcrud:duplicate.test', function (_event, payload) {
+        window.__fastcrudDuplicateEvents.push(payload);
+      });
+    }
+  }, tableId);
+
+  const dialogPromise = page.waitForEvent('dialog', { timeout: 5000 }).catch(() => null);
+  await customButton.click();
+  const dialog = await dialogPromise;
+  if (dialog) {
+    await dialog.accept();
+  }
+  const actionEvents = await page.evaluate(() => window.__fastcrudActionEvents || []);
+  expect(actionEvents.length, 'Expected custom button click to emit fastcrud:action').toBeGreaterThan(0);
+  expect(actionEvents[0] && actionEvents[0].action, 'Expected payload to include the action id').toBe('preview-post');
+
+  await duplicateButton.click();
+  const duplicateEvents = await page.evaluate(() => window.__fastcrudDuplicateEvents || []);
+  expect(duplicateEvents.length, 'Expected duplicate button to emit fastcrud:duplicate').toBeGreaterThan(0);
+
+  const serverErrors = findServerErrorMarkers(await page.content());
   expect(serverErrors, formatServerErrors(serverErrors)).toEqual([]);
 
   expect(consoleErrors, formatConsoleErrors(consoleErrors)).toEqual([]);
