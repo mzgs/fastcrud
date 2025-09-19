@@ -54,16 +54,33 @@ class CrudAjax
         
         $table = $request['table'];
         $page = isset($request['page']) ? (int) $request['page'] : 1;
-        $perPage = isset($request['per_page']) ? (int) $request['per_page'] : null;
-        
-        $crud = new Crud($table);
-        $data = $crud->getTableData($page, $perPage);
-        
+
+        $perPage = null;
+        if (isset($request['per_page'])) {
+            $perPageRaw = $request['per_page'];
+            if (is_string($perPageRaw) && strtolower($perPageRaw) === 'all') {
+                $perPage = 0;
+            } elseif (is_numeric($perPageRaw)) {
+                $perPage = (int) $perPageRaw;
+            }
+        }
+
+        $searchTerm = isset($request['search_term']) ? (string) $request['search_term'] : null;
+        $searchColumn = isset($request['search_column']) ? (string) $request['search_column'] : null;
+
+        $crud = Crud::fromAjax(
+            $table,
+            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
+            $request['config'] ?? null
+        );
+        $data = $crud->getTableData($page, $perPage, $searchTerm, $searchColumn);
+
         echo json_encode([
             'success' => true,
             'data' => $data['rows'],
             'columns' => $data['columns'],
             'pagination' => $data['pagination'],
+            'meta' => $data['meta'] ?? [],
             'id' => $request['id'] ?? null
         ]);
     }
@@ -104,7 +121,11 @@ class CrudAjax
             throw new InvalidArgumentException('Invalid fields payload.');
         }
 
-        $crud = new Crud((string) $request['table']);
+        $crud = Crud::fromAjax(
+            (string) $request['table'],
+            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
+            $request['config'] ?? null
+        );
         $updatedRow = $crud->updateRecord(
             (string) $request['primary_key_column'],
             $request['primary_key_value'],
@@ -138,7 +159,11 @@ class CrudAjax
             throw new InvalidArgumentException('Primary key value is required.');
         }
 
-        $crud     = new Crud((string) $request['table']);
+        $crud     = Crud::fromAjax(
+            (string) $request['table'],
+            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
+            $request['config'] ?? null
+        );
         $deleted  = $crud->deleteRecord((string) $request['primary_key_column'], $request['primary_key_value']);
         $response = [
             'success' => $deleted,

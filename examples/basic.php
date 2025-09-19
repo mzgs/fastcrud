@@ -43,12 +43,22 @@ Crud::init([
                     <h1 class="display-5">FastCRUD Demo</h1>
                     <p class="lead">Dynamically rendered records for the configured table.</p>
                 </div>
+                <?php
+                $postsCrud = new Crud('posts');
+                $postsCrud
+                    ->limit_list('5,10,25,all')
+                    ->order_by('id', 'desc')
+                    ->relation('user_id', 'users', 'id', 'username')
+                    // ->join('user_id', 'users', 'id','user')
+                    // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
+                    ->search_columns('title,content', 'title');
+                ?>
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-primary text-white">
                         Posts Table Preview
                     </div>
                     <div class="card-body">
-                        <?= new Crud('posts')->render(); ?>
+                        <?= $postsCrud->render(); ?>
                     </div>
                 </div>
 
@@ -60,12 +70,21 @@ Crud::init([
                     <h1 class="display-5">FastCRUD Demo</h1>
                     <p class="lead">Dynamically rendered records for the configured table.</p>
                 </div>
+                <?php
+                $usersCrud = new Crud('users');
+                $usersCrud
+                    ->limit_list('5,10,25')
+                    
+                    ->order_by('role', 'asc')
+                    ->order_by('id', 'desc')
+                    ->search_columns('name,email', 'name');
+                ?>
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-primary text-white">
                         Users Table Preview
                     </div>
                     <div class="card-body">
-                        <?= new Crud('users')->render(); ?>
+                        <?= $usersCrud->render(); ?>
                     </div>
                 </div>
             </div>

@@ -73,14 +73,165 @@ Crud::init([
 </html>
 ```
 
-## Features
+## Feature Highlights
 
-- Simple CRUD operations
-- Built-in pagination
-- AJAX support with CrudAjax class
-- Customizable per-page records
-- Inline editing and record deletion
-- Clean and responsive table rendering
+- Simple CRUD operations with Bootstrap 5 UI
+- Built-in pagination and AJAX refreshes
+- Query helpers: flexible limits, ordering, and `where` filters
+- Relation helpers for lookup columns and joins
+- Built-in search toolbar powered by `search_columns`
+- Inline editing, deletion, and metadata-backed JavaScript hooks
+
+The sections below show how to enable each data-layer feature introduced in the latest release.
+
+### Pagination Controls with `limit_list`
+
+```php
+$posts = new Crud('posts');
+$posts->limit_list('5,10,25,all'); // adds dropdown + "All" option
+echo $posts->render();
+```
+
+### Sorting with `order_by`
+
+```php
+$users = new Crud('users');
+$users->order_by('created_at', 'desc');
+echo $users->render();
+```
+
+### Filtering with `where` / `or_where`
+
+```php
+$tickets = new Crud('tickets');
+$tickets
+    ->where('status =', 'open')
+    ->or_where(['priority =' => 'high']);
+echo $tickets->render();
+```
+
+### Raw Expressions with `no_quotes`
+
+```php
+$logs = new Crud('activity_logs');
+$logs
+    ->no_quotes('created_at')
+    ->where('created_at >=', 'NOW() - INTERVAL 7 DAY');
+echo $logs->render();
+```
+
+### Choosing Visible Columns with `columns`
+
+```php
+$posts = new Crud('posts');
+$posts
+    ->columns('id,title,status,created_at')
+    ->order_by('created_at', 'desc');
+echo $posts->render();
+```
+
+Pass `true` as the second argument (`columns('content,slug', true)`) to hide specific columns instead of listing every one you want to keep.
+
+Joined columns can be referenced with dot notation, which FastCRUD converts to its internal alias format. For example, `columns('authors.username,authors.email')` keeps only the `username` and `email` fields from a join declared as `->join('user_id', 'users', 'id', 'authors')`.
+
+### Joining Related Tables
+
+`join()` augments the auto-generated SQL so the primary table can pull data from a related table without writing custom queries. The method signature is:
+
+```php
+join(string $localField, string $joinTable, string $joinField, string|false $alias = false, bool $notInsert = false): self
+```
+
+- **`$localField`** – Column on the main table (e.g. `posts`.`user_id`).
+- **`$joinTable`** – Table to join (e.g. `users`).
+- **`$joinField`** – Column on the joined table used for the match (e.g. `users`.`id`).
+- **`$alias`** *(optional)* – Custom alias for the joined table; defaults to `j0`, `j1`, etc. (Pass `'authors'` if you prefer referring to `authors.email`).
+- **`$notInsert`** *(optional)* – Reserved flag for future write-control; leave `false` for reads.
+
+Under the hood this call turns the default query into:
+
+```sql
+SELECT main.*
+FROM posts AS main
+LEFT JOIN users AS authors ON main.user_id = authors.id
+```
+
+Every column from the joined table is exposed automatically using the pattern `<alias>__<column>`. For example, `authors.email` becomes `authors__email` in the rendered table, so you can reference it in `columns()` or other helpers.
+
+What you can do with a join:
+
+1. **Filter using joined columns**
+   ```php
+   $posts
+       ->join('user_id', 'users', 'id', 'authors')
+       ->where('authors.status =', 'active');
+   ```
+
+2. **Surface related labels** – pair `join()` with `relation()` or a `subselect()` so the UI shows friendly names:
+   ```php
+   $posts
+       ->join('user_id', 'users', 'id', 'authors')
+       ->relation('user_id', 'users', 'id', 'username');
+   ```
+
+3. **Expose joined data via custom columns** – for example, add author email with a subselect built on the alias:
+   ```php
+   $posts
+       ->join('user_id', 'users', 'id', 'authors')
+       ->subselect('author_email', 'SELECT authors.email');
+   ```
+
+By default FastCRUD still selects `main.*`, so the base columns stay unchanged. Use the alias (`authors.some_column`) inside other helpers whenever you need to render or filter on the joined data.
+
+```php
+$posts = new Crud('posts');
+$posts
+    ->join('user_id', 'users', 'id', 'authors')
+    ->relation('user_id', 'users', 'id', 'username');
+echo $posts->render();
+```
+
+### Displaying Relation Labels with `relation`
+
+```php
+$posts = new Crud('posts');
+$posts->relation('author_id', 'users', 'id', 'username');
+echo $posts->render();
+```
+
+### Custom SQL via `query`
+
+```php
+$topUsers = new Crud('users');
+$topUsers->query('SELECT * FROM users WHERE score > 100');
+echo $topUsers->render();
+```
+
+### Adding Derived Columns with `subselect`
+
+```php
+$invoices = new Crud('invoices');
+$invoices->subselect('total_paid', 'SELECT SUM(amount) FROM payments WHERE invoice_id = invoices.id');
+echo $invoices->render();
+```
+
+### Search Toolbar with `search_columns`
+
+```php
+$articles = new Crud('articles');
+$articles->search_columns('title,content', 'title');
+echo $articles->render();
+```
+
+### JavaScript Helpers (`window.FastCrudTables`)
+
+Each rendered table registers itself for quick access:
+
+```javascript
+const tableId = 'fastcrud-abc123';
+window.FastCrudTables[tableId].search('error logs');
+window.FastCrudTables[tableId].setPerPage('all');
+```
 
 ## Requirements
 

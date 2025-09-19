@@ -96,6 +96,101 @@ test('edit record workflow', async ({ page }) => {
   expect(pageErrors, formatPageErrors(pageErrors)).toEqual([]);
 });
 
+/**
+ * Verifies search and pagination metadata are exposed and drive AJAX requests.
+ */
+test('filtering and pagination controls', async ({ page }) => {
+  const { consoleErrors, pageErrors } = setupErrorTracking(page);
+
+  const response = await page.goto(TARGET_URL, { waitUntil: 'networkidle' });
+  expect(response && response.ok(), 'Expected a successful HTTP response').toBeTruthy();
+
+  await page.waitForFunction(() => {
+    if (!window.FastCrudTables) {
+      return false;
+    }
+    var ids = Object.keys(window.FastCrudTables);
+    if (!ids.length) {
+      return false;
+    }
+    for (var index = 0; index < ids.length; index++) {
+      var table = window.FastCrudTables[ids[index]];
+      if (!table || typeof table.getMeta !== 'function') {
+        continue;
+      }
+      var meta = table.getMeta();
+      if (meta && meta.search && Array.isArray(meta.search.columns)) {
+        return true;
+      }
+    }
+    return false;
+  }, null, { timeout: 20000 });
+
+  const table = page.locator('table').first();
+  const tableId = await table.getAttribute('id');
+  expect(tableId, 'Expected rendered table to expose its id').toBeTruthy();
+
+  await page.waitForFunction((id) => {
+    if (!id || !window.FastCrudTables || !window.FastCrudTables[id]) {
+      return false;
+    }
+    var meta = window.FastCrudTables[id].getMeta();
+    return !!(meta && meta.search && Array.isArray(meta.search.columns));
+  }, tableId, { timeout: 20000 });
+
+  const meta = await page.evaluate((id) => {
+    return window.FastCrudTables && window.FastCrudTables[id]
+      ? window.FastCrudTables[id].getMeta()
+      : null;
+  }, tableId);
+
+  expect(meta, 'Expected FastCrudTables registry to expose metadata').toBeTruthy();
+  expect(Array.isArray(meta.limit_options), 'Expected limit options array').toBeTruthy();
+  expect(meta.limit_options).toContain('all');
+  expect(meta.search && Array.isArray(meta.search.columns), 'Expected search columns metadata').toBeTruthy();
+  expect(meta.search.columns.length, 'Expected at least one search column').toBeGreaterThan(0);
+
+  const searchTerm = 'PlaywrightFilter';
+  const [searchResponse] = await Promise.all([
+    page.waitForResponse((resp) => {
+      if (!resp.url().includes('fastcrud_ajax=1') || resp.request().method() !== 'GET') {
+        return false;
+      }
+      const url = new URL(resp.url());
+      return url.searchParams.get('search_term') === searchTerm;
+    }),
+    page.evaluate(({ id, term }) => {
+      if (window.FastCrudTables && window.FastCrudTables[id]) {
+        window.FastCrudTables[id].search(term);
+      }
+    }, { id: tableId, term: searchTerm }),
+  ]);
+
+  expect(searchResponse.status(), 'Expected search-triggered request to succeed').toBe(200);
+
+  await Promise.all([
+    page.waitForResponse((resp) => {
+      if (!resp.url().includes('fastcrud_ajax=1') || resp.request().method() !== 'GET') {
+        return false;
+      }
+      const url = new URL(resp.url());
+      return url.searchParams.get('per_page') === '0';
+    }),
+    page.evaluate((id) => {
+      if (window.FastCrudTables && window.FastCrudTables[id]) {
+        window.FastCrudTables[id].setPerPage('all');
+      }
+    }, tableId),
+  ]);
+
+  const html = await page.content();
+  const serverErrors = findServerErrorMarkers(html);
+  expect(serverErrors, formatServerErrors(serverErrors)).toEqual([]);
+
+  expect(consoleErrors, formatConsoleErrors(consoleErrors)).toEqual([]);
+  expect(pageErrors, formatPageErrors(pageErrors)).toEqual([]);
+});
+
 function findServerErrorMarkers(html) {
   const markers = [
     { label: 'Fatal error', regex: /Fatal error/i },
