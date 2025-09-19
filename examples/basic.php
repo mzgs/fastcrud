@@ -103,7 +103,6 @@ Crud::init([
                   
                     // ->highlight('id', ['operator' => 'equals', 'value' => 32], 'bg-info')
                     ->highlight_row(['column' => 'id', 'operator' => 'equals', 'value' => 23], 'table-info')
-                    ->enable_duplicate_toggle()
                     ->table_name('Posts Overview')
                     // ->table_tooltip('FastCRUD live preview of posts')
                     ->table_icon('bi bi-newspaper')

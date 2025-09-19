@@ -231,8 +231,6 @@ test('presentation and metadata features', async ({ page }) => {
   const customButton = table.locator('.fastcrud-custom-btn').first();
   await expect(customButton, 'Expected custom column button to render').toBeVisible();
 
-  const duplicateButton = table.locator('.fastcrud-duplicate-btn').first();
-  await expect(duplicateButton, 'Expected duplicate toggle to render').toBeVisible();
 
   const summaryRow = page.locator(`#${tableId}-summary tr`).first();
   await expect(summaryRow, 'Expected summary row to render').toBeVisible();
@@ -259,14 +257,10 @@ test('presentation and metadata features', async ({ page }) => {
 
   await page.evaluate((id) => {
     window.__fastcrudActionEvents = [];
-    window.__fastcrudDuplicateEvents = [];
     if (window.jQuery) {
       const tableElement = window.jQuery('#' + id);
       tableElement.on('fastcrud:action.test', function (_event, payload) {
         window.__fastcrudActionEvents.push(payload);
-      });
-      tableElement.on('fastcrud:duplicate.test', function (_event, payload) {
-        window.__fastcrudDuplicateEvents.push(payload);
       });
     }
   }, tableId);
@@ -281,9 +275,6 @@ test('presentation and metadata features', async ({ page }) => {
   expect(actionEvents.length, 'Expected custom button click to emit fastcrud:action').toBeGreaterThan(0);
   expect(actionEvents[0] && actionEvents[0].action, 'Expected payload to include the action id').toBe('preview-post');
 
-  await duplicateButton.click();
-  const duplicateEvents = await page.evaluate(() => window.__fastcrudDuplicateEvents || []);
-  expect(duplicateEvents.length, 'Expected duplicate button to emit fastcrud:duplicate').toBeGreaterThan(0);
 
   const serverErrors = findServerErrorMarkers(await page.content());
   expect(serverErrors, formatServerErrors(serverErrors)).toEqual([]);

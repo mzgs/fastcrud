@@ -61,7 +61,6 @@ class Crud
         'column_cuts' => [],
         'column_highlights' => [],
         'row_highlights' => [],
-        'duplicate_toggle' => false,
         'table_meta' => [
             'name'    => null,
             'tooltip' => null,
@@ -893,12 +892,6 @@ class Crud
         return $this;
     }
 
-    public function enable_duplicate_toggle(bool $enabled = true): self
-    {
-        $this->config['duplicate_toggle'] = $enabled;
-
-        return $this;
-    }
 
     public function column_summary(string $column, string $type = 'sum', ?string $label = null, ?int $precision = null): self
     {
@@ -2096,7 +2089,6 @@ HTML;
                 'name'      => $tableName,
                 'tooltip'   => $tableMeta['tooltip'] ?? null,
                 'icon'      => $tableMeta['icon'] ?? null,
-                'duplicate' => $this->config['duplicate_toggle'],
             ],
             'columns'        => $columns,
             'labels'         => $filterColumns($this->config['column_labels']),
@@ -2230,7 +2222,6 @@ HTML;
             'column_cuts'     => $this->config['column_cuts'],
             'column_highlights' => $this->config['column_highlights'],
             'row_highlights'    => $this->config['row_highlights'],
-            'duplicate_toggle'  => $this->config['duplicate_toggle'],
             'table_meta'        => $this->config['table_meta'],
             'column_summaries'  => $this->config['column_summaries'],
         ];
@@ -2316,9 +2307,6 @@ HTML;
             $this->config['columns_reverse'] = (bool) $payload['columns_reverse'];
         }
 
-        if (isset($payload['duplicate_toggle'])) {
-            $this->config['duplicate_toggle'] = (bool) $payload['duplicate_toggle'];
-        }
 
         if (isset($payload['table_meta']) && is_array($payload['table_meta'])) {
             $meta = $payload['table_meta'];

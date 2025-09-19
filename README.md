@@ -297,25 +297,17 @@ $posts
 
 Highlight conditions support `equals`, `not_equals`, `contains`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in`, `empty`, and `not_empty`. Cell highlights append Bootstrap text/background classes, while row highlights add table-level classes (e.g. `table-success`).
 
-### Custom Buttons & Duplicate Toggle
+### Custom Actions
 
 ```php
-$posts
-   
-    ->enable_duplicate_toggle();
-
 $(document).on('fastcrud:action', '#posts-table', function(event, payload) {
     if (payload.action === 'preview-post') {
         console.log('Preview row', payload.row);
     }
 });
-
-$(document).on('fastcrud:duplicate', '#posts-table', function(event, payload) {
-    console.log('Duplicate requested for', payload.row);
-});
 ```
 
-Column buttons render Bootstrap button groups inside the specified column, and every click triggers a `fastcrud:action` event so you can react without forking the core script. `enable_duplicate_toggle()` adds a Duplicate button to the action column and emits `fastcrud:duplicate` with the row payload.
+Column buttons render Bootstrap button groups inside the specified column, and every click triggers a `fastcrud:action` event so you can react without forking the core script.
 
 ### Table Metadata & Summary Rows
 
