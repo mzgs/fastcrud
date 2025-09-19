@@ -100,6 +100,7 @@ Crud::init([
                     ->column_class('user_id', 'text-muted')
                     ->column_width('title', '30%')
                     ->column_cut('content', 12)
+                    ->setPanelWidth('30%')
                   
                     // ->highlight('id', ['operator' => 'equals', 'value' => 32], 'bg-info')
                     ->highlight_row(['column' => 'id', 'operator' => 'equals', 'value' => 23], 'table-info')

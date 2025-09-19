@@ -67,6 +67,7 @@ class Crud
             'icon'    => null,
         ],
         'column_summaries' => [],
+        'panel_width' => null,
     ];
 
     /**
@@ -141,6 +142,12 @@ class Crud
 
         $this->perPage = $perPage;
         $this->config['limit_default'] = $perPage;
+        return $this;
+    }
+
+    public function setPanelWidth(string $width): self
+    {
+        $this->config['panel_width'] = $width;
         return $this;
     }
 
@@ -1922,8 +1929,14 @@ HTML;
         $successId = $escapedId . '-edit-success';
         $fieldsId  = $escapedId . '-edit-fields';
 
+        $widthStyle = '';
+        if ($this->config['panel_width'] !== null) {
+            $width = $this->escapeHtml($this->config['panel_width']);
+            $widthStyle = " style=\"width: {$width};\"";
+        }
+
         return <<<HTML
-<div class="offcanvas offcanvas-start" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}">
+<div class="offcanvas offcanvas-start" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}"{$widthStyle}>
     <div class="offcanvas-header border-bottom">
         <h5 class="offcanvas-title" id="{$labelId}">Edit Record</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
@@ -1951,8 +1964,14 @@ HTML;
         $contentId = $escapedId . '-view-content';
         $emptyId   = $escapedId . '-view-empty';
 
+        $widthStyle = '';
+        if ($this->config['panel_width'] !== null) {
+            $width = $this->escapeHtml($this->config['panel_width']);
+            $widthStyle = " style=\"width: {$width};\"";
+        }
+
         return <<<HTML
-<div class="offcanvas offcanvas-start" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}">
+<div class="offcanvas offcanvas-start" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}"{$widthStyle}>
     <div class="offcanvas-header border-bottom">
         <h5 class="offcanvas-title" id="{$labelId}">View Record</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
