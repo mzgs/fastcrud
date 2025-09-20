@@ -87,7 +87,7 @@ Crud::init([
                     ->relation('user_id', 'users', 'id', 'username')
                     // ->join('user_id', 'users', 'id','user')
                     // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
-                    ->columns('user_id,title,slug,content,created_at')
+                    ->columns('id,user_id,title,slug,content,created_at')
                     ->search_columns('title,content', 'title')
                     ->set_column_labels([
                         'user_id'    => 'Author',

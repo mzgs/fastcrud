@@ -1946,7 +1946,7 @@ HTML;
             <div class="alert alert-danger d-none" id="{$errorId}" role="alert"></div>
             <div class="alert alert-success d-none" id="{$successId}" role="alert">Changes saved successfully.</div>
             <div id="{$fieldsId}" class="flex-grow-1 overflow-auto"></div>
-            <div class="d-flex justify-content-end gap-2 mt-auto pt-3 border-top bg-white sticky-bottom">
+            <div class="d-flex justify-content-end gap-2 mt-auto pt-3 border-top sticky-bottom">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
                 <button type="submit" class="btn btn-primary">Save Changes</button>
             </div>
@@ -3000,7 +3000,7 @@ HTML;
             summaryFooter.removeClass('d-none');
 
             $.each(summaries, function(_, summary) {
-                var row = $('<tr class="table-light"></tr>');
+                var row = $('<tr ></tr>');
                 var targetColumn = summary.column;
                 var labelText = summary.label || makeLabel(targetColumn);
                 var renderedValue = summary.value === null || typeof summary.value === 'undefined' || summary.value === ''
