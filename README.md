@@ -258,23 +258,19 @@ Pattern output is injected as-is, so HTML fragments (badges, icons, etc.) can be
 ### Server-Side Callbacks
 
 ```php
-function render_status($value, array $row, string $column, string $formatted): array
+function render_status($value, array $row, string $column, string $formatted): string
 {
     $label = strtoupper($formatted);
     $tone = $label === 'ACTIVE' ? 'success' : 'secondary';
 
-    return [
-        'html'  => '<span class="badge bg-' . $tone . '">' . htmlspecialchars($label, ENT_QUOTES) . '</span>',
-        'text'  => $label,
-        'class' => 'text-uppercase',
-    ];
+    return '<span class="badge bg-' . $tone . ' text-uppercase">' . $label . '</span>';
 }
 
 $users = new Crud('users');
-$users->column_callback('status', 'render_status', true);
+$users->column_callback('status', 'render_status');
 ```
 
-Callbacks must be serialisable (string callables or `Class::method`) because FastCRUD rebuilds them during each AJAX request. They receive the raw value, the full row, the column name, and the current formatted string. Return a string for simple overrides or an array with keys like `html`, `text`, `class`, `tooltip`, and `attributes` for richer control.
+Callbacks must be serialisable (string callables or `Class::method`) because FastCRUD rebuilds them during each AJAX request. They receive the raw value, the full row, the column name, and the current formatted string. Whatever the callback returns is injected into the cell without escaping, so ensure you only emit trusted HTML.
 
 ### Classes, Widths & Truncation
 

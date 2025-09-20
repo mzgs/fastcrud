@@ -6,35 +6,17 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use FastCrud\Crud;
 
-function fc_format_post_date(?string $value, array $row, string $column, string $formatted): array
+function content_callback(?string $value, array $row, string $column, string $formatted): string
 {
-    if ($value === null || $value === '') {
-        return ['text' => '—'];
-    }
-
-    try {
-        $date = new \DateTime($value);
-    } catch (\Exception) {
-        return ['text' => $formatted !== '' ? $formatted : (string) $value];
-    }
-
-    return [
-        'text'    => $date->format('M j, Y'),
-        'tooltip' => $date->format(DATE_ATOM),
-    ];
+    return '<strong class="text-primary">' . $formatted . $row['id'] . ' ...</strong>';
 }
 
-function fc_render_user_role(?string $value, array $row, string $column, string $formatted): array
+function fc_render_user_role(?string $value, array $row, string $column, string $formatted): string
 {
     $label = strtoupper($formatted !== '' ? $formatted : (string) $value);
     $variant = $label === 'ADMIN' ? 'danger' : 'secondary';
-    $safe = htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-    return [
-        'html'  => '<span class="badge bg-' . $variant . '">' . $safe . '</span>',
-        'text'  => $label,
-        'class' => 'text-uppercase',
-    ];
+    return '<span class="badge bg-' . $variant . ' text-uppercase">' . $label . '</span>';
 }
 
 Crud::init([
@@ -139,7 +121,7 @@ Crud::init([
                         'email' => 'Email Address',
                         'role'  => 'Role',
                     ])
-                    ->column_callback('role', 'fc_render_user_role', true)
+                    ->column_callback('role', 'fc_render_user_role')
                     ->column_width('email', '30%')
                     ->highlight('role', ['operator' => 'equals', 'value' => 'admin'], 'fw-semibold text-danger')
                     ->highlight_row(['column' => 'role', 'operator' => 'equals', 'value' => 'admin'], 'table-warning')

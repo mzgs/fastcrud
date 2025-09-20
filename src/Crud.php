@@ -547,40 +547,21 @@ class Crud
 
         if (isset($this->config['column_callbacks'][$column])) {
             $callbackEntry = $this->config['column_callbacks'][$column];
-            if (is_array($callbackEntry) && isset($callbackEntry['callable'])) {
-                $callable = $callbackEntry['callable'];
-                $allowHtml = (bool) ($callbackEntry['allow_html'] ?? false);
+            $callable = null;
 
-                if (is_callable($callable)) {
-                    $result = call_user_func($callable, $value, $row, $column, $display);
+            if (is_string($callbackEntry) && $callbackEntry !== '') {
+                $callable = $callbackEntry;
+            } elseif (is_array($callbackEntry) && isset($callbackEntry['callable'])) {
+                $callable = (string) $callbackEntry['callable'];
+            }
 
-                    if (is_array($result)) {
-                        if (isset($result['text'])) {
-                            $display = $this->stringifyValue($result['text']);
-                        }
-                        if ($allowHtml && isset($result['html'])) {
-                            $html = (string) $result['html'];
-                        }
-                        if (isset($result['class'])) {
-                            $cellClasses[] = $this->normalizeCssClassList((string) $result['class']);
-                        }
-                        if (isset($result['tooltip'])) {
-                            $tooltip = trim((string) $result['tooltip']);
-                        }
-                        if (isset($result['attributes']) && is_array($result['attributes'])) {
-                            foreach ($result['attributes'] as $attrKey => $attrValue) {
-                                if (!is_string($attrKey)) {
-                                    continue;
-                                }
-                                $attributes[$attrKey] = (string) $attrValue;
-                            }
-                        }
-                    } elseif ($allowHtml) {
-                        $html = (string) $result;
-                        $display = $this->stringifyValue($result);
-                    } else {
-                        $display = $this->stringifyValue($result);
-                    }
+            if ($callable !== null && is_callable($callable)) {
+                $result = call_user_func($callable, $value, $row, $column, $display);
+
+                if ($result !== null) {
+                    $stringResult = $this->stringifyValue($result);
+                    $html = $stringResult;
+                    $display = $stringResult;
                 }
             }
         }
@@ -760,7 +741,7 @@ class Crud
         return $this;
     }
 
-    public function column_callback(string $column, callable|string|array $callback, bool $allowHtml = false): self
+    public function column_callback(string $column, callable|string|array $callback): self
     {
         $column = $this->normalizeColumnReference($column);
         if ($column === '') {
@@ -773,10 +754,7 @@ class Crud
             throw new InvalidArgumentException('Provided callback is not callable: ' . $serialized);
         }
 
-        $this->config['column_callbacks'][$column] = [
-            'callable'   => $serialized,
-            'allow_html' => $allowHtml,
-        ];
+        $this->config['column_callbacks'][$column] = $serialized;
 
         return $this;
     }
@@ -2353,19 +2331,27 @@ HTML;
         if (isset($payload['column_callbacks']) && is_array($payload['column_callbacks'])) {
             $normalized = [];
             foreach ($payload['column_callbacks'] as $column => $entry) {
-                if (!is_string($column) || !is_array($entry) || !isset($entry['callable'])) {
+                if (!is_string($column)) {
                     continue;
                 }
 
-                $callable = $entry['callable'];
-                if (!is_string($callable) || $callable === '' || !is_callable($callable)) {
+                $normalizedColumn = $this->normalizeColumnReference($column);
+                if ($normalizedColumn === '') {
                     continue;
                 }
 
-                $normalized[$column] = [
-                    'callable'   => $callable,
-                    'allow_html' => (bool) ($entry['allow_html'] ?? false),
-                ];
+                $callable = null;
+                if (is_string($entry)) {
+                    $callable = $entry;
+                } elseif (is_array($entry) && isset($entry['callable'])) {
+                    $callable = (string) $entry['callable'];
+                }
+
+                if ($callable === null || $callable === '' || !is_callable($callable)) {
+                    continue;
+                }
+
+                $normalized[$normalizedColumn] = $callable;
             }
 
             if ($normalized !== []) {
