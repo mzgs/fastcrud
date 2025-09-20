@@ -454,17 +454,19 @@ class Crud
      */
     private function presentRow(array $row, array $columns): array
     {
+        $sourceRow = $row['__fastcrud_row'] ?? $row;
+
         $cells = [];
         $rawValues = [];
 
-        if (isset($row['__fastcrud_raw']) && is_array($row['__fastcrud_raw'])) {
-            $rawValues = $row['__fastcrud_raw'];
+        if (isset($sourceRow['__fastcrud_raw']) && is_array($sourceRow['__fastcrud_raw'])) {
+            $rawValues = $sourceRow['__fastcrud_raw'];
         }
 
         foreach ($columns as $column) {
-            $value = $row[$column] ?? null;
-            $rawOriginal = $rawValues[$column] ?? $value;
-            $cells[$column] = $this->presentCell($column, $value, $row, $rawOriginal);
+            $value = $sourceRow[$column] ?? null;
+            $rawOriginal = $rawValues[$column] ?? ($sourceRow[$column] ?? null);
+            $cells[$column] = $this->presentCell($column, $value, $sourceRow, $rawOriginal);
         }
 
         $rowClasses = [];
@@ -479,7 +481,7 @@ class Crud
                 continue;
             }
 
-            if ($this->evaluateCondition($condition, $row)) {
+            if ($this->evaluateCondition($condition, $sourceRow)) {
                 $rowClasses[] = $class;
             }
         }
@@ -506,6 +508,9 @@ class Crud
             $rows[$index]['__fastcrud'] = $this->presentRow($row, $columns);
             if (isset($rows[$index]['__fastcrud_raw'])) {
                 unset($rows[$index]['__fastcrud_raw']);
+            }
+            if (isset($rows[$index]['__fastcrud_row'])) {
+                unset($rows[$index]['__fastcrud_row']);
             }
         }
 
@@ -1537,6 +1542,11 @@ class Crud
             foreach ($visible as $column) {
                 $filteredRow[$column] = $row[$column] ?? null;
             }
+
+
+            // Preserve the original row so hidden columns remain available for patterns/callbacks.
+            $filteredRow['__fastcrud_row'] = $row;
+
             $filteredRows[] = $filteredRow;
         }
 

@@ -8,7 +8,7 @@ use FastCrud\Crud;
 
 function content_callback(?string $value, array $row, string $column, string $formatted): string
 {
-    return '<strong class="text-primary">' . $formatted . $row['id'] . ' ...</strong>';
+    return '<strong class="text-primary">' .  $formatted . $row['id'] . ' ...</strong>';
 }
 
 function fc_render_user_role(?string $value, array $row, string $column, string $formatted): string
@@ -69,7 +69,7 @@ Crud::init([
                     ->relation('user_id', 'users', 'id', 'username')
                     // ->join('user_id', 'users', 'id','user')
                     // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
-                    ->columns('id,user_id,title,slug,content,created_at')
+                    ->columns('user_id,title,slug,content,created_at')
                     ->search_columns('title,content', 'title')
                     ->set_column_labels([
                         'user_id'    => 'Author',
@@ -77,7 +77,7 @@ Crud::init([
                         'content'    => 'Content',
                         'created_at' => 'Published',
                     ])
-                    ->column_pattern('slug', '<strong>{value} - {status}</strong>')
+                    ->column_pattern('slug', '<strong>{value} - {id} | {status}</strong>')
                     ->column_callback('content', 'content_callback')
                     ->column_class('user_id', 'text-muted')
                     ->column_width('title', '30%')
