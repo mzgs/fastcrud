@@ -1707,7 +1707,6 @@ class Crud
         return <<<HTML
 <div id="{$id}-container" data-fastcrud-config="{$configAttr}">
     <div id="{$id}-meta" class="d-flex flex-wrap align-items-center gap-2 mb-2"></div>
-    <div id="{$id}-toolbar" class="d-flex flex-wrap align-items-center gap-2 mb-3"></div>
     <div class="table-responsive">
         <table id="$id" class="table table-hover align-middle" data-table="$table" data-per-page="$perPage">
             <thead>
@@ -1728,9 +1727,12 @@ $headerHtml
             <tfoot id="{$id}-summary" class="fastcrud-summary"></tfoot>
         </table>
     </div>
-    <nav aria-label="Table pagination">
-        <ul id="{$id}-pagination" class="pagination justify-content-start">
-        </ul>
+    <nav aria-label="Table pagination" class="d-flex flex-wrap align-items-center gap-2 justify-content-between mt-3">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <ul id="{$id}-pagination" class="pagination justify-content-start mb-0 flex-wrap"></ul>
+            <div id="{$id}-toolbar" class="d-flex flex-wrap align-items-center gap-2"></div>
+        </div>
+        <div id="{$id}-range" class="text-muted small ms-auto"></div>
     </nav>
 </div>
 $styles
@@ -2717,6 +2719,7 @@ HTML;
         var duplicateEnabled = false;
 
         var toolbar = $('#' + tableId + '-toolbar');
+        var rangeDisplay = $('#' + tableId + '-range');
         var metaContainer = $('#' + tableId + '-meta');
         var searchGroup = null;
         var searchInput = null;
@@ -2847,7 +2850,7 @@ HTML;
                 return;
             }
 
-            searchGroup = $('<div class="input-group input-group-sm fastcrud-search-group" style="max-width: 24rem;"></div>');
+            searchGroup = $('<div class="input-group fastcrud-search-group" style="max-width: 24rem;"></div>');
 
             if (searchConfig.columns.length > 1) {
                 searchSelect = $('<select class="form-select"></select>');
@@ -3208,6 +3211,9 @@ HTML;
         function buildPagination(pagination) {
             paginationContainer.empty();
             if (!pagination) {
+                if (rangeDisplay.length) {
+                    rangeDisplay.text('');
+                }
                 return;
             }
 
@@ -3319,14 +3325,11 @@ HTML;
             );
             paginationContainer.append(nextItem);
 
-            var infoItem = $('<li class="page-item disabled ms-auto"></li>');
-            var startRange = totalRows === 0 ? 0 : ((current - 1) * pagination.per_page) + 1;
-            var endRange = totalRows === 0 ? 0 : Math.min(current * pagination.per_page, totalRows);
-            infoItem.append(
-                $('<span class="page-link border-0 bg-transparent text-muted"></span>')
-                    .text('Showing ' + startRange + '-' + endRange + ' of ' + totalRows)
-            );
-            paginationContainer.append(infoItem);
+            if (rangeDisplay.length) {
+                var startRange = totalRows === 0 ? 0 : ((current - 1) * pagination.per_page) + 1;
+                var endRange = totalRows === 0 ? 0 : Math.min(current * pagination.per_page, totalRows);
+                rangeDisplay.text('Showing ' + startRange + '-' + endRange + ' of ' + totalRows);
+            }
         }
 
         function createPageItem(pageNumber, isActive) {
