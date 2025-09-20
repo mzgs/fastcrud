@@ -107,7 +107,7 @@ Crud::init([
                     ->table_name('Posts Overview')
                     // ->table_tooltip('FastCRUD live preview of posts')
                     ->table_icon('bi bi-newspaper')
-                    ->column_summary('id', 'count', 'Total');
+                    // ->column_summary('id', 'count', 'Total');
                 ?>
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-primary text-white">
