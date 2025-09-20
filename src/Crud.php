@@ -1708,7 +1708,7 @@ class Crud
 <div id="{$id}-container" data-fastcrud-config="{$configAttr}">
     <div id="{$id}-meta" class="d-flex flex-wrap align-items-center gap-2 mb-2"></div>
     <div class="table-responsive">
-        <table id="$id" class="table table-hover align-middle" data-table="$table" data-per-page="$perPage">
+        <table id="$id" class="table align-middle" data-table="$table" data-per-page="$perPage">
             <thead>
                 <tr>
 $headerHtml
@@ -2011,6 +2011,18 @@ HTML;
 #{$containerId} table tbody td.fastcrud-actions-cell {
     z-index: 2;
     box-shadow: -6px 0 6px -6px rgba(0, 0, 0, 0.2);
+}
+
+#{$containerId} table tbody td.fastcrud-actions-cell .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+#{$containerId} .fastcrud-icon {
+    width: 1rem;
+    height: 1rem;
 }
 </style>
 HTML;
@@ -3110,24 +3122,43 @@ HTML;
             return btn;
         }
 
+        var actionIcons = {
+            view: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
+            edit: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 21h4l11-11a2.828 2.828 0 1 0-4-4L4 17v4Z"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.5 6.5 17.5 9.5"/></svg>',
+            delete: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 6h18"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.5 6 17.6 19.25a1.75 1.75 0 0 1-1.74 1.6H8.14a1.75 1.75 0 0 1-1.74-1.6L5.5 6"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 11v6"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 11v6"/></svg>',
+            duplicate: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect width="11" height="11" x="9.5" y="9.5" rx="2" ry="2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>'
+        };
+
         function buildActionCell(row) {
             var actionCell = $('<td class="text-end fastcrud-actions-cell"></td>');
             var buttonGroup = $('<div class="btn-group btn-group-sm" role="group"></div>');
 
-            var viewButton = $('<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-view-btn">View</button>');
+            var viewButton = $('<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-view-btn"></button>');
+            viewButton.attr('title', 'View');
+            viewButton.attr('aria-label', 'View record');
+            viewButton.html(actionIcons.view);
             viewButton.data('row', $.extend({}, row));
             buttonGroup.append(viewButton);
 
-            var editButton = $('<button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn">Edit</button>');
+            var editButton = $('<button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn"></button>');
+            editButton.attr('title', 'Edit');
+            editButton.attr('aria-label', 'Edit record');
+            editButton.html(actionIcons.edit);
             editButton.data('row', $.extend({}, row));
             buttonGroup.append(editButton);
 
-            var deleteButton = $('<button type="button" class="btn btn-sm btn-outline-danger fastcrud-delete-btn">Delete</button>');
+            var deleteButton = $('<button type="button" class="btn btn-sm btn-outline-danger fastcrud-delete-btn"></button>');
+            deleteButton.attr('title', 'Delete');
+            deleteButton.attr('aria-label', 'Delete record');
+            deleteButton.html(actionIcons.delete);
             deleteButton.data('row', $.extend({}, row));
             buttonGroup.append(deleteButton);
 
             if (duplicateEnabled) {
-                var duplicateButton = $('<button type="button" class="btn btn-sm btn-outline-info fastcrud-duplicate-btn">Duplicate</button>');
+                var duplicateButton = $('<button type="button" class="btn btn-sm btn-outline-info fastcrud-duplicate-btn"></button>');
+                duplicateButton.attr('title', 'Duplicate');
+                duplicateButton.attr('aria-label', 'Duplicate record');
+                duplicateButton.html(actionIcons.duplicate);
                 duplicateButton.data('row', $.extend({}, row));
                 buttonGroup.append(duplicateButton);
             }
