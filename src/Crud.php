@@ -3444,7 +3444,7 @@ HTML;
 
             $.ajax({
                 url: window.location.pathname,
-                type: 'GET',
+                type: 'POST',
                 dataType: 'json',
                 data: {
                     fastcrud_ajax: '1',
