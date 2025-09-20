@@ -96,7 +96,7 @@ Crud::init([
                         'created_at' => 'Published',
                     ])
                     ->column_pattern('slug', '<strong>{value} - {status}</strong>')
-                    ->column_callback('created_at', 'fc_format_post_date')
+                    ->column_callback('content', 'content_callback')
                     ->column_class('user_id', 'text-muted')
                     ->column_width('title', '30%')
                     ->column_cut('content', 12)
