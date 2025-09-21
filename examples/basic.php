@@ -70,13 +70,20 @@ Crud::init([
                     // ->join('user_id', 'users', 'id','user')
                     // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
                     ->columns('user_id,title,slug,content,created_at')
-                    ->fields('user_id,title,slug,content' )
+                    ->fields('user_id,title',false,'Test' )
+                    ->fields('slug,content',false,'Content' )
+                  
                     ->search_columns('title,content', 'title')
                     ->set_column_labels([
                         'user_id'    => 'Author',
                         'title'      => 'Title',
                         'content'    => 'Content',
-                        'created_at' => 'Published',
+                     
+                    ])
+                    ->set_field_labels([
+                        'user_id'    => 'Select User',
+                        'title'      => 'Post Title',
+                       
                     ])
                     ->column_pattern('slug', '<strong>{value} - {id} | {status}</strong>')
                     ->column_callback('content', 'content_callback')

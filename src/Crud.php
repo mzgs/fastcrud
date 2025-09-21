@@ -37,7 +37,7 @@ class Crud
 
     private const SUPPORTED_SUMMARY_TYPES = ['sum', 'avg', 'min', 'max', 'count'];
     private const SUPPORTED_FORM_MODES = ['all', 'create', 'edit', 'view'];
-    private const DEFAULT_FORM_MODE = 'edit';
+    private const DEFAULT_FORM_MODE = 'all';
 
     /**
      * @var array<string, mixed>
@@ -70,6 +70,7 @@ class Crud
             'icon'    => null,
         ],
         'column_summaries' => [],
+        'field_labels' => [],
         'panel_width' => null,
         'primary_key' => 'id',
         'form' => [
@@ -536,6 +537,27 @@ class Crud
                     continue;
                 }
                 $this->config['form']['default_tabs'][strtolower($mode)] = $tabName;
+            }
+        }
+
+        if (isset($form['labels']) && is_array($form['labels'])) {
+            foreach ($form['labels'] as $field => $label) {
+                if (!is_string($field) || !is_string($label)) {
+                    continue;
+                }
+
+                $normalizedField = $this->normalizeColumnReference($field);
+                if ($normalizedField === '') {
+                    continue;
+                }
+
+                $trimmed = trim($label);
+                if ($trimmed === '') {
+                    unset($this->config['field_labels'][$normalizedField]);
+                    continue;
+                }
+
+                $this->config['field_labels'][$normalizedField] = $trimmed;
             }
         }
 
@@ -1093,6 +1115,37 @@ class Crud
         }
 
         $this->config['column_labels'][$column] = $resolvedLabel;
+
+        return $this;
+    }
+
+    /**
+     * @param array<string, string>|string $labels
+     */
+    public function set_field_labels(array|string $labels, ?string $label = null): self
+    {
+        if (is_array($labels)) {
+            foreach ($labels as $field => $value) {
+                if (!is_string($field)) {
+                    continue;
+                }
+
+                $this->set_field_labels($field, is_string($value) ? $value : null);
+            }
+            return $this;
+        }
+
+        $field = $this->normalizeColumnReference($labels);
+        if ($field === '') {
+            throw new InvalidArgumentException('Field name cannot be empty when setting labels.');
+        }
+
+        $resolvedLabel = trim((string) $label);
+        if ($resolvedLabel === '') {
+            throw new InvalidArgumentException('Field label cannot be empty.');
+        }
+
+        $this->config['field_labels'][$field] = $resolvedLabel;
 
         return $this;
     }
@@ -2893,10 +2946,31 @@ HTML;
             }
         }
 
+        $fieldLabels = [];
+        if (isset($this->config['field_labels']) && is_array($this->config['field_labels'])) {
+            foreach ($this->config['field_labels'] as $field => $label) {
+                if (!is_string($field) || !isset($columnLookup[$field])) {
+                    continue;
+                }
+
+                if (!is_string($label)) {
+                    continue;
+                }
+
+                $trimmed = trim($label);
+                if ($trimmed === '') {
+                    continue;
+                }
+
+                $fieldLabels[$field] = $trimmed;
+            }
+        }
+
         return [
             'layouts'      => $layouts,
             'default_tabs' => $defaultTabs,
             'behaviours'   => $behaviours,
+            'labels'       => $fieldLabels,
             'all_columns'  => $this->getBaseTableColumns(),
         ];
     }
@@ -3024,6 +3098,7 @@ HTML;
             'row_highlights'    => $this->config['row_highlights'],
             'table_meta'        => $this->config['table_meta'],
             'column_summaries'  => $this->config['column_summaries'],
+            'field_labels'      => $this->config['field_labels'],
             'primary_key'       => $this->primaryKeyColumn,
             'form'              => $formConfig,
         ];
@@ -3171,6 +3246,29 @@ HTML;
                 $labels[$normalizedColumn] = $trimmed;
             }
             $this->config['column_labels'] = $labels;
+        }
+
+        if (isset($payload['field_labels']) && is_array($payload['field_labels'])) {
+            $fieldLabels = [];
+            foreach ($payload['field_labels'] as $field => $label) {
+                if (!is_string($field) || !is_string($label)) {
+                    continue;
+                }
+
+                $normalizedField = $this->normalizeColumnReference($field);
+                if ($normalizedField === '') {
+                    continue;
+                }
+
+                $trimmed = trim($label);
+                if ($trimmed === '') {
+                    continue;
+                }
+
+                $fieldLabels[$normalizedField] = $trimmed;
+            }
+
+            $this->config['field_labels'] = $fieldLabels;
         }
 
         if (isset($payload['column_classes']) && is_array($payload['column_classes'])) {
@@ -3684,7 +3782,9 @@ HTML;
         var formConfig = {
             layouts: {},
             default_tabs: {},
-            behaviours: {}
+            behaviours: {},
+            labels: {},
+            all_columns: []
         };
         var currentFieldErrors = {};
 
@@ -3765,6 +3865,7 @@ HTML;
                     layouts: meta.form.layouts && typeof meta.form.layouts === 'object' ? meta.form.layouts : {},
                     default_tabs: meta.form.default_tabs && typeof meta.form.default_tabs === 'object' ? meta.form.default_tabs : {},
                     behaviours: meta.form.behaviours && typeof meta.form.behaviours === 'object' ? meta.form.behaviours : {},
+                    labels: meta.form.labels && typeof meta.form.labels === 'object' ? meta.form.labels : {},
                     all_columns: Array.isArray(meta.form.all_columns) ? meta.form.all_columns : []
                 };
                 clientConfig.form = meta.form;
@@ -3773,6 +3874,7 @@ HTML;
                     layouts: {},
                     default_tabs: {},
                     behaviours: {},
+                    labels: {},
                     all_columns: []
                 };
                 delete clientConfig.form;
@@ -4187,6 +4289,17 @@ HTML;
             }
 
             return words.join(' ');
+        }
+
+        function resolveFieldLabel(column) {
+            if (formConfig.labels && Object.prototype.hasOwnProperty.call(formConfig.labels, column)) {
+                var label = formConfig.labels[column];
+                if (typeof label === 'string' && label.length) {
+                    return label;
+                }
+            }
+
+            return makeLabel(column);
         }
 
         function makeSlug(value) {
@@ -5031,7 +5144,7 @@ HTML;
                     input.prop('checked', isChecked);
                     var checkboxLabel = $('<label class="form-check-label"></label>')
                         .attr('for', fieldId)
-                        .text(makeLabel(column));
+                        .text(resolveFieldLabel(column));
                     group.append(input).append(checkboxLabel);
                     dataType = 'checkbox';
                 } else {
@@ -5046,7 +5159,7 @@ HTML;
                 }
 
                 if (changeType !== 'bool' && changeType !== 'checkbox') {
-                    group.append($('<label class="form-label"></label>').attr('for', fieldId).text(makeLabel(column)));
+                    group.append($('<label class="form-label"></label>').attr('for', fieldId).text(resolveFieldLabel(column)));
                     group.append(input);
                 }
 
@@ -5225,17 +5338,93 @@ HTML;
             }
 
             var viewLayout = buildFormLayout('view');
-            var fieldOrder = viewLayout.fields.length
-                ? viewLayout.fields.map(function(item) { return item.name; })
-                : columnsCache.slice();
+            var viewFields = viewLayout.fields.length
+                ? viewLayout.fields.slice()
+                : columnsCache.map(function(column) {
+                    return { name: column, tab: null };
+                });
 
-            var hasContent = false;
-            $.each(fieldOrder, function(_, column) {
-                if (column === viewPrimaryKeyColumn) {
+            var viewVisibleFields = [];
+            viewFields.forEach(function(field) {
+                if (field.name === viewPrimaryKeyColumn) {
                     return;
                 }
+                viewVisibleFields.push(field);
+            });
 
-                var label = makeLabel(column);
+            viewContentContainer.removeClass('list-group list-group-flush');
+
+            var viewUsesTabs = Array.isArray(viewLayout.tabs) && viewLayout.tabs.length > 0 && viewVisibleFields.some(function(field) {
+                return !!field.tab;
+            });
+            var viewTabsNav = null;
+            var viewTabsContent = null;
+            var viewTabEntries = {};
+            var viewDefaultTab = viewLayout.defaultTab || null;
+            var viewTabBaseId = tableId + '-view';
+
+            if (viewUsesTabs) {
+                viewTabsNav = $('<ul class="nav nav-tabs mb-3" role="tablist"></ul>');
+                viewTabsContent = $('<div class="tab-content"></div>');
+                viewContentContainer.append(viewTabsNav).append(viewTabsContent);
+            } else {
+                viewContentContainer.addClass('list-group list-group-flush');
+            }
+
+            function ensureViewTab(tabName) {
+                if (!viewTabsNav || !viewTabsContent) {
+                    return null;
+                }
+
+                if (!tabName) {
+                    return null;
+                }
+
+                if (viewTabEntries[tabName]) {
+                    return viewTabEntries[tabName];
+                }
+
+                var slug = makeSlug(tabName);
+                var tabId = viewTabBaseId + '-tab-' + slug;
+                var navItem = $('<li class="nav-item" role="presentation"></li>');
+                var navButton = $('<button class="nav-link" data-bs-toggle="tab" type="button" role="tab"></button>')
+                    .attr('id', tabId + '-tab')
+                    .attr('data-bs-target', '#' + tabId)
+                    .attr('aria-controls', tabId)
+                    .attr('aria-selected', 'false')
+                    .text(tabName);
+                navItem.append(navButton);
+                viewTabsNav.append(navItem);
+
+                var pane = $('<div class="tab-pane fade" role="tabpanel"></div>')
+                    .attr('id', tabId)
+                    .attr('aria-labelledby', tabId + '-tab');
+                var paneList = $('<div class="list-group list-group-flush"></div>');
+                pane.append(paneList);
+                viewTabsContent.append(pane);
+
+                viewTabEntries[tabName] = { nav: navButton, pane: pane, list: paneList };
+                return viewTabEntries[tabName];
+            }
+
+            var viewHasContent = false;
+            viewVisibleFields.forEach(function(field) {
+                var column = field.name;
+                var container = viewContentContainer;
+
+                if (viewUsesTabs) {
+                    var targetTab = field.tab || viewDefaultTab || (viewLayout.tabs.length ? viewLayout.tabs[0] : null);
+                    if (targetTab) {
+                        var entry = ensureViewTab(targetTab);
+                        if (entry && entry.list) {
+                            container = entry.list;
+                        } else if (entry && entry.pane) {
+                            container = entry.pane;
+                        }
+                    }
+                }
+
+                var label = resolveFieldLabel(column);
                 var value = row[column];
                 if (typeof value === 'undefined' || value === null) {
                     value = '';
@@ -5257,11 +5446,34 @@ HTML;
                 var item = $('<div class="list-group-item"></div>');
                 item.append($('<div class="fw-semibold text-muted mb-1"></div>').text(label));
                 item.append($('<div class="text-break"></div>').text(displayValue));
-                viewContentContainer.append(item);
-                hasContent = true;
+                container.append(item);
+                viewHasContent = true;
             });
 
-            if (!hasContent) {
+            if (viewUsesTabs) {
+                var availableViewTabs = Object.keys(viewTabEntries);
+                var activeViewTab = viewDefaultTab && viewTabEntries[viewDefaultTab]
+                    ? viewDefaultTab
+                    : (availableViewTabs[0] || null);
+                if (activeViewTab) {
+                    Object.keys(viewTabEntries).forEach(function(name) {
+                        var entry = viewTabEntries[name];
+                        if (!entry) {
+                            return;
+                        }
+
+                        if (name === activeViewTab) {
+                            entry.nav.addClass('active').attr('aria-selected', 'true');
+                            entry.pane.addClass('show active');
+                        } else {
+                            entry.nav.removeClass('active').attr('aria-selected', 'false');
+                            entry.pane.removeClass('show active');
+                        }
+                    });
+                }
+            }
+
+            if (!viewHasContent) {
                 viewEmptyNotice.text('No fields available for this record.').removeClass('d-none');
             }
 
