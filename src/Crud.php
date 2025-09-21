@@ -20,6 +20,7 @@ class Crud
      * @var array<string, array<int, string>>
      */
     private array $tableColumnCache = [];
+    private string $primaryKeyColumn = 'id';
     private const SUPPORTED_CONDITION_OPERATORS = [
         'equals',
         'not_equals',
@@ -68,6 +69,7 @@ class Crud
         ],
         'column_summaries' => [],
         'panel_width' => null,
+        'primary_key' => 'id',
     ];
 
     /**
@@ -99,6 +101,19 @@ class Crud
         $this->table      = $table;
         $this->connection = $connection ?? DB::connection();
         $this->id         = $this->generateId();
+    }
+
+    public function primary_key(string $column): self
+    {
+        $column = trim($column);
+        if ($column === '') {
+            throw new InvalidArgumentException('Primary key column cannot be empty.');
+        }
+
+        $this->primaryKeyColumn = $column;
+        $this->config['primary_key'] = $column;
+
+        return $this;
     }
 
     public static function fromAjax(string $table, ?string $id, array|string|null $configPayload, ?PDO $connection = null): self
@@ -506,6 +521,10 @@ class Crud
     {
         foreach ($rows as $index => $row) {
             $rows[$index]['__fastcrud'] = $this->presentRow($row, $columns);
+            if (isset($rows[$index]['__fastcrud_primary_key'])) {
+                $rows[$index]['__fastcrud']['primary_key'] = $rows[$index]['__fastcrud_primary_key'];
+                $rows[$index]['__fastcrud']['primary_value'] = $rows[$index]['__fastcrud_primary_value'] ?? null;
+            }
             if (isset($rows[$index]['__fastcrud_raw'])) {
                 unset($rows[$index]['__fastcrud_raw']);
             }
@@ -1538,7 +1557,10 @@ class Crud
 
         $filteredRows = [];
         foreach ($rows as $row) {
-            $filteredRow = [];
+            $filteredRow = [
+                '__fastcrud_primary_key' => $row['__fastcrud_primary_key'] ?? null,
+                '__fastcrud_primary_value' => $row['__fastcrud_primary_value'] ?? null,
+            ];
             foreach ($visible as $column) {
                 $filteredRow[$column] = $row[$column] ?? null;
             }
@@ -1761,6 +1783,7 @@ HTML;
         }
 
         $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $this->attachPrimaryKeyMetadata($rows);
         $rows = $this->applyRelations($rows);
 
         $columns = $this->extractColumnNames($statement, $rows);
@@ -2111,6 +2134,7 @@ HTML;
                 'tooltip'   => $tableMeta['tooltip'] ?? null,
                 'icon'      => $tableMeta['icon'] ?? null,
             ],
+            'primary_key'    => $this->getPrimaryKeyColumn(),
             'columns'        => $columns,
             'labels'         => $filterColumns($this->config['column_labels']),
             'column_classes' => $filterColumns($this->config['column_classes']),
@@ -2245,6 +2269,7 @@ HTML;
             'row_highlights'    => $this->config['row_highlights'],
             'table_meta'        => $this->config['table_meta'],
             'column_summaries'  => $this->config['column_summaries'],
+            'primary_key'       => $this->primaryKeyColumn,
         ];
     }
 
@@ -2253,6 +2278,10 @@ HTML;
      */
     private function applyClientConfig(array $payload): void
     {
+        if (isset($payload['primary_key']) && is_string($payload['primary_key']) && trim($payload['primary_key']) !== '') {
+            $this->primary_key($payload['primary_key']);
+        }
+
         if (isset($payload['per_page'])) {
             $perPageCandidate = (int) $payload['per_page'];
             if ($perPageCandidate > 0) {
@@ -2554,6 +2583,27 @@ HTML;
         return $this->calculateVisibleColumns($columns);
     }
 
+    private function getPrimaryKeyColumn(): string
+    {
+        return $this->primaryKeyColumn;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function attachPrimaryKeyMetadata(array $rows): array
+    {
+        $primaryKey = $this->getPrimaryKeyColumn();
+
+        foreach ($rows as $index => $row) {
+            $rows[$index]['__fastcrud_primary_key'] = $primaryKey;
+            $rows[$index]['__fastcrud_primary_value'] = $row[$primaryKey] ?? null;
+        }
+
+        return $rows;
+    }
+
     /**
      * Update a record and return the fresh row data.
      *
@@ -2571,8 +2621,11 @@ HTML;
 
         $columns = $this->getColumnNames();
         if (!in_array($primaryKeyColumn, $columns, true)) {
-            $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
-            throw new InvalidArgumentException($message);
+            $tableColumns = $this->getTableColumnsFor($this->table);
+            if (!in_array($primaryKeyColumn, $tableColumns, true)) {
+                $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
+                throw new InvalidArgumentException($message);
+            }
         }
 
         $filtered = [];
@@ -2788,6 +2841,10 @@ HTML;
 
             if (Array.isArray(meta.columns)) {
                 columnsCache = meta.columns;
+            }
+
+            if (typeof meta.primary_key === 'string' && meta.primary_key.length) {
+                primaryKeyColumn = meta.primary_key;
             }
 
             columnLabels = meta.labels && typeof meta.labels === 'object' ? meta.labels : {};
@@ -3494,7 +3551,9 @@ HTML;
                         if (Array.isArray(response.columns) && response.columns.length) {
                             columnsCache = response.columns;
                         }
-                        primaryKeyColumn = findPrimaryKey(columnsCache);
+                        if (!primaryKeyColumn) {
+                            primaryKeyColumn = findPrimaryKey(columnsCache);
+                        }
 
                         tbody.fadeOut(100, function() {
                             populateTableRows(response.data || []);
@@ -3526,16 +3585,32 @@ HTML;
                 viewOffcanvasInstance.hide();
             }
 
-            if (!row || !primaryKeyColumn) {
+            if (!row) {
                 showFormError('Unable to determine primary key for editing.');
                 return;
             }
 
-            var primaryKeyValue = row[primaryKeyColumn];
-            editForm.data('primaryKeyColumn', primaryKeyColumn);
+            var rowPrimaryKeyColumn = row.__fastcrud_primary_key || primaryKeyColumn;
+            if (!rowPrimaryKeyColumn) {
+                showFormError('Unable to determine primary key for editing.');
+                return;
+            }
+
+            var primaryKeyValue;
+            if (Object.prototype.hasOwnProperty.call(row, '__fastcrud_primary_value') && typeof row.__fastcrud_primary_value !== 'undefined') {
+                primaryKeyValue = row.__fastcrud_primary_value;
+            } else {
+                primaryKeyValue = row[rowPrimaryKeyColumn];
+            }
+
+            editForm.data('primaryKeyColumn', rowPrimaryKeyColumn);
             editForm.data('primaryKeyValue', primaryKeyValue);
 
-            if (primaryKeyValue === null || typeof primaryKeyValue === 'undefined') {
+            if (!primaryKeyColumn) {
+                primaryKeyColumn = rowPrimaryKeyColumn;
+            }
+
+            if (primaryKeyValue === null || typeof primaryKeyValue === 'undefined' || String(primaryKeyValue).length === 0) {
                 showFormError('Missing primary key value for selected record.');
                 return;
             }
@@ -3547,7 +3622,7 @@ HTML;
             editFieldsContainer.empty();
 
             $.each(columnsCache, function(index, column) {
-                if (column === primaryKeyColumn) {
+                if (column === rowPrimaryKeyColumn) {
                     return;
                 }
 
@@ -3602,9 +3677,20 @@ HTML;
                 return;
             }
 
+            var viewPrimaryKeyColumn = row.__fastcrud_primary_key || primaryKeyColumn;
+            if (!primaryKeyColumn && viewPrimaryKeyColumn) {
+                primaryKeyColumn = viewPrimaryKeyColumn;
+            }
+
             if (viewHeading.length) {
                 var headingText = 'View Record';
-                var primaryValue = primaryKeyColumn ? row[primaryKeyColumn] : null;
+                var primaryValue;
+                if (Object.prototype.hasOwnProperty.call(row, '__fastcrud_primary_value') && typeof row.__fastcrud_primary_value !== 'undefined') {
+                    primaryValue = row.__fastcrud_primary_value;
+                } else if (viewPrimaryKeyColumn && typeof row[viewPrimaryKeyColumn] !== 'undefined') {
+                    primaryValue = row[viewPrimaryKeyColumn];
+                }
+
                 if (typeof primaryValue !== 'undefined' && primaryValue !== null && String(primaryValue).length > 0) {
                     headingText += ' ' + primaryValue;
                 }
@@ -3745,17 +3831,33 @@ HTML;
         });
 
         function requestDelete(row) {
-            if (!primaryKeyColumn) {
+            if (!row) {
                 showError('Unable to determine primary key for deletion.');
                 return;
             }
 
-            if (!row || typeof row[primaryKeyColumn] === 'undefined') {
+            var rowPrimaryKeyColumn = row.__fastcrud_primary_key || primaryKeyColumn;
+            if (!rowPrimaryKeyColumn) {
+                showError('Unable to determine primary key for deletion.');
+                return;
+            }
+
+            var primaryValue;
+            if (Object.prototype.hasOwnProperty.call(row, '__fastcrud_primary_value') && typeof row.__fastcrud_primary_value !== 'undefined') {
+                primaryValue = row.__fastcrud_primary_value;
+            } else {
+                primaryValue = row[rowPrimaryKeyColumn];
+            }
+
+            if (!primaryKeyColumn) {
+                primaryKeyColumn = rowPrimaryKeyColumn;
+            }
+
+            if (typeof primaryValue === 'undefined' || primaryValue === null || String(primaryValue).length === 0) {
                 showError('Missing primary key value for selected record.');
                 return;
             }
 
-            var primaryValue = row[primaryKeyColumn];
             var confirmationMessage = 'Are you sure you want to delete record ' + primaryValue + '?';
             if (!window.confirm(confirmationMessage)) {
                 return;
@@ -3770,7 +3872,7 @@ HTML;
                     action: 'delete',
                     table: tableName,
                     id: tableId,
-                    primary_key_column: primaryKeyColumn,
+                    primary_key_column: rowPrimaryKeyColumn,
                     primary_key_value: primaryValue,
                     config: JSON.stringify(clientConfig)
                 },
