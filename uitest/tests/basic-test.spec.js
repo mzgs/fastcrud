@@ -85,9 +85,6 @@ test('edit record workflow', async ({ page }) => {
   const updatePayload = await updateResponse.json().catch(() => ({}));
   expect(updatePayload && updatePayload.success, `Expected a successful update payload, received: ${JSON.stringify(updatePayload)}`).toBeTruthy();
 
-  const successAlert = page.locator(`#${tableId}-edit-success`);
-  await expect(successAlert, 'Expected success alert after saving changes').toBeVisible({ timeout: 5000 });
-
   await expect(offcanvasLocator, 'Expected edit panel to close after saving').not.toHaveClass(/show/, {
     timeout: 5000,
   });

@@ -3765,6 +3765,9 @@ HTML;
             submitButton.prop('disabled', true).text('Saving...');
 
             var offcanvas = getEditOffcanvasInstance();
+            if (offcanvas) {
+                offcanvas.hide();
+            }
 
             $.ajax({
                 url: window.location.pathname,
@@ -3782,16 +3785,8 @@ HTML;
                 },
                 success: function(response) {
                     if (response && response.success) {
-                        editSuccess.removeClass('d-none');
-                        if (response.message) {
-                            editSuccess.text(response.message);
-                        }
+                        editSuccess.addClass('d-none');
                         loadTableData(currentPage);
-                        if (offcanvas) {
-                            setTimeout(function() {
-                                offcanvas.hide();
-                            }, 1500);
-                        }
                     } else {
                         var message = response && response.error ? response.error : 'Failed to update record.';
                         showFormError(message);
