@@ -3334,9 +3334,43 @@ HTML;
         return $meta;
     }
 
+    private function buildColumnLookup(array $columns): array
+    {
+        $lookup = [];
+
+        $register = function ($candidate) use (&$lookup): void {
+            if (!is_string($candidate)) {
+                return;
+            }
+
+            $normalized = $this->normalizeColumnReference($candidate);
+            if ($normalized === '') {
+                return;
+            }
+
+            $lookup[$normalized] = true;
+        };
+
+        foreach ($columns as $column) {
+            $register($column);
+        }
+
+        foreach ($this->getBaseTableColumns() as $baseColumn) {
+            $register($baseColumn);
+        }
+
+        if (isset($this->config['form']['all_columns']) && is_array($this->config['form']['all_columns'])) {
+            foreach ($this->config['form']['all_columns'] as $formColumn) {
+                $register($formColumn);
+            }
+        }
+
+        return $lookup;
+    }
+
     private function buildMeta(array $columns): array
     {
-        $columnLookup = array_flip($columns);
+        $columnLookup = $this->buildColumnLookup($columns);
 
         $filterColumns = static function (array $source) use ($columnLookup): array {
             $filtered = [];
@@ -3384,7 +3418,7 @@ HTML;
 
     private function buildFormMeta(array $columns): array
     {
-        $columnLookup = array_flip($columns);
+        $columnLookup = $this->buildColumnLookup($columns);
 
         $layouts = [];
         if (isset($this->config['form']['layouts']) && is_array($this->config['form']['layouts'])) {
@@ -3621,6 +3655,34 @@ HTML;
 
         $allColumns = $this->getBaseTableColumns();
         $formConfig = $this->config['form'];
+
+        if (isset($formConfig['layouts']) && is_array($formConfig['layouts'])) {
+            foreach ($formConfig['layouts'] as $entries) {
+                if (!is_array($entries)) {
+                    continue;
+                }
+
+                foreach ($entries as $entry) {
+                    if (!is_array($entry) || !isset($entry['fields']) || !is_array($entry['fields'])) {
+                        continue;
+                    }
+
+                    foreach ($entry['fields'] as $fieldName) {
+                        if (!is_string($fieldName) || $fieldName === '') {
+                            continue;
+                        }
+
+                        $normalized = $this->normalizeColumnReference($fieldName);
+                        if ($normalized === '' || in_array($normalized, $allColumns, true)) {
+                            continue;
+                        }
+
+                        $allColumns[] = $normalized;
+                    }
+                }
+            }
+        }
+
         $formConfig['all_columns'] = $allColumns;
         $this->config['form']['all_columns'] = $allColumns;
 
