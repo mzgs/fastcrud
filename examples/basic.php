@@ -5,6 +5,7 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 
 use FastCrud\Crud;
+use FastCrud\CrudConfig;
 
 function content_callback(?string $value, array $row, string $column, string $formatted): string
 {
@@ -18,6 +19,8 @@ function fc_render_user_role(?string $value, array $row, string $column, string 
 
     return '<span class="badge bg-' . $variant . ' text-uppercase">' . $label . '</span>';
 }
+
+CrudConfig::$tinymce_upload_path = 'uploads/';
 
 Crud::init([
     'database' => 'fastcrud',

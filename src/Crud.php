@@ -3652,6 +3652,9 @@ HTML;
             'field_labels'      => $this->config['field_labels'],
             'primary_key'       => $this->primaryKeyColumn,
             'form'              => $formConfig,
+            'rich_editor'       => [
+                'upload_path' => CrudConfig::getTinymceUploadPath(),
+            ],
         ];
     }
 
@@ -4315,6 +4318,7 @@ HTML;
                 clientConfig = {};
             }
         }
+        var richEditorConfig = clientConfig.rich_editor || {};
         var paginationContainer = $('#' + tableId + '-pagination');
         var currentPage = 1;
         var columnsCache = [];
@@ -4383,8 +4387,9 @@ HTML;
                 powerpaste_word_import: 'merge',
                 powerpaste_html_import: 'merge',
                 powerpaste_allow_local_images: true,
-                images_upload_url: '/image',
-                images_upload_base_path: '/public/uploads',
+                images_upload_url: window.location.pathname,
+                images_upload_base_path: richEditorConfig.upload_path || '/public/uploads',
+                images_upload_credentials: true,
                 valid_elements: '*[*]',
                 images_file_types: 'jpeg,jpg,jpe,jfi,jif,jfif,png,gif,bmp,webp,svg',
                 file_picker_types: 'file image media',
@@ -4394,6 +4399,13 @@ HTML;
                 license_key: 'gpl'
             };
         }
+        if (richEditorConfig.upload_path) {
+            richEditorState.baseConfig.images_upload_base_path = richEditorConfig.upload_path;
+        }
+        if (richEditorConfig.upload_url) {
+            richEditorState.baseConfig.images_upload_url = richEditorConfig.upload_url;
+        }
+        richEditorState.baseConfig.images_upload_credentials = true;
         if (!Array.isArray(richEditorState.queue)) {
             richEditorState.queue = [];
         }
@@ -4847,6 +4859,69 @@ HTML;
                             existingSetup(editor);
                         }
                     };
+
+                    if (!config.images_upload_url) {
+                        config.images_upload_url = richEditorConfig.upload_url || window.location.pathname;
+                    }
+                    config.images_upload_credentials = true;
+
+                    if (typeof config.images_upload_handler !== 'function') {
+                        config.images_upload_handler = function(blobInfo, success, failure, progress) {
+                            var uploadUrl = config.images_upload_url || richEditorConfig.upload_url || window.location.pathname;
+                            var xhr = new XMLHttpRequest();
+                            xhr.open('POST', uploadUrl);
+                            xhr.withCredentials = true;
+
+                            xhr.onload = function() {
+                                if (xhr.status < 200 || xhr.status >= 300) {
+                                    failure('Upload failed with status ' + xhr.status);
+                                    return;
+                                }
+                                var response;
+                                var rawResponse = xhr.responseText || '';
+                                try {
+                                    response = JSON.parse(rawResponse || '{}');
+                                } catch (error) {
+                                    if (window.console && typeof window.console.error === 'function') {
+                                        console.error('FastCrud TinyMCE upload JSON parse error', error, rawResponse);
+                                    }
+                                    failure('Upload returned invalid JSON.');
+                                    return;
+                                }
+                                if (!response || response.success !== true || !response.location) {
+                                    var message = response && response.error ? response.error : 'Upload failed.';
+                                    failure(message);
+                                    return;
+                                }
+                                success(response.location);
+                            };
+
+                            xhr.onerror = function() {
+                                failure('Upload failed due to a network error.');
+                            };
+
+                            if (xhr.upload && typeof progress === 'function') {
+                                xhr.upload.onprogress = function(event) {
+                                    if (event.lengthComputable) {
+                                        progress((event.loaded / event.total) * 100);
+                                    }
+                                };
+                            }
+
+                            var formData = new FormData();
+                            formData.append('file', blobInfo.blob(), blobInfo.filename());
+                            formData.append('fastcrud_ajax', '1');
+                            formData.append('action', 'upload_image');
+                            if (tableName) {
+                                formData.append('table', tableName);
+                            }
+                            if (tableId) {
+                                formData.append('id', tableId);
+                            }
+
+                            xhr.send(formData);
+                        };
+                    }
 
                     window.tinymce.init(config);
                 });

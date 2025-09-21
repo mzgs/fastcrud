@@ -5,6 +5,8 @@ namespace FastCrud;
 
 use Exception;
 use InvalidArgumentException;
+use JsonException;
+use RuntimeException;
 
 class CrudAjax
 {
@@ -13,8 +15,6 @@ class CrudAjax
      */
     public static function handle(): void
     {
-        header('Content-Type: application/json');
-        
         try {
             $request = self::getRequestData();
             $action = $request['action'] ?? 'fetch';
@@ -29,15 +29,17 @@ class CrudAjax
                 case 'delete':
                     self::handleDelete($request);
                     break;
+                case 'upload_image':
+                    self::handleUploadImage($request);
+                    break;
                 default:
                     throw new InvalidArgumentException('Invalid action: ' . $action);
             }
         } catch (Exception $e) {
-            http_response_code(400);
-            echo json_encode([
+            self::respond([
                 'success' => false,
-                'error' => $e->getMessage()
-            ]);
+                'error' => $e->getMessage(),
+            ], 400);
         }
         
         exit;
@@ -75,13 +77,13 @@ class CrudAjax
         );
         $data = $crud->getTableData($page, $perPage, $searchTerm, $searchColumn);
 
-        echo json_encode([
+        self::respond([
             'success' => true,
             'data' => $data['rows'],
             'columns' => $data['columns'],
             'pagination' => $data['pagination'],
             'meta' => $data['meta'] ?? [],
-            'id' => $request['id'] ?? null
+            'id' => $request['id'] ?? null,
         ]);
     }
 
@@ -134,16 +136,15 @@ class CrudAjax
                 'edit'
             );
         } catch (ValidationException $exception) {
-            echo json_encode([
+            self::respond([
                 'success' => false,
                 'error' => $exception->getMessage(),
                 'errors' => $exception->getErrors(),
                 'id' => $request['id'] ?? null,
-            ]);
-            return;
+            ], 422);
         }
 
-        echo json_encode([
+        self::respond([
             'success' => true,
             'row' => $updatedRow,
             'columns' => $updatedRow !== null ? array_keys($updatedRow) : [],
@@ -186,7 +187,79 @@ class CrudAjax
             $response['error'] = 'Record not found or already deleted.';
         }
 
-        echo json_encode($response);
+        self::respond($response, $deleted ? 200 : 404);
+    }
+
+    /**
+     * Handle TinyMCE image uploads.
+     */
+    private static function handleUploadImage(array $request): void
+    {
+        if (!isset($_FILES['file'])) {
+            throw new InvalidArgumentException('No image file provided.');
+        }
+
+        $file = $_FILES['file'];
+        if (!is_array($file) || !array_key_exists('error', $file)) {
+            throw new InvalidArgumentException('Invalid upload payload.');
+        }
+
+        $error = is_array($file['error']) ? ($file['error'][0] ?? UPLOAD_ERR_NO_FILE) : (int) $file['error'];
+        if ($error !== UPLOAD_ERR_OK) {
+            throw new InvalidArgumentException(self::describeUploadError($error));
+        }
+
+        $tmpName = is_array($file['tmp_name']) ? ($file['tmp_name'][0] ?? '') : ($file['tmp_name'] ?? '');
+        if (!is_string($tmpName) || $tmpName === '' || !is_uploaded_file($tmpName)) {
+            throw new InvalidArgumentException('Invalid upload stream.');
+        }
+
+        $size = is_array($file['size']) ? (int) ($file['size'][0] ?? 0) : (int) ($file['size'] ?? 0);
+        $maxSize = 8 * 1024 * 1024; // 8 MB
+        if ($size > $maxSize) {
+            throw new InvalidArgumentException('Image exceeds the maximum allowed size of 8MB.');
+        }
+
+        $originalNameRaw = is_array($file['name']) ? (string) ($file['name'][0] ?? 'upload') : (string) ($file['name'] ?? 'upload');
+        $originalName = $originalNameRaw === '' ? 'upload' : $originalNameRaw;
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+        $allowedExtensions = ['jpg', 'jpeg', 'jpe', 'jfi', 'jfif', 'png', 'gif', 'bmp', 'webp', 'svg'];
+        if ($extension === '' || !in_array($extension, $allowedExtensions, true)) {
+            throw new InvalidArgumentException('Unsupported image extension. Allowed: ' . implode(', ', $allowedExtensions) . '.');
+        }
+
+        $mimeType = self::detectMimeType($tmpName);
+        $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp', 'image/svg+xml'];
+        if ($mimeType !== null && !in_array($mimeType, $allowedMimeTypes, true)) {
+            throw new InvalidArgumentException('Unsupported image type: ' . $mimeType);
+        }
+
+        $uploadDirectory = self::resolveTinymceUploadDirectory();
+        if (!is_dir($uploadDirectory)) {
+            if (!mkdir($uploadDirectory, 0775, true) && !is_dir($uploadDirectory)) {
+                throw new RuntimeException('Failed to create upload directory.');
+            }
+        }
+
+        $filename = self::generateUploadFilename($originalName, $extension);
+        $targetPath = rtrim($uploadDirectory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $filename;
+
+        if (!move_uploaded_file($tmpName, $targetPath)) {
+            throw new RuntimeException('Failed to store uploaded image.');
+        }
+
+        @chmod($targetPath, 0664);
+
+        $publicBase = CrudConfig::getTinymceUploadPath();
+        $location = self::buildPublicUploadLocation($publicBase, $filename);
+
+        self::respond([
+            'success' => true,
+            'location' => $location,
+            'name' => $filename,
+            'size' => $size,
+        ], 201);
     }
     
     /**
@@ -222,5 +295,156 @@ class CrudAjax
         }
 
         return $_GET;
+    }
+
+    private static function detectMimeType(string $path): ?string
+    {
+        if (!function_exists('finfo_open')) {
+            return null;
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo === false) {
+            return null;
+        }
+
+        $mime = finfo_file($finfo, $path) ?: null;
+        finfo_close($finfo);
+
+        return $mime === false ? null : $mime;
+    }
+
+    private static function resolveTinymceUploadDirectory(): string
+    {
+        $configuredPath = CrudConfig::getTinymceUploadPath();
+
+        if (self::isUrl($configuredPath)) {
+            $parsedPath = parse_url($configuredPath, PHP_URL_PATH) ?: '';
+            $configuredPath = $parsedPath !== '' ? $parsedPath : 'public/uploads';
+        }
+
+        if (self::isAbsolutePath($configuredPath)) {
+            return rtrim($configuredPath, DIRECTORY_SEPARATOR);
+        }
+
+        $root = dirname(__DIR__);
+        $relative = trim($configuredPath, '\/');
+        if ($relative === '') {
+            $relative = 'public/uploads';
+        }
+
+        $normalizedRelative = strtr($relative, ['/' => DIRECTORY_SEPARATOR, chr(92) => DIRECTORY_SEPARATOR]);
+
+        return rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $normalizedRelative;
+    }
+
+    private static function buildPublicUploadLocation(string $basePath, string $filename): string
+    {
+        if (self::isUrl($basePath)) {
+            return rtrim($basePath, '/') . '/' . $filename;
+        }
+
+        $normalized = strtr(trim($basePath), [chr(92) => '/']);
+        if ($normalized === '') {
+            $normalized = '/public/uploads';
+        }
+
+        if ($normalized !== '/' && !self::startsWith($normalized, '/')) {
+            $normalized = '/' . $normalized;
+        }
+
+        return rtrim($normalized, '/') . '/' . $filename;
+    }
+
+    private static function generateUploadFilename(string $originalName, string $extension): string
+    {
+        $base = pathinfo($originalName, PATHINFO_FILENAME);
+        $base = preg_replace('/[^A-Za-z0-9_-]+/', '-', $base) ?? 'image';
+        $base = trim($base, '-_');
+        if ($base === '') {
+            $base = 'image';
+        }
+
+        try {
+            $random = bin2hex(random_bytes(6));
+        } catch (Exception) {
+            $random = substr(str_replace('.', '', uniqid('', true)), 0, 12);
+        }
+
+        $timestamp = date('YmdHis');
+
+        return sprintf('%s-%s-%s.%s', $base, $timestamp, $random, $extension);
+    }
+
+    private static function describeUploadError(int $code): string
+    {
+        return match ($code) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'Uploaded image is too large.',
+            UPLOAD_ERR_PARTIAL => 'Uploaded image was only partially received.',
+            UPLOAD_ERR_NO_FILE => 'No image file was uploaded.',
+            UPLOAD_ERR_NO_TMP_DIR => 'Server is missing a temporary folder for uploads.',
+            UPLOAD_ERR_CANT_WRITE => 'Server failed to write the uploaded image to disk.',
+            UPLOAD_ERR_EXTENSION => 'A PHP extension stopped the image upload.',
+            default => 'Image upload failed with error code ' . $code . '.',
+        };
+    }
+
+    private static function isAbsolutePath(string $path): bool
+    {
+        if ($path === '') {
+            return false;
+        }
+
+        if (self::startsWith($path, DIRECTORY_SEPARATOR)) {
+            return true;
+        }
+
+        return (bool) preg_match('/^[A-Za-z]:[\\\//]/', $path);
+    }
+
+    private static function isUrl(string $path): bool
+    {
+        return (bool) preg_match('/^https?:\/\//i', $path);
+    }
+
+    private static function startsWith(string $haystack, string $needle): bool
+    {
+        if ($needle === '') {
+            return true;
+        }
+
+        return strncmp($haystack, $needle, strlen($needle)) === 0;
+    }
+
+    /**
+     * Emit a JSON response and terminate execution.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private static function respond(array $payload, int $status = 200): void
+    {
+        if (ob_get_level() > 0) {
+            @ob_clean();
+        }
+
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+
+        http_response_code($status);
+
+        try {
+            $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            $fallback = json_encode([
+                'success' => false,
+                'error' => 'Failed to encode JSON response.',
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{"success":false,"error":"Failed to encode JSON response."}';
+            echo $fallback;
+            exit;
+        }
+
+        echo $json;
+        exit;
     }
 }
