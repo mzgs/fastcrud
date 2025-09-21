@@ -4356,6 +4356,11 @@ HTML;
         var editLabel = $('#' + tableId + '-edit-label');
         var editOffcanvasElement = $('#' + tableId + '-edit-panel');
         var editOffcanvasInstance = null;
+        if (editOffcanvasElement.length) {
+            editOffcanvasElement.on('hidden.bs.offcanvas', function() {
+                destroyRichEditors(editFieldsContainer);
+            });
+        }
 
         var viewOffcanvasElement = $('#' + tableId + '-view-panel');
         var viewContentContainer = $('#' + tableId + '-view-content');
@@ -4363,6 +4368,42 @@ HTML;
         var viewHeading = $('#' + tableId + '-view-label');
         var viewOffcanvasInstance = null;
         var summaryFooter = $('#' + tableId + '-summary');
+
+        var richEditorState = window.FastCrudRichEditor || {};
+        if (!richEditorState.scriptUrl) {
+            richEditorState.scriptUrl = 'https://mzgs.net/tinymce5/tinymce.min.js';
+        }
+        if (!richEditorState.baseConfig) {
+            richEditorState.baseConfig = {
+                menubar: false,
+                height: 500,
+                branding: false,
+                paste_data_images: true,
+                automatic_uploads: true,
+                powerpaste_word_import: 'merge',
+                powerpaste_html_import: 'merge',
+                powerpaste_allow_local_images: true,
+                images_upload_url: '/image',
+                images_upload_base_path: '/public/uploads',
+                valid_elements: '*[*]',
+                images_file_types: 'jpeg,jpg,jpe,jfi,jif,jfif,png,gif,bmp,webp,svg',
+                file_picker_types: 'file image media',
+                plugins: 'advlist textcolor anchor autolink fullscreen image lists link media code preview searchreplace table visualblocks wordcount pagebreak powerpaste',
+                toolbar: 'undo redo | formatselect bold italic removeformat | forecolor backcolor | alignleft aligncenter alignright alignjustify | table bullist numlist pagebreak hr| link image media insertfile | fullscreen code preview',
+                spellchecker_dialog: true,
+                license_key: 'gpl'
+            };
+        }
+        if (!Array.isArray(richEditorState.queue)) {
+            richEditorState.queue = [];
+        }
+        if (typeof richEditorState.loaded === 'undefined') {
+            richEditorState.loaded = typeof window.tinymce !== 'undefined';
+        }
+        if (typeof richEditorState.loading === 'undefined') {
+            richEditorState.loading = false;
+        }
+        window.FastCrudRichEditor = richEditorState;
 
         function getEditOffcanvasInstance() {
             if (editOffcanvasInstance) {
@@ -4706,6 +4747,133 @@ HTML;
                     existing.dispose();
                 }
                 bootstrap.Tooltip.getOrCreateInstance(target);
+            });
+        }
+
+        function withRichEditorAssets(callback) {
+            if (typeof callback !== 'function') {
+                return;
+            }
+
+            if (typeof window.tinymce !== 'undefined') {
+                richEditorState.loaded = true;
+                callback();
+                return;
+            }
+
+            richEditorState.queue.push(callback);
+
+            if (richEditorState.loading) {
+                return;
+            }
+
+            richEditorState.loading = true;
+
+            var script = document.createElement('script');
+            script.src = richEditorState.scriptUrl;
+            script.referrerPolicy = 'no-referrer';
+            script.onload = function() {
+                richEditorState.loaded = true;
+                richEditorState.loading = false;
+                var queued = richEditorState.queue.slice();
+                richEditorState.queue.length = 0;
+                queued.forEach(function(fn) {
+                    try {
+                        fn();
+                    } catch (error) {
+                        console.error(error);
+                    }
+                });
+            };
+            script.onerror = function() {
+                richEditorState.loading = false;
+                console.error('FastCrud: failed to load TinyMCE assets from ' + richEditorState.scriptUrl);
+                richEditorState.queue.length = 0;
+            };
+
+            document.head.appendChild(script);
+        }
+
+        function initializeRichEditors(container) {
+            if (!container || !container.length) {
+                return;
+            }
+
+            var editors = container.find('textarea.fastcrud-rich-editor');
+            if (!editors.length) {
+                return;
+            }
+
+            withRichEditorAssets(function() {
+                if (!window.tinymce || typeof window.tinymce.init !== 'function') {
+                    return;
+                }
+
+                editors.each(function() {
+                    var textarea = $(this);
+                    var element = textarea.get(0);
+                    if (!element) {
+                        return;
+                    }
+
+                    if (element.id) {
+                        var existingEditor = window.tinymce.get(element.id);
+                        if (existingEditor) {
+                            existingEditor.remove();
+                        }
+                    }
+
+                    var overrides = textarea.data('fastcrudEditorConfig');
+                    var config = $.extend(true, {}, richEditorState.baseConfig || {});
+                    if (overrides && typeof overrides === 'object') {
+                        config = $.extend(true, config, overrides);
+                    }
+
+                    if (config.selector) {
+                        delete config.selector;
+                    }
+                    if (config.target && config.target !== element) {
+                        delete config.target;
+                    }
+
+                    config.target = element;
+
+                    var existingSetup = config.setup;
+                    config.setup = function(editor) {
+                        editor.on('change keyup blur', function() {
+                            textarea.val(editor.getContent());
+                        });
+                        if (typeof existingSetup === 'function') {
+                            existingSetup(editor);
+                        }
+                    };
+
+                    window.tinymce.init(config);
+                });
+            });
+        }
+
+        function destroyRichEditors(container) {
+            if (!container || !container.length) {
+                return;
+            }
+
+            if (!window.tinymce || !window.tinymce.editors) {
+                return;
+            }
+
+            var editors = Array.prototype.slice.call(window.tinymce.editors || []);
+            editors.forEach(function(editor) {
+                if (!editor) {
+                    return;
+                }
+                var element = editor.targetElm || (typeof editor.getElement === 'function' ? editor.getElement() : null);
+                if (!element) {
+                    return;
+                }
+                if ($(element).closest(container).length) {
+                    editor.remove();
+                }
             });
         }
 
@@ -5466,6 +5634,7 @@ HTML;
                 editLabel.text('Edit Record ' + primaryKeyValue);
             }
 
+            destroyRichEditors(editFieldsContainer);
             editFieldsContainer.empty();
             editForm.find('input[type="hidden"][data-fastcrud-field]').remove();
 
@@ -5605,6 +5774,28 @@ HTML;
                         .attr('id', fieldId)
                         .attr('rows', params.rows && Number(params.rows) > 0 ? Number(params.rows) : 3)
                         .val(normalizedValue);
+                } else if (changeType === 'rich_editor') {
+                    var startingValue = normalizedValue === null || typeof normalizedValue === 'undefined'
+                        ? ''
+                        : String(normalizedValue);
+                    input = $('<textarea class="form-control editor-instance fastcrud-rich-editor"></textarea>')
+                        .attr('id', fieldId)
+                        .attr('rows', params.rows && Number(params.rows) > 0 ? Number(params.rows) : 6)
+                        .val(startingValue);
+                    dataType = 'rich_editor';
+
+                    var editorConfig = {};
+                    if (typeof params.height !== 'undefined' && params.height !== null) {
+                        var heightCandidate = params.height;
+                        var numericHeight = Number(heightCandidate);
+                        editorConfig.height = Number.isFinite(numericHeight) && numericHeight > 0 ? numericHeight : heightCandidate;
+                    }
+                    if (params.editor && typeof params.editor === 'object') {
+                        editorConfig = $.extend(true, editorConfig, params.editor);
+                    }
+                    if (!$.isEmptyObject(editorConfig)) {
+                        input.data('fastcrudEditorConfig', editorConfig);
+                    }
                 } else if (changeType === 'select') {
                     input = $('<select class="form-select"></select>').attr('id', fieldId);
                     var optionMap = params.values || params.options || {};
@@ -5798,6 +5989,8 @@ HTML;
                     });
                 }
             }
+
+            initializeRichEditors(editFieldsContainer);
 
             var behaviourSources = [formConfig.behaviours.pass_var || {}, formConfig.behaviours.pass_default || {}];
             var createdHiddenFields = {};
@@ -6045,6 +6238,10 @@ HTML;
 
             clearFormAlerts();
             currentFieldErrors = {};
+
+            if (window.tinymce && typeof window.tinymce.triggerSave === 'function') {
+                window.tinymce.triggerSave();
+            }
 
             var fields = {};
             var fieldErrors = {};

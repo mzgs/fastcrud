@@ -72,7 +72,7 @@ Crud::init([
                     ->columns('user_id,title,slug,is_featured,content,created_at')
                     ->fields('user_id,title,is_featured,content' )
                     // ->fields('slug,content',false,'Content' )
-                  
+                  ->change_type('content', 'rich_editor', '', ['height' => 450])
                     ->search_columns('title,content', 'title')
                     ->set_column_labels([
                         'user_id'    => 'Author',
@@ -89,7 +89,7 @@ Crud::init([
                     ->column_callback('content', 'content_callback')
                     ->column_class('user_id', 'text-muted')
                     ->column_width('title', '30%')
-                    ->column_cut('content', 12)
+                    ->column_cut('content', 24)
                     ->setPanelWidth('30%')
                     // ->change_type('title', 'textarea','',['rows' => 12])
                   
