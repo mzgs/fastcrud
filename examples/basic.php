@@ -97,7 +97,7 @@ Crud::init([
                     ->column_callback('content', 'content_callback')
                     ->column_class('user_id', 'text-muted')
                     ->column_width('title', '30%')
-                    ->column_cut('content', 24)
+                    ->column_cut('content', 10)
                     ->setPanelWidth('30%')
                     // ->change_type('title', 'textarea','',['rows' => 12])
                   

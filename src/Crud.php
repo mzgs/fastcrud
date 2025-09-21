@@ -1195,11 +1195,14 @@ class Crud
         return $this;
     }
 
-    public function column_callback(string $column, callable|string|array $callback): self
+    /**
+     * @param string|array<int, string> $columns
+     */
+    public function column_callback(string|array $columns, callable|string|array $callback): self
     {
-        $column = $this->normalizeColumnReference($column);
-        if ($column === '') {
-            throw new InvalidArgumentException('Column name cannot be empty when assigning a callback.');
+        $list = $this->normalizeList($columns);
+        if ($list === []) {
+            throw new InvalidArgumentException('column_callback requires at least one column.');
         }
 
         $serialized = $this->normalizeCallable($callback);
@@ -1208,32 +1211,69 @@ class Crud
             throw new InvalidArgumentException('Provided callback is not callable: ' . $serialized);
         }
 
-        $this->config['column_callbacks'][$column] = $serialized;
+        $applied = false;
+
+        foreach ($list as $column) {
+            $normalized = $this->normalizeColumnReference($column);
+            if ($normalized === '') {
+                continue;
+            }
+
+            $this->config['column_callbacks'][$normalized] = $serialized;
+            $applied = true;
+        }
+
+        if (!$applied) {
+            throw new InvalidArgumentException('column_callback requires at least one valid column name.');
+        }
 
         return $this;
     }
 
     /**
+     * @param string|array<int, string> $columns
      * @param string|array<int, string> $classes
      */
-    public function column_class(string $column, string|array $classes): self
+    public function column_class(string|array $columns, string|array $classes): self
     {
-        $column = $this->normalizeColumnReference($column);
-        if ($column === '') {
-            throw new InvalidArgumentException('Column name cannot be empty when assigning classes.');
+        $columnList = $this->normalizeList($columns);
+        if ($columnList === []) {
+            throw new InvalidArgumentException('column_class requires at least one column.');
         }
 
-        $normalized = is_array($classes) ? $this->normalizeList($classes) : $this->normalizeList((string) $classes);
-        $this->config['column_classes'][$column] = implode(' ', $normalized);
+        $normalizedClasses = is_array($classes)
+            ? $this->normalizeList($classes)
+            : $this->normalizeList((string) $classes);
+
+        $classString = implode(' ', $normalizedClasses);
+
+        $applied = false;
+
+        foreach ($columnList as $column) {
+            $normalized = $this->normalizeColumnReference($column);
+            if ($normalized === '') {
+                continue;
+            }
+
+            $this->config['column_classes'][$normalized] = $classString;
+            $applied = true;
+        }
+
+        if (!$applied) {
+            throw new InvalidArgumentException('column_class requires at least one valid column name.');
+        }
 
         return $this;
     }
 
-    public function column_width(string $column, string $width): self
+    /**
+     * @param string|array<int, string> $columns
+     */
+    public function column_width(string|array $columns, string $width): self
     {
-        $column = $this->normalizeColumnReference($column);
-        if ($column === '') {
-            throw new InvalidArgumentException('Column name cannot be empty when assigning widths.');
+        $columnList = $this->normalizeList($columns);
+        if ($columnList === []) {
+            throw new InvalidArgumentException('column_width requires at least one column.');
         }
 
         $width = trim($width);
@@ -1241,48 +1281,96 @@ class Crud
             throw new InvalidArgumentException('Column width cannot be empty.');
         }
 
-        $this->config['column_widths'][$column] = $width;
+        $applied = false;
+
+        foreach ($columnList as $column) {
+            $normalized = $this->normalizeColumnReference($column);
+            if ($normalized === '') {
+                continue;
+            }
+
+            $this->config['column_widths'][$normalized] = $width;
+            $applied = true;
+        }
+
+        if (!$applied) {
+            throw new InvalidArgumentException('column_width requires at least one valid column name.');
+        }
 
         return $this;
     }
 
-    public function column_cut(string $column, int $length, string $suffix = '…'): self
+    /**
+     * @param string|array<int, string> $columns
+     */
+    public function column_cut(string|array $columns, int $length, string $suffix = '…'): self
     {
-        $column = $this->normalizeColumnReference($column);
-        if ($column === '') {
-            throw new InvalidArgumentException('Column name cannot be empty when setting cut length.');
+        $columnList = $this->normalizeList($columns);
+        if ($columnList === []) {
+            throw new InvalidArgumentException('column_cut requires at least one column.');
         }
 
         if ($length < 1) {
             throw new InvalidArgumentException('Column cut length must be at least 1.');
         }
 
-        $this->config['column_cuts'][$column] = [
-            'length' => $length,
-            'suffix' => $suffix,
-        ];
+        $applied = false;
+
+        foreach ($columnList as $column) {
+            $normalized = $this->normalizeColumnReference($column);
+            if ($normalized === '') {
+                continue;
+            }
+
+            $this->config['column_cuts'][$normalized] = [
+                'length' => $length,
+                'suffix' => $suffix,
+            ];
+            $applied = true;
+        }
+
+        if (!$applied) {
+            throw new InvalidArgumentException('column_cut requires at least one valid column name.');
+        }
 
         return $this;
     }
 
 
     /**
+     * @param string|array<int, string> $columns
      * @param array<string, mixed>|string $condition
      */
-    public function highlight(string $column, array|string $condition, string $class = 'text-warning'): self
+    public function highlight(string|array $columns, array|string $condition, string $class = 'text-warning'): self
     {
-        $column = $this->normalizeColumnReference($column);
-        if ($column === '') {
-            throw new InvalidArgumentException('Column name cannot be empty when defining highlights.');
+        $columnList = $this->normalizeList($columns);
+        if ($columnList === []) {
+            throw new InvalidArgumentException('highlight requires at least one column.');
         }
 
-        $normalizedCondition = $this->normalizeCondition($condition, $column);
         $class = $this->normalizeCssClassList($class);
 
-        $this->config['column_highlights'][$column][] = [
-            'condition' => $normalizedCondition,
-            'class'     => $class,
-        ];
+        $applied = false;
+
+        foreach ($columnList as $column) {
+            $normalizedColumn = $this->normalizeColumnReference($column);
+            if ($normalizedColumn === '') {
+                continue;
+            }
+
+            $normalizedCondition = $this->normalizeCondition($condition, $normalizedColumn);
+
+            $this->config['column_highlights'][$normalizedColumn][] = [
+                'condition' => $normalizedCondition,
+                'class'     => $class,
+            ];
+
+            $applied = true;
+        }
+
+        if (!$applied) {
+            throw new InvalidArgumentException('highlight requires at least one valid column name.');
+        }
 
         return $this;
     }
@@ -1332,11 +1420,14 @@ class Crud
     }
 
 
-    public function column_summary(string $column, string $type = 'sum', ?string $label = null, ?int $precision = null): self
+    /**
+     * @param string|array<int, string> $columns
+     */
+    public function column_summary(string|array $columns, string $type = 'sum', ?string $label = null, ?int $precision = null): self
     {
-        $column = $this->normalizeColumnReference($column);
-        if ($column === '') {
-            throw new InvalidArgumentException('Column name cannot be empty when defining summaries.');
+        $columnList = $this->normalizeList($columns);
+        if ($columnList === []) {
+            throw new InvalidArgumentException('column_summary requires at least one column.');
         }
 
         $type = strtolower(trim($type));
@@ -1348,14 +1439,28 @@ class Crud
             throw new InvalidArgumentException('Summary precision cannot be negative.');
         }
 
-        $entry = [
-            'column'    => $column,
-            'type'      => $type,
-            'label'     => $label ? trim($label) : null,
-            'precision' => $precision,
-        ];
+        $applied = false;
+        $labelValue = $label ? trim($label) : null;
 
-        $this->config['column_summaries'][] = $entry;
+        foreach ($columnList as $column) {
+            $normalized = $this->normalizeColumnReference($column);
+            if ($normalized === '') {
+                continue;
+            }
+
+            $this->config['column_summaries'][] = [
+                'column'    => $normalized,
+                'type'      => $type,
+                'label'     => $labelValue,
+                'precision' => $precision,
+            ];
+
+            $applied = true;
+        }
+
+        if (!$applied) {
+            throw new InvalidArgumentException('column_summary requires at least one valid column name.');
+        }
 
         return $this;
     }
@@ -1416,11 +1521,14 @@ class Crud
         return $this;
     }
 
-    public function change_type(string $field, string $type, mixed $default = '', array $params = []): self
+    /**
+     * @param string|array<int, string> $fields
+     */
+    public function change_type(string|array $fields, string $type, mixed $default = '', array $params = []): self
     {
-        $field = $this->normalizeColumnReference($field);
-        if ($field === '') {
-            throw new InvalidArgumentException('Field name cannot be empty when changing type.');
+        $list = $this->normalizeList($fields);
+        if ($list === []) {
+            throw new InvalidArgumentException('change_type requires at least one field.');
         }
 
         $type = strtolower(trim($type));
@@ -1433,11 +1541,19 @@ class Crud
         }
 
         $this->ensureFormBehaviourBuckets();
-        $this->config['form']['behaviours']['change_type'][$field] = [
-            'type'    => $type,
-            'default' => $default,
-            'params'  => $params,
-        ];
+
+        foreach ($list as $field) {
+            $normalized = $this->normalizeColumnReference($field);
+            if ($normalized === '') {
+                continue;
+            }
+
+            $this->config['form']['behaviours']['change_type'][$normalized] = [
+                'type'    => $type,
+                'default' => $default,
+                'params'  => $params,
+            ];
+        }
 
         return $this;
     }
@@ -1612,10 +1728,13 @@ class Crud
         return $this;
     }
 
-    public function order_by(string $field, string $direction = 'asc'): self
+    /**
+     * @param string|array<int, string> $fields
+     */
+    public function order_by(string|array $fields, string $direction = 'asc'): self
     {
-        $field = trim($field);
-        if ($field === '') {
+        $list = $this->normalizeList($fields);
+        if ($list === []) {
             throw new InvalidArgumentException('Order by field cannot be empty.');
         }
 
@@ -1624,10 +1743,12 @@ class Crud
             throw new InvalidArgumentException('Order direction must be ASC or DESC.');
         }
 
-        $this->config['order_by'][] = [
-            'field'     => $field,
-            'direction' => $direction,
-        ];
+        foreach ($list as $field) {
+            $this->config['order_by'][] = [
+                'field'     => $field,
+                'direction' => $direction,
+            ];
+        }
 
         return $this;
     }
@@ -1675,30 +1796,68 @@ class Crud
         return $this;
     }
 
-    public function join(string $field, string $joinTable, string $joinField, string|false $alias = false, bool $notInsert = false): self
+    /**
+     * @param string|array<int, string> $fields
+     * @param string|array<int, string>|false $alias
+     */
+    public function join(string|array $fields, string $joinTable, string $joinField, string|array|false $alias = false, bool $notInsert = false): self
     {
-        $aliasValue = $alias === false || $alias === '' ? null : $alias;
-        if ($aliasValue === null) {
-            $aliasValue = 'j' . count($this->config['joins']);
+        $fieldList = $this->normalizeList($fields);
+        if ($fieldList === []) {
+            throw new InvalidArgumentException('Join requires at least one field.');
         }
 
-        $this->config['joins'][] = [
-            'field'      => $field,
-            'table'      => $joinTable,
-            'join_field' => $joinField,
-            'alias'      => $aliasValue,
-            'not_insert' => $notInsert,
-        ];
+        $aliasList = null;
+        $baseAlias = null;
+
+        if (is_array($alias)) {
+            $aliasList = [];
+            foreach ($alias as $value) {
+                if (!is_string($value) && !is_int($value)) {
+                    $aliasList[] = null;
+                    continue;
+                }
+
+                $trimmedAlias = trim((string) $value);
+                $aliasList[] = $trimmedAlias === '' ? null : $trimmedAlias;
+            }
+        } elseif (is_string($alias)) {
+            $trimmed = trim($alias);
+            $baseAlias = $trimmed === '' ? null : $trimmed;
+        }
+
+        foreach ($fieldList as $index => $field) {
+            $aliasValue = null;
+
+            if ($aliasList !== null) {
+                $aliasValue = $aliasList[$index] ?? null;
+            } elseif ($baseAlias !== null) {
+                $aliasValue = $baseAlias . ($index === 0 ? '' : '_' . ($index + 1));
+            }
+
+            if ($aliasValue === null || $aliasValue === '') {
+                $aliasValue = 'j' . count($this->config['joins']);
+            }
+
+            $this->config['joins'][] = [
+                'field'      => $field,
+                'table'      => $joinTable,
+                'join_field' => $joinField,
+                'alias'      => $aliasValue,
+                'not_insert' => $notInsert,
+            ];
+        }
 
         return $this;
     }
 
     /**
+     * @param string|array<int, string> $fields
      * @param string|array<int, string> $relName
      * @param array<string, mixed> $relWhere
      */
     public function relation(
-        string $field,
+        string|array $fields,
         string $relatedTable,
         string $relatedField,
         string|array $relName,
@@ -1706,15 +1865,27 @@ class Crud
         string|false $orderBy = false,
         bool $multi = false
     ): self {
-        $this->config['relations'][] = [
-            'field'         => $field,
-            'table'         => $relatedTable,
-            'related_field' => $relatedField,
-            'related_name'  => $relName,
-            'where'         => $relWhere,
-            'order_by'      => $orderBy === false ? null : $orderBy,
-            'multi'         => $multi,
-        ];
+        $fieldList = $this->normalizeList($fields);
+        if ($fieldList === []) {
+            throw new InvalidArgumentException('Relation requires at least one field.');
+        }
+
+        foreach ($fieldList as $field) {
+            $normalizedField = $this->normalizeColumnReference($field);
+            if ($normalizedField === '') {
+                continue;
+            }
+
+            $this->config['relations'][] = [
+                'field'         => $normalizedField,
+                'table'         => $relatedTable,
+                'related_field' => $relatedField,
+                'related_name'  => $relName,
+                'where'         => $relWhere,
+                'order_by'      => $orderBy === false ? null : $orderBy,
+                'multi'         => $multi,
+            ];
+        }
 
         return $this;
     }
