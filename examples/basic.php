@@ -70,8 +70,8 @@ Crud::init([
                     // ->join('user_id', 'users', 'id','user')
                     // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
                     ->columns('user_id,title,slug,is_featured,content,created_at')
-                    ->fields('user_id,title,is_featured',false,'Test' )
-                    ->fields('slug,content',false,'Content' )
+                    ->fields('user_id,title,is_featured,content' )
+                    // ->fields('slug,content',false,'Content' )
                   
                     ->search_columns('title,content', 'title')
                     ->set_column_labels([
@@ -91,6 +91,7 @@ Crud::init([
                     ->column_width('title', '30%')
                     ->column_cut('content', 12)
                     ->setPanelWidth('30%')
+                    // ->change_type('title', 'textarea','',['rows' => 12])
                   
                     // ->highlight('id', ['operator' => 'equals', 'value' => 32], 'bg-info')
                     ->highlight_row(['column' => 'id', 'operator' => 'equals', 'value' => 23], 'table-info')
