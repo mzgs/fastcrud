@@ -20,6 +20,14 @@ class Crud
      * @var array<string, array<int, string>>
      */
     private array $tableColumnCache = [];
+    /**
+     * @var array<string, array<string, array<string, mixed>>>
+     */
+    private array $tableSchemaCache = [];
+    /**
+     * @var array<string, array<string, string>>
+     */
+    private array $relationOptionsCache = [];
     private string $primaryKeyColumn = 'id';
     private const SUPPORTED_CONDITION_OPERATORS = [
         'equals',
@@ -2336,6 +2344,542 @@ class Crud
         return $columns;
     }
 
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function getTableSchema(string $table): array
+    {
+        if (isset($this->tableSchemaCache[$table])) {
+            return $this->tableSchemaCache[$table];
+        }
+
+        $driver = null;
+        try {
+            $driver = strtolower((string) $this->connection->getAttribute(PDO::ATTR_DRIVER_NAME));
+        } catch (PDOException) {
+            $driver = null;
+        }
+
+        $schema = [];
+
+        switch ($driver) {
+            case 'mysql':
+                $schema = $this->loadMysqlTableSchema($table);
+                break;
+            case 'pgsql':
+                $schema = $this->loadPgsqlTableSchema($table);
+                break;
+            case 'sqlite':
+            case 'sqlite2':
+            case 'sqlite3':
+                $schema = $this->loadSqliteTableSchema($table);
+                break;
+        }
+
+        if ($schema === []) {
+            $schema = $this->loadGenericTableSchema($table);
+        }
+
+        $this->tableSchemaCache[$table] = $schema;
+
+        return $schema;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function loadMysqlTableSchema(string $table): array
+    {
+        $schema = [];
+        $sql = sprintf('SHOW FULL COLUMNS FROM `%s`', $table);
+
+        try {
+            $statement = $this->connection->query($sql);
+        } catch (PDOException) {
+            return $schema;
+        }
+
+        if ($statement === false) {
+            return $schema;
+        }
+
+        while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
+            $field = $row['Field'] ?? null;
+            if (!is_string($field) || $field === '') {
+                continue;
+            }
+
+            $type = isset($row['Type']) ? strtolower((string) $row['Type']) : null;
+
+            $schema[$field] = [
+                'type' => $type,
+                'raw_type' => $row['Type'] ?? null,
+                'meta' => $row,
+            ];
+        }
+
+        return $schema;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function loadPgsqlTableSchema(string $table): array
+    {
+        $schema = [];
+
+        $sql = <<<'SQL'
+SELECT column_name, data_type, udt_name
+FROM information_schema.columns
+WHERE table_schema = current_schema()
+  AND table_name = :table
+SQL;
+
+        $statement = $this->connection->prepare($sql);
+        if ($statement === false) {
+            return $schema;
+        }
+
+        try {
+            $statement->execute(['table' => $table]);
+        } catch (PDOException) {
+            return $schema;
+        }
+
+        while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
+            $field = $row['column_name'] ?? null;
+            if (!is_string($field) || $field === '') {
+                continue;
+            }
+
+            $dataType = isset($row['data_type']) ? strtolower((string) $row['data_type']) : null;
+            $udtName  = isset($row['udt_name']) ? strtolower((string) $row['udt_name']) : null;
+
+            $schema[$field] = [
+                'type' => $dataType ?: $udtName,
+                'data_type' => $dataType,
+                'udt_name' => $udtName,
+                'meta' => $row,
+            ];
+        }
+
+        return $schema;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function loadSqliteTableSchema(string $table): array
+    {
+        $schema = [];
+        $sql = sprintf("PRAGMA table_info('%s')", $table);
+
+        try {
+            $statement = $this->connection->query($sql);
+        } catch (PDOException) {
+            return $schema;
+        }
+
+        if ($statement === false) {
+            return $schema;
+        }
+
+        while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
+            $field = $row['name'] ?? null;
+            if (!is_string($field) || $field === '') {
+                continue;
+            }
+
+            $type = isset($row['type']) ? strtolower((string) $row['type']) : null;
+
+            $schema[$field] = [
+                'type' => $type,
+                'raw_type' => $row['type'] ?? null,
+                'meta' => $row,
+            ];
+        }
+
+        return $schema;
+    }
+
+    /**
+     * Fallback metadata loader that relies on PDO column metadata.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function loadGenericTableSchema(string $table): array
+    {
+        $schema = [];
+        $sql = sprintf('SELECT * FROM %s LIMIT 0', $table);
+
+        try {
+            $statement = $this->connection->query($sql);
+        } catch (PDOException) {
+            return $schema;
+        }
+
+        if ($statement === false) {
+            return $schema;
+        }
+
+        $count = $statement->columnCount();
+
+        for ($index = 0; $index < $count; $index++) {
+            $meta = $statement->getColumnMeta($index) ?: [];
+            $field = $meta['name'] ?? null;
+            if (!is_string($field) || $field === '') {
+                continue;
+            }
+
+            $typeCandidates = [];
+            if (isset($meta['native_type'])) {
+                $typeCandidates[] = strtolower((string) $meta['native_type']);
+            }
+            if (isset($meta['pdo_type'])) {
+                $typeCandidates[] = strtolower((string) $meta['pdo_type']);
+            }
+            foreach (['sqlite:decl_type', 'sqlite:datatype'] as $sqliteKey) {
+                if (isset($meta[$sqliteKey])) {
+                    $typeCandidates[] = strtolower((string) $meta[$sqliteKey]);
+                }
+            }
+
+            $type = null;
+            foreach ($typeCandidates as $candidate) {
+                if (is_string($candidate) && $candidate !== '') {
+                    $type = $candidate;
+                    break;
+                }
+            }
+
+            $schema[$field] = [
+                'type' => $type,
+                'meta' => $meta,
+            ];
+        }
+
+        return $schema;
+    }
+
+    /**
+     * Infer sensible default input types for known columns based on table schema.
+     *
+     * @param array<int, string> $columns
+     * @return array<string, array<string, mixed>>
+     */
+    private function inferDefaultChangeTypes(array $columns): array
+    {
+        $defaults = [];
+        $columnMap = [];
+        foreach ($columns as $column) {
+            if (!is_string($column) || $column === '') {
+                continue;
+            }
+            $columnMap[strtolower($column)] = $column;
+        }
+
+        $relationDefaults = $this->mapRelationsToChangeTypes($columnMap);
+        if ($relationDefaults !== []) {
+            $defaults = $relationDefaults;
+        }
+
+        $schema = $this->getTableSchema($this->table);
+        if ($schema === []) {
+            return $defaults;
+        }
+
+        $schemaLookup = [];
+        foreach ($schema as $name => $meta) {
+            if (!is_string($name) || $name === '') {
+                continue;
+            }
+            $schemaLookup[strtolower($name)] = $meta;
+        }
+
+        foreach ($columnMap as $lookupKey => $originalName) {
+            if (isset($defaults[$originalName])) {
+                continue;
+            }
+            if (!isset($schemaLookup[$lookupKey])) {
+                continue;
+            }
+
+            $definition = $this->mapDatabaseTypeToChangeType($schemaLookup[$lookupKey]);
+            if ($definition !== null) {
+                $defaults[$originalName] = $definition;
+            }
+        }
+
+        return $defaults;
+    }
+
+    /**
+     * @param array<string, string> $columnMap Lowercase field => original field name
+     * @return array<string, array<string, mixed>>
+     */
+    private function mapRelationsToChangeTypes(array $columnMap): array
+    {
+        if ($this->config['relations'] === []) {
+            return [];
+        }
+
+        $defaults = [];
+
+        foreach ($this->config['relations'] as $relation) {
+            if (!is_array($relation) || !isset($relation['field'])) {
+                continue;
+            }
+
+            $field = strtolower((string) $relation['field']);
+            if ($field === '' || !isset($columnMap[$field])) {
+                continue;
+            }
+
+            $originalField = $columnMap[$field];
+
+            $options = $this->fetchRelationOptions($relation);
+            $params = [];
+            if ($options !== []) {
+                $params['values'] = $options;
+            }
+
+            $defaults[$originalField] = [
+                'type' => !empty($relation['multi']) ? 'multiselect' : 'select',
+                'default' => '',
+                'params' => $params,
+            ];
+        }
+
+        return $defaults;
+    }
+
+    /**
+     * @param array<string, mixed> $relation
+     * @return array<string, string>
+     */
+    private function fetchRelationOptions(array $relation): array
+    {
+        $field = isset($relation['field']) ? (string) $relation['field'] : '';
+        $table = isset($relation['table']) ? (string) $relation['table'] : '';
+        $relatedField = isset($relation['related_field']) ? (string) $relation['related_field'] : '';
+        $nameFields = isset($relation['related_name']) ? (array) $relation['related_name'] : [];
+
+        if ($field === '' || $table === '' || $relatedField === '') {
+            return [];
+        }
+
+        $cacheKeyParts = [$table, $relatedField, $nameFields, $relation['where'] ?? [], $relation['order_by'] ?? null];
+        $cacheKey = md5(json_encode($cacheKeyParts) ?: serialize($cacheKeyParts));
+        if (isset($this->relationOptionsCache[$cacheKey])) {
+            return $this->relationOptionsCache[$cacheKey];
+        }
+
+        $selectColumns = [$relatedField . ' AS relation_key'];
+        foreach ($nameFields as $index => $nameField) {
+            if (!is_string($nameField) || trim($nameField) === '') {
+                continue;
+            }
+            $alias = sprintf('relation_value_%d', $index);
+            $selectColumns[] = sprintf('%s AS %s', $nameField, $alias);
+        }
+
+        $sql = sprintf('SELECT %s FROM %s', implode(', ', $selectColumns), $table);
+        $parameters = [];
+        $conditions = [];
+
+        if (!empty($relation['where']) && is_array($relation['where'])) {
+            foreach ($relation['where'] as $whereField => $whereValue) {
+                if (!is_string($whereField) || trim($whereField) === '') {
+                    continue;
+                }
+                $placeholder = sprintf(':relopt_%s_%d', preg_replace('/[^a-z0-9_]+/i', '_', $field), count($parameters));
+                $parameters[$placeholder] = $whereValue;
+                $conditions[] = sprintf('%s = %s', $whereField, $placeholder);
+            }
+        }
+
+        if ($conditions !== []) {
+            $sql .= ' WHERE ' . implode(' AND ', $conditions);
+        }
+
+        if (!empty($relation['order_by']) && is_string($relation['order_by'])) {
+            $sql .= ' ORDER BY ' . $relation['order_by'];
+        }
+
+        $statement = $this->connection->prepare($sql);
+        if ($statement === false) {
+            $this->relationOptionsCache[$cacheKey] = [];
+            return [];
+        }
+
+        try {
+            $statement->execute($parameters);
+        } catch (PDOException) {
+            $this->relationOptionsCache[$cacheKey] = [];
+            return [];
+        }
+
+        $options = [];
+        while ($row = $statement->fetch(PDO::FETCH_ASSOC)) {
+            if ($row === false) {
+                break;
+            }
+
+            $key = $row['relation_key'] ?? null;
+            if ($key === null) {
+                continue;
+            }
+
+            $parts = [];
+            foreach ($nameFields as $index => $nameField) {
+                if (!is_string($nameField) || trim($nameField) === '') {
+                    continue;
+                }
+                $alias = sprintf('relation_value_%d', $index);
+                $parts[] = $row[$alias] ?? '';
+            }
+
+            $label = trim(implode(' ', array_filter($parts, static fn($part) => $part !== null && $part !== '')));
+            if ($label === '') {
+                $label = (string) $key;
+            }
+
+            $options[(string) $key] = $label;
+        }
+
+        $this->relationOptionsCache[$cacheKey] = $options;
+
+        return $options;
+    }
+
+    /**
+     * @param array<string, mixed> $columnMeta
+     * @return array<string, mixed>|null
+     */
+    private function mapDatabaseTypeToChangeType(array $columnMeta): ?array
+    {
+        $typeInfo = $this->detectSqlTypeInfo($columnMeta);
+        $rawType = $typeInfo['raw'];
+        $normalizedType = $typeInfo['normalized'];
+
+        $params = [];
+        $changeType = null;
+
+        if ($rawType !== '' && (preg_match('/tinyint\s*\(\s*1\s*\)/', $rawType) || preg_match('/bit\s*\(\s*1\s*\)/', $rawType))) {
+            $changeType = 'checkbox';
+        } elseif ($normalizedType !== '' && preg_match('/\b(bool|boolean)\b/', $normalizedType)) {
+            $changeType = 'checkbox';
+        } elseif ($normalizedType !== '' && (str_contains($normalizedType, 'text') || in_array($normalizedType, ['json', 'jsonb', 'xml'], true))) {
+            $changeType = 'textarea';
+        } elseif ($normalizedType === 'date') {
+            $changeType = 'date';
+        } elseif ($normalizedType !== '' && (str_contains($normalizedType, 'timestamp') || str_contains($normalizedType, 'datetime'))) {
+            $changeType = 'datetime-local';
+        } elseif ($normalizedType !== '' && str_contains($normalizedType, 'time') && !str_contains($normalizedType, 'timestamp') && !str_contains($normalizedType, 'datetime')) {
+            $changeType = 'time';
+        } elseif ($normalizedType !== '' && $this->isNumericType($normalizedType)) {
+            $changeType = 'number';
+            if (preg_match('/\b(decimal|numeric|float|double|real|money)\b/', $normalizedType)) {
+                $params['step'] = 'any';
+            }
+        }
+
+        if ($changeType === null) {
+            return null;
+        }
+
+        return [
+            'type' => $changeType,
+            'default' => '',
+            'params' => $params,
+        ];
+    }
+
+    /**
+     * Extract raw and normalized SQL type candidates from a schema definition.
+     *
+     * @param array<string, mixed> $columnMeta
+     * @return array{raw: string, normalized: string}
+     */
+    private function detectSqlTypeInfo(array $columnMeta): array
+    {
+        $candidates = [];
+        foreach (['raw_type', 'type', 'data_type', 'udt_name'] as $key) {
+            if (isset($columnMeta[$key]) && is_string($columnMeta[$key]) && $columnMeta[$key] !== '') {
+                $candidates[] = strtolower((string) $columnMeta[$key]);
+            }
+        }
+
+        if (isset($columnMeta['meta']) && is_array($columnMeta['meta'])) {
+            foreach (['native_type', 'sqlite:decl_type', 'sqlite:datatype'] as $metaKey) {
+                if (isset($columnMeta['meta'][$metaKey]) && is_string($columnMeta['meta'][$metaKey]) && $columnMeta['meta'][$metaKey] !== '') {
+                    $candidates[] = strtolower((string) $columnMeta['meta'][$metaKey]);
+                }
+            }
+        }
+
+        $rawType = $candidates[0] ?? '';
+        $normalizedType = '';
+
+        foreach ($candidates as $candidate) {
+            $normalizedCandidate = $this->normalizeSqlType($candidate);
+            if ($normalizedCandidate !== '') {
+                $normalizedType = $normalizedCandidate;
+                break;
+            }
+        }
+
+        return [
+            'raw' => $rawType,
+            'normalized' => $normalizedType,
+        ];
+    }
+
+    private function normalizeSqlType(string $type): string
+    {
+        $type = strtolower(trim($type));
+        if ($type === '') {
+            return '';
+        }
+
+        $type = preg_replace('/\([^\)]*\)/', '', $type) ?? $type;
+        $type = str_replace(['unsigned', 'zerofill'], '', $type);
+        $type = preg_replace('/\s+/', ' ', $type) ?? $type;
+
+        return trim($type);
+    }
+
+    private function isNumericType(string $normalizedType): bool
+    {
+        $tokens = preg_split('/\s+/', $normalizedType) ?: [];
+        $numericTokens = [
+            'int',
+            'integer',
+            'smallint',
+            'tinyint',
+            'mediumint',
+            'bigint',
+            'decimal',
+            'numeric',
+            'float',
+            'double',
+            'real',
+            'serial',
+            'bigserial',
+            'smallserial',
+            'money',
+            'year',
+        ];
+
+        foreach ($tokens as $token) {
+            if (in_array($token, $numericTokens, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function normalizeColumnReference(string $column): string
     {
         $column = trim($column);
@@ -2943,6 +3487,13 @@ HTML;
 
                     $behaviours[$key][$field] = $definition;
                 }
+            }
+        }
+
+        $inferredChangeTypes = $this->inferDefaultChangeTypes(array_keys($columnLookup));
+        foreach ($inferredChangeTypes as $field => $definition) {
+            if (!isset($behaviours['change_type'][$field])) {
+                $behaviours['change_type'][$field] = $definition;
             }
         }
 

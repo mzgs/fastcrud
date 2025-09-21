@@ -357,12 +357,35 @@ $crud
     ->unique('email');
 ```
 
-- **Type controls:** `change_type()` swaps the rendered input (e.g. select, textarea, checkbox) and accepts defaults plus extra parameters like option lists.
+- **Type controls:** `change_type()` swaps the rendered input (e.g. select, textarea, checkbox) and accepts defaults plus extra parameters like option lists. FastCrud now inspects the table schema and picks sensible HTML controls automatically—MySQL `TEXT` columns render as `<textarea>`, `DATE` becomes `<input type="date">`, date times become `datetime-local`, `TINYINT(1)`/boolean flags turn into checkboxes, and numeric types map to `<input type="number">`. Calling `change_type()` still overrides the detected defaults when you need something custom. Accepted `type` values include `textarea`, `select`/`dropdown`, `multiselect`, `hidden`, `date`, `datetime`/`datetime-local`, `time`, `email`, `number` (`int`/`integer`/`float`/`decimal` aliases), `password`, and boolean helpers (`bool`/`checkbox`/`switch`). Use the `$params` argument to tweak each control—for example `['rows' => 6]` for textareas, `['values' => ['draft' => 'Draft']]` for selects, or number constraints like `['step' => '0.01', 'min' => 0]`. Fields wired with `relation()` automatically inherit `select`/`multiselect` widgets plus option lists pulled from the related table, so most lookup dropdowns work out of the box.
 - **Templated values:** `pass_default()` and `pass_var()` inject placeholders such as `{column}` or custom tokens whenever an input is empty or omitted entirely.
 - **Mode-aware locks:** `readonly()` and `disabled()` honour per-mode rules so audit fields stay untouched during edits.
 - **Validation helpers:** `validation_required()`, `validation_pattern()`, and `unique()` run checks in JavaScript and repeat them on the server before executing updates.
 
 These settings travel through the AJAX config so the form builder, inline validation, and server logic share the same rules, dramatically reducing custom scripting.
+
+```php
+// Swap to a multiline textarea with custom rows
+$crud->change_type('bio', 'textarea', '', ['rows' => 6]);
+
+// Render a date picker and pre-fill today's date when empty
+$crud->change_type('start_date', 'date', date('Y-m-d'));
+
+// Number input with min/max and decimal step
+$crud->change_type('budget', 'number', '0', ['min' => 0, 'max' => 100000, 'step' => '0.01']);
+
+// Boolean flag as checkbox; default to checked when creating
+$crud->change_type('is_active', 'checkbox', true);
+
+// Dropdown fed from an associative array
+$crud->change_type('priority', 'select', 'normal', [
+    'values' => [
+        'low'    => 'Low',
+        'normal' => 'Normal',
+        'high'   => 'High',
+    ],
+]);
+```
 
 ### JavaScript Helpers (`window.FastCrudTables`)
 
