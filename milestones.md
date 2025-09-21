@@ -13,7 +13,7 @@
 
 ## 3. Form Engine
 - Provide field layout controls: `fields`, tab support, default tab, reverse modes per operation
-- Implement field behaviours: `change_type`, `pass_var`, `pass_default`, `readonly`, `disabled`, `no_editor`
+- Implement field behaviours: `change_type`, `pass_var`, `pass_default`, `readonly`, `disabled`
 - Integrate validation helpers: `validation_required`, `validation_pattern`, `unique`
 
 ## 4. Lifecycle & Hooks

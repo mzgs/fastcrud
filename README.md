@@ -83,6 +83,8 @@ Crud::init([
 - Inline editing, deletion, and metadata-backed JavaScript hooks
 - Column presentation controls (labels, patterns, callbacks, classes, widths, highlights)
 - Table metadata, summary rows, custom column buttons, and duplicate toggles
+- Form engine with tabbed layouts, hidden field orchestration, and behaviour flags
+- Validation helpers, unique checks, and templated defaults directly in edit workflows
 
 The sections below show how to enable each data-layer feature introduced in the latest release.
 
@@ -316,6 +318,51 @@ $posts
 ```
 
 Metadata renders above the toolbar (icon + title + tooltip) while summaries appear in a Bootstrap-styled footer row. Summary queries respect the current filters/search term and support the aggregation types `sum`, `avg`, `min`, `max`, and `count`.
+
+### Form Layout & Tabs (`fields` / `default_tab`)
+
+Edit forms can be curated without touching templates. Use `fields()` to choose the inputs to display and optionally group them into tabs, or pass `true` as the second argument to hide fields instead.
+
+```php
+$crud = new Crud('users');
+
+$crud
+    ->fields('first_name,last_name,email', false, 'Profile')
+    ->fields('status,role', false, 'Access')
+    ->fields('created_at,updated_at', true) // hide audit fields
+    ->default_tab('Profile');
+```
+
+The third argument of `fields()` names the tab that will host the provided columns. Tabs are rendered automatically in the edit offcanvas and synced with `default_tab()` so the intended panel opens first per operation mode (`create`, `edit`, `view`, or `all`).
+
+### Field Behaviours & Validation
+
+Pair layout with behaviour helpers to pre-fill values, mark inputs as read-only, and enforce validation in both the browser and PHP layer.
+
+```php
+$crud
+    ->change_type('status', 'select', 'active', [
+        'values' => [
+            'active'    => 'Active',
+            'suspended' => 'Suspended',
+            'archived'  => 'Archived',
+        ],
+    ])
+    ->pass_default('status', 'pending', 'create')
+    ->pass_var('updated_by', '{__session_user_id}', 'edit')
+    ->readonly('email', ['view', 'edit'])
+    ->disabled('role', 'view')
+    ->validation_required(['first_name', 'last_name'], 1)
+    ->validation_pattern('email', '/^[^@\s]+@[^@\s]+\.[^@\s]+$/i')
+    ->unique('email');
+```
+
+- **Type controls:** `change_type()` swaps the rendered input (e.g. select, textarea, checkbox) and accepts defaults plus extra parameters like option lists.
+- **Templated values:** `pass_default()` and `pass_var()` inject placeholders such as `{column}` or custom tokens whenever an input is empty or omitted entirely.
+- **Mode-aware locks:** `readonly()` and `disabled()` honour per-mode rules so audit fields stay untouched during edits.
+- **Validation helpers:** `validation_required()`, `validation_pattern()`, and `unique()` run checks in JavaScript and repeat them on the server before executing updates.
+
+These settings travel through the AJAX config so the form builder, inline validation, and server logic share the same rules, dramatically reducing custom scripting.
 
 ### JavaScript Helpers (`window.FastCrudTables`)
 

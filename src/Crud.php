@@ -36,6 +36,8 @@ class Crud
     ];
 
     private const SUPPORTED_SUMMARY_TYPES = ['sum', 'avg', 'min', 'max', 'count'];
+    private const SUPPORTED_FORM_MODES = ['all', 'create', 'edit', 'view'];
+    private const DEFAULT_FORM_MODE = 'edit';
 
     /**
      * @var array<string, mixed>
@@ -70,6 +72,21 @@ class Crud
         'column_summaries' => [],
         'panel_width' => null,
         'primary_key' => 'id',
+        'form' => [
+            'layouts' => [],
+            'default_tabs' => [],
+            'behaviours' => [
+                'change_type' => [],
+                'pass_var' => [],
+                'pass_default' => [],
+                'readonly' => [],
+                'disabled' => [],
+                'validation_required' => [],
+                'validation_pattern' => [],
+                'unique' => [],
+            ],
+            'all_columns' => [],
+        ],
     ];
 
     /**
@@ -227,6 +244,358 @@ class Crud
         }
 
         throw new InvalidArgumentException('Unsupported callback type. Provide a string callable or [ClassName, method] pair.');
+    }
+
+    /**
+     * @param string|array<int, string>|false|null $mode
+     * @return array<int, string>
+     */
+    private function normalizeFormModes(string|array|false|null $mode): array
+    {
+        if ($mode === false || $mode === null) {
+            return [self::DEFAULT_FORM_MODE];
+        }
+
+        $modes = is_array($mode) ? $mode : $this->normalizeList((string) $mode);
+        if ($modes === []) {
+            return [self::DEFAULT_FORM_MODE];
+        }
+
+        $normalized = [];
+        foreach ($modes as $entry) {
+            $candidate = strtolower(trim((string) $entry));
+            if ($candidate === '') {
+                continue;
+            }
+
+            if ($candidate === 'all') {
+                return ['all'];
+            }
+
+            if (in_array($candidate, self::SUPPORTED_FORM_MODES, true) && $candidate !== 'all') {
+                $normalized[$candidate] = true;
+            }
+        }
+
+        if ($normalized === []) {
+            return [self::DEFAULT_FORM_MODE];
+        }
+
+        return array_keys($normalized);
+    }
+
+    private function ensureFormLayoutBuckets(): void
+    {
+        if (!isset($this->config['form']['layouts']) || !is_array($this->config['form']['layouts'])) {
+            $this->config['form']['layouts'] = [];
+        }
+
+        foreach (self::SUPPORTED_FORM_MODES as $mode) {
+            if (!isset($this->config['form']['layouts'][$mode]) || !is_array($this->config['form']['layouts'][$mode])) {
+                $this->config['form']['layouts'][$mode] = [];
+            }
+        }
+
+        if (!isset($this->config['form']['layouts']['all']) || !is_array($this->config['form']['layouts']['all'])) {
+            $this->config['form']['layouts']['all'] = [];
+        }
+    }
+
+    private function ensureFormBehaviourBuckets(): void
+    {
+        if (!isset($this->config['form']['behaviours']) || !is_array($this->config['form']['behaviours'])) {
+            $this->config['form']['behaviours'] = [
+                'change_type' => [],
+                'pass_var' => [],
+                'pass_default' => [],
+                'readonly' => [],
+                'disabled' => [],
+                'validation_required' => [],
+                'validation_pattern' => [],
+                'unique' => [],
+            ];
+            return;
+        }
+
+        $defaults = [
+            'change_type' => [],
+            'pass_var' => [],
+            'pass_default' => [],
+            'readonly' => [],
+            'disabled' => [],
+            'validation_required' => [],
+            'validation_pattern' => [],
+            'unique' => [],
+        ];
+
+        $this->config['form']['behaviours'] = array_replace($defaults, $this->config['form']['behaviours']);
+    }
+
+    private function ensureDefaultTabBuckets(): void
+    {
+        if (!isset($this->config['form']['default_tabs']) || !is_array($this->config['form']['default_tabs'])) {
+            $this->config['form']['default_tabs'] = [];
+        }
+
+        if (!isset($this->config['form']['all_columns']) || !is_array($this->config['form']['all_columns'])) {
+            $this->config['form']['all_columns'] = [];
+        }
+    }
+
+    private function storeLayoutEntry(array $fields, bool $reverse, ?string $tab, array $modes): void
+    {
+        $this->ensureFormLayoutBuckets();
+
+        $entry = [
+            'fields'  => array_values(array_unique($fields)),
+            'reverse' => $reverse,
+            'tab'     => $tab,
+        ];
+
+        foreach ($modes as $mode) {
+            $bucket = $mode === 'all' ? 'all' : $mode;
+            $this->config['form']['layouts'][$bucket][] = $entry;
+        }
+    }
+
+    private function storeBehaviourValue(string $key, string $field, mixed $value, array $modes): void
+    {
+        $this->ensureFormBehaviourBuckets();
+
+        if (!isset($this->config['form']['behaviours'][$key]) || !is_array($this->config['form']['behaviours'][$key])) {
+            $this->config['form']['behaviours'][$key] = [];
+        }
+
+        foreach ($modes as $mode) {
+            $bucket = $mode === 'all' ? 'all' : $mode;
+            if (!isset($this->config['form']['behaviours'][$key][$field]) || !is_array($this->config['form']['behaviours'][$key][$field])) {
+                $this->config['form']['behaviours'][$key][$field] = [];
+            }
+
+            $this->config['form']['behaviours'][$key][$field][$bucket] = $value;
+        }
+    }
+
+    private function storeBehaviourFlag(string $key, string $field, bool $flag, array $modes): void
+    {
+        $this->storeBehaviourValue($key, $field, $flag, $modes);
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     */
+    private function renderTemplateValue(mixed $value, array $context): mixed
+    {
+        if (!is_string($value)) {
+            return $value;
+        }
+
+        return preg_replace_callback(
+            '/\{([A-Za-z0-9_]+)\}/',
+            static function (array $matches) use ($context): string {
+                $key = $matches[1];
+                $replacement = $context[$key] ?? '';
+                if (is_scalar($replacement)) {
+                    return (string) $replacement;
+                }
+
+                if (is_object($replacement) && method_exists($replacement, '__toString')) {
+                    return (string) $replacement;
+                }
+
+                return '';
+            },
+            $value
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function gatherBehaviourForMode(string $key, string $mode): array
+    {
+        $this->ensureFormBehaviourBuckets();
+        $behaviours = $this->config['form']['behaviours'][$key] ?? [];
+        if (!is_array($behaviours)) {
+            return [];
+        }
+
+        $resolved = [];
+        foreach ($behaviours as $field => $definition) {
+            if (!is_array($definition)) {
+                continue;
+            }
+
+            $value = null;
+            if (isset($definition['all'])) {
+                $value = $definition['all'];
+            }
+
+            if (isset($definition[$mode])) {
+                $value = $definition[$mode];
+            }
+
+            if ($value !== null) {
+                $resolved[$field] = $value;
+            }
+        }
+
+        return $resolved;
+    }
+
+    private function compileValidationPattern(string $pattern): ?string
+    {
+        $pattern = trim($pattern);
+        if ($pattern === '') {
+            return null;
+        }
+
+        $delimiter = substr($pattern, 0, 1);
+        $knownDelimiters = ['/', '#', '~', '!'];
+        if (!in_array($delimiter, $knownDelimiters, true)) {
+            $escaped = str_replace('/', '\/', $pattern);
+            $pattern = '/^' . $escaped . '$/';
+        }
+
+        set_error_handler(static function () {
+            return true;
+        });
+        $isValid = @preg_match($pattern, '') !== false;
+        restore_error_handler();
+
+        return $isValid ? $pattern : null;
+    }
+
+    private function mergeFormConfig(array $form): void
+    {
+        $this->ensureFormLayoutBuckets();
+        $this->ensureFormBehaviourBuckets();
+        $this->ensureDefaultTabBuckets();
+
+        unset($form['all_columns']);
+
+        if (isset($form['layouts']) && is_array($form['layouts'])) {
+            foreach ($form['layouts'] as $mode => $entries) {
+                if (!is_string($mode) || !is_array($entries)) {
+                    continue;
+                }
+
+                $bucket = strtolower($mode);
+                if ($bucket === '') {
+                    continue;
+                }
+
+                $normalizedEntries = [];
+                foreach ($entries as $entry) {
+                    if (!is_array($entry)) {
+                        continue;
+                    }
+
+                    $fields = [];
+                    if (isset($entry['fields']) && is_array($entry['fields'])) {
+                        foreach ($entry['fields'] as $field) {
+                            if (!is_string($field)) {
+                                continue;
+                            }
+                            $normalizedField = $this->normalizeColumnReference($field);
+                            if ($normalizedField !== '') {
+                                $fields[] = $normalizedField;
+                            }
+                        }
+                    }
+
+                    if ($fields === []) {
+                        continue;
+                    }
+
+                    $reverse = !empty($entry['reverse']);
+                    $tab = null;
+                    if (isset($entry['tab']) && is_string($entry['tab'])) {
+                        $tabCandidate = trim($entry['tab']);
+                        $tab = $tabCandidate === '' ? null : $tabCandidate;
+                    }
+
+                    $normalizedEntries[] = [
+                        'fields'  => array_values(array_unique($fields)),
+                        'reverse' => $reverse,
+                        'tab'     => $tab,
+                    ];
+                }
+
+                $this->config['form']['layouts'][$bucket] = $normalizedEntries;
+            }
+        }
+
+        if (isset($form['default_tabs']) && is_array($form['default_tabs'])) {
+            foreach ($form['default_tabs'] as $mode => $tab) {
+                if (!is_string($mode) || !is_string($tab)) {
+                    continue;
+                }
+                $tabName = trim($tab);
+                if ($tabName === '') {
+                    continue;
+                }
+                $this->config['form']['default_tabs'][strtolower($mode)] = $tabName;
+            }
+        }
+
+        if (isset($form['behaviours']) && is_array($form['behaviours'])) {
+            $behaviours = $form['behaviours'];
+
+            if (isset($behaviours['change_type']) && is_array($behaviours['change_type'])) {
+                $this->config['form']['behaviours']['change_type'] = [];
+                foreach ($behaviours['change_type'] as $field => $definition) {
+                    if (!is_string($field) || !is_array($definition)) {
+                        continue;
+                    }
+                    $normalizedField = $this->normalizeColumnReference($field);
+                    if ($normalizedField === '') {
+                        continue;
+                    }
+                    $type = isset($definition['type']) ? strtolower(trim((string) $definition['type'])) : '';
+                    if ($type === '') {
+                        continue;
+                    }
+
+                    $this->config['form']['behaviours']['change_type'][$normalizedField] = [
+                        'type'    => $type,
+                        'default' => $definition['default'] ?? '',
+                        'params'  => isset($definition['params']) && is_array($definition['params'])
+                            ? $definition['params']
+                            : [],
+                    ];
+                }
+            }
+
+            $modeAwareKeys = ['pass_var', 'pass_default', 'readonly', 'disabled', 'validation_required', 'validation_pattern', 'unique'];
+            foreach ($modeAwareKeys as $key) {
+                if (!isset($behaviours[$key]) || !is_array($behaviours[$key])) {
+                    continue;
+                }
+
+                $this->config['form']['behaviours'][$key] = [];
+
+                foreach ($behaviours[$key] as $field => $definition) {
+                    if (!is_string($field) || !is_array($definition)) {
+                        continue;
+                    }
+
+                    $normalizedField = $this->normalizeColumnReference($field);
+                    if ($normalizedField === '') {
+                        continue;
+                    }
+
+                    foreach ($definition as $mode => $value) {
+                        $bucket = strtolower((string) $mode);
+                        if ($bucket === '') {
+                            continue;
+                        }
+
+                        $this->config['form']['behaviours'][$key][$normalizedField][$bucket] = $value;
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -926,6 +1295,258 @@ class Crud
         ];
 
         $this->config['column_summaries'][] = $entry;
+
+        return $this;
+    }
+
+    /**
+     * @param string|array<int, string> $fields
+     * @param string|array<int, string>|false $mode
+     */
+    public function fields(string|array $fields, bool $reverse = false, string|false $tab = false, string|array|false $mode = false): self
+    {
+        $list = $this->normalizeList($fields);
+        if ($list === []) {
+            throw new InvalidArgumentException('Field configuration list cannot be empty.');
+        }
+
+        $normalizedFields = [];
+        foreach ($list as $field) {
+            $normalized = $this->normalizeColumnReference($field);
+            if ($normalized !== '') {
+                $normalizedFields[] = $normalized;
+            }
+        }
+
+        if ($normalizedFields === []) {
+            throw new InvalidArgumentException('Field configuration list cannot be empty.');
+        }
+
+        $tabName = null;
+        if ($tab !== false) {
+            $candidate = trim((string) $tab);
+            $tabName = $candidate === '' ? null : $candidate;
+        }
+
+        $modes = $this->normalizeFormModes($mode);
+        $this->storeLayoutEntry($normalizedFields, $reverse, $tabName, $modes);
+
+        return $this;
+    }
+
+    /**
+     * @param string|array<int, string>|false $mode
+     */
+    public function default_tab(string $tabName, string|array|false $mode = false): self
+    {
+        $tabName = trim($tabName);
+        if ($tabName === '') {
+            throw new InvalidArgumentException('Default tab name cannot be empty.');
+        }
+
+        $this->ensureDefaultTabBuckets();
+        $modes = $this->normalizeFormModes($mode);
+
+        foreach ($modes as $targetMode) {
+            $bucket = $targetMode === 'all' ? 'all' : $targetMode;
+            $this->config['form']['default_tabs'][$bucket] = $tabName;
+        }
+
+        return $this;
+    }
+
+    public function change_type(string $field, string $type, mixed $default = '', array $params = []): self
+    {
+        $field = $this->normalizeColumnReference($field);
+        if ($field === '') {
+            throw new InvalidArgumentException('Field name cannot be empty when changing type.');
+        }
+
+        $type = strtolower(trim($type));
+        if ($type === '') {
+            throw new InvalidArgumentException('Field type cannot be empty.');
+        }
+
+        if (!is_array($params)) {
+            $params = [];
+        }
+
+        $this->ensureFormBehaviourBuckets();
+        $this->config['form']['behaviours']['change_type'][$field] = [
+            'type'    => $type,
+            'default' => $default,
+            'params'  => $params,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * @param string|array<int, string> $fields
+     * @param string|array<int, string> $mode
+     */
+    public function pass_var(string|array $fields, mixed $value, string|array $mode = 'all'): self
+    {
+        $list = $this->normalizeList($fields);
+        if ($list === []) {
+            throw new InvalidArgumentException('pass_var requires at least one field.');
+        }
+
+        $modes = $this->normalizeFormModes($mode);
+        foreach ($list as $field) {
+            $normalized = $this->normalizeColumnReference($field);
+            if ($normalized === '') {
+                continue;
+            }
+            $this->storeBehaviourValue('pass_var', $normalized, $value, $modes);
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param string|array<int, string> $fields
+     * @param string|array<int, string> $mode
+     */
+    public function pass_default(string|array $fields, mixed $value, string|array $mode = 'all'): self
+    {
+        $list = $this->normalizeList($fields);
+        if ($list === []) {
+            throw new InvalidArgumentException('pass_default requires at least one field.');
+        }
+
+        $modes = $this->normalizeFormModes($mode);
+        foreach ($list as $field) {
+            $normalized = $this->normalizeColumnReference($field);
+            if ($normalized === '') {
+                continue;
+            }
+            $this->storeBehaviourValue('pass_default', $normalized, $value, $modes);
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param string|array<int, string> $fields
+     * @param string|array<int, string> $mode
+     */
+    public function readonly(string|array $fields, string|array $mode = 'all'): self
+    {
+        $list = $this->normalizeList($fields);
+        if ($list === []) {
+            throw new InvalidArgumentException('readonly requires at least one field.');
+        }
+
+        $modes = $this->normalizeFormModes($mode);
+        foreach ($list as $field) {
+            $normalized = $this->normalizeColumnReference($field);
+            if ($normalized === '') {
+                continue;
+            }
+            $this->storeBehaviourFlag('readonly', $normalized, true, $modes);
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param string|array<int, string> $fields
+     * @param string|array<int, string> $mode
+     */
+    public function disabled(string|array $fields, string|array $mode = 'all'): self
+    {
+        $list = $this->normalizeList($fields);
+        if ($list === []) {
+            throw new InvalidArgumentException('disabled requires at least one field.');
+        }
+
+        $modes = $this->normalizeFormModes($mode);
+        foreach ($list as $field) {
+            $normalized = $this->normalizeColumnReference($field);
+            if ($normalized === '') {
+                continue;
+            }
+            $this->storeBehaviourFlag('disabled', $normalized, true, $modes);
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param string|array<int, string> $fields
+     * @param string|array<int, string> $mode
+     */
+    public function validation_required(string|array $fields, int $minLength = 1, string|array $mode = 'all'): self
+    {
+        if ($minLength < 1) {
+            throw new InvalidArgumentException('Minimum length for required validation must be at least 1.');
+        }
+
+        $list = $this->normalizeList($fields);
+        if ($list === []) {
+            throw new InvalidArgumentException('validation_required requires at least one field.');
+        }
+
+        $modes = $this->normalizeFormModes($mode);
+        foreach ($list as $field) {
+            $normalized = $this->normalizeColumnReference($field);
+            if ($normalized === '') {
+                continue;
+            }
+            $this->storeBehaviourValue('validation_required', $normalized, $minLength, $modes);
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param string|array<int, string> $fields
+     * @param string|array<int, string> $mode
+     */
+    public function validation_pattern(string|array $fields, string $pattern, string|array $mode = 'all'): self
+    {
+        $pattern = trim($pattern);
+        if ($pattern === '') {
+            throw new InvalidArgumentException('Validation pattern cannot be empty.');
+        }
+
+        $list = $this->normalizeList($fields);
+        if ($list === []) {
+            throw new InvalidArgumentException('validation_pattern requires at least one field.');
+        }
+
+        $modes = $this->normalizeFormModes($mode);
+        foreach ($list as $field) {
+            $normalized = $this->normalizeColumnReference($field);
+            if ($normalized === '') {
+                continue;
+            }
+            $this->storeBehaviourValue('validation_pattern', $normalized, $pattern, $modes);
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param string|array<int, string> $fields
+     * @param string|array<int, string> $mode
+     */
+    public function unique(string|array $fields, string|array $mode = 'all'): self
+    {
+        $list = $this->normalizeList($fields);
+        if ($list === []) {
+            throw new InvalidArgumentException('unique requires at least one field.');
+        }
+
+        $modes = $this->normalizeFormModes($mode);
+        foreach ($list as $field) {
+            $normalized = $this->normalizeColumnReference($field);
+            if ($normalized === '') {
+                continue;
+            }
+            $this->storeBehaviourFlag('unique', $normalized, true, $modes);
+        }
 
         return $this;
     }
@@ -1685,6 +2306,14 @@ class Crud
     }
 
     /**
+     * @return array<int, string>
+     */
+    private function getBaseTableColumns(): array
+    {
+        return $this->getTableColumnsFor($this->table);
+    }
+
+    /**
      * Render all records from the configured table as an HTML table.
      */
     public function render(): string
@@ -2152,6 +2781,123 @@ HTML;
                 ],
                 $this->config['order_by']
             ),
+            'form' => $this->buildFormMeta($columns),
+        ];
+    }
+
+    private function buildFormMeta(array $columns): array
+    {
+        $columnLookup = array_flip($columns);
+
+        $layouts = [];
+        if (isset($this->config['form']['layouts']) && is_array($this->config['form']['layouts'])) {
+            foreach ($this->config['form']['layouts'] as $mode => $entries) {
+                if (!is_array($entries)) {
+                    continue;
+                }
+
+                $normalizedEntries = [];
+                foreach ($entries as $entry) {
+                    if (!is_array($entry) || !isset($entry['fields'])) {
+                        continue;
+                    }
+
+                    $fields = [];
+                    if (is_array($entry['fields'])) {
+                        foreach ($entry['fields'] as $field) {
+                            if (is_string($field) && isset($columnLookup[$field])) {
+                                $fields[] = $field;
+                            }
+                        }
+                    }
+
+                    if ($fields === []) {
+                        continue;
+                    }
+
+                    $normalizedEntries[] = [
+                        'fields'  => $fields,
+                        'reverse' => !empty($entry['reverse']),
+                        'tab'     => isset($entry['tab']) && is_string($entry['tab']) && $entry['tab'] !== ''
+                            ? $entry['tab']
+                            : null,
+                    ];
+                }
+
+                if ($normalizedEntries !== []) {
+                    $layouts[$mode] = $normalizedEntries;
+                }
+            }
+        }
+
+        $defaultTabs = [];
+        if (isset($this->config['form']['default_tabs']) && is_array($this->config['form']['default_tabs'])) {
+            foreach ($this->config['form']['default_tabs'] as $mode => $tab) {
+                if (!is_string($mode) || !is_string($tab)) {
+                    continue;
+                }
+                $tabName = trim($tab);
+                if ($tabName === '') {
+                    continue;
+                }
+                $defaultTabs[$mode] = $tabName;
+            }
+        }
+
+        $behaviours = [
+            'change_type' => [],
+            'pass_var' => [],
+            'pass_default' => [],
+            'readonly' => [],
+            'disabled' => [],
+            'validation_required' => [],
+            'validation_pattern' => [],
+            'unique' => [],
+        ];
+
+        if (isset($this->config['form']['behaviours']) && is_array($this->config['form']['behaviours'])) {
+            $sourceBehaviours = $this->config['form']['behaviours'];
+
+            if (isset($sourceBehaviours['change_type']) && is_array($sourceBehaviours['change_type'])) {
+                foreach ($sourceBehaviours['change_type'] as $field => $definition) {
+                    if (!is_string($field) || !isset($columnLookup[$field]) || !is_array($definition)) {
+                        continue;
+                    }
+
+                    $type = isset($definition['type']) ? strtolower((string) $definition['type']) : '';
+                    if ($type === '') {
+                        continue;
+                    }
+
+                    $behaviours['change_type'][$field] = [
+                        'type'    => $type,
+                        'default' => $definition['default'] ?? '',
+                        'params'  => isset($definition['params']) && is_array($definition['params']) ? $definition['params'] : [],
+                    ];
+                }
+            }
+
+            $modeAwareKeys = ['pass_var', 'pass_default', 'readonly', 'disabled', 'validation_required', 'validation_pattern', 'unique'];
+            foreach ($modeAwareKeys as $key) {
+                if (!isset($sourceBehaviours[$key]) || !is_array($sourceBehaviours[$key])) {
+                    continue;
+                }
+
+                foreach ($sourceBehaviours[$key] as $field => $definition) {
+                    if (!is_string($field) || !isset($columnLookup[$field]) || !is_array($definition)) {
+                        continue;
+                    }
+
+                    $behaviours[$key][$field] = $definition;
+                }
+            }
+        }
+
+        return [
+            'layouts'      => $layouts,
+            'default_tabs' => $defaultTabs,
+            'behaviours'   => $behaviours,
+            'all_columns'  => $this->getBaseTableColumns(),
         ];
     }
 
@@ -2244,6 +2990,15 @@ HTML;
      */
     private function buildClientConfigPayload(): array
     {
+        $this->ensureFormLayoutBuckets();
+        $this->ensureFormBehaviourBuckets();
+        $this->ensureDefaultTabBuckets();
+
+        $allColumns = $this->getBaseTableColumns();
+        $formConfig = $this->config['form'];
+        $formConfig['all_columns'] = $allColumns;
+        $this->config['form']['all_columns'] = $allColumns;
+
         return [
             'per_page'       => $this->perPage,
             'where'          => $this->config['where'],
@@ -2270,6 +3025,7 @@ HTML;
             'table_meta'        => $this->config['table_meta'],
             'column_summaries'  => $this->config['column_summaries'],
             'primary_key'       => $this->primaryKeyColumn,
+            'form'              => $formConfig,
         ];
     }
 
@@ -2554,6 +3310,10 @@ HTML;
             }
             $this->config['column_summaries'] = $summaries;
         }
+
+        if (isset($payload['form']) && is_array($payload['form'])) {
+            $this->mergeFormConfig($payload['form']);
+        }
     }
 
     /**
@@ -2612,7 +3372,7 @@ HTML;
      * @param array<string, mixed> $fields Column => value map to update
      * @return array<string, mixed>|null
      */
-    public function updateRecord(string $primaryKeyColumn, mixed $primaryKeyValue, array $fields): ?array
+    public function updateRecord(string $primaryKeyColumn, mixed $primaryKeyValue, array $fields, string $mode = 'edit'): ?array
     {
         $primaryKeyColumn = trim($primaryKeyColumn);
         if ($primaryKeyColumn === '') {
@@ -2628,6 +3388,19 @@ HTML;
             }
         }
 
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['create', 'edit', 'view'], true)) {
+            $mode = 'edit';
+        }
+
+        $currentRow = $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
+        if ($currentRow === null) {
+            throw new InvalidArgumentException('Record not found for update.');
+        }
+
+        $readonly = $this->gatherBehaviourForMode('readonly', $mode);
+        $disabled = $this->gatherBehaviourForMode('disabled', $mode);
+
         $filtered = [];
         foreach ($fields as $column => $value) {
             if (!is_string($column)) {
@@ -2642,38 +3415,167 @@ HTML;
                 continue;
             }
 
+            if (isset($readonly[$column]) || isset($disabled[$column])) {
+                continue;
+            }
+
             $filtered[$column] = $value;
         }
 
-        if ($filtered !== []) {
-            $placeholders = [];
-            $parameters   = [];
+        $context = array_merge($currentRow, $fields, $filtered);
 
-            foreach ($filtered as $column => $value) {
-                $placeholder              = ':col_' . $column;
-                $placeholders[]           = sprintf('%s = %s', $column, $placeholder);
-                $parameters[$placeholder] = $value;
+        $passDefaults = $this->gatherBehaviourForMode('pass_default', $mode);
+        foreach ($passDefaults as $column => $value) {
+            if (!in_array($column, $columns, true)) {
+                continue;
             }
 
-            $parameters[':pk'] = $primaryKeyValue;
+            $needsDefault = !array_key_exists($column, $filtered)
+                || $filtered[$column] === null
+                || $filtered[$column] === '';
+
+            if ($needsDefault) {
+                $filtered[$column] = $this->renderTemplateValue($value, $context);
+            }
+        }
+
+        $passVars = $this->gatherBehaviourForMode('pass_var', $mode);
+        foreach ($passVars as $column => $value) {
+            if (!in_array($column, $columns, true)) {
+                continue;
+            }
+
+            $filtered[$column] = $this->renderTemplateValue($value, $context);
+        }
+
+        if ($filtered === []) {
+            return $currentRow;
+        }
+
+        $context = array_merge($currentRow, $filtered);
+
+        $errors = [];
+
+        $required = $this->gatherBehaviourForMode('validation_required', $mode);
+        foreach ($required as $column => $minLength) {
+            if (!in_array($column, $columns, true)) {
+                continue;
+            }
+
+            $value = $filtered[$column] ?? ($context[$column] ?? null);
+            $length = 0;
+            if ($value !== null) {
+                if (is_string($value)) {
+                    $normalized = trim($value);
+                    $length = function_exists('mb_strlen') ? mb_strlen($normalized) : strlen($normalized);
+                } elseif (is_numeric($value)) {
+                    $stringValue = (string) $value;
+                    $length = function_exists('mb_strlen') ? mb_strlen($stringValue) : strlen($stringValue);
+                }
+            }
+
+            if ($length < (int) $minLength) {
+                $errors[$column] = 'This field is required.';
+            }
+        }
+
+        $patterns = $this->gatherBehaviourForMode('validation_pattern', $mode);
+        foreach ($patterns as $column => $pattern) {
+            if (!in_array($column, $columns, true)) {
+                continue;
+            }
+
+            if (!array_key_exists($column, $filtered)) {
+                continue;
+            }
+
+            $value = $filtered[$column];
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            $regex = $this->compileValidationPattern((string) $pattern);
+            if ($regex === null) {
+                continue;
+            }
+
+            if (@preg_match($regex, (string) $value) !== 1) {
+                $errors[$column] = 'Value does not match the expected format.';
+            }
+        }
+
+        $uniqueRules = $this->gatherBehaviourForMode('unique', $mode);
+        foreach ($uniqueRules as $column => $flag) {
+            if (!$flag || !in_array($column, $columns, true)) {
+                continue;
+            }
+
+            if (!array_key_exists($column, $filtered)) {
+                continue;
+            }
+
+            $value = $filtered[$column];
+            if ($value === null || $value === '') {
+                continue;
+            }
 
             $sql = sprintf(
-                'UPDATE %s SET %s WHERE %s = :pk',
+                'SELECT COUNT(*) FROM %s WHERE %s = :value AND %s <> :pk',
                 $this->table,
-                implode(', ', $placeholders),
+                $column,
                 $primaryKeyColumn
             );
 
             $statement = $this->connection->prepare($sql);
             if ($statement === false) {
-                throw new RuntimeException('Failed to prepare update statement.');
+                continue;
             }
 
             try {
-                $statement->execute($parameters);
-            } catch (PDOException $exception) {
-                throw new RuntimeException('Failed to update record.', 0, $exception);
+                $statement->execute([
+                    ':value' => $value,
+                    ':pk'    => $primaryKeyValue,
+                ]);
+            } catch (PDOException) {
+                continue;
             }
+
+            $count = (int) $statement->fetchColumn();
+            if ($count > 0) {
+                $errors[$column] = 'This value must be unique.';
+            }
+        }
+
+        if ($errors !== []) {
+            throw new ValidationException('Validation failed.', $errors);
+        }
+
+        $placeholders = [];
+        $parameters   = [];
+        foreach ($filtered as $column => $value) {
+            $placeholder              = ':col_' . $column;
+            $placeholders[]           = sprintf('%s = %s', $column, $placeholder);
+            $parameters[$placeholder] = $value;
+        }
+
+        $parameters[':pk'] = $primaryKeyValue;
+
+        $sql = sprintf(
+            'UPDATE %s SET %s WHERE %s = :pk',
+            $this->table,
+            implode(', ', $placeholders),
+            $primaryKeyColumn
+        );
+
+        $statement = $this->connection->prepare($sql);
+        if ($statement === false) {
+            throw new RuntimeException('Failed to prepare update statement.');
+        }
+
+        try {
+            $statement->execute($parameters);
+        } catch (PDOException $exception) {
+            throw new RuntimeException('Failed to update record.', 0, $exception);
         }
 
         return $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
@@ -2767,6 +3669,7 @@ HTML;
         var paginationContainer = $('#' + tableId + '-pagination');
         var currentPage = 1;
         var columnsCache = [];
+        var baseColumns = [];
         var primaryKeyColumn = null;
         var metaConfig = {};
         var metaInitialized = false;
@@ -2778,6 +3681,12 @@ HTML;
         var columnClasses = {};
         var columnWidths = {};
         var duplicateEnabled = false;
+        var formConfig = {
+            layouts: {},
+            default_tabs: {},
+            behaviours: {}
+        };
+        var currentFieldErrors = {};
 
         var toolbar = $('#' + tableId + '-toolbar');
         var rangeDisplay = $('#' + tableId + '-range');
@@ -2850,6 +3759,30 @@ HTML;
             columnLabels = meta.labels && typeof meta.labels === 'object' ? meta.labels : {};
             columnClasses = meta.column_classes && typeof meta.column_classes === 'object' ? meta.column_classes : {};
             columnWidths = meta.column_widths && typeof meta.column_widths === 'object' ? meta.column_widths : {};
+
+            if (meta.form && typeof meta.form === 'object') {
+                formConfig = {
+                    layouts: meta.form.layouts && typeof meta.form.layouts === 'object' ? meta.form.layouts : {},
+                    default_tabs: meta.form.default_tabs && typeof meta.form.default_tabs === 'object' ? meta.form.default_tabs : {},
+                    behaviours: meta.form.behaviours && typeof meta.form.behaviours === 'object' ? meta.form.behaviours : {},
+                    all_columns: Array.isArray(meta.form.all_columns) ? meta.form.all_columns : []
+                };
+                clientConfig.form = meta.form;
+            } else {
+                formConfig = {
+                    layouts: {},
+                    default_tabs: {},
+                    behaviours: {},
+                    all_columns: []
+                };
+                delete clientConfig.form;
+            }
+
+            if (Array.isArray(formConfig.all_columns) && formConfig.all_columns.length) {
+                baseColumns = formConfig.all_columns.slice();
+            } else {
+                baseColumns = columnsCache.slice();
+            }
 
             var tableMeta = meta.table && typeof meta.table === 'object' ? meta.table : {};
             duplicateEnabled = !!tableMeta.duplicate;
@@ -3256,9 +4189,262 @@ HTML;
             return words.join(' ');
         }
 
+        function makeSlug(value) {
+            return String(value || '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '') || 'tab';
+        }
+
+        function resolveBehaviour(key, field, mode) {
+            if (!formConfig.behaviours || !formConfig.behaviours[key]) {
+                return undefined;
+            }
+
+            var definition = formConfig.behaviours[key][field];
+            if (!definition) {
+                return undefined;
+            }
+
+            var value = typeof definition.all !== 'undefined' ? definition.all : undefined;
+            if (mode && typeof definition[mode] !== 'undefined') {
+                value = definition[mode];
+            }
+
+            return value;
+        }
+
+        function resolveBehavioursForField(field, mode) {
+            var behaviours = {};
+            if (formConfig.behaviours && formConfig.behaviours.change_type && formConfig.behaviours.change_type[field]) {
+                behaviours.change_type = formConfig.behaviours.change_type[field];
+            }
+
+            var keys = ['pass_var', 'pass_default', 'readonly', 'disabled', 'validation_required', 'validation_pattern', 'unique'];
+            keys.forEach(function(key) {
+                var value = resolveBehaviour(key, field, mode);
+                if (typeof value !== 'undefined') {
+                    behaviours[key] = value;
+                }
+            });
+
+            return behaviours;
+        }
+
+        function buildFormLayout(mode) {
+            mode = mode || 'edit';
+
+            var instructions = [];
+            if (formConfig.layouts) {
+                if (Array.isArray(formConfig.layouts.all)) {
+                    instructions = instructions.concat(formConfig.layouts.all);
+                }
+                if (formConfig.layouts[mode] && Array.isArray(formConfig.layouts[mode])) {
+                    instructions = instructions.concat(formConfig.layouts[mode]);
+                }
+            }
+
+            var hasWhitelist = false;
+            var whitelistOrder = [];
+            var hiddenFields = {};
+            var fieldTabMap = {};
+            var tabOrder = [];
+            var columnUniverse = baseColumns.length ? baseColumns.slice() : columnsCache.slice();
+            var columnLookup = {};
+            columnUniverse.forEach(function(field) {
+                columnLookup[field] = true;
+            });
+
+            instructions.forEach(function(entry) {
+                if (!entry || !Array.isArray(entry.fields)) {
+                    return;
+                }
+
+                var tabName = entry.tab && String(entry.tab).length ? String(entry.tab) : null;
+                var resolvedFields = entry.fields.filter(function(field) {
+                    return columnUniverse.length === 0 || columnLookup[field];
+                });
+
+                if (!resolvedFields.length) {
+                    return;
+                }
+
+                if (entry.reverse) {
+                    resolvedFields.forEach(function(field) {
+                        hiddenFields[field] = true;
+                    });
+                    return;
+                }
+
+                hasWhitelist = true;
+                resolvedFields.forEach(function(field) {
+                    if (whitelistOrder.indexOf(field) === -1) {
+                        whitelistOrder.push(field);
+                    }
+                    if (tabName) {
+                        fieldTabMap[field] = tabName;
+                        if (tabOrder.indexOf(tabName) === -1) {
+                            tabOrder.push(tabName);
+                        }
+                    } else if (!Object.prototype.hasOwnProperty.call(fieldTabMap, field)) {
+                        fieldTabMap[field] = null;
+                    }
+                });
+            });
+
+            var ordering;
+            if (hasWhitelist && whitelistOrder.length) {
+                ordering = whitelistOrder.slice();
+            } else {
+                var fallback = columnUniverse.length ? columnUniverse : columnsCache;
+                ordering = fallback.slice().filter(function(field) {
+                    return !hiddenFields[field];
+                });
+            }
+
+            ordering = ordering.filter(function(field) {
+                return field !== primaryKeyColumn;
+            });
+
+            var defaultTab = null;
+            if (formConfig.default_tabs) {
+                if (typeof formConfig.default_tabs.all === 'string' && formConfig.default_tabs.all.length) {
+                    defaultTab = formConfig.default_tabs.all;
+                }
+                if (mode && typeof formConfig.default_tabs[mode] === 'string' && formConfig.default_tabs[mode].length) {
+                    defaultTab = formConfig.default_tabs[mode];
+                }
+            }
+
+            var hasTabs = tabOrder.length > 0;
+            var normalizedFields = ordering.map(function(field) {
+                return {
+                    name: field,
+                    tab: fieldTabMap[field] || null
+                };
+            });
+
+            if (hasTabs) {
+                var fallbackTab = defaultTab || (tabOrder.length ? tabOrder[0] : null);
+                normalizedFields = normalizedFields.map(function(item) {
+                    if (!item.tab && fallbackTab) {
+                        item.tab = fallbackTab;
+                    }
+                    if (item.tab && tabOrder.indexOf(item.tab) === -1) {
+                        tabOrder.push(item.tab);
+                    }
+                    return item;
+                });
+
+                if (fallbackTab && tabOrder.indexOf(fallbackTab) === -1) {
+                    tabOrder.unshift(fallbackTab);
+                }
+            } else {
+                normalizedFields.forEach(function(item) {
+                    if (item.tab && tabOrder.indexOf(item.tab) === -1) {
+                        tabOrder.push(item.tab);
+                    }
+                });
+            }
+
+            return {
+                fields: normalizedFields,
+                tabs: tabOrder.filter(function(tab) { return !!tab; }),
+                defaultTab: defaultTab
+            };
+        }
+
+        function interpolateTemplate(template, context) {
+            if (typeof template !== 'string') {
+                return template;
+            }
+
+            return template.replace(/\{([A-Za-z0-9_]+)\}/g, function(_, token) {
+                if (!Object.prototype.hasOwnProperty.call(context, token)) {
+                    return '';
+                }
+
+                var value = context[token];
+                if (value === null || typeof value === 'undefined') {
+                    return '';
+                }
+
+                return String(value);
+            });
+        }
+
+        function compileClientPattern(pattern) {
+            if (typeof pattern !== 'string') {
+                return null;
+            }
+
+            var trimmed = pattern.trim();
+            if (!trimmed.length) {
+                return null;
+            }
+
+            var delimiter = trimmed.charAt(0);
+            var body = trimmed;
+            var flags = '';
+            var closingIndex = trimmed.lastIndexOf(delimiter);
+
+            if ((delimiter === '/' || delimiter === '#') && closingIndex > 0) {
+                body = trimmed.slice(1, closingIndex);
+                flags = trimmed.slice(closingIndex + 1);
+            }
+
+            try {
+                return new RegExp(body, flags.replace(/[^gimuy]/g, ''));
+            } catch (error) {
+                return null;
+            }
+        }
+
         function clearFormAlerts() {
             editError.addClass('d-none').text('');
             editSuccess.addClass('d-none');
+            clearFieldErrors();
+        }
+
+        function clearFieldErrors() {
+            if (!editFieldsContainer.length) {
+                return;
+            }
+
+            editFieldsContainer.find('.is-invalid').removeClass('is-invalid');
+            editFieldsContainer.find('.fastcrud-field-feedback').remove();
+        }
+
+        function applyFieldErrors(errors) {
+            clearFieldErrors();
+            if (!errors || typeof errors !== 'object') {
+                return;
+            }
+
+            currentFieldErrors = errors;
+
+            Object.keys(errors).forEach(function(field) {
+                var message = errors[field];
+                var selector = '[data-fastcrud-field="' + field + '"]';
+                var input = editFieldsContainer.find(selector);
+                if (!input.length) {
+                    input = editForm.find(selector);
+                }
+                if (!input.length) {
+                    return;
+                }
+
+                input.addClass('is-invalid');
+                var feedback = $('<div class="invalid-feedback fastcrud-field-feedback"></div>').text(message);
+                var group = input.closest('.mb-3');
+                if (group.length) {
+                    if (!group.find('.fastcrud-field-feedback').length) {
+                        group.append(feedback);
+                    }
+                } else {
+                    input.after(feedback);
+                }
+            });
         }
 
         function showFormError(message) {
@@ -3596,12 +4782,9 @@ HTML;
                 return;
             }
 
-            var primaryKeyValue;
-            if (Object.prototype.hasOwnProperty.call(row, '__fastcrud_primary_value') && typeof row.__fastcrud_primary_value !== 'undefined') {
-                primaryKeyValue = row.__fastcrud_primary_value;
-            } else {
-                primaryKeyValue = row[rowPrimaryKeyColumn];
-            }
+            var primaryKeyValue = Object.prototype.hasOwnProperty.call(row, '__fastcrud_primary_value') && typeof row.__fastcrud_primary_value !== 'undefined'
+                ? row.__fastcrud_primary_value
+                : row[rowPrimaryKeyColumn];
 
             editForm.data('primaryKeyColumn', rowPrimaryKeyColumn);
             editForm.data('primaryKeyValue', primaryKeyValue);
@@ -3620,31 +4803,375 @@ HTML;
             }
 
             editFieldsContainer.empty();
+            editForm.find('input[type="hidden"][data-fastcrud-field]').remove();
 
-            $.each(columnsCache, function(index, column) {
-                if (column === rowPrimaryKeyColumn) {
+            var templateContext = $.extend({}, row);
+
+            var layout = buildFormLayout('edit');
+            var fields = layout.fields.slice();
+            if (!fields.length) {
+                var fallbackColumns = baseColumns.length ? baseColumns : columnsCache;
+                fields = fallbackColumns
+                    .filter(function(column) { return column !== rowPrimaryKeyColumn; })
+                    .map(function(column) { return { name: column, tab: null }; });
+            }
+
+            var visibleFields = [];
+            fields.forEach(function(field) {
+                if (field.name === rowPrimaryKeyColumn) {
+                    return;
+                }
+                visibleFields.push(field);
+            });
+
+            var useTabs = Array.isArray(layout.tabs) && layout.tabs.length > 0 && visibleFields.some(function(field) {
+                return !!field.tab;
+            });
+            var tabsNav = null;
+            var tabsContent = null;
+            var tabEntries = {};
+            var defaultTabName = layout.defaultTab || null;
+
+            if (useTabs) {
+                tabsNav = $('<ul class="nav nav-tabs mb-3" role="tablist"></ul>');
+                tabsContent = $('<div class="tab-content"></div>');
+                editFieldsContainer.append(tabsNav).append(tabsContent);
+            }
+
+            function ensureTab(tabName) {
+                if (!tabsNav || !tabsContent) {
+                    return null;
+                }
+
+                if (!tabName) {
+                    return null;
+                }
+
+                if (tabEntries[tabName]) {
+                    return tabEntries[tabName];
+                }
+
+                var slug = makeSlug(tabName);
+                var tabId = editFormId + '-tab-' + slug;
+                var navItem = $('<li class="nav-item" role="presentation"></li>');
+                var navButton = $('<button class="nav-link" data-bs-toggle="tab" type="button" role="tab"></button>')
+                    .attr('id', tabId + '-tab')
+                    .attr('data-bs-target', '#' + tabId)
+                    .attr('aria-controls', tabId)
+                    .attr('aria-selected', 'false')
+                    .text(tabName);
+                navItem.append(navButton);
+                tabsNav.append(navItem);
+
+                var pane = $('<div class="tab-pane fade" role="tabpanel"></div>')
+                    .attr('id', tabId)
+                    .attr('aria-labelledby', tabId + '-tab');
+                tabsContent.append(pane);
+
+                tabEntries[tabName] = { nav: navButton, pane: pane };
+                return tabEntries[tabName];
+            }
+
+            if (useTabs) {
+                layout.tabs.forEach(function(tabName) {
+                    if (tabName) {
+                        ensureTab(tabName);
+                    }
+                });
+            }
+
+            visibleFields.forEach(function(field) {
+                var column = field.name;
+                var behaviours = resolveBehavioursForField(column, 'edit');
+                var changeMeta = behaviours.change_type || {};
+                var changeType = String(changeMeta.type || 'text').toLowerCase();
+                if (changeType === 'dropdown') {
+                    changeType = 'select';
+                }
+                var params = changeMeta.params || {};
+                if (!params || typeof params !== 'object') {
+                    params = {};
+                }
+                var fieldId = editFormId + '-' + column;
+
+                var currentValue = typeof row[column] !== 'undefined' && row[column] !== null ? row[column] : '';
+                if ((currentValue === null || currentValue === '') && typeof behaviours.pass_default !== 'undefined') {
+                    currentValue = interpolateTemplate(behaviours.pass_default, templateContext);
+                }
+                if ((currentValue === null || currentValue === '') && typeof changeMeta.default !== 'undefined' && changeMeta.default !== null) {
+                    currentValue = changeMeta.default;
+                }
+                if (typeof behaviours.pass_var !== 'undefined') {
+                    currentValue = interpolateTemplate(behaviours.pass_var, templateContext);
+                }
+                if (currentValue === null || typeof currentValue === 'undefined') {
+                    currentValue = '';
+                }
+
+                templateContext[column] = currentValue;
+
+                if (changeType === 'hidden') {
+                    var hiddenInput = $('<input type="hidden" />')
+                        .attr('id', fieldId)
+                        .attr('data-fastcrud-field', column)
+                        .attr('data-fastcrud-type', 'hidden')
+                        .val(currentValue);
+                    editForm.append(hiddenInput);
                     return;
                 }
 
-                var fieldId = editFormId + '-' + column;
-                var group = $('<div class="mb-3"></div>');
-                var label = $('<label class="form-label"></label>')
-                    .attr('for', fieldId)
-                    .text(makeLabel(column));
-
-                var value = row[column];
-                if (value === null || typeof value === 'undefined') {
-                    value = '';
+                var container = editFieldsContainer;
+                if (useTabs) {
+                    var targetTab = field.tab || defaultTabName || (layout.tabs.length ? layout.tabs[0] : null);
+                    if (targetTab) {
+                        var entry = ensureTab(targetTab);
+                        if (entry && entry.pane) {
+                            container = entry.pane;
+                        }
+                    }
                 }
 
-                var input = $('<input type="text" class="form-control" />')
-                    .attr('id', fieldId)
-                    .attr('data-fastcrud-field', column)
-                    .val(value);
+                var group = $('<div class="mb-3"></div>').attr('data-fastcrud-group', column);
+                var input;
+                var dataType = changeType;
+                var normalizedValue = currentValue;
 
-                group.append(label).append(input);
-                editFieldsContainer.append(group);
+                if (changeType === 'textarea') {
+                    input = $('<textarea class="form-control"></textarea>')
+                        .attr('id', fieldId)
+                        .attr('rows', params.rows && Number(params.rows) > 0 ? Number(params.rows) : 3)
+                        .val(normalizedValue);
+                } else if (changeType === 'select') {
+                    input = $('<select class="form-select"></select>').attr('id', fieldId);
+                    var optionMap = params.values || params.options || {};
+                    var optionsList = [];
+                    if ($.isArray(optionMap)) {
+                        optionMap.forEach(function(optionValue) {
+                            optionsList.push({ value: optionValue, label: optionValue });
+                        });
+                    } else if (typeof optionMap === 'object') {
+                        Object.keys(optionMap).forEach(function(key) {
+                            optionsList.push({ value: key, label: optionMap[key] });
+                        });
+                    }
+                    if (params.placeholder) {
+                        input.append($('<option></option>').attr('value', '').text(params.placeholder));
+                    }
+                    optionsList.forEach(function(option) {
+                        input.append($('<option></option>').attr('value', option.value).text(option.label));
+                    });
+                    input.val(String(normalizedValue));
+                } else if (changeType === 'multiselect') {
+                    input = $('<select class="form-select" multiple></select>').attr('id', fieldId);
+                    var multiMap = params.values || params.options || {};
+                    var multiOptions = [];
+                    if ($.isArray(multiMap)) {
+                        multiMap.forEach(function(optionValue) {
+                            multiOptions.push({ value: optionValue, label: optionValue });
+                        });
+                    } else if (typeof multiMap === 'object') {
+                        Object.keys(multiMap).forEach(function(key) {
+                            multiOptions.push({ value: key, label: multiMap[key] });
+                        });
+                    }
+                    multiOptions.forEach(function(option) {
+                        input.append($('<option></option>').attr('value', option.value).text(option.label));
+                    });
+                    var selectedValues;
+                    if ($.isArray(normalizedValue)) {
+                        selectedValues = normalizedValue;
+                    } else {
+                        selectedValues = String(normalizedValue).split(',').map(function(value) {
+                            return value.trim();
+                        }).filter(function(value) {
+                            return value.length > 0;
+                        });
+                    }
+                    input.val(selectedValues);
+                } else if (changeType === 'date' || changeType === 'datetime' || changeType === 'datetime-local') {
+                    input = $('<input class="form-control" />')
+                        .attr('id', fieldId)
+                        .attr('type', changeType === 'date' ? 'date' : 'datetime-local')
+                        .val(String(normalizedValue));
+                    dataType = changeType === 'date' ? 'date' : 'datetime';
+                } else if (changeType === 'time') {
+                    input = $('<input type="time" class="form-control" />')
+                        .attr('id', fieldId)
+                        .val(String(normalizedValue));
+                } else if (changeType === 'email') {
+                    input = $('<input type="email" class="form-control" />')
+                        .attr('id', fieldId)
+                        .val(String(normalizedValue));
+                } else if (changeType === 'number' || changeType === 'int' || changeType === 'integer' || changeType === 'float' || changeType === 'decimal') {
+                    input = $('<input type="number" class="form-control" />')
+                        .attr('id', fieldId)
+                        .val(String(normalizedValue));
+                    if (params.step) {
+                        input.attr('step', params.step);
+                    }
+                    if (params.min) {
+                        input.attr('min', params.min);
+                    }
+                    if (params.max) {
+                        input.attr('max', params.max);
+                    }
+                    dataType = 'number';
+                } else if (changeType === 'password') {
+                    input = $('<input type="password" class="form-control" />')
+                        .attr('id', fieldId)
+                        .val('');
+                    dataType = 'password';
+                } else if (changeType === 'bool' || changeType === 'checkbox' || changeType === 'switch') {
+                    group.removeClass('mb-3').addClass('form-check mb-3');
+                    input = $('<input type="checkbox" class="form-check-input" />')
+                        .attr('id', fieldId)
+                        .attr('data-fastcrud-field', column)
+                        .attr('data-fastcrud-type', 'checkbox');
+                    var isChecked = normalizedValue === true || normalizedValue === 1 || normalizedValue === '1' || normalizedValue === 'true';
+                    input.prop('checked', isChecked);
+                    var checkboxLabel = $('<label class="form-check-label"></label>')
+                        .attr('for', fieldId)
+                        .text(makeLabel(column));
+                    group.append(input).append(checkboxLabel);
+                    dataType = 'checkbox';
+                } else {
+                    input = $('<input type="text" class="form-control" />')
+                        .attr('id', fieldId)
+                        .val(String(normalizedValue));
+                    dataType = 'text';
+                }
+
+                if (!input) {
+                    return;
+                }
+
+                if (changeType !== 'bool' && changeType !== 'checkbox') {
+                    group.append($('<label class="form-label"></label>').attr('for', fieldId).text(makeLabel(column)));
+                    group.append(input);
+                }
+
+                if (params.placeholder && input.is('input, textarea')) {
+                    input.attr('placeholder', params.placeholder);
+                }
+
+                if (params.maxlength && input.is('input, textarea')) {
+                    input.attr('maxlength', params.maxlength);
+                }
+
+                if (params.class) {
+                    input.addClass(params.class);
+                }
+
+                input.attr('data-fastcrud-field', column);
+                input.attr('data-fastcrud-type', dataType);
+
+                if (behaviours.validation_required) {
+                    input.attr('data-fastcrud-required', behaviours.validation_required);
+                    if (!input.is(':checkbox')) {
+                        input.attr('required', 'required');
+                    }
+                }
+
+                if (behaviours.validation_pattern) {
+                    input.attr('data-fastcrud-pattern', behaviours.validation_pattern);
+                    if (typeof behaviours.validation_pattern === 'string' && behaviours.validation_pattern.length) {
+                        var htmlPattern = behaviours.validation_pattern;
+                        var delimiter = htmlPattern.charAt(0);
+                        var lastIndex = htmlPattern.lastIndexOf(delimiter);
+                        if ((delimiter === '/' || delimiter === '#') && lastIndex > 0) {
+                            htmlPattern = htmlPattern.slice(1, lastIndex);
+                        }
+                        if (htmlPattern) {
+                            input.attr('pattern', htmlPattern);
+                        }
+                    }
+                }
+
+                if (behaviours.readonly) {
+                    if (input.is('select')) {
+                        input.prop('disabled', true);
+                    } else {
+                        input.prop('readonly', true);
+                    }
+                    group.addClass('fastcrud-field-readonly');
+                }
+
+                if (behaviours.disabled) {
+                    input.prop('disabled', true);
+                    group.addClass('fastcrud-field-disabled');
+                }
+
+                if (behaviours.pass_var) {
+                    input.attr('data-fastcrud-pass-var', behaviours.pass_var);
+                }
+                if (behaviours.pass_default) {
+                    input.attr('data-fastcrud-pass-default', behaviours.pass_default);
+                }
+                if (behaviours.unique) {
+                    input.attr('data-fastcrud-unique', '1');
+                }
+
+                container.append(group);
             });
+
+            if (useTabs) {
+                var availableTabs = Object.keys(tabEntries);
+                var activeTab = defaultTabName && tabEntries[defaultTabName] ? defaultTabName : (availableTabs[0] || null);
+                if (activeTab) {
+                    Object.keys(tabEntries).forEach(function(name) {
+                        var entry = tabEntries[name];
+                        if (!entry) {
+                            return;
+                        }
+
+                        if (name === activeTab) {
+                            entry.nav.addClass('active').attr('aria-selected', 'true');
+                            entry.pane.addClass('show active');
+                        } else {
+                            entry.nav.removeClass('active').attr('aria-selected', 'false');
+                            entry.pane.removeClass('show active');
+                        }
+                    });
+                }
+            }
+
+            var behaviourSources = [formConfig.behaviours.pass_var || {}, formConfig.behaviours.pass_default || {}];
+            var createdHiddenFields = {};
+            behaviourSources.forEach(function(source) {
+                Object.keys(source).forEach(function(fieldName) {
+                    if (fieldName === rowPrimaryKeyColumn) {
+                        return;
+                    }
+
+                    if (visibleFields.some(function(field) { return field.name === fieldName; })) {
+                        return;
+                    }
+
+                    if (createdHiddenFields[fieldName]) {
+                        return;
+                    }
+
+                    var behaviours = resolveBehavioursForField(fieldName, 'edit');
+                    var value = '';
+                    if (behaviours.pass_var) {
+                        value = interpolateTemplate(behaviours.pass_var, templateContext);
+                    } else if (behaviours.pass_default) {
+                        value = interpolateTemplate(behaviours.pass_default, templateContext);
+                    }
+
+                    var hiddenId = editFormId + '-' + fieldName;
+                    var hiddenField = $('<input type="hidden" />')
+                        .attr('id', hiddenId)
+                        .attr('data-fastcrud-field', fieldName)
+                        .attr('data-fastcrud-type', 'hidden')
+                        .val(value);
+                    editForm.append(hiddenField);
+                    templateContext[fieldName] = value;
+                    createdHiddenFields[fieldName] = true;
+                });
+            });
+
+            applyFieldErrors(currentFieldErrors);
 
             var offcanvas = getEditOffcanvasInstance();
             if (offcanvas) {
@@ -3697,8 +5224,17 @@ HTML;
                 viewHeading.text(headingText);
             }
 
+            var viewLayout = buildFormLayout('view');
+            var fieldOrder = viewLayout.fields.length
+                ? viewLayout.fields.map(function(item) { return item.name; })
+                : columnsCache.slice();
+
             var hasContent = false;
-            $.each(columnsCache, function(_, column) {
+            $.each(fieldOrder, function(_, column) {
+                if (column === viewPrimaryKeyColumn) {
+                    return;
+                }
+
                 var label = makeLabel(column);
                 var value = row[column];
                 if (typeof value === 'undefined' || value === null) {
@@ -3745,20 +5281,91 @@ HTML;
             }
 
             clearFormAlerts();
+            currentFieldErrors = {};
 
             var fields = {};
-            editFieldsContainer.find('[data-fastcrud-field]').each(function() {
+            var fieldErrors = {};
+            var validationPassed = true;
+
+            editForm.find('[data-fastcrud-field]').each(function() {
                 var input = $(this);
                 var column = input.data('fastcrudField');
                 if (!column) {
                     return;
                 }
-                var value = input.val();
-                if (value === '') {
-                    value = null;
+                if (column === primaryColumn) {
+                    return;
                 }
-                fields[column] = value;
+
+                if (input.prop('disabled')) {
+                    return;
+                }
+
+                var type = String(input.data('fastcrudType') || input.attr('data-fastcrud-type') || 'text').toLowerCase();
+                var rawValue;
+                var valueForField = null;
+                var lengthForValidation = 0;
+
+                if (type === 'checkbox') {
+                    rawValue = input.is(':checked');
+                    valueForField = rawValue ? '1' : '0';
+                    lengthForValidation = rawValue ? 1 : 0;
+                } else if (type === 'multiselect') {
+                    rawValue = input.val() || [];
+                    var trimmedValues = $.map(rawValue, function(item) {
+                        if (item === null || typeof item === 'undefined') {
+                            return null;
+                        }
+                        var normalized = String(item).trim();
+                        return normalized.length ? normalized : null;
+                    });
+                    lengthForValidation = trimmedValues.length;
+                    valueForField = trimmedValues.length ? trimmedValues.join(',') : null;
+                } else {
+                    rawValue = input.val();
+                    if (rawValue === null || typeof rawValue === 'undefined') {
+                        valueForField = null;
+                        lengthForValidation = 0;
+                    } else {
+                        var normalizedValue = String(rawValue).trim();
+                        if (normalizedValue === '') {
+                            valueForField = null;
+                            lengthForValidation = 0;
+                        } else {
+                            valueForField = normalizedValue;
+                            lengthForValidation = normalizedValue.length;
+                        }
+                    }
+                }
+
+                var requiredMin = parseInt(input.attr('data-fastcrud-required') || '', 10);
+                if (!Number.isNaN(requiredMin) && requiredMin > 0) {
+                    if (lengthForValidation < requiredMin) {
+                        validationPassed = false;
+                        fieldErrors[column] = 'This field is required.';
+                        input.addClass('is-invalid');
+                    }
+                }
+
+                var patternRaw = input.attr('data-fastcrud-pattern');
+                if (patternRaw && valueForField !== null && valueForField !== '' && type !== 'multiselect') {
+                    var regex = compileClientPattern(patternRaw);
+                    if (regex && !regex.test(String(valueForField))) {
+                        validationPassed = false;
+                        fieldErrors[column] = 'Value does not match the expected format.';
+                        input.addClass('is-invalid');
+                    }
+                }
+
+                fields[column] = valueForField;
             });
+
+            if (!validationPassed) {
+                currentFieldErrors = fieldErrors;
+                applyFieldErrors(fieldErrors);
+                showFormError('Please fix the highlighted fields.');
+                return false;
+            }
 
             var submitButton = editForm.find('button[type="submit"]');
             var originalText = submitButton.text();
@@ -3786,9 +5393,14 @@ HTML;
                 success: function(response) {
                     if (response && response.success) {
                         editSuccess.addClass('d-none');
+                        currentFieldErrors = {};
                         loadTableData(currentPage);
                     } else {
                         var message = response && response.error ? response.error : 'Failed to update record.';
+                        if (response && response.errors) {
+                            currentFieldErrors = response.errors;
+                            applyFieldErrors(response.errors);
+                        }
                         showFormError(message);
                         if (offcanvas) {
                             offcanvas.show();

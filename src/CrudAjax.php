@@ -126,11 +126,22 @@ class CrudAjax
             isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
             $request['config'] ?? null
         );
-        $updatedRow = $crud->updateRecord(
-            (string) $request['primary_key_column'],
-            $request['primary_key_value'],
-            $fields
-        );
+        try {
+            $updatedRow = $crud->updateRecord(
+                (string) $request['primary_key_column'],
+                $request['primary_key_value'],
+                $fields,
+                'edit'
+            );
+        } catch (ValidationException $exception) {
+            echo json_encode([
+                'success' => false,
+                'error' => $exception->getMessage(),
+                'errors' => $exception->getErrors(),
+                'id' => $request['id'] ?? null,
+            ]);
+            return;
+        }
 
         echo json_encode([
             'success' => true,

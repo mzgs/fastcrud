@@ -70,6 +70,7 @@ Crud::init([
                     // ->join('user_id', 'users', 'id','user')
                     // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
                     ->columns('user_id,title,slug,content,created_at')
+                    ->fields('user_id,title,slug,content' )
                     ->search_columns('title,content', 'title')
                     ->set_column_labels([
                         'user_id'    => 'Author',
