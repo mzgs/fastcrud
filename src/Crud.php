@@ -6694,6 +6694,7 @@ HTML;
                             var stylePanelAspect = (params.panelAspectRatio || params.aspectRatio);
                             var pond = window.FilePond.create(fileInput.get(0), {
                                 allowMultiple: isMultipleImages,
+                                allowReorder: isMultipleImages,
                                 allowImagePreview: true,
                                 imagePreviewHeight: params.previewHeight ? Number(params.previewHeight) : 170,
                                 allowFilePoster: true,
@@ -6816,11 +6817,34 @@ HTML;
                                 }
                             });
 
-                            // Apply a default compact width unless overridden via params
-                            var pondWidth = (params.width || params.pondWidth || params.previewWidth || '360px');
+                            // Apply width: use full width for multi-image grids by default
+                            var pondWidth = (function() {
+                                var explicit = (params.width || params.pondWidth || params.previewWidth || '').toString().trim();
+                                if (explicit) return explicit;
+                                return isMultipleImages ? '100%' : '360px';
+                            })();
                             try {
                                 $(pond.element).css({ maxWidth: String(pondWidth), width: '100%' });
                             } catch (e) {}
+
+                            // For multi-image fields, add a responsive grid layout for previews
+                            if (isMultipleImages) {
+                                try {
+                                    $(pond.element).addClass('fastcrud-filepond-grid');
+                                    var gridCssId = 'fastcrud-filepond-grid-css';
+                                    if (!document.getElementById(gridCssId)) {
+                                        var style = document.createElement('style');
+                                        style.id = gridCssId;
+                                        style.type = 'text/css';
+                                        style.appendChild(document.createTextNode(
+                                            '.fastcrud-filepond-grid .filepond--item{width:calc(33.333% - 0.5em)}' +
+                                            '@media (max-width: 640px){.fastcrud-filepond-grid .filepond--item{width:calc(50% - 0.5em)}}' +
+                                            '@media (min-width: 1200px){.fastcrud-filepond-grid .filepond--item{width:calc(20% - 0.5em)}}'
+                                        ));
+                                        document.head.appendChild(style);
+                                    }
+                                } catch (e) {}
+                            }
 
                             if (isMultipleImages) {
                                 pond.on('removefile', function(error, file) {
@@ -6842,6 +6866,28 @@ HTML;
                                     if (key) {
                                         removeImageNameForKey(valueInput, key);
                                     }
+                                });
+                                // Keep hidden input order in sync when user reorders items
+                                pond.on('reorderfiles', function(files) {
+                                    try {
+                                        var ordered = [];
+                                        (files || pond.getFiles() || []).forEach(function(item) {
+                                            if (!item) return;
+                                            var key = item.serverId || item.source || '';
+                                            var name = '';
+                                            if (item.getMetadata && typeof item.getMetadata === 'function') {
+                                                name = item.getMetadata('storedName') || '';
+                                            }
+                                            if (!name) {
+                                                name = findImageNameForKey(valueInput, key) || extractFileName(key || item.filename);
+                                            }
+                                            if (name && ordered.indexOf(name) === -1) {
+                                                ordered.push(name);
+                                            }
+                                        });
+                                        setImageNamesOnInput(valueInput, ordered);
+                                        valueInput.trigger('change');
+                                    } catch (e) {}
                                 });
                             } else {
                                 pond.on('removefile', function() {
