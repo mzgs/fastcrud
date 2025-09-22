@@ -1004,6 +1004,19 @@ class Crud
                     $linkText = $display;
                     $html = '<a href="' . $this->escapeHtml($href) . '" target="_blank" rel="noopener noreferrer">' . $this->escapeHtml($linkText) . '</a>';
                 }
+            } elseif ($type === 'files') {
+                $raw = $rawOriginal;
+                if ($raw === null || $raw === '') {
+                    $raw = $value;
+                }
+                $names = $this->parseImageNameList($raw);
+                if ($names !== []) {
+                    $first = $names[0];
+                    $href = $this->buildPublicUploadUrl($first);
+                    $extra = count($names) > 1 ? ' (+' . (count($names) - 1) . ')' : '';
+                    $text = $first . $extra;
+                    $html = '<a href="' . $this->escapeHtml($href) . '" target="_blank" rel="noopener noreferrer">' . $this->escapeHtml($text) . '</a>';
+                }
             } elseif (($type === 'image' || $type === 'images') && CrudConfig::$images_in_grid) {
                 $height = (int) CrudConfig::$images_in_grid_height;
                 if ($type === 'image') {
@@ -6618,20 +6631,27 @@ HTML;
                     }
                     labelForId = fieldId + '-file';
                     dataType = changeType;
-                } else if (changeType === 'file') {
-                    var singleFileName = String(currentValue || '');
+                } else if (changeType === 'file' || changeType === 'files') {
+                    var isMultipleFiles = (changeType === 'files');
+                    var normalizedListFiles = parseImageNameList(currentValue);
+                    var initialFilesValue = isMultipleFiles
+                        ? imageNamesToString(normalizedListFiles)
+                        : (normalizedListFiles.length ? normalizedListFiles[0] : '');
                     var hiddenInput = $('<input type="hidden" />')
                         .attr('id', fieldId)
                         .attr('data-fastcrud-field', saveColumn)
                         .attr('data-fastcrud-type', 'hidden')
-                        .val(singleFileName);
+                        .val(String(initialFilesValue || ''));
                     input = $('<input type="file" class="fastcrud-filepond" />')
                         .attr('id', fieldId + '-file');
+                    if (isMultipleFiles) {
+                        input.attr('multiple', 'multiple');
+                    }
                     if (params.accept) {
                         input.attr('accept', params.accept);
                     }
                     labelForId = fieldId + '-file';
-                    dataType = 'file';
+                    dataType = isMultipleFiles ? 'files' : 'file';
                 } else if (changeType === 'multiselect') {
                     input = $('<select class="form-select" multiple></select>').attr('id', fieldId);
                     var multiMap = params.values || params.options || {};
@@ -6719,7 +6739,7 @@ HTML;
                 if (changeType !== 'bool' && changeType !== 'checkbox') {
                     group.append($('<label class="form-label"></label>').attr('for', labelForId).text(resolveFieldLabel(column)));
                     group.append(input);
-                    if (changeType === 'image' || changeType === 'images' || changeType === 'file') {
+                    if (changeType === 'image' || changeType === 'images' || changeType === 'file' || changeType === 'files') {
                         // Append the hidden value holder so it gets included on submit
                         group.append(hiddenInput);
                     }
@@ -6737,7 +6757,7 @@ HTML;
                     input.addClass(params.class);
                 }
 
-                if (changeType !== 'image' && changeType !== 'images' && changeType !== 'file') {
+                if (changeType !== 'image' && changeType !== 'images' && changeType !== 'file' && changeType !== 'files') {
                     input.attr('data-fastcrud-field', column);
                     input.attr('data-fastcrud-type', dataType);
                 }
@@ -6771,7 +6791,7 @@ HTML;
                         input.prop('readonly', true);
                     }
                     group.addClass('fastcrud-field-readonly');
-                    if (changeType === 'image' || changeType === 'images' || changeType === 'file') {
+                    if (changeType === 'image' || changeType === 'images' || changeType === 'file' || changeType === 'files') {
                         // Prevent posting hidden value when field is readonly
                         try { hiddenInput.prop('disabled', true); } catch (e) {}
                     }
@@ -6780,7 +6800,7 @@ HTML;
                 if (behaviours.disabled) {
                     input.prop('disabled', true);
                     group.addClass('fastcrud-field-disabled');
-                    if (changeType === 'image' || changeType === 'images' || changeType === 'file') {
+                    if (changeType === 'image' || changeType === 'images' || changeType === 'file' || changeType === 'files') {
                         try { hiddenInput.prop('disabled', true); } catch (e) {}
                     }
                 }
@@ -7112,8 +7132,8 @@ HTML;
                             });
                         } catch (e) {}
                     });
-                } else if (changeType === 'file') {
-                    // Initialize FilePond for generic files (no image preview)
+                } else if (changeType === 'file' || changeType === 'files') {
+                    // Initialize FilePond for generic files (with optional multi-select, no image preview)
                     withFilePondAssets(function() {
                         var fileInput = group.find('#' + $.escapeSelector(fieldId + '-file'));
                         var valueInput = group.find('#' + $.escapeSelector(fieldId));
@@ -7122,18 +7142,23 @@ HTML;
                         }
 
                         try {
-                            var name = String(valueInput.val() || '').trim();
+                            var isMultipleFiles = (changeType === 'files');
                             var initialFiles = [];
-                            if (name) {
-                                initialFiles = [{
-                                    source: toPublicUrl(name),
-                                    options: { type: 'local', file: { name: name } }
-                                }];
+                            if (isMultipleFiles) {
+                                var list = parseImageNameList(valueInput.val());
+                                initialFiles = list.map(function(fname) {
+                                    return { source: toPublicUrl(fname), options: { type: 'local', file: { name: fname } } };
+                                });
+                            } else {
+                                var name = String(valueInput.val() || '').trim();
+                                if (name) {
+                                    initialFiles = [{ source: toPublicUrl(name), options: { type: 'local', file: { name: name } } }];
+                                }
                             }
 
                             var pond = window.FilePond.create(fileInput.get(0), {
-                                allowMultiple: false,
-                                allowReorder: false,
+                                allowMultiple: isMultipleFiles,
+                                allowReorder: isMultipleFiles,
                                 allowImagePreview: false,
                                 allowFilePoster: false,
                                 credits: false,
@@ -7143,16 +7168,13 @@ HTML;
                                         var xhr = new XMLHttpRequest();
                                         xhr.open('POST', window.location.pathname);
                                         xhr.withCredentials = true;
-                                        xhr.upload.onprogress = function(e) {
-                                            progress(e.lengthComputable, e.loaded, e.total);
-                                        };
+                                        xhr.upload.onprogress = function(e) { progress(e.lengthComputable, e.loaded, e.total); };
                                         xhr.onload = function() {
                                             if (xhr.status < 200 || xhr.status >= 300) {
                                                 error('Upload failed with status ' + xhr.status);
                                                 return;
                                             }
-                                            var response;
-                                            var raw = xhr.responseText || '';
+                                            var response; var raw = xhr.responseText || '';
                                             try { response = JSON.parse(raw || '{}'); } catch (e) {
                                                 error('Upload returned invalid JSON.');
                                                 return;
@@ -7163,20 +7185,17 @@ HTML;
                                             }
 
                                             var storedName = '';
-                                            if (response.name) {
-                                                storedName = String(response.name);
-                                            }
-                                            if (!storedName && response.location) {
-                                                storedName = extractFileName(response.location);
-                                            }
-                                            if (!storedName && file && file.name) {
-                                                storedName = extractFileName(file.name);
-                                            }
+                                            if (response.name) { storedName = String(response.name); }
+                                            if (!storedName && response.location) { storedName = extractFileName(response.location); }
+                                            if (!storedName && file && file.name) { storedName = extractFileName(file.name); }
 
                                             if (storedName) {
-                                                valueInput.val(storedName).trigger('change');
+                                                if (isMultipleFiles) { addImageNameToInput(valueInput, storedName); }
+                                                else { valueInput.val(storedName); }
+                                                valueInput.trigger('change');
                                             }
                                             var serverKey = response.location ? String(response.location) : storedName;
+                                            if (isMultipleFiles && serverKey) { mapImageNameToKey(valueInput, serverKey, storedName); }
                                             load(serverKey || storedName || '');
                                         };
                                         xhr.onerror = function() { error('Upload failed due to a network error.'); };
@@ -7200,33 +7219,64 @@ HTML;
                                             var xhr = new XMLHttpRequest();
                                             xhr.open('GET', target);
                                             xhr.responseType = 'blob';
-                                            xhr.onload = function() {
-                                                if (xhr.status >= 200 && xhr.status < 300) {
-                                                    load(xhr.response);
-                                                } else {
-                                                    error('Failed to fetch file');
-                                                }
-                                            };
+                                            xhr.onload = function() { if (xhr.status >= 200 && xhr.status < 300) { load(xhr.response); } else { error('Failed to fetch file'); } };
                                             xhr.onerror = function() { error('Network error while fetching file'); };
                                             xhr.send();
                                             return { abort: function() { try { xhr.abort(); } catch (e) {} abort(); } };
-                                        } catch (e) {
-                                            error('Failed to fetch file');
-                                        }
+                                        } catch (e) { error('Failed to fetch file'); }
                                     }
                                 }
                             });
 
-                            pond.on('removefile', function() {
-                                valueInput.val('').trigger('change');
-                            });
+                            if (isMultipleFiles) {
+                                pond.on('removefile', function(error, file) {
+                                    if (!file) { return; }
+                                    var key = file.serverId || file.source || '';
+                                    var storedName = '';
+                                    if (file.getMetadata && typeof file.getMetadata === 'function') {
+                                        storedName = file.getMetadata('storedName') || '';
+                                    }
+                                    if (!storedName) {
+                                        storedName = findImageNameForKey(valueInput, key) || extractFileName(key || file.filename);
+                                    }
+                                    if (storedName) { removeImageNameFromInput(valueInput, storedName); valueInput.trigger('change'); }
+                                    if (key) { removeImageNameForKey(valueInput, key); }
+                                });
+                                pond.on('reorderfiles', function(files) {
+                                    try {
+                                        var ordered = [];
+                                        (files || pond.getFiles() || []).forEach(function(item) {
+                                            if (!item) return;
+                                            var key = item.serverId || item.source || '';
+                                            var name = '';
+                                            if (item.getMetadata && typeof item.getMetadata === 'function') {
+                                                name = item.getMetadata('storedName') || '';
+                                            }
+                                            if (!name) { name = findImageNameForKey(valueInput, key) || extractFileName(key || item.filename); }
+                                            if (name && ordered.indexOf(name) === -1) { ordered.push(name); }
+                                        });
+                                        setImageNamesOnInput(valueInput, ordered);
+                                        valueInput.trigger('change');
+                                    } catch (e) {}
+                                });
+                            } else {
+                                pond.on('removefile', function() { valueInput.val('').trigger('change'); });
+                            }
 
                             pond.on('processfile', function(error, file) {
                                 if (error || !file) { return; }
                                 var key = file.serverId || file.source || '';
-                                var storedName = extractFileName(key || (file.filename || ''));
+                                var storedName = '';
+                                if (file.getMetadata && typeof file.getMetadata === 'function') { storedName = file.getMetadata('storedName') || ''; }
+                                if (!storedName) {
+                                    storedName = findImageNameForKey(valueInput, key) || extractFileName(key || (file.filename || ''));
+                                    if (file.setMetadata && storedName) { file.setMetadata('storedName', storedName, true); }
+                                }
+                                if (isMultipleFiles && key && storedName) { mapImageNameToKey(valueInput, key, storedName); }
                                 if (storedName) {
-                                    valueInput.val(storedName).trigger('change');
+                                    if (isMultipleFiles) { addImageNameToInput(valueInput, storedName); }
+                                    else { valueInput.val(storedName); }
+                                    valueInput.trigger('change');
                                 }
                             });
                         } catch (e) {}
@@ -7470,6 +7520,23 @@ HTML;
                                 .attr('rel', 'noopener noreferrer')
                                 .text(displayValue);
                             valueElem.empty().append(link);
+                        } else {
+                            valueElem.text('N/A');
+                        }
+                    } else if (changeType === 'files') {
+                        var filesList = parseImageNameList(value);
+                        if (filesList && filesList.length) {
+                            var listContainer = $('<div></div>');
+                            filesList.forEach(function(item) {
+                                var url = toPublicUrl(item);
+                                var link = $('<a class="d-block mb-1"></a>')
+                                    .attr('href', url)
+                                    .attr('target', '_blank')
+                                    .attr('rel', 'noopener noreferrer')
+                                    .text(item);
+                                listContainer.append(link);
+                            });
+                            valueElem.empty().append(listContainer);
                         } else {
                             valueElem.text('N/A');
                         }

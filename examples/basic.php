@@ -75,7 +75,7 @@ Crud::init([
                     ->fields('user_id,title,is_featured,image,gallery_images,file,content,created_at', false, 'Post Details' )
                     ->fields('slug', false, 'Post Summary' )
                     // ->fields('slug,content',false,'Content' )
-                    ->change_type('file', 'file')
+                    ->change_type('file', 'files')
                     ->change_type('image', 'image')
                   ->change_type('gallery_images', 'images')
                   ->change_type('content', 'rich_editor', '', ['height' => 450])

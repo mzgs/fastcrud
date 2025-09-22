@@ -44,6 +44,7 @@ $.ajax({
 ## New Field Types
 - `change_type('image'|'images')` uses FilePond with image preview.
 - `change_type('file')` uses FilePond for a single generic file upload.
+- `change_type('files')` uses FilePond for multi-file uploads (no image preview), storing a comma-separated list of saved filenames in the DB. You can restrict types via `['accept' => 'application/pdf,.docx']`.
   - Stores the saved filename in the DB (hidden input mirrors FilePond state).
   - Accept attribute can be customized via params: `->change_type('my_column', 'file', '', ['accept' => 'application/pdf,.docx'])`.
   - Server action `upload_filepond` supports both images and generic files. Images are validated against image extensions; generic files block executable/script extensions by default.
