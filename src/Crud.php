@@ -7374,7 +7374,54 @@ HTML;
 
                 var item = $('<div class="list-group-item"></div>');
                 item.append($('<div class="fw-semibold text-muted mb-1"></div>').text(label));
-                item.append($('<div class="text-break"></div>').text(displayValue));
+
+                var valueElem = $('<div class="text-break"></div>');
+                try {
+                    var viewBehaviours = resolveBehavioursForField(column, 'view');
+                    var changeMeta = (viewBehaviours && viewBehaviours.change_type) ? viewBehaviours.change_type : {};
+                    var changeType = String((changeMeta && changeMeta.type) || '').toLowerCase();
+                    if (changeType === 'file') {
+                        var name = String(value || '').trim();
+                        if (name) {
+                            var href = toPublicUrl(name);
+                            var link = $('<a></a>')
+                                .attr('href', href)
+                                .attr('target', '_blank')
+                                .attr('rel', 'noopener noreferrer')
+                                .text(displayValue);
+                            valueElem.empty().append(link);
+                        } else {
+                            valueElem.text('N/A');
+                        }
+                    } else if (changeType === 'image' || changeType === 'images') {
+                        var list = parseImageNameList(value);
+                        if (list && list.length) {
+                            var grid = $('<div class="row row-cols-2 row-cols-sm-3 row-cols-lg-5 g-2"></div>');
+                            list.forEach(function(item) {
+                                var url = toPublicUrl(item);
+                                var col = $('<div class="col"></div>');
+                                var link = $('<a></a>')
+                                    .attr('href', url)
+                                    .attr('target', '_blank')
+                                    .attr('rel', 'noopener noreferrer');
+                                var img = $('<img class="img-fluid img-thumbnail" />')
+                                    .attr('src', url)
+                                    .attr('alt', item);
+                                link.append(img);
+                                col.append(link);
+                                grid.append(col);
+                            });
+                            valueElem.empty().append(grid);
+                        } else {
+                            valueElem.text('N/A');
+                        }
+                    } else {
+                        valueElem.text(displayValue);
+                    }
+                } catch (e) {
+                    valueElem.text(displayValue);
+                }
+                item.append(valueElem);
                 container.append(item);
                 viewHasContent = true;
             });
