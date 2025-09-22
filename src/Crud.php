@@ -1046,6 +1046,74 @@ class Crud
             }
         }
 
+        // Default rendering: show boolean fields as a Bootstrap switch in grid
+        if ($html === null && CrudConfig::$bools_in_grid) {
+            $isBoolean = false;
+
+            // Only allow inline toggle for base table columns
+            $lower = strtolower($column);
+            $baseLookup = [];
+            foreach ($this->getBaseTableColumns() as $baseCol) {
+                if (is_string($baseCol) && $baseCol !== '') {
+                    $baseLookup[strtolower($baseCol)] = true;
+                }
+            }
+
+            if (isset($baseLookup[$lower])) {
+                // 1) Respect explicit change_type for the field if it indicates boolean
+                $behaviour = $this->config['form']['behaviours']['change_type'][$column] ?? null;
+                if (is_array($behaviour) && isset($behaviour['type'])) {
+                    $t = strtolower((string) $behaviour['type']);
+                    if ($t === 'bool' || $t === 'checkbox' || $t === 'switch') {
+                        $isBoolean = true;
+                    }
+                }
+
+                // 2) Infer from schema when not explicitly set
+                if (!$isBoolean) {
+                    $schema = $this->getTableSchema($this->table);
+                    $schemaLookup = [];
+                    foreach ($schema as $name => $meta) {
+                        if (is_string($name) && $name !== '' && is_array($meta)) {
+                            $schemaLookup[strtolower($name)] = $meta;
+                        }
+                    }
+
+                    if (isset($schemaLookup[$lower])) {
+                        $mapped = $this->mapDatabaseTypeToChangeType($schemaLookup[$lower]);
+                        if (is_array($mapped) && ($mapped['type'] ?? null) === 'checkbox') {
+                            $isBoolean = true;
+                        }
+                    }
+                }
+            }
+
+            if ($isBoolean) {
+                // Determine checked state using raw value when available
+                $raw = $rawOriginal;
+                if ($raw === null || $raw === '') {
+                    $raw = $value;
+                }
+                $checked = $this->isTruthy($raw);
+
+                $label   = $this->resolveColumnLabel($column);
+                $pkCol   = isset($row['__fastcrud_primary_key']) && is_string($row['__fastcrud_primary_key'])
+                    ? (string) $row['__fastcrud_primary_key']
+                    : $this->primaryKeyColumn;
+                $pkValue = $row['__fastcrud_primary_value'] ?? ($row[$pkCol] ?? null);
+
+                $html = sprintf(
+                    '<div class="fastcrud-bool-cell"><div class="form-check form-switch m-0"><input type="checkbox" class="form-check-input fastcrud-bool-view" role="switch" aria-label="%s" data-fastcrud-field="%s" data-fastcrud-pk="%s" data-fastcrud-pk-value="%s" %s></div></div>',
+                    $this->escapeHtml($label),
+                    $this->escapeHtml($column),
+                    $this->escapeHtml($pkCol),
+                    $this->escapeHtml($this->stringifyValue($pkValue)),
+                    $checked ? 'checked' : ''
+                );
+                // Keep $display as original; render() will use HTML when available
+            }
+        }
+
         if (isset($this->config['column_classes'][$column])) {
             $cellClasses[] = $this->config['column_classes'][$column];
         }
@@ -1079,6 +1147,36 @@ class Crud
             'width'      => $width,
             'raw'        => $rawOriginal,
         ];
+    }
+
+    private function isTruthy(mixed $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return (float) $value != 0.0;
+        }
+        $text = strtolower(trim((string) $value));
+        if ($text === '') {
+            return false;
+        }
+        if (is_numeric($text)) {
+            return (float) $text != 0.0;
+        }
+        $truthy  = ['true', 't', 'yes', 'y', 'on', 'enabled', 'enable', 'active', 'checked'];
+        $falsy   = ['false', 'f', 'no', 'n', 'off', 'disabled', 'disable', 'inactive', 'unchecked', 'null', 'none'];
+        if (in_array($text, $truthy, true)) {
+            return true;
+        }
+        if (in_array($text, $falsy, true)) {
+            return false;
+        }
+        // default fallback for unknown strings
+        return false;
     }
 
     private function buildPublicUploadUrl(string $name): string
@@ -3590,6 +3688,18 @@ HTML;
     height: 1rem;
 }
 
+/* Align boolean switches neatly inside cells */
+#{$containerId} table tbody td .fastcrud-bool-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+#{$containerId} table tbody td .fastcrud-bool-cell .form-switch {
+    padding-left: 0; /* prevent negative offset calculations */
+}
+#{$containerId} table tbody td .fastcrud-bool-cell .form-check-input {
+    margin-left: 0; /* keep switch fully inside the cell */
+}
 
 </style>
 HTML;
@@ -7807,6 +7917,63 @@ HTML;
             var row = $(this).data('row');
             showEditForm(row || {});
             return false;
+        });
+
+        // Inline toggle for boolean switches in grid
+        table.on('change', 'input.fastcrud-bool-view', function(event) {
+            var input = $(this);
+            if (input.data('fastcrudUpdating')) {
+                return;
+            }
+            var field = String(input.attr('data-fastcrud-field') || '').trim();
+            var pkCol = String(input.attr('data-fastcrud-pk') || '').trim();
+            var pkVal = input.attr('data-fastcrud-pk-value');
+            if (!field || !pkCol || typeof pkVal === 'undefined') {
+                // revert change if metadata is missing
+                input.prop('checked', !input.is(':checked'));
+                return;
+            }
+
+            var newValue = input.is(':checked') ? '1' : '0';
+            var wasChecked = !input.is(':checked');
+            input.prop('disabled', true);
+            input.data('fastcrudUpdating', true);
+
+            var payloadFields = {};
+            payloadFields[field] = newValue;
+
+            $.ajax({
+                url: window.location.pathname,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    fastcrud_ajax: '1',
+                    action: 'update',
+                    table: tableName,
+                    id: tableId,
+                    primary_key_column: pkCol,
+                    primary_key_value: pkVal,
+                    fields: JSON.stringify(payloadFields),
+                    config: JSON.stringify(clientConfig)
+                },
+                success: function(response) {
+                    if (response && response.success) {
+                        loadTableData(currentPage);
+                    } else {
+                        var message = response && response.error ? response.error : 'Failed to update value.';
+                        if (window.console && console.error) console.error('FastCrud toggle error:', message);
+                        input.prop('checked', wasChecked);
+                    }
+                },
+                error: function(_, __, error) {
+                    if (window.console && console.error) console.error('FastCrud toggle request failed:', error);
+                    input.prop('checked', wasChecked);
+                },
+                complete: function() {
+                    input.prop('disabled', false);
+                    input.removeData('fastcrudUpdating');
+                }
+            });
         });
 
         function requestDelete(row) {

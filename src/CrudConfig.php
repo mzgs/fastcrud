@@ -16,6 +16,9 @@ class CrudConfig
     public static bool $images_in_grid = true;
     public static int $images_in_grid_height = 55;
 
+    // show boolean fields as switches in grid cells
+    public static bool $bools_in_grid = true;
+
     /**
      * Store database configuration values for later use.
      * Missing keys default to MySQL on localhost port 3306.
