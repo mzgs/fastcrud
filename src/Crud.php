@@ -3652,6 +3652,7 @@ HTML;
     {
         $containerId = $this->escapeHtml($id . '-container');
         $fieldsId    = $this->escapeHtml($id . '-edit-fields');
+        $switchColor = $this->resolveAccentColor(CrudConfig::$bools_in_grid_color ?? 'primary');
 
         return <<<HTML
 <style>
@@ -3699,10 +3700,42 @@ HTML;
 }
 #{$containerId} table tbody td .fastcrud-bool-cell .form-check-input {
     margin-left: 0; /* keep switch fully inside the cell */
+    accent-color: {$switchColor};
+}
+#{$containerId} table tbody td .fastcrud-bool-cell .form-check-input:checked {
+    background-color: {$switchColor};
+    border-color: {$switchColor};
 }
 
 </style>
 HTML;
+    }
+
+    private function resolveAccentColor(string $color): string
+    {
+        $c = trim($color);
+        if ($c === '') {
+            return 'var(--bs-primary)';
+        }
+        $lower = strtolower($c);
+        // If it looks like a CSS variable or color function or hex, return as-is
+        if (str_starts_with($lower, 'var(')
+            || str_starts_with($lower, 'rgb(')
+            || str_starts_with($lower, 'rgba(')
+            || str_starts_with($lower, 'hsl(')
+            || str_starts_with($lower, 'hsla(')
+            || str_starts_with($lower, '#')) {
+            return $c;
+        }
+
+        // Map Bootstrap theme keys to CSS vars
+        $keys = ['primary','secondary','success','danger','warning','info','light','dark'];
+        if (in_array($lower, $keys, true)) {
+            return 'var(--bs-' . $lower . ')';
+        }
+
+        // Fallback: return raw value
+        return $c;
     }
 
     /**
