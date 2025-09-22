@@ -6475,6 +6475,20 @@ HTML;
                     }
                     labelForId = fieldId + '-file';
                     dataType = changeType;
+                } else if (changeType === 'file') {
+                    var singleFileName = String(currentValue || '');
+                    var hiddenInput = $('<input type="hidden" />')
+                        .attr('id', fieldId)
+                        .attr('data-fastcrud-field', saveColumn)
+                        .attr('data-fastcrud-type', 'hidden')
+                        .val(singleFileName);
+                    input = $('<input type="file" class="fastcrud-filepond" />')
+                        .attr('id', fieldId + '-file');
+                    if (params.accept) {
+                        input.attr('accept', params.accept);
+                    }
+                    labelForId = fieldId + '-file';
+                    dataType = 'file';
                 } else if (changeType === 'multiselect') {
                     input = $('<select class="form-select" multiple></select>').attr('id', fieldId);
                     var multiMap = params.values || params.options || {};
@@ -6562,7 +6576,7 @@ HTML;
                 if (changeType !== 'bool' && changeType !== 'checkbox') {
                     group.append($('<label class="form-label"></label>').attr('for', labelForId).text(resolveFieldLabel(column)));
                     group.append(input);
-                    if (changeType === 'image' || changeType === 'images') {
+                    if (changeType === 'image' || changeType === 'images' || changeType === 'file') {
                         // Append the hidden value holder so it gets included on submit
                         group.append(hiddenInput);
                     }
@@ -6580,7 +6594,7 @@ HTML;
                     input.addClass(params.class);
                 }
 
-                if (changeType !== 'image' && changeType !== 'images') {
+                if (changeType !== 'image' && changeType !== 'images' && changeType !== 'file') {
                     input.attr('data-fastcrud-field', column);
                     input.attr('data-fastcrud-type', dataType);
                 }
@@ -6614,7 +6628,7 @@ HTML;
                         input.prop('readonly', true);
                     }
                     group.addClass('fastcrud-field-readonly');
-                    if (changeType === 'image' || changeType === 'images') {
+                    if (changeType === 'image' || changeType === 'images' || changeType === 'file') {
                         // Prevent posting hidden value when field is readonly
                         try { hiddenInput.prop('disabled', true); } catch (e) {}
                     }
@@ -6623,7 +6637,7 @@ HTML;
                 if (behaviours.disabled) {
                     input.prop('disabled', true);
                     group.addClass('fastcrud-field-disabled');
-                    if (changeType === 'image' || changeType === 'images') {
+                    if (changeType === 'image' || changeType === 'images' || changeType === 'file') {
                         try { hiddenInput.prop('disabled', true); } catch (e) {}
                     }
                 }
@@ -6756,6 +6770,7 @@ HTML;
                                         formData.append('file', file, file.name);
                                         formData.append('fastcrud_ajax', '1');
                                         formData.append('action', 'upload_filepond');
+                                        formData.append('kind', 'image');
                                         if (tableName) { formData.append('table', tableName); }
                                         if (tableId) { formData.append('id', tableId); }
                                         formData.append('column', saveColumn);
@@ -6950,6 +6965,125 @@ HTML;
                                 }
                                 if (isMultipleImages && key && storedName) {
                                     mapImageNameToKey(valueInput, key, storedName);
+                                }
+                            });
+                        } catch (e) {}
+                    });
+                } else if (changeType === 'file') {
+                    // Initialize FilePond for generic files (no image preview)
+                    withFilePondAssets(function() {
+                        var fileInput = group.find('#' + $.escapeSelector(fieldId + '-file'));
+                        var valueInput = group.find('#' + $.escapeSelector(fieldId));
+                        if (!fileInput.length || !valueInput.length || !window.FilePond) {
+                            return;
+                        }
+
+                        try {
+                            var name = String(valueInput.val() || '').trim();
+                            var initialFiles = [];
+                            if (name) {
+                                initialFiles = [{
+                                    source: toPublicUrl(name),
+                                    options: { type: 'local', file: { name: name } }
+                                }];
+                            }
+
+                            var pond = window.FilePond.create(fileInput.get(0), {
+                                allowMultiple: false,
+                                allowReorder: false,
+                                allowImagePreview: false,
+                                allowFilePoster: false,
+                                credits: false,
+                                files: initialFiles,
+                                server: {
+                                    process: function(fieldName, file, metadata, load, error, progress, abort) {
+                                        var xhr = new XMLHttpRequest();
+                                        xhr.open('POST', window.location.pathname);
+                                        xhr.withCredentials = true;
+                                        xhr.upload.onprogress = function(e) {
+                                            progress(e.lengthComputable, e.loaded, e.total);
+                                        };
+                                        xhr.onload = function() {
+                                            if (xhr.status < 200 || xhr.status >= 300) {
+                                                error('Upload failed with status ' + xhr.status);
+                                                return;
+                                            }
+                                            var response;
+                                            var raw = xhr.responseText || '';
+                                            try { response = JSON.parse(raw || '{}'); } catch (e) {
+                                                error('Upload returned invalid JSON.');
+                                                return;
+                                            }
+                                            if (!response || response.success !== true || !response.location) {
+                                                error(response && response.error ? response.error : 'Upload failed.');
+                                                return;
+                                            }
+
+                                            var storedName = '';
+                                            if (response.name) {
+                                                storedName = String(response.name);
+                                            }
+                                            if (!storedName && response.location) {
+                                                storedName = extractFileName(response.location);
+                                            }
+                                            if (!storedName && file && file.name) {
+                                                storedName = extractFileName(file.name);
+                                            }
+
+                                            if (storedName) {
+                                                valueInput.val(storedName).trigger('change');
+                                            }
+                                            var serverKey = response.location ? String(response.location) : storedName;
+                                            load(serverKey || storedName || '');
+                                        };
+                                        xhr.onerror = function() { error('Upload failed due to a network error.'); };
+                                        var formData = new FormData();
+                                        formData.append('file', file, file.name);
+                                        formData.append('fastcrud_ajax', '1');
+                                        formData.append('action', 'upload_filepond');
+                                        formData.append('kind', 'file');
+                                        if (tableName) { formData.append('table', tableName); }
+                                        if (tableId) { formData.append('id', tableId); }
+                                        formData.append('column', saveColumn);
+                                        xhr.send(formData);
+                                        return { abort: function() { xhr.abort(); abort(); } };
+                                    },
+                                    fetch: function(url, load, error, progress, abort) {
+                                        try {
+                                            var target = url;
+                                            if (target && typeof target === 'string' && !/^https?:\/\//i.test(target) && target.charAt(0) !== '/' && !/^blob:/i.test(target) && !/^data:/i.test(target)) {
+                                                target = toPublicUrl(target);
+                                            }
+                                            var xhr = new XMLHttpRequest();
+                                            xhr.open('GET', target);
+                                            xhr.responseType = 'blob';
+                                            xhr.onload = function() {
+                                                if (xhr.status >= 200 && xhr.status < 300) {
+                                                    load(xhr.response);
+                                                } else {
+                                                    error('Failed to fetch file');
+                                                }
+                                            };
+                                            xhr.onerror = function() { error('Network error while fetching file'); };
+                                            xhr.send();
+                                            return { abort: function() { try { xhr.abort(); } catch (e) {} abort(); } };
+                                        } catch (e) {
+                                            error('Failed to fetch file');
+                                        }
+                                    }
+                                }
+                            });
+
+                            pond.on('removefile', function() {
+                                valueInput.val('').trigger('change');
+                            });
+
+                            pond.on('processfile', function(error, file) {
+                                if (error || !file) { return; }
+                                var key = file.serverId || file.source || '';
+                                var storedName = extractFileName(key || (file.filename || ''));
+                                if (storedName) {
+                                    valueInput.val(storedName).trigger('change');
                                 }
                             });
                         } catch (e) {}

@@ -195,12 +195,12 @@ class CrudAjax
     }
 
     /**
-     * Handle TinyMCE image uploads.
+     * Handle FilePond/TinyMCE uploads (images and generic files).
      */
     private static function handleUploadImage(array $request): void
     {
         if (!isset($_FILES['file'])) {
-            throw new InvalidArgumentException('No image file provided.');
+            throw new InvalidArgumentException('No file provided.');
         }
 
         $file = $_FILES['file'];
@@ -219,24 +219,34 @@ class CrudAjax
         }
 
         $size = is_array($file['size']) ? (int) ($file['size'][0] ?? 0) : (int) ($file['size'] ?? 0);
-        $maxSize = 8 * 1024 * 1024; // 8 MB
+        $kind = isset($request['kind']) && is_string($request['kind']) ? strtolower($request['kind']) : 'image';
+        $isImage = $kind !== 'file';
+        $maxSize = $isImage ? (8 * 1024 * 1024) : (20 * 1024 * 1024);
         if ($size > $maxSize) {
-            throw new InvalidArgumentException('Image exceeds the maximum allowed size of 8MB.');
+            throw new InvalidArgumentException(($isImage ? 'Image' : 'File') . ' exceeds the maximum allowed size of ' . ($isImage ? '8MB' : '20MB') . '.');
         }
 
         $originalNameRaw = is_array($file['name']) ? (string) ($file['name'][0] ?? 'upload') : (string) ($file['name'] ?? 'upload');
         $originalName = $originalNameRaw === '' ? 'upload' : $originalNameRaw;
         $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
 
-        $allowedExtensions = ['jpg', 'jpeg', 'jpe', 'jfi', 'jfif', 'png', 'gif', 'bmp', 'webp', 'svg'];
-        if ($extension === '' || !in_array($extension, $allowedExtensions, true)) {
-            throw new InvalidArgumentException('Unsupported image extension. Allowed: ' . implode(', ', $allowedExtensions) . '.');
-        }
+        if ($isImage) {
+            $allowedExtensions = ['jpg', 'jpeg', 'jpe', 'jfi', 'jfif', 'png', 'gif', 'bmp', 'webp', 'svg'];
+            if ($extension === '' || !in_array($extension, $allowedExtensions, true)) {
+                throw new InvalidArgumentException('Unsupported image extension. Allowed: ' . implode(', ', $allowedExtensions) . '.');
+            }
 
-        $mimeType = self::detectMimeType($tmpName);
-        $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp', 'image/svg+xml'];
-        if ($mimeType !== null && !in_array($mimeType, $allowedMimeTypes, true)) {
-            throw new InvalidArgumentException('Unsupported image type: ' . $mimeType);
+            $mimeType = self::detectMimeType($tmpName);
+            $allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp', 'image/svg+xml'];
+            if ($mimeType !== null && !in_array($mimeType, $allowedMimeTypes, true)) {
+                throw new InvalidArgumentException('Unsupported image type: ' . $mimeType);
+            }
+        } else {
+            // Generic file: block dangerous executable/script extensions by default
+            $blockedExtensions = ['php', 'phtml', 'phar', 'cgi', 'pl', 'asp', 'aspx', 'jsp', 'sh', 'bash', 'zsh', 'py', 'rb', 'exe', 'dll', 'so', 'js', 'mjs'];
+            if ($extension === '' || in_array($extension, $blockedExtensions, true)) {
+                throw new InvalidArgumentException('This file type is not allowed for upload.');
+            }
         }
 
         $uploadDirectory = self::resolveTinymceUploadDirectory();
@@ -250,7 +260,7 @@ class CrudAjax
         $targetPath = rtrim($uploadDirectory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $filename;
 
         if (!move_uploaded_file($tmpName, $targetPath)) {
-            throw new RuntimeException('Failed to store uploaded image.');
+            throw new RuntimeException('Failed to store uploaded file.');
         }
 
         @chmod($targetPath, 0664);
