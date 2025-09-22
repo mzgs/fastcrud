@@ -1004,6 +1004,32 @@ class Crud
                     $linkText = $display;
                     $html = '<a href="' . $this->escapeHtml($href) . '" target="_blank" rel="noopener noreferrer">' . $this->escapeHtml($linkText) . '</a>';
                 }
+            } elseif (($type === 'image' || $type === 'images') && CrudConfig::$images_in_grid) {
+                $height = (int) CrudConfig::$images_in_grid_height;
+                if ($type === 'image') {
+                    $raw = $rawOriginal;
+                    if ($raw === null || $raw === '') {
+                        $raw = $value;
+                    }
+                    $fileName = trim($this->stringifyValue($raw));
+                    if ($fileName !== '') {
+                        $src = $this->buildPublicUploadUrl($fileName);
+                        $style = $height > 0 ? (' style="height: ' . $height . 'px; width: auto;"') : '';
+                        $html = '<img src="' . $this->escapeHtml($src) . '" alt="" class="img-thumbnail"' . $style . ' />';
+                    }
+                } else {
+                    $raw = $rawOriginal;
+                    if ($raw === null || $raw === '') {
+                        $raw = $value;
+                    }
+                    $names = $this->parseImageNameList($raw);
+                    if ($names !== []) {
+                        $first = $names[0];
+                        $src = $this->buildPublicUploadUrl($first);
+                        $style = $height > 0 ? (' style="height: ' . $height . 'px; width: auto;"') : '';
+                        $html = '<img src="' . $this->escapeHtml($src) . '" alt="" class="img-thumbnail"' . $style . ' />';
+                    }
+                }
             }
         }
 
@@ -1085,6 +1111,60 @@ class Crud
         $parts = explode('/', $str);
         $last = end($parts);
         return $last !== false ? (string) $last : '';
+    }
+
+    /**
+     * @param mixed $value
+     * @return array<int, string>
+     */
+    private function parseImageNameList(mixed $value): array
+    {
+        $result = [];
+
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                if ($item === null) {
+                    continue;
+                }
+                $name = $this->extractFileName((string) $item);
+                if ($name !== '' && !in_array($name, $result, true)) {
+                    $result[] = $name;
+                }
+            }
+            return $result;
+        }
+
+        $text = trim((string) $value);
+        if ($text === '') {
+            return [];
+        }
+
+        // Try to parse JSON array
+        if ($text !== '' && ($text[0] === '[' || $text[0] === '{')) {
+            try {
+                $decoded = json_decode($text, true, 512, JSON_THROW_ON_ERROR);
+                if (is_array($decoded)) {
+                    foreach ($decoded as $item) {
+                        $name = $this->extractFileName((string) $item);
+                        if ($name !== '' && !in_array($name, $result, true)) {
+                            $result[] = $name;
+                        }
+                    }
+                    return $result;
+                }
+            } catch (\Throwable) {
+                // fall through to CSV parsing
+            }
+        }
+
+        foreach (explode(',', $text) as $item) {
+            $name = trim($this->extractFileName($item));
+            if ($name !== '' && !in_array($name, $result, true)) {
+                $result[] = $name;
+            }
+        }
+
+        return $result;
     }
 
     public function limit(int $limit): self

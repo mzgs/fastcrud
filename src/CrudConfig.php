@@ -12,6 +12,9 @@ class CrudConfig
     ];
 
     public static string $upload_path = 'public/uploads';
+    // shows images in list view
+    public static bool $images_in_grid = true;
+    public static int $images_in_grid_height = 55;
 
     /**
      * Store database configuration values for later use.
