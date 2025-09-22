@@ -4848,6 +4848,18 @@ HTML;
             appendStylesheetOnce(filePondState.previewStyleUrl, 'fastcrud-filepond-preview-css');
             appendStylesheetOnce(filePondState.posterStyleUrl, 'fastcrud-filepond-poster-css');
 
+            // Ensure poster images are contained (avoid cropping)
+            try {
+                var containStyleId = 'fastcrud-filepond-contain-css';
+                if (!document.getElementById(containStyleId)) {
+                    var styleTag = document.createElement('style');
+                    styleTag.id = containStyleId;
+                    // Keep CSS on a single JS line to avoid syntax errors inside heredoc
+                    styleTag.textContent = '.filepond--file-poster img{width:100%;height:100%;object-fit:contain;}';
+                    document.head.appendChild(styleTag);
+                }
+            } catch (e) {}
+
             // Load FilePond core JS, then plugin JS
             var coreScript = document.createElement('script');
             coreScript.src = filePondState.coreScriptUrl;
