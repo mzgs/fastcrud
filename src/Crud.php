@@ -989,6 +989,24 @@ class Crud
             }
         }
 
+        if ($html === null && isset($this->config['form']['behaviours']['change_type'][$column])) {
+            $change = $this->config['form']['behaviours']['change_type'][$column];
+            $type = is_array($change) && isset($change['type']) ? strtolower((string) $change['type']) : '';
+            if ($type === 'file') {
+                $raw = $rawOriginal;
+                if ($raw === null || $raw === '') {
+                    $raw = $value;
+                }
+                $fileName = $this->stringifyValue($raw);
+                $fileName = trim($fileName);
+                if ($fileName !== '') {
+                    $href = $this->buildPublicUploadUrl($fileName);
+                    $linkText = $display;
+                    $html = '<a href="' . $this->escapeHtml($href) . '" target="_blank" rel="noopener noreferrer">' . $this->escapeHtml($linkText) . '</a>';
+                }
+            }
+        }
+
         if (isset($this->config['column_classes'][$column])) {
             $cellClasses[] = $this->config['column_classes'][$column];
         }
@@ -1022,6 +1040,51 @@ class Crud
             'width'      => $width,
             'raw'        => $rawOriginal,
         ];
+    }
+
+    private function buildPublicUploadUrl(string $name): string
+    {
+        $base = CrudConfig::getUploadPath();
+
+        if ($name !== '' && (preg_match('/^https?:\/\//i', $name) === 1 || substr($name, 0, 1) === '/')) {
+            return $name;
+        }
+
+        if ($base === '') {
+            $base = 'public/uploads';
+        }
+
+        // If base is not a full URL and does not start with '/', prefix with '/'
+        if (preg_match('/^https?:\/\//i', $base) !== 1 && substr($base, 0, 1) !== '/') {
+            $base = '/' . $base;
+        }
+
+        // Normalize join
+        $base = rtrim($base, '/');
+        $segment = ltrim($name, '/');
+        return $base . '/' . $segment;
+    }
+
+    private function extractFileName(string $value): string
+    {
+        $str = trim($value);
+        if ($str === '') {
+            return '';
+        }
+        // Strip fragment and query
+        $hashPos = strpos($str, '#');
+        if ($hashPos !== false) {
+            $str = substr($str, 0, $hashPos);
+        }
+        $queryPos = strpos($str, '?');
+        if ($queryPos !== false) {
+            $str = substr($str, 0, $queryPos);
+        }
+        // Normalize separators and take last segment
+        $str = str_replace('\\', '/', $str);
+        $parts = explode('/', $str);
+        $last = end($parts);
+        return $last !== false ? (string) $last : '';
     }
 
     public function limit(int $limit): self
