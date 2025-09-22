@@ -251,7 +251,7 @@ class CrudAjax
 
         @chmod($targetPath, 0664);
 
-        $publicBase = CrudConfig::getTinymceUploadPath();
+        $publicBase = CrudConfig::getUploadPath();
         $location = self::buildPublicUploadLocation($publicBase, $filename);
 
         self::respond([
@@ -316,7 +316,7 @@ class CrudAjax
 
     private static function resolveTinymceUploadDirectory(): string
     {
-        $configuredPath = CrudConfig::getTinymceUploadPath();
+        $configuredPath = CrudConfig::getUploadPath();
 
         if (self::isUrl($configuredPath)) {
             $parsedPath = parse_url($configuredPath, PHP_URL_PATH) ?: '';

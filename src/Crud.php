@@ -3886,7 +3886,7 @@ HTML;
             'primary_key'       => $this->primaryKeyColumn,
             'form'              => $formConfig,
             'rich_editor'       => [
-                'upload_path' => CrudConfig::getTinymceUploadPath(),
+                'upload_path' => CrudConfig::getUploadPath(),
             ],
         ];
     }

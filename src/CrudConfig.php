@@ -11,7 +11,7 @@ class CrudConfig
         'port' => 3306,
     ];
 
-    public static string $tinymce_upload_path = 'public/uploads';
+    public static string $upload_path = 'public/uploads';
 
     /**
      * Store database configuration values for later use.
@@ -45,9 +45,9 @@ class CrudConfig
         return self::$dbConfig;
     }
 
-    public static function getTinymceUploadPath(): string
+    public static function getUploadPath(): string
     {
-        $path = trim(self::$tinymce_upload_path);
+        $path = trim(self::$upload_path);
         return $path === '' ? 'public/uploads' : $path;
     }
 }

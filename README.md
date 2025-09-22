@@ -381,7 +381,7 @@ $crud->change_type('is_active', 'checkbox', true);
 $crud->change_type('content', 'rich_editor', '', ['height' => 450]);
 
 // Point TinyMCE uploads to a custom public directory (defaults to public/uploads)
-\FastCrud\CrudConfig::$tinymce_upload_path = 'public/content';
+\FastCrud\CrudConfig::$upload_path = 'public/content';
 
 // Dropdown fed from an associative array
 $crud->change_type('priority', 'select', 'normal', [
