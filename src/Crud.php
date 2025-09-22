@@ -6821,11 +6821,42 @@ HTML;
                             var pondWidth = (function() {
                                 var explicit = (params.width || params.pondWidth || params.previewWidth || '').toString().trim();
                                 if (explicit) return explicit;
-                                return isMultipleImages ? '100%' : '360px';
+                                return isMultipleImages ? '100%' : '200px';
                             })();
+                            // Try to enforce max width robustly (some FilePond updates adjust inline styles)
                             try {
-                                $(pond.element).css({ maxWidth: String(pondWidth), width: '100%' });
+                                var applyPondWidth = function(el, value) {
+                                    try {
+                                        el.style.setProperty('max-width', String(value), 'important');
+                                        el.style.setProperty('width', '100%', 'important');
+                                        // ensure it can shrink from block-level width if needed
+                                        el.style.setProperty('display', 'block');
+                                    } catch (e) {}
+                                };
+                                applyPondWidth(pond.element, pondWidth);
+                                // Re-apply on next tick and when pond is ready (in case FilePond mutates styles)
+                                setTimeout(function() { applyPondWidth(pond.element, pondWidth); }, 0);
+                                if (pond && typeof pond.on === 'function') {
+                                    pond.on('ready', function() { applyPondWidth(pond.element, pondWidth); });
+                                }
                             } catch (e) {}
+
+                            // Provide a CSS fallback for single-image ponds so width sticks even if inline styles change
+                            if (!isMultipleImages) {
+                                try {
+                                    $(pond.element).addClass('fastcrud-filepond-single');
+                                    var singleCssId = 'fastcrud-filepond-single-css';
+                                    if (!document.getElementById(singleCssId)) {
+                                        var styleSingle = document.createElement('style');
+                                        styleSingle.id = singleCssId;
+                                        styleSingle.type = 'text/css';
+                                        styleSingle.appendChild(document.createTextNode(
+                                            '.fastcrud-filepond-single.filepond--root{max-width:200px !important;width:100% !important;display:block;}'
+                                        ));
+                                        document.head.appendChild(styleSingle);
+                                    }
+                                } catch (e) {}
+                            }
 
                             // For multi-image fields, add a responsive grid layout for previews
                             if (isMultipleImages) {
