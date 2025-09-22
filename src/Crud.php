@@ -6439,21 +6439,7 @@ HTML;
                     input.val(String(normalizedValue));
                 } else if (changeType === 'image' || changeType === 'images') {
                     var isMultipleImages = changeType === 'images';
-                    // If the declared field doesn't exist in the base table, optionally map to a real column
-                    var baseHasDeclared = Array.isArray(baseColumns) && baseColumns.indexOf(column) !== -1;
-                    var saveToCandidate = (params.save_to || params.saveTo || '').toString().trim();
-                    if (!baseHasDeclared) {
-                        if (saveToCandidate && Array.isArray(baseColumns) && baseColumns.indexOf(saveToCandidate) !== -1) {
-                            saveColumn = saveToCandidate;
-                        } else if (Array.isArray(baseColumns) && baseColumns.indexOf('file') !== -1) {
-                            // Common fallback if schema uses `file` instead of `image`
-                            saveColumn = 'file';
-                        }
-                    }
-                    // If value empty for declared column but a mapped save column exists, use that for current value
-                    if ((!currentValue || String(currentValue).length === 0) && saveColumn !== column && typeof row[saveColumn] !== 'undefined' && row[saveColumn] !== null) {
-                        currentValue = row[saveColumn];
-                    }
+                    // Always use the declared column; no mapping via params.save_to or base column checks
 
                     var normalizedList = parseImageNameList(currentValue);
                     var initialValueString = isMultipleImages
