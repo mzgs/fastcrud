@@ -3397,6 +3397,7 @@ HTML;
     private function buildActionColumnStyles(string $id): string
     {
         $containerId = $this->escapeHtml($id . '-container');
+        $fieldsId    = $this->escapeHtml($id . '-edit-fields');
 
         return <<<HTML
 <style>
@@ -3432,6 +3433,8 @@ HTML;
     width: 1rem;
     height: 1rem;
 }
+
+
 </style>
 HTML;
     }
@@ -4264,13 +4267,11 @@ HTML;
             throw new InvalidArgumentException('Primary key column is required.');
         }
 
-        $columns = $this->getColumnNames();
+        // Always validate against the base table schema, not the current visible columns
+        $columns = $this->getTableColumnsFor($this->table);
         if (!in_array($primaryKeyColumn, $columns, true)) {
-            $tableColumns = $this->getTableColumnsFor($this->table);
-            if (!in_array($primaryKeyColumn, $tableColumns, true)) {
-                $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
-                throw new InvalidArgumentException($message);
-            }
+            $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
+            throw new InvalidArgumentException($message);
         }
 
         $mode = strtolower(trim($mode));
@@ -4596,6 +4597,7 @@ HTML;
         if (editOffcanvasElement.length) {
             editOffcanvasElement.on('hidden.bs.offcanvas', function() {
                 destroyRichEditors(editFieldsContainer);
+                destroyFilePonds(editFieldsContainer);
             });
         }
 
@@ -4605,6 +4607,162 @@ HTML;
         var viewHeading = $('#' + tableId + '-view-label');
         var viewOffcanvasInstance = null;
         var summaryFooter = $('#' + tableId + '-summary');
+
+        // FilePond state and asset loader for image fields
+        var filePondState = window.FastCrudFilePond || {};
+        if (!filePondState.coreScriptUrl) {
+            filePondState.coreScriptUrl = 'https://unpkg.com/filepond/dist/filepond.min.js';
+        }
+        if (!filePondState.coreStyleUrl) {
+            filePondState.coreStyleUrl = 'https://unpkg.com/filepond/dist/filepond.min.css';
+        }
+        if (!filePondState.previewScriptUrl) {
+            filePondState.previewScriptUrl = 'https://unpkg.com/filepond-plugin-image-preview/dist/filepond-plugin-image-preview.min.js';
+        }
+        if (!filePondState.previewStyleUrl) {
+            filePondState.previewStyleUrl = 'https://unpkg.com/filepond-plugin-image-preview/dist/filepond-plugin-image-preview.min.css';
+        }
+        if (!filePondState.posterScriptUrl) {
+            filePondState.posterScriptUrl = 'https://unpkg.com/filepond-plugin-file-poster/dist/filepond-plugin-file-poster.min.js';
+        }
+        if (!filePondState.posterStyleUrl) {
+            filePondState.posterStyleUrl = 'https://unpkg.com/filepond-plugin-file-poster/dist/filepond-plugin-file-poster.min.css';
+        }
+        if (typeof filePondState.loaded === 'undefined') {
+            filePondState.loaded = (typeof window.FilePond !== 'undefined');
+        }
+        if (typeof filePondState.loading === 'undefined') {
+            filePondState.loading = false;
+        }
+        if (!Array.isArray(filePondState.queue)) {
+            filePondState.queue = [];
+        }
+        window.FastCrudFilePond = filePondState;
+
+        function getUploadPublicBase() {
+            var base = String(richEditorConfig.upload_path || '/public/uploads');
+            if (!/^https?:\/\//i.test(base) && base.charAt(0) !== '/') {
+                base = '/' + base;
+            }
+            return base;
+        }
+
+        function joinPublicUrl(base, name) {
+            if (!name) { return String(base || ''); }
+            var b = String(base || '');
+            if (b && b.charAt(b.length - 1) !== '/') { b += '/'; }
+            var seg = String(name).replace(/^\/+/, '');
+            return b + seg;
+        }
+
+        function toPublicUrl(value) {
+            var v = String(value || '');
+            if (!v) { return ''; }
+            if (/^https?:\/\//i.test(v) || v.charAt(0) === '/') { return v; }
+            return joinPublicUrl(getUploadPublicBase(), v);
+        }
+
+        function appendStylesheetOnce(href, id) {
+            if (!href) { return; }
+            var markerId = id || ('fastcrud-style-' + Math.random().toString(36).slice(2));
+            if (document.getElementById(markerId)) {
+                return;
+            }
+            var link = document.createElement('link');
+            link.id = markerId;
+            link.rel = 'stylesheet';
+            link.href = href;
+            document.head.appendChild(link);
+        }
+
+        function withFilePondAssets(callback) {
+            if (typeof callback !== 'function') {
+                return;
+            }
+            if (typeof window.FilePond !== 'undefined' && typeof window.FilePond.create === 'function' && typeof window.FilePondPluginImagePreview !== 'undefined') {
+                filePondState.loaded = true;
+                callback();
+                return;
+            }
+            filePondState.queue.push(callback);
+            if (filePondState.loading) {
+                return;
+            }
+            filePondState.loading = true;
+
+            // Load styles first
+            appendStylesheetOnce(filePondState.coreStyleUrl, 'fastcrud-filepond-core-css');
+            appendStylesheetOnce(filePondState.previewStyleUrl, 'fastcrud-filepond-preview-css');
+            appendStylesheetOnce(filePondState.posterStyleUrl, 'fastcrud-filepond-poster-css');
+
+            // Load FilePond core JS, then plugin JS
+            var coreScript = document.createElement('script');
+            coreScript.src = filePondState.coreScriptUrl;
+            coreScript.referrerPolicy = 'no-referrer';
+            coreScript.onload = function() {
+                var previewScript = document.createElement('script');
+                previewScript.src = filePondState.previewScriptUrl;
+                previewScript.referrerPolicy = 'no-referrer';
+                previewScript.onload = function() {
+                    var posterScript = document.createElement('script');
+                    posterScript.src = filePondState.posterScriptUrl;
+                    posterScript.referrerPolicy = 'no-referrer';
+                    posterScript.onload = function() {
+                        try {
+                            if (window.FilePond && typeof window.FilePond.registerPlugin === 'function') {
+                                if (window.FilePondPluginImagePreview) {
+                                    window.FilePond.registerPlugin(window.FilePondPluginImagePreview);
+                                }
+                                if (window.FilePondPluginFilePoster) {
+                                    window.FilePond.registerPlugin(window.FilePondPluginFilePoster);
+                                }
+                            }
+                        } catch (e) {}
+                        filePondState.loaded = true;
+                        filePondState.loading = false;
+                        var queued = filePondState.queue.slice();
+                        filePondState.queue.length = 0;
+                        queued.forEach(function(fn) {
+                            try { fn(); } catch (error) { if (window.console && console.error) console.error(error); }
+                        });
+                    };
+                    posterScript.onerror = function() {
+                        filePondState.loading = false;
+                        filePondState.queue.length = 0;
+                        if (window.console && console.error) console.error('FastCrud: failed to load FilePond file poster script');
+                    };
+                    document.head.appendChild(posterScript);
+                };
+                previewScript.onerror = function() {
+                    filePondState.loading = false;
+                    filePondState.queue.length = 0;
+                    if (window.console && console.error) console.error('FastCrud: failed to load FilePond image preview script');
+                };
+                document.head.appendChild(previewScript);
+            };
+            coreScript.onerror = function() {
+                filePondState.loading = false;
+                filePondState.queue.length = 0;
+                if (window.console && console.error) console.error('FastCrud: failed to load FilePond core script');
+            };
+            document.head.appendChild(coreScript);
+        }
+
+        function destroyFilePonds(container) {
+            if (!container || !container.length) {
+                return;
+            }
+            if (typeof window.FilePond === 'undefined' || typeof window.FilePond.find !== 'function') {
+                return;
+            }
+            try {
+                var inputs = container.find('input.fastcrud-filepond').toArray();
+                var ponds = window.FilePond.find(inputs);
+                (ponds || []).forEach(function(pond) {
+                    try { pond.destroy(); } catch (e) {}
+                });
+            } catch (e) {}
+        }
 
         var richEditorState = window.FastCrudRichEditor || {};
         if (!richEditorState.scriptUrl) {
@@ -6034,6 +6192,8 @@ HTML;
                     params = {};
                 }
                 var fieldId = editFormId + '-' + column;
+                var labelForId = fieldId;
+                var saveColumn = column;
 
                 var currentValue = typeof row[column] !== 'undefined' && row[column] !== null ? row[column] : '';
                 if ((currentValue === null || currentValue === '') && typeof behaviours.pass_default !== 'undefined') {
@@ -6124,6 +6284,32 @@ HTML;
                         input.append($('<option></option>').attr('value', option.value).text(option.label));
                     });
                     input.val(String(normalizedValue));
+                } else if (changeType === 'image') {
+                    // If the declared field doesn't exist in the base table, optionally map to a real column
+                    var baseHasDeclared = Array.isArray(baseColumns) && baseColumns.indexOf(column) !== -1;
+                    var saveToCandidate = (params.save_to || params.saveTo || '').toString().trim();
+                    if (!baseHasDeclared) {
+                        if (saveToCandidate && Array.isArray(baseColumns) && baseColumns.indexOf(saveToCandidate) !== -1) {
+                            saveColumn = saveToCandidate;
+                        } else if (Array.isArray(baseColumns) && baseColumns.indexOf('file') !== -1) {
+                            // Common fallback if schema uses `file` instead of `image`
+                            saveColumn = 'file';
+                        }
+                    }
+                    // If value empty for declared column but a mapped save column exists, use that for current value
+                    if ((!currentValue || String(currentValue).length === 0) && saveColumn !== column && typeof row[saveColumn] !== 'undefined' && row[saveColumn] !== null) {
+                        currentValue = row[saveColumn];
+                    }
+                    // Use FilePond for image uploads with preview; store value in a hidden field
+                    var hiddenInput = $('<input type="hidden" />')
+                        .attr('id', fieldId)
+                        .attr('data-fastcrud-field', saveColumn)
+                        .attr('data-fastcrud-type', 'hidden')
+                        .val(String(normalizedValue || ''));
+                    input = $('<input type="file" class="fastcrud-filepond" accept="image/*" />')
+                        .attr('id', fieldId + '-file');
+                    labelForId = fieldId + '-file';
+                    dataType = 'image';
                 } else if (changeType === 'multiselect') {
                     input = $('<select class="form-select" multiple></select>').attr('id', fieldId);
                     var multiMap = params.values || params.options || {};
@@ -6209,8 +6395,12 @@ HTML;
                 }
 
                 if (changeType !== 'bool' && changeType !== 'checkbox') {
-                    group.append($('<label class="form-label"></label>').attr('for', fieldId).text(resolveFieldLabel(column)));
+                    group.append($('<label class="form-label"></label>').attr('for', labelForId).text(resolveFieldLabel(column)));
                     group.append(input);
+                    if (changeType === 'image') {
+                        // Append the hidden value holder so it gets included on submit
+                        group.append(hiddenInput);
+                    }
                 }
 
                 if (params.placeholder && input.is('input, textarea')) {
@@ -6225,8 +6415,10 @@ HTML;
                     input.addClass(params.class);
                 }
 
-                input.attr('data-fastcrud-field', column);
-                input.attr('data-fastcrud-type', dataType);
+                if (changeType !== 'image') {
+                    input.attr('data-fastcrud-field', column);
+                    input.attr('data-fastcrud-type', dataType);
+                }
 
                 if (behaviours.validation_required) {
                     input.attr('data-fastcrud-required', behaviours.validation_required);
@@ -6257,11 +6449,18 @@ HTML;
                         input.prop('readonly', true);
                     }
                     group.addClass('fastcrud-field-readonly');
+                    if (changeType === 'image') {
+                        // Prevent posting hidden value when field is readonly
+                        try { hiddenInput.prop('disabled', true); } catch (e) {}
+                    }
                 }
 
                 if (behaviours.disabled) {
                     input.prop('disabled', true);
                     group.addClass('fastcrud-field-disabled');
+                    if (changeType === 'image') {
+                        try { hiddenInput.prop('disabled', true); } catch (e) {}
+                    }
                 }
 
                 if (behaviours.pass_var) {
@@ -6275,6 +6474,120 @@ HTML;
                 }
 
                 container.append(group);
+
+                if (changeType === 'image') {
+                    // Initialize FilePond after appending to DOM
+                    withFilePondAssets(function() {
+                        var fileInput = group.find('#' + $.escapeSelector(fieldId + '-file'));
+                        var valueInput = group.find('#' + $.escapeSelector(fieldId));
+                        if (!fileInput.length || !valueInput.length || !window.FilePond) {
+                            return;
+                        }
+
+                        try {
+                            var existing = String(normalizedValue || '').trim();
+                            var existingUrl = existing.length ? toPublicUrl(existing) : '';
+                            var stylePanelAspect = (params.panelAspectRatio || params.aspectRatio);
+                            var pond = window.FilePond.create(fileInput.get(0), {
+                                allowMultiple: false,
+                                allowImagePreview: true,
+                                imagePreviewHeight: params.previewHeight ? Number(params.previewHeight) : 170,
+                                allowFilePoster: true,
+                                filePosterHeight: params.posterHeight ? Number(params.posterHeight) : 120,
+                                stylePanelAspectRatio: stylePanelAspect || undefined,
+                                credits: false,
+                                files: existingUrl.length ? [{ source: existingUrl, options: { type: 'local', metadata: { poster: existingUrl } } }] : [],
+                                server: {
+                                    process: function(fieldName, file, metadata, load, error, progress, abort) {
+                                        var xhr = new XMLHttpRequest();
+                                        xhr.open('POST', window.location.pathname);
+                                        xhr.withCredentials = true;
+                                        xhr.upload.onprogress = function(e) {
+                                            progress(e.lengthComputable, e.loaded, e.total);
+                                        };
+                                        xhr.onload = function() {
+                                            if (xhr.status < 200 || xhr.status >= 300) {
+                                                error('Upload failed with status ' + xhr.status);
+                                                return;
+                                            }
+                                            var response;
+                                            var raw = xhr.responseText || '';
+                                            try { response = JSON.parse(raw || '{}'); } catch (e) {
+                                                error('Upload returned invalid JSON.');
+                                                return;
+                                            }
+                                            if (!response || response.success !== true || !response.location) {
+                                                error(response && response.error ? response.error : 'Upload failed.');
+                                                return;
+                                            }
+                                            if (response.name) {
+                                                valueInput.val(String(response.name));
+                                            } else if (response.location) {
+                                                try {
+                                                    var loc = String(response.location);
+                                                    var parts = loc.split('/');
+                                                    valueInput.val(parts[parts.length - 1] || loc);
+                                                } catch (e) {
+                                                    valueInput.val(String(response.location));
+                                                }
+                                            }
+                                            load(String(response.location || ''));
+                                        };
+                                        xhr.onerror = function() { error('Upload failed due to a network error.'); };
+                                        var formData = new FormData();
+                                        formData.append('file', file, file.name);
+                                        formData.append('fastcrud_ajax', '1');
+                                        formData.append('action', 'upload_filepond');
+                                        if (tableName) { formData.append('table', tableName); }
+                                        if (tableId) { formData.append('id', tableId); }
+                                        formData.append('column', saveColumn);
+                                        xhr.send(formData);
+                                        return { abort: function() { xhr.abort(); abort(); } };
+                                    },
+                                    fetch: function(url, load, error, progress, abort) {
+                                        try {
+                                            var xhr = new XMLHttpRequest();
+                                            xhr.open('GET', url);
+                                            xhr.responseType = 'blob';
+                                            xhr.onload = function() { load(xhr.response); };
+                                            xhr.onerror = function() { error('Failed to fetch image.'); };
+                                            xhr.onprogress = function(e) { progress(e.lengthComputable, e.loaded, e.total); };
+                                            xhr.send();
+                                            return { abort: function() { try { xhr.abort(); } catch (e) {} abort(); } };
+                                        } catch (e) {
+                                            error('Failed to fetch image.');
+                                            abort();
+                                        }
+                                    },
+                                    revert: function(uniqueId, load, error) {
+                                        valueInput.val('');
+                                        load();
+                                    },
+                                    load: function(source, load, error, progress, abort) {
+                                        var xhr = new XMLHttpRequest();
+                                        xhr.open('GET', source);
+                                        xhr.responseType = 'blob';
+                                        xhr.onload = function() { load(xhr.response); };
+                                        xhr.onerror = function() { error('Failed to load image.'); };
+                                        xhr.onprogress = function(e) { progress(e.lengthComputable, e.loaded, e.total); };
+                                        xhr.send();
+                                        return { abort: function() { xhr.abort(); abort(); } };
+                                    }
+                                }
+                            });
+
+                            // Do not addFile() for existing items to avoid re-upload; initial files array covers preview
+
+                            // Apply a default compact width unless overridden via params
+                            var pondWidth = (params.width || params.pondWidth || params.previewWidth || '360px');
+                            try {
+                                $(pond.element).css({ maxWidth: String(pondWidth), width: '100%' });
+                            } catch (e) {}
+
+                            pond.on('removefile', function() { valueInput.val(''); });
+                        } catch (e) {}
+                    });
+                }
             });
 
             if (useTabs) {
@@ -6551,141 +6864,174 @@ HTML;
                 window.tinymce.triggerSave();
             }
 
-            var fields = {};
-            var fieldErrors = {};
-            var validationPassed = true;
-
-            editForm.find('[data-fastcrud-field]').each(function() {
-                var input = $(this);
-                var column = input.data('fastcrudField');
-                if (!column) {
-                    return;
-                }
-                if (column === primaryColumn) {
-                    return;
-                }
-
-                if (input.prop('disabled')) {
-                    return;
-                }
-
-                var type = String(input.data('fastcrudType') || input.attr('data-fastcrud-type') || 'text').toLowerCase();
-                var rawValue;
-                var valueForField = null;
-                var lengthForValidation = 0;
-
-                if (type === 'checkbox') {
-                    rawValue = input.is(':checked');
-                    valueForField = rawValue ? '1' : '0';
-                    lengthForValidation = rawValue ? 1 : 0;
-                } else if (type === 'multiselect') {
-                    rawValue = input.val() || [];
-                    var trimmedValues = $.map(rawValue, function(item) {
-                        if (item === null || typeof item === 'undefined') {
-                            return null;
-                        }
-                        var normalized = String(item).trim();
-                        return normalized.length ? normalized : null;
-                    });
-                    lengthForValidation = trimmedValues.length;
-                    valueForField = trimmedValues.length ? trimmedValues.join(',') : null;
-                } else {
-                    rawValue = input.val();
-                    if (rawValue === null || typeof rawValue === 'undefined') {
-                        valueForField = null;
-                        lengthForValidation = 0;
-                    } else {
-                        var normalizedValue = String(rawValue).trim();
-                        if (normalizedValue === '') {
-                            valueForField = null;
-                            lengthForValidation = 0;
-                        } else {
-                            valueForField = normalizedValue;
-                            lengthForValidation = normalizedValue.length;
-                        }
-                    }
-                }
-
-                var requiredMin = parseInt(input.attr('data-fastcrud-required') || '', 10);
-                if (!Number.isNaN(requiredMin) && requiredMin > 0) {
-                    if (lengthForValidation < requiredMin) {
-                        validationPassed = false;
-                        fieldErrors[column] = 'This field is required.';
-                        input.addClass('is-invalid');
-                    }
-                }
-
-                var patternRaw = input.attr('data-fastcrud-pattern');
-                if (patternRaw && valueForField !== null && valueForField !== '' && type !== 'multiselect') {
-                    var regex = compileClientPattern(patternRaw);
-                    if (regex && !regex.test(String(valueForField))) {
-                        validationPassed = false;
-                        fieldErrors[column] = 'Value does not match the expected format.';
-                        input.addClass('is-invalid');
-                    }
-                }
-
-                fields[column] = valueForField;
-            });
-
-            if (!validationPassed) {
-                currentFieldErrors = fieldErrors;
-                applyFieldErrors(fieldErrors);
-                showFormError('Please fix the highlighted fields.');
-                return false;
-            }
-
             var submitButton = editForm.find('button[type="submit"]');
             var originalText = submitButton.text();
             submitButton.prop('disabled', true).text('Saving...');
 
-            var offcanvas = getEditOffcanvasInstance();
-            if (offcanvas) {
-                offcanvas.hide();
+            // Ensure FilePond uploads (if any) finish before collecting values
+            function waitForFilePondUploads() {
+                return new Promise(function(resolve) {
+                    if (!window.FilePond || typeof window.FilePond.find !== 'function') {
+                        resolve();
+                        return;
+                    }
+                    var inputs = editForm.find('input.fastcrud-filepond').toArray();
+                    var ponds = window.FilePond.find(inputs);
+                    if (!ponds || !ponds.length) {
+                        resolve();
+                        return;
+                    }
+                    var tasks = [];
+                    ponds.forEach(function(pond) {
+                        try {
+                            tasks.push(pond.processFiles());
+                        } catch (e) {}
+                    });
+                    if (!tasks.length) {
+                        resolve();
+                        return;
+                    }
+                    Promise.all(tasks).then(function() { resolve(); }).catch(function() { resolve(); });
+                });
             }
 
-            $.ajax({
-                url: window.location.pathname,
-                type: 'POST',
-                dataType: 'json',
-                data: {
-                    fastcrud_ajax: '1',
-                    action: 'update',
-                    table: tableName,
-                    id: tableId,
-                    primary_key_column: primaryColumn,
-                    primary_key_value: primaryValue,
-                    fields: JSON.stringify(fields),
-                    config: JSON.stringify(clientConfig)
-                },
-                success: function(response) {
-                    if (response && response.success) {
-                        editSuccess.addClass('d-none');
-                        currentFieldErrors = {};
-                        loadTableData(currentPage);
+            function collectAndSubmit() {
+                var fields = {};
+                var fieldErrors = {};
+                var validationPassed = true;
+
+                editForm.find('[data-fastcrud-field]').each(function() {
+                    var input = $(this);
+                    var column = input.data('fastcrudField');
+                    if (!column) {
+                        return;
+                    }
+                    if (column === primaryColumn) {
+                        return;
+                    }
+
+                    if (input.prop('disabled')) {
+                        return;
+                    }
+
+                    var type = String(input.data('fastcrudType') || input.attr('data-fastcrud-type') || 'text').toLowerCase();
+                    var rawValue;
+                    var valueForField = null;
+                    var lengthForValidation = 0;
+
+                    if (type === 'checkbox') {
+                        rawValue = input.is(':checked');
+                        valueForField = rawValue ? '1' : '0';
+                        lengthForValidation = rawValue ? 1 : 0;
+                    } else if (type === 'multiselect') {
+                        rawValue = input.val() || [];
+                        var trimmedValues = $.map(rawValue, function(item) {
+                            if (item === null || typeof item === 'undefined') {
+                                return null;
+                            }
+                            var normalized = String(item).trim();
+                            return normalized.length ? normalized : null;
+                        });
+                        lengthForValidation = trimmedValues.length;
+                        valueForField = trimmedValues.length ? trimmedValues.join(',') : null;
                     } else {
-                        var message = response && response.error ? response.error : 'Failed to update record.';
-                        if (response && response.errors) {
-                            currentFieldErrors = response.errors;
-                            applyFieldErrors(response.errors);
+                        rawValue = input.val();
+                        if (rawValue === null || typeof rawValue === 'undefined') {
+                            valueForField = null;
+                            lengthForValidation = 0;
+                        } else {
+                            var normalizedValue = String(rawValue).trim();
+                            if (normalizedValue === '') {
+                                valueForField = null;
+                                lengthForValidation = 0;
+                            } else {
+                                valueForField = normalizedValue;
+                                lengthForValidation = normalizedValue.length;
+                            }
                         }
-                        showFormError(message);
+                    }
+
+                    var requiredMin = parseInt(input.attr('data-fastcrud-required') || '', 10);
+                    if (!Number.isNaN(requiredMin) && requiredMin > 0) {
+                        if (lengthForValidation < requiredMin) {
+                            validationPassed = false;
+                            fieldErrors[column] = 'This field is required.';
+                            input.addClass('is-invalid');
+                        }
+                    }
+
+                    var patternRaw = input.attr('data-fastcrud-pattern');
+                    if (patternRaw && valueForField !== null && valueForField !== '' && type !== 'multiselect') {
+                        var regex = compileClientPattern(patternRaw);
+                        if (regex && !regex.test(String(valueForField))) {
+                            validationPassed = false;
+                            fieldErrors[column] = 'Value does not match the expected format.';
+                            input.addClass('is-invalid');
+                        }
+                    }
+
+                    fields[column] = valueForField;
+                });
+
+                if (!validationPassed) {
+                    currentFieldErrors = fieldErrors;
+                    applyFieldErrors(fieldErrors);
+                    showFormError('Please fix the highlighted fields.');
+                    submitButton.prop('disabled', false).text(originalText);
+                    return false;
+                }
+
+                var offcanvas = getEditOffcanvasInstance();
+                if (offcanvas) {
+                    offcanvas.hide();
+                }
+
+                $.ajax({
+                    url: window.location.pathname,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        fastcrud_ajax: '1',
+                        action: 'update',
+                        table: tableName,
+                        id: tableId,
+                        primary_key_column: primaryColumn,
+                        primary_key_value: primaryValue,
+                        fields: JSON.stringify(fields),
+                        config: JSON.stringify(clientConfig)
+                    },
+                    success: function(response) {
+                        if (response && response.success) {
+                            editSuccess.addClass('d-none');
+                            currentFieldErrors = {};
+                            loadTableData(currentPage);
+                        } else {
+                            var message = response && response.error ? response.error : 'Failed to update record.';
+                            if (response && response.errors) {
+                                currentFieldErrors = response.errors;
+                                applyFieldErrors(response.errors);
+                            }
+                            showFormError(message);
+                            if (offcanvas) {
+                                offcanvas.show();
+                            }
+                        }
+                    },
+                    error: function(_, __, error) {
+                        showFormError('Failed to update record: ' + error);
                         if (offcanvas) {
                             offcanvas.show();
                         }
+                    },
+                    complete: function() {
+                        submitButton.prop('disabled', false).text(originalText);
                     }
-                },
-                error: function(_, __, error) {
-                    showFormError('Failed to update record: ' + error);
-                    if (offcanvas) {
-                        offcanvas.show();
-                    }
-                },
-                complete: function() {
-                    submitButton.prop('disabled', false).text(originalText);
-                }
-            });
+                });
 
+                return false;
+            }
+
+            waitForFilePondUploads().then(collectAndSubmit);
             return false;
         }
 
