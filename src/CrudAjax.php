@@ -32,6 +32,10 @@ class CrudAjax
                 case 'upload_image':
                     self::handleUploadImage($request);
                     break;
+                case 'upload_filepond':
+                    // Reuse the same secure image upload flow used by TinyMCE
+                    self::handleUploadImage($request);
+                    break;
                 default:
                     throw new InvalidArgumentException('Invalid action: ' . $action);
             }
