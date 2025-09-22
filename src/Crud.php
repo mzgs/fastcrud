@@ -4662,6 +4662,159 @@ HTML;
             return joinPublicUrl(getUploadPublicBase(), v);
         }
 
+        function extractFileName(value) {
+            var str = String(value || '').trim();
+            if (!str) { return ''; }
+            var hashIndex = str.indexOf('#');
+            if (hashIndex !== -1) {
+                str = str.slice(0, hashIndex);
+            }
+            var queryIndex = str.indexOf('?');
+            if (queryIndex !== -1) {
+                str = str.slice(0, queryIndex);
+            }
+            var parts = str.split('/');
+            var segment = parts[parts.length - 1] || '';
+            if (!segment) { return ''; }
+            var lastSlash = segment.lastIndexOf('/');
+            var lastBackslash = segment.lastIndexOf(String.fromCharCode(92));
+            var separatorIndex = Math.max(lastSlash, lastBackslash);
+            if (separatorIndex !== -1) {
+                return segment.slice(separatorIndex + 1) || '';
+            }
+            return segment;
+        }
+
+        function parseImageNameList(value) {
+            var result = [];
+            if (Array.isArray(value)) {
+                value.forEach(function(item) {
+                    if (item === null || typeof item === 'undefined') {
+                        return;
+                    }
+                    var name = extractFileName(item);
+                    if (name && result.indexOf(name) === -1) {
+                        result.push(name);
+                    }
+                });
+                return result;
+            }
+
+            var text = String(value || '');
+            if (!text.length) {
+                return result;
+            }
+
+            text.split(',').forEach(function(item) {
+                var name = extractFileName(item);
+                if (name && result.indexOf(name) === -1) {
+                    result.push(name);
+                }
+            });
+
+            return result;
+        }
+
+        function imageNamesToString(list) {
+            if (!Array.isArray(list) || !list.length) {
+                return '';
+            }
+            return list.join(',');
+        }
+
+        function setImageNamesOnInput(input, list) {
+            if (!input || !input.length) {
+                return;
+            }
+            input.val(imageNamesToString(parseImageNameList(list)));
+        }
+
+        function addImageNameToInput(input, candidate) {
+            if (!input || !input.length) {
+                return;
+            }
+            var name = extractFileName(candidate);
+            if (!name) {
+                return;
+            }
+            var current = parseImageNameList(input.val());
+            if (current.indexOf(name) === -1) {
+                current.push(name);
+            }
+            input.val(imageNamesToString(current));
+        }
+
+        function removeImageNameFromInput(input, candidate) {
+            if (!input || !input.length) {
+                return;
+            }
+            var name = extractFileName(candidate);
+            if (!name) {
+                return;
+            }
+            var current = parseImageNameList(input.val());
+            var filtered = current.filter(function(entry) {
+                return entry !== name;
+            });
+            if (filtered.length !== current.length) {
+                input.val(imageNamesToString(filtered));
+            }
+        }
+
+        function clearImageNameMap(input) {
+            if (!input || !input.length) {
+                return;
+            }
+            input.removeData('fastcrudNameMap');
+        }
+
+        function ensureImageNameMap(input) {
+            if (!input || !input.length) {
+                return {};
+            }
+            var existing = input.data('fastcrudNameMap');
+            if (!existing || typeof existing !== 'object') {
+                existing = {};
+                input.data('fastcrudNameMap', existing);
+            } else {
+                input.data('fastcrudNameMap', existing);
+            }
+            return existing;
+        }
+
+        function mapImageNameToKey(input, key, name) {
+            if (!input || !input.length || !key) {
+                return;
+            }
+            var map = ensureImageNameMap(input);
+            if (name) {
+                map[key] = name;
+            }
+            input.data('fastcrudNameMap', map);
+        }
+
+        function removeImageNameForKey(input, key) {
+            if (!input || !input.length || !key) {
+                return;
+            }
+            var map = input.data('fastcrudNameMap');
+            if (map && typeof map === 'object' && Object.prototype.hasOwnProperty.call(map, key)) {
+                delete map[key];
+                input.data('fastcrudNameMap', map);
+            }
+        }
+
+        function findImageNameForKey(input, key) {
+            if (!input || !input.length || !key) {
+                return '';
+            }
+            var map = input.data('fastcrudNameMap');
+            if (map && typeof map === 'object' && Object.prototype.hasOwnProperty.call(map, key)) {
+                return map[key];
+            }
+            return '';
+        }
+
         function appendStylesheetOnce(href, id) {
             if (!href) { return; }
             var markerId = id || ('fastcrud-style-' + Math.random().toString(36).slice(2));
@@ -6284,7 +6437,8 @@ HTML;
                         input.append($('<option></option>').attr('value', option.value).text(option.label));
                     });
                     input.val(String(normalizedValue));
-                } else if (changeType === 'image') {
+                } else if (changeType === 'image' || changeType === 'images') {
+                    var isMultipleImages = changeType === 'images';
                     // If the declared field doesn't exist in the base table, optionally map to a real column
                     var baseHasDeclared = Array.isArray(baseColumns) && baseColumns.indexOf(column) !== -1;
                     var saveToCandidate = (params.save_to || params.saveTo || '').toString().trim();
@@ -6300,16 +6454,29 @@ HTML;
                     if ((!currentValue || String(currentValue).length === 0) && saveColumn !== column && typeof row[saveColumn] !== 'undefined' && row[saveColumn] !== null) {
                         currentValue = row[saveColumn];
                     }
+
+                    var normalizedList = parseImageNameList(currentValue);
+                    var initialValueString = isMultipleImages
+                        ? imageNamesToString(normalizedList)
+                        : (normalizedList.length ? normalizedList[0] : '');
+                    if (!isMultipleImages) {
+                        normalizedList = initialValueString ? [initialValueString] : [];
+                    }
+                    normalizedValue = initialValueString;
+
                     // Use FilePond for image uploads with preview; store value in a hidden field
                     var hiddenInput = $('<input type="hidden" />')
                         .attr('id', fieldId)
                         .attr('data-fastcrud-field', saveColumn)
                         .attr('data-fastcrud-type', 'hidden')
-                        .val(String(normalizedValue || ''));
+                        .val(String(initialValueString || ''));
                     input = $('<input type="file" class="fastcrud-filepond" accept="image/*" />')
                         .attr('id', fieldId + '-file');
+                    if (isMultipleImages) {
+                        input.attr('multiple', 'multiple');
+                    }
                     labelForId = fieldId + '-file';
-                    dataType = 'image';
+                    dataType = changeType;
                 } else if (changeType === 'multiselect') {
                     input = $('<select class="form-select" multiple></select>').attr('id', fieldId);
                     var multiMap = params.values || params.options || {};
@@ -6397,7 +6564,7 @@ HTML;
                 if (changeType !== 'bool' && changeType !== 'checkbox') {
                     group.append($('<label class="form-label"></label>').attr('for', labelForId).text(resolveFieldLabel(column)));
                     group.append(input);
-                    if (changeType === 'image') {
+                    if (changeType === 'image' || changeType === 'images') {
                         // Append the hidden value holder so it gets included on submit
                         group.append(hiddenInput);
                     }
@@ -6415,7 +6582,7 @@ HTML;
                     input.addClass(params.class);
                 }
 
-                if (changeType !== 'image') {
+                if (changeType !== 'image' && changeType !== 'images') {
                     input.attr('data-fastcrud-field', column);
                     input.attr('data-fastcrud-type', dataType);
                 }
@@ -6449,7 +6616,7 @@ HTML;
                         input.prop('readonly', true);
                     }
                     group.addClass('fastcrud-field-readonly');
-                    if (changeType === 'image') {
+                    if (changeType === 'image' || changeType === 'images') {
                         // Prevent posting hidden value when field is readonly
                         try { hiddenInput.prop('disabled', true); } catch (e) {}
                     }
@@ -6458,7 +6625,7 @@ HTML;
                 if (behaviours.disabled) {
                     input.prop('disabled', true);
                     group.addClass('fastcrud-field-disabled');
-                    if (changeType === 'image') {
+                    if (changeType === 'image' || changeType === 'images') {
                         try { hiddenInput.prop('disabled', true); } catch (e) {}
                     }
                 }
@@ -6475,7 +6642,7 @@ HTML;
 
                 container.append(group);
 
-                if (changeType === 'image') {
+                if (changeType === 'image' || changeType === 'images') {
                     // Initialize FilePond after appending to DOM
                     withFilePondAssets(function() {
                         var fileInput = group.find('#' + $.escapeSelector(fieldId + '-file'));
@@ -6485,18 +6652,55 @@ HTML;
                         }
 
                         try {
-                            var existing = String(normalizedValue || '').trim();
-                            var existingUrl = existing.length ? toPublicUrl(existing) : '';
+                            var isMultipleImages = changeType === 'images';
+                            if (isMultipleImages) {
+                                setImageNamesOnInput(valueInput, valueInput.val());
+                            } else {
+                                var singleNames = parseImageNameList(valueInput.val());
+                                if (singleNames.length > 1) {
+                                    valueInput.val(singleNames[0]);
+                                } else if (singleNames.length === 1) {
+                                    valueInput.val(singleNames[0]);
+                                } else {
+                                    valueInput.val('');
+                                }
+                                clearImageNameMap(valueInput);
+                            }
+
+                            var currentNames = parseImageNameList(valueInput.val());
+                            var initialFiles = currentNames.map(function(name) {
+                                var url = toPublicUrl(name);
+                                return {
+                                    source: url,
+                                    options: {
+                                        type: 'local',
+                                        file: { name: name },
+                                        metadata: { poster: url, storedName: name }
+                                    }
+                                };
+                            });
+
+                            if (isMultipleImages) {
+                                var initialMap = ensureImageNameMap(valueInput);
+                                initialFiles.forEach(function(item) {
+                                    var key = item && item.source ? item.source : '';
+                                    var storedName = item && item.options && item.options.metadata ? item.options.metadata.storedName : '';
+                                    if (key && storedName) {
+                                        initialMap[key] = storedName;
+                                    }
+                                });
+                            }
+
                             var stylePanelAspect = (params.panelAspectRatio || params.aspectRatio);
                             var pond = window.FilePond.create(fileInput.get(0), {
-                                allowMultiple: false,
+                                allowMultiple: isMultipleImages,
                                 allowImagePreview: true,
                                 imagePreviewHeight: params.previewHeight ? Number(params.previewHeight) : 170,
                                 allowFilePoster: true,
                                 filePosterHeight: params.posterHeight ? Number(params.posterHeight) : 120,
                                 stylePanelAspectRatio: stylePanelAspect || undefined,
                                 credits: false,
-                                files: existingUrl.length ? [{ source: existingUrl, options: { type: 'local', metadata: { poster: existingUrl } } }] : [],
+                                files: initialFiles,
                                 server: {
                                     process: function(fieldName, file, metadata, load, error, progress, abort) {
                                         var xhr = new XMLHttpRequest();
@@ -6520,18 +6724,33 @@ HTML;
                                                 error(response && response.error ? response.error : 'Upload failed.');
                                                 return;
                                             }
+
+                                            var storedName = '';
                                             if (response.name) {
-                                                valueInput.val(String(response.name));
-                                            } else if (response.location) {
-                                                try {
-                                                    var loc = String(response.location);
-                                                    var parts = loc.split('/');
-                                                    valueInput.val(parts[parts.length - 1] || loc);
-                                                } catch (e) {
-                                                    valueInput.val(String(response.location));
-                                                }
+                                                storedName = String(response.name);
                                             }
-                                            load(String(response.location || ''));
+                                            if (!storedName && response.location) {
+                                                storedName = extractFileName(response.location);
+                                            }
+                                            if (!storedName && file && file.name) {
+                                                storedName = extractFileName(file.name);
+                                            }
+
+                                            if (storedName) {
+                                                if (isMultipleImages) {
+                                                    addImageNameToInput(valueInput, storedName);
+                                                } else {
+                                                    valueInput.val(storedName);
+                                                }
+                                                valueInput.trigger('change');
+                                            }
+
+                                            var serverKey = response.location ? String(response.location) : storedName;
+                                            if (isMultipleImages && serverKey) {
+                                                mapImageNameToKey(valueInput, serverKey, storedName);
+                                            }
+
+                                            load(serverKey || storedName || '');
                                         };
                                         xhr.onerror = function() { error('Upload failed due to a network error.'); };
                                         var formData = new FormData();
@@ -6546,8 +6765,12 @@ HTML;
                                     },
                                     fetch: function(url, load, error, progress, abort) {
                                         try {
+                                            var target = url;
+                                            if (target && typeof target === 'string' && !/^https?:\/\//i.test(target) && target.charAt(0) !== '/' && !/^blob:/i.test(target) && !/^data:/i.test(target)) {
+                                                target = toPublicUrl(target);
+                                            }
                                             var xhr = new XMLHttpRequest();
-                                            xhr.open('GET', url);
+                                            xhr.open('GET', target);
                                             xhr.responseType = 'blob';
                                             xhr.onload = function() { load(xhr.response); };
                                             xhr.onerror = function() { error('Failed to fetch image.'); };
@@ -6560,23 +6783,38 @@ HTML;
                                         }
                                     },
                                     revert: function(uniqueId, load, error) {
-                                        valueInput.val('');
+                                        if (isMultipleImages) {
+                                            removeImageNameFromInput(valueInput, uniqueId);
+                                            removeImageNameForKey(valueInput, uniqueId);
+                                            valueInput.trigger('change');
+                                        } else {
+                                            valueInput.val('');
+                                            valueInput.trigger('change');
+                                            clearImageNameMap(valueInput);
+                                        }
                                         load();
                                     },
                                     load: function(source, load, error, progress, abort) {
-                                        var xhr = new XMLHttpRequest();
-                                        xhr.open('GET', source);
-                                        xhr.responseType = 'blob';
-                                        xhr.onload = function() { load(xhr.response); };
-                                        xhr.onerror = function() { error('Failed to load image.'); };
-                                        xhr.onprogress = function(e) { progress(e.lengthComputable, e.loaded, e.total); };
-                                        xhr.send();
-                                        return { abort: function() { xhr.abort(); abort(); } };
+                                        try {
+                                            var target = source;
+                                            if (target && typeof target === 'string' && !/^https?:\/\//i.test(target) && target.charAt(0) !== '/' && !/^blob:/i.test(target) && !/^data:/i.test(target)) {
+                                                target = toPublicUrl(target);
+                                            }
+                                            var xhr = new XMLHttpRequest();
+                                            xhr.open('GET', target);
+                                            xhr.responseType = 'blob';
+                                            xhr.onload = function() { load(xhr.response); };
+                                            xhr.onerror = function() { error('Failed to load image.'); };
+                                            xhr.onprogress = function(e) { progress(e.lengthComputable, e.loaded, e.total); };
+                                            xhr.send();
+                                            return { abort: function() { xhr.abort(); abort(); } };
+                                        } catch (e) {
+                                            error('Failed to load image.');
+                                            abort();
+                                        }
                                     }
                                 }
                             });
-
-                            // Do not addFile() for existing items to avoid re-upload; initial files array covers preview
 
                             // Apply a default compact width unless overridden via params
                             var pondWidth = (params.width || params.pondWidth || params.previewWidth || '360px');
@@ -6584,7 +6822,61 @@ HTML;
                                 $(pond.element).css({ maxWidth: String(pondWidth), width: '100%' });
                             } catch (e) {}
 
-                            pond.on('removefile', function() { valueInput.val(''); });
+                            if (isMultipleImages) {
+                                pond.on('removefile', function(error, file) {
+                                    if (!file) {
+                                        return;
+                                    }
+                                    var key = file.serverId || file.source || '';
+                                    var storedName = '';
+                                    if (file.getMetadata && typeof file.getMetadata === 'function') {
+                                        storedName = file.getMetadata('storedName') || '';
+                                    }
+                                    if (!storedName) {
+                                        storedName = findImageNameForKey(valueInput, key) || extractFileName(key || file.filename);
+                                    }
+                                    if (storedName) {
+                                        removeImageNameFromInput(valueInput, storedName);
+                                        valueInput.trigger('change');
+                                    }
+                                    if (key) {
+                                        removeImageNameForKey(valueInput, key);
+                                    }
+                                });
+                            } else {
+                                pond.on('removefile', function() {
+                                    valueInput.val('').trigger('change');
+                                    clearImageNameMap(valueInput);
+                                });
+                            }
+
+                            pond.on('processfile', function(error, file) {
+                                if (error || !file) {
+                                    return;
+                                }
+                                var key = file.serverId || file.source || '';
+                                var storedName = '';
+                                if (file.getMetadata && typeof file.getMetadata === 'function') {
+                                    storedName = file.getMetadata('storedName') || '';
+                                }
+                                if (!storedName) {
+                                    storedName = findImageNameForKey(valueInput, key) || extractFileName(key || file.filename);
+                                    if (file.setMetadata && storedName) {
+                                        file.setMetadata('storedName', storedName, true);
+                                    }
+                                }
+                                if (file.setMetadata) {
+                                    var posterCandidate = key && (/^https?:\/\//i.test(key) || key.charAt(0) === '/' || /^blob:/i.test(key) || /^data:/i.test(key))
+                                        ? key
+                                        : (storedName ? toPublicUrl(storedName) : '');
+                                    if (posterCandidate) {
+                                        file.setMetadata('poster', posterCandidate, true);
+                                    }
+                                }
+                                if (isMultipleImages && key && storedName) {
+                                    mapImageNameToKey(valueInput, key, storedName);
+                                }
+                            });
                         } catch (e) {}
                     });
                 }
