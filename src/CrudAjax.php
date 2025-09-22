@@ -379,15 +379,18 @@ class CrudAjax
             $base = 'image';
         }
 
+        // Use a 6-digit random number for brevity
         try {
-            $random = bin2hex(random_bytes(6));
+            $randomNumber = random_int(0, 999999);
         } catch (Exception) {
-            $random = substr(str_replace('.', '', uniqid('', true)), 0, 12);
+            // Fallback in the rare case random_int is unavailable
+            $randomNumber = (int) substr(str_replace('.', '', uniqid('', true)), -6);
+            if ($randomNumber < 0) {
+                $randomNumber = 0;
+            }
         }
 
-        $timestamp = date('YmdHis');
-
-        return sprintf('%s-%s-%s.%s', $base, $timestamp, $random, $extension);
+        return sprintf('%s-%06d.%s', $base, $randomNumber, $extension);
     }
 
     private static function describeUploadError(int $code): string
