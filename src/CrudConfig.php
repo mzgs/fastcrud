@@ -22,6 +22,10 @@ class CrudConfig
     // Examples: 'primary', 'success', '#0d6efd', 'rgb(13,110,253)', 'var(--bs-primary)'
     public static string $bools_in_grid_color = 'primary';
 
+ 
+    // Example values: 'table-warning', 'table-active', 'table-info text-dark'
+    public static string $edit_row_highlight_class = 'table-warning';
+
     /**
      * Store database configuration values for later use.
      * Missing keys default to MySQL on localhost port 3306.

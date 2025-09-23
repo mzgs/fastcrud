@@ -5139,12 +5139,18 @@ HTML;
     private function generateAjaxScript(): string
     {
         $id = $this->escapeHtml($this->id);
+        $editRowClass = trim(CrudConfig::$edit_row_highlight_class ?? '');
+        if ($editRowClass === '') {
+            $editRowClass = 'table-warning';
+        }
+        $editRowClass = $this->escapeHtml($editRowClass);
 
         return <<<SCRIPT
 <script>
 (function($) {
     $(document).ready(function() {
         var tableId = '$id';
+        var editHighlightClass = '$editRowClass';
         var table = $('#' + tableId);
         var tableName = table.data('table');
         var perPage = parseInt(table.data('per-page'), 10);
@@ -5206,6 +5212,18 @@ HTML;
         var editOffcanvasElement = $('#' + tableId + '-edit-panel');
         var editOffcanvasInstance = null;
         if (editOffcanvasElement.length) {
+            // Clear highlight as soon as the panel starts closing (no wait for animation)
+            editOffcanvasElement.on('hide.bs.offcanvas', function() {
+                try {
+                    table.find('tbody tr.fastcrud-editing').each(function() {
+                        var trEl = $(this);
+                        var had = trEl.data('fastcrudHadClass');
+                        if (had !== 1 && had !== '1') { trEl.removeClass(editHighlightClass); }
+                        trEl.removeClass('fastcrud-editing').removeData('fastcrudHadClass');
+                    });
+                } catch (e) {}
+            });
+            // Cleanup heavy widgets after the panel is fully hidden
             editOffcanvasElement.on('hidden.bs.offcanvas', function() {
                 destroyRichEditors(editFieldsContainer);
                 destroyFilePonds(editFieldsContainer);
@@ -8532,6 +8550,15 @@ HTML;
             event.preventDefault();
             event.stopPropagation();
             var row = getRowDataFromElement(this);
+            // If any row is highlighted for editing, clear it when switching to view
+            try {
+                table.find('tbody tr.fastcrud-editing').each(function() {
+                    var trEl = $(this);
+                    var had = trEl.data('fastcrudHadClass');
+                    if (had !== 1 && had !== '1') { trEl.removeClass(editHighlightClass); }
+                    trEl.removeClass('fastcrud-editing').removeData('fastcrudHadClass');
+                });
+            } catch (e) {}
             showViewPanel(row || {});
             return false;
         });
@@ -8539,6 +8566,24 @@ HTML;
         table.on('click', '.fastcrud-edit-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
+            // Highlight the row being edited
+            try {
+                var tr = $(this).closest('tr');
+                // Clear previous edit highlight, but only remove the configured class if we added it
+                table.find('tbody tr.fastcrud-editing').each(function() {
+                    var trEl = $(this);
+                    var had = trEl.data('fastcrudHadClass');
+                    if (had !== 1 && had !== '1') { trEl.removeClass(editHighlightClass); }
+                    trEl.removeClass('fastcrud-editing').removeData('fastcrudHadClass');
+                });
+                var parts = String(editHighlightClass || '').split(/\s+/).filter(function(s){ return s.length > 0; });
+                var hasAll = true;
+                for (var i = 0; i < parts.length; i++) { if (!tr.hasClass(parts[i])) { hasAll = false; break; } }
+                var alreadyHas = hasAll ? 1 : 0;
+                tr.data('fastcrudHadClass', alreadyHas);
+                tr.addClass('fastcrud-editing');
+                if (!alreadyHas) { tr.addClass(editHighlightClass); }
+            } catch (e) {}
             var row = getRowDataFromElement(this);
             showEditForm(row || {});
             return false;
