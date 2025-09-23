@@ -3794,44 +3794,7 @@ HTML;
         return [$rows, $columns];
     }
 
-    /**
-     * @param array<int, array<string, mixed>> $rows
-     * @param array<int, string> $columns
-     */
-    private function buildBody(array $rows, array $columns): string
-    {
-        if ($rows === []) {
-            $colspan = count($columns);
-            $escaped = $this->escapeHtml('No records found.');
-
-            return sprintf(
-                "        <tr>\n            <td colspan=\"%d\" class=\"text-center text-muted\">%s</td>\n        </tr>",
-                $colspan,
-                $escaped
-            );
-        }
-
-        $bodyRows = [];
-
-        foreach ($rows as $row) {
-            $cells = [];
-
-            foreach ($columns as $column) {
-                $value   = $row[$column] ?? null;
-                $cells[] = sprintf(
-                    '            <td>%s</td>',
-                    $this->escapeHtml($this->formatValue($value))
-                );
-            }
-
-            // Note: Actions column is generated client-side via buildActionCellHtml().
-            // The server-side fallback action cell has been removed to avoid duplication.
-
-            $bodyRows[] = "        <tr>\n" . implode("\n", $cells) . "\n        </tr>";
-        }
-
-        return implode("\n", $bodyRows);
-    }
+    
 
     /**
      * @param array<int, string> $columns
