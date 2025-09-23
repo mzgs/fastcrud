@@ -5424,6 +5424,28 @@ HTML;
     }
 
     /**
+     * Public accessor to fetch a single row by its primary key.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getRecord(string $primaryKeyColumn, mixed $primaryKeyValue): ?array
+    {
+        $primaryKeyColumn = trim($primaryKeyColumn);
+        if ($primaryKeyColumn === '') {
+            throw new InvalidArgumentException('Primary key column is required.');
+        }
+
+        // Validate against base table columns (not just visible columns)
+        $columns = $this->getTableColumnsFor($this->table);
+        if (!in_array($primaryKeyColumn, $columns, true)) {
+            $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
+            throw new InvalidArgumentException($message);
+        }
+
+        return $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
+    }
+
+    /**
      * Generate jQuery AJAX script for loading table data with pagination.
      */
     private function generateAjaxScript(): string
@@ -5483,6 +5505,8 @@ HTML;
             all_columns: []
         };
         var currentFieldErrors = {};
+        // Cache for on-demand row fetches (keyed by tableId + '::' + pkCol + '::' + pkVal)
+        var rowCache = {};
 
         var toolbar = $('#' + tableId + '-toolbar');
         var rangeDisplay = $('#' + tableId + '-range');
@@ -7159,11 +7183,19 @@ HTML;
             }
 
             var html = '';
-            var builtRows = [];
             $.each(rows, function(_, row) {
                 var rowMeta = row.__fastcrud || {};
                 var cellsMeta = rowMeta.cells || {};
                 var rawValues = rowMeta.raw || {};
+                var rowPrimaryKeyColumn = row.__fastcrud_primary_key || rowMeta.primary_key || primaryKeyColumn;
+                var primaryValue;
+                if (Object.prototype.hasOwnProperty.call(row, '__fastcrud_primary_value') && typeof row.__fastcrud_primary_value !== 'undefined') {
+                    primaryValue = row.__fastcrud_primary_value;
+                } else if (rowPrimaryKeyColumn) {
+                    primaryValue = row[rowPrimaryKeyColumn];
+                } else {
+                    primaryValue = null;
+                }
                 var rowData = $.extend({}, row);
                 delete rowData.__fastcrud;
                 if (rowData.__fastcrud_raw) { delete rowData.__fastcrud_raw; }
@@ -7218,25 +7250,23 @@ HTML;
                 });
 
                 cells += buildActionCellHtml();
-                html += '<tr' + rowClass + '>' + cells + '</tr>';
-                builtRows.push(rowData);
+                var trAttrs = '';
+                if (rowPrimaryKeyColumn) {
+                    trAttrs += ' data-fastcrud-pk="' + escapeHtml(String(rowPrimaryKeyColumn)) + '"';
+                }
+                if (typeof primaryValue !== 'undefined') {
+                    trAttrs += ' data-fastcrud-pk-value="' + escapeHtml(String(primaryValue)) + '"';
+                }
+                html += '<tr' + rowClass + trAttrs + '>' + cells + '</tr>';
             });
 
             tbody.html(html);
-            // Attach the full row object to each <tr> to avoid duplicating large JSON in button attributes
-            try {
-                var trs = tbody.find('tr');
-                trs.each(function(i) {
-                    var dataObj = builtRows[i];
-                    if (typeof dataObj === 'object') {
-                        $(this).data('row', dataObj);
-                    }
-                });
-            } catch (e) {}
         }
 
         function loadTableData(page) {
             currentPage = page || 1;
+            // Clear row cache to avoid stale data after reloads
+            rowCache = {};
 
             var tbody = table.find('tbody');
             var totalColumns = table.find('thead th').length || 1;
@@ -8802,6 +8832,14 @@ HTML;
                         if (response && response.success) {
                             editSuccess.addClass('d-none');
                             currentFieldErrors = {};
+                            try {
+                                var key = rowCacheKey(primaryColumn, String(primaryValue));
+                                if (response.row) {
+                                    rowCache[key] = response.row;
+                                } else if (rowCache[key]) {
+                                    delete rowCache[key];
+                                }
+                            } catch (e) {}
                             loadTableData(currentPage);
                         } else {
                             var message = response && response.error ? response.error : 'Failed to update record.';
@@ -8833,45 +8871,56 @@ HTML;
             return false;
         }
 
-        function getRowDataFromElement(el) {
+        function getPkInfoFromElement(el) {
             var jqEl = $(el);
-            // Prefer the row object attached to the closest <tr>
-            try {
-                var tr = jqEl.closest('tr');
-                if (tr && tr.length) {
-                    var trRow = tr.data('row');
-                    if (trRow && typeof trRow === 'object') { return trRow; }
-                    var trJson = tr.attr('data-row-json');
-                    if (trJson) {
-                        try {
-                            var parsedTr = JSON.parse(trJson);
-                            tr.data('row', parsedTr);
-                            return parsedTr;
-                        } catch (e1) {}
+            var tr = jqEl.closest('tr');
+            var pkCol = tr.attr('data-fastcrud-pk') || primaryKeyColumn || '';
+            var pkVal = tr.attr('data-fastcrud-pk-value');
+            if (!pkCol || typeof pkVal === 'undefined') { return null; }
+            return { column: pkCol, value: pkVal };
+        }
+
+        function rowCacheKey(pkCol, pkVal) {
+            return tableId + '::' + String(pkCol) + '::' + String(pkVal);
+        }
+
+        function fetchRowByPk(pkCol, pkVal) {
+            var key = rowCacheKey(pkCol, pkVal);
+            if (rowCache[key]) { return Promise.resolve(rowCache[key]); }
+            return new Promise(function(resolve, reject) {
+                $.ajax({
+                    url: window.location.pathname,
+                    type: 'GET',
+                    dataType: 'json',
+                    data: {
+                        fastcrud_ajax: '1',
+                        action: 'read',
+                        table: tableName,
+                        id: tableId,
+                        primary_key_column: pkCol,
+                        primary_key_value: pkVal,
+                        config: JSON.stringify(clientConfig)
+                    },
+                    success: function(response) {
+                        if (response && response.success && response.row) {
+                            rowCache[key] = response.row;
+                            resolve(response.row);
+                        } else {
+                            reject(new Error(response && response.error ? response.error : 'Record not found'));
+                        }
+                    },
+                    error: function(_, __, error) {
+                        reject(new Error(error || 'Failed to fetch record'));
                     }
-                }
-            } catch (e2) {}
-
-            // Fallback: data cached on the element itself
-            var row = jqEl.data('row');
-            if (row && typeof row === 'object') { return row; }
-
-            // Legacy fallback: parse inline data attribute if present
-            var json = jqEl.attr('data-row-json');
-            if (json) {
-                try {
-                    row = JSON.parse(json);
-                    jqEl.data('row', row);
-                    return row;
-                } catch (e3) {}
-            }
-            return row || {};
+                });
+            });
         }
 
         table.on('click', '.fastcrud-view-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
-            var row = getRowDataFromElement(this);
+            var pk = getPkInfoFromElement(this);
+            if (!pk) { showError('Unable to determine primary key for viewing.'); return false; }
             // If any row is highlighted for editing, clear it when switching to view
             try {
                 table.find('tbody tr.fastcrud-editing').each(function() {
@@ -8881,7 +8930,9 @@ HTML;
                     trEl.removeClass('fastcrud-editing').removeData('fastcrudHadClass');
                 });
             } catch (e) {}
-            showViewPanel(row || {});
+            fetchRowByPk(pk.column, pk.value)
+                .then(function(row){ showViewPanel(row || {}); })
+                .catch(function(err){ showError('Failed to load record: ' + (err && err.message ? err.message : err)); });
             return false;
         });
 
@@ -8906,8 +8957,11 @@ HTML;
                 tr.addClass('fastcrud-editing');
                 if (!alreadyHas) { tr.addClass(editHighlightClass); }
             } catch (e) {}
-            var row = getRowDataFromElement(this);
-            showEditForm(row || {});
+            var pk = getPkInfoFromElement(this);
+            if (!pk) { showError('Unable to determine primary key for editing.'); return false; }
+            fetchRowByPk(pk.column, pk.value)
+                .then(function(row){ showEditForm(row || {}); })
+                .catch(function(err){ showError('Failed to load record: ' + (err && err.message ? err.message : err)); });
             return false;
         });
 
@@ -9094,8 +9148,9 @@ HTML;
         table.on('click', '.fastcrud-delete-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
-            var row = getRowDataFromElement(this);
-            requestDelete(row || {});
+            var pk = getPkInfoFromElement(this);
+            if (!pk) { showError('Unable to determine primary key for deletion.'); return false; }
+            requestDelete({ __fastcrud_primary_key: pk.column, __fastcrud_primary_value: pk.value });
             return false;
         });
 
@@ -9104,8 +9159,9 @@ HTML;
         table.on('click', '.fastcrud-duplicate-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
-            var row = getRowDataFromElement(this) || {};
-            requestDuplicate(row);
+            var pk = getPkInfoFromElement(this);
+            if (!pk) { showError('Unable to determine primary key for duplication.'); return false; }
+            requestDuplicate({ __fastcrud_primary_key: pk.column, __fastcrud_primary_value: pk.value });
             return false;
         });
 
