@@ -3824,11 +3824,8 @@ HTML;
                 );
             }
 
-            $cells[] = '            <td class="text-end fastcrud-actions-cell"><div class="btn-group btn-group-sm" role="group">'
-                . '<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-view-btn">View</button>'
-                . '<button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn">Edit</button>'
-                . '<button type="button" class="btn btn-sm btn-outline-danger fastcrud-delete-btn">Delete</button>'
-                . '</div></td>';
+            // Note: Actions column is generated client-side via buildActionCellHtml().
+            // The server-side fallback action cell has been removed to avoid duplication.
 
             $bodyRows[] = "        <tr>\n" . implode("\n", $cells) . "\n        </tr>";
         }
@@ -3873,7 +3870,8 @@ HTML;
             );
         }
 
-        $cells[] = '            <th scope="col" class="text-end fastcrud-actions fastcrud-actions-header">Actions</th>';
+        // Actions header: keep an empty sticky header cell for alignment
+        $cells[] = '            <th scope="col" class="text-end fastcrud-actions fastcrud-actions-header"></th>';
 
         return implode("\n", $cells);
     }
@@ -6297,57 +6295,8 @@ HTML;
             });
         }
 
-        function buildCustomButton(button, row) {
-            if (!button || !button.action) {
-                return $('<span></span>');
-            }
-
-            var btn = $('<button type="button" class="btn btn-sm fastcrud-custom-btn"></button>');
-            var variantRaw = (button.variant || 'outline-secondary').trim();
-            if (!variantRaw) {
-                variantRaw = 'outline-secondary';
-            }
-
-            var variantTokens;
-            if (/\s/.test(variantRaw)) {
-                variantTokens = variantRaw.split(/\s+/);
-            } else if (variantRaw.indexOf('btn-') === 0) {
-                variantTokens = [variantRaw];
-            } else if (variantRaw.indexOf('outline-') === 0) {
-                variantTokens = ['btn-' + variantRaw];
-            } else {
-                variantTokens = ['btn-outline-' + variantRaw];
-            }
-
-            variantTokens.forEach(function(token) {
-                if (token) {
-                    btn.addClass(token);
-                }
-            });
-            btn.attr('data-action', button.action);
-            btn.data('row', row);
-            btn.data('definition', button);
-
-            if (button.confirm) {
-                btn.attr('data-confirm', button.confirm);
-            }
-
-            var iconRendered = false;
-            if (button.icon) {
-                var icon = $('<i></i>').addClass(button.icon);
-                btn.append(icon);
-                iconRendered = true;
-            }
-
-            if (button.label) {
-                if (iconRendered) {
-                    btn.append(' ');
-                }
-                btn.append(document.createTextNode(button.label));
-            }
-
-            return btn;
-        }
+        // Note: previously had a jQuery-based builder for custom buttons here.
+        // It was unused and removed to reduce dead code.
 
         var actionIcons = {
             view: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
@@ -6356,43 +6305,8 @@ HTML;
             duplicate: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect width="11" height="11" x="9.5" y="9.5" rx="2" ry="2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>'
         };
 
-        function buildActionCell(row) {
-            var actionCell = $('<td class="text-end fastcrud-actions-cell"></td>');
-            var buttonGroup = $('<div class="btn-group btn-group-sm" role="group"></div>');
-
-            var viewButton = $('<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-view-btn"></button>');
-            viewButton.attr('title', 'View');
-            viewButton.attr('aria-label', 'View record');
-            viewButton.html(actionIcons.view);
-            viewButton.data('row', $.extend({}, row));
-            buttonGroup.append(viewButton);
-
-            var editButton = $('<button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn"></button>');
-            editButton.attr('title', 'Edit');
-            editButton.attr('aria-label', 'Edit record');
-            editButton.html(actionIcons.edit);
-            editButton.data('row', $.extend({}, row));
-            buttonGroup.append(editButton);
-
-            var deleteButton = $('<button type="button" class="btn btn-sm btn-outline-danger fastcrud-delete-btn"></button>');
-            deleteButton.attr('title', 'Delete');
-            deleteButton.attr('aria-label', 'Delete record');
-            deleteButton.html(actionIcons.delete);
-            deleteButton.data('row', $.extend({}, row));
-            buttonGroup.append(deleteButton);
-
-            if (duplicateEnabled) {
-                var duplicateButton = $('<button type="button" class="btn btn-sm btn-outline-info fastcrud-duplicate-btn"></button>');
-                duplicateButton.attr('title', 'Duplicate');
-                duplicateButton.attr('aria-label', 'Duplicate record');
-                duplicateButton.html(actionIcons.duplicate);
-                duplicateButton.data('row', $.extend({}, row));
-                buttonGroup.append(duplicateButton);
-            }
-
-            actionCell.append(buttonGroup);
-            return actionCell;
-        }
+        // Note: previously had a jQuery-based builder for the action cell here.
+        // The code now uses `buildActionCellHtml` to generate HTML strings directly.
 
         function triggerSearch() {
             if (!searchInput) {
