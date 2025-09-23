@@ -6667,6 +6667,78 @@ HTML;
             editFieldsContainer.find('.fastcrud-field-feedback').remove();
         }
 
+        function buildJsonErrorMessage(error) {
+            var detail = '';
+            if (error && typeof error.message === 'string') {
+                detail = error.message.replace(/\s+/g, ' ').trim();
+            } else if (typeof error === 'string') {
+                detail = error.replace(/\s+/g, ' ').trim();
+            }
+            return detail ? 'Invalid JSON: ' + detail : 'Invalid JSON.';
+        }
+
+        function setInlineFieldError(input, message) {
+            if (!input) {
+                return;
+            }
+
+            var jqInput = input.jquery ? input : $(input);
+            if (!jqInput.length) {
+                return;
+            }
+
+            var text = String(message || '').trim();
+            if (text === '') {
+                clearInlineFieldError(jqInput);
+                return;
+            }
+
+            var group = jqInput.closest('.mb-3, .form-check');
+            var feedback;
+            if (group.length) {
+                feedback = group.find('.fastcrud-field-feedback').first();
+                if (!feedback.length) {
+                    feedback = $('<div class="invalid-feedback fastcrud-field-feedback" data-fastcrud-inline="1"></div>');
+                    group.append(feedback);
+                }
+            } else {
+                feedback = jqInput.siblings('.fastcrud-field-feedback').first();
+                if (!feedback.length) {
+                    feedback = $('<div class="invalid-feedback fastcrud-field-feedback" data-fastcrud-inline="1"></div>');
+                    jqInput.after(feedback);
+                }
+            }
+
+            feedback.attr('data-fastcrud-inline', '1');
+            feedback.text(text);
+            jqInput.addClass('is-invalid');
+        }
+
+        function clearInlineFieldError(input) {
+            if (!input) {
+                return;
+            }
+
+            var jqInput = input.jquery ? input : $(input);
+            if (!jqInput.length) {
+                return;
+            }
+
+            jqInput.removeClass('is-invalid');
+
+            var group = jqInput.closest('.mb-3, .form-check');
+            var feedback;
+            if (group.length) {
+                feedback = group.find('.fastcrud-field-feedback[data-fastcrud-inline="1"]').first();
+            } else {
+                feedback = jqInput.siblings('.fastcrud-field-feedback[data-fastcrud-inline="1"]').first();
+            }
+
+            if (feedback && feedback.length) {
+                feedback.remove();
+            }
+        }
+
         function applyFieldErrors(errors) {
             clearFieldErrors();
             if (!errors || typeof errors !== 'object') {
@@ -7270,13 +7342,17 @@ HTML;
                         .val(jsonText);
                     // Lightweight live validation for JSON content
                     input.on('input blur', function() {
+                        var el = $(this);
+                        var value = String(el.val() || '').trim();
+                        if (value === '') {
+                            clearInlineFieldError(el);
+                            return;
+                        }
                         try {
-                            var v = String($(this).val() || '').trim();
-                            if (v === '') { $(this).removeClass('is-invalid'); return; }
-                            JSON.parse(v);
-                            $(this).removeClass('is-invalid');
-                        } catch (e) {
-                            $(this).addClass('is-invalid');
+                            JSON.parse(value);
+                            clearInlineFieldError(el);
+                        } catch (jsonError) {
+                            setInlineFieldError(el, buildJsonErrorMessage(jsonError));
                         }
                     });
                     dataType = 'json';
@@ -8454,20 +8530,24 @@ HTML;
                         if (rawValue === null || typeof rawValue === 'undefined') {
                             valueForField = null;
                             lengthForValidation = 0;
+                            clearInlineFieldError(input);
                         } else {
                             var jsonCandidate = String(rawValue).trim();
                             if (jsonCandidate === '') {
                                 valueForField = null;
                                 lengthForValidation = 0;
+                                clearInlineFieldError(input);
                             } else {
                                 try {
                                     JSON.parse(jsonCandidate);
                                     valueForField = jsonCandidate; // keep user formatting
                                     lengthForValidation = jsonCandidate.length;
+                                    clearInlineFieldError(input);
                                 } catch (e) {
                                     validationPassed = false;
-                                    fieldErrors[column] = 'Invalid JSON.';
-                                    input.addClass('is-invalid');
+                                    var message = buildJsonErrorMessage(e);
+                                    fieldErrors[column] = message;
+                                    setInlineFieldError(input, message);
                                     valueForField = jsonCandidate;
                                     lengthForValidation = jsonCandidate.length;
                                 }
