@@ -3539,8 +3539,12 @@ SQL;
             $changeType = 'checkbox';
         } elseif ($normalizedType !== '' && preg_match('/\b(bool|boolean)\b/', $normalizedType)) {
             $changeType = 'checkbox';
-        } elseif ($normalizedType !== '' && (str_contains($normalizedType, 'text') || in_array($normalizedType, ['json', 'jsonb', 'xml'], true))) {
-            $changeType = 'textarea';
+        } elseif ($normalizedType !== '') {
+            if (in_array($normalizedType, ['json', 'jsonb'], true)) {
+                $changeType = 'json';
+            } elseif (str_contains($normalizedType, 'text') || $normalizedType === 'xml') {
+                $changeType = 'textarea';
+            }
         } elseif ($normalizedType === 'date') {
             $changeType = 'date';
         } elseif ($normalizedType !== '' && (str_contains($normalizedType, 'timestamp') || str_contains($normalizedType, 'datetime'))) {
@@ -7241,6 +7245,41 @@ HTML;
                     if (!$.isEmptyObject(editorConfig)) {
                         input.data('fastcrudEditorConfig', editorConfig);
                     }
+                } else if (changeType === 'json') {
+                    // JSON editor: textarea with optional pretty-print and live validation
+                    var jsonText = '';
+                    try {
+                        var s = (normalizedValue === null || typeof normalizedValue === 'undefined') ? '' : String(normalizedValue);
+                        var t = s.trim();
+                        if (t.length) {
+                            var parsed = JSON.parse(t);
+                            if (params.pretty === false) {
+                                jsonText = t;
+                            } else {
+                                jsonText = JSON.stringify(parsed, null, 2);
+                            }
+                        } else {
+                            jsonText = '';
+                        }
+                    } catch (e) {
+                        jsonText = String(normalizedValue || '');
+                    }
+                    input = $('<textarea class="form-control fastcrud-json" style="font-family: monospace;"></textarea>')
+                        .attr('id', fieldId)
+                        .attr('rows', params.rows && Number(params.rows) > 0 ? Number(params.rows) : 6)
+                        .val(jsonText);
+                    // Lightweight live validation for JSON content
+                    input.on('input blur', function() {
+                        try {
+                            var v = String($(this).val() || '').trim();
+                            if (v === '') { $(this).removeClass('is-invalid'); return; }
+                            JSON.parse(v);
+                            $(this).removeClass('is-invalid');
+                        } catch (e) {
+                            $(this).addClass('is-invalid');
+                        }
+                    });
+                    dataType = 'json';
                 } else if (changeType === 'select') {
                     input = $('<select class="form-select"></select>').attr('id', fieldId);
                     var optionMap = params.values || params.options || {};
@@ -8271,6 +8310,15 @@ HTML;
                         var swatch = $('<span></span>')
                             .css({ display: 'inline-block', width: '14px', height: '14px', verticalAlign: 'middle', border: '1px solid rgba(0,0,0,.2)', backgroundColor: c });
                         valueElem.empty().append(swatch).append(' ').append(document.createTextNode(String(displayValue)));
+                    } else if (changeType === 'json') {
+                        var txt = String(value || '').trim();
+                        if (!txt) {
+                            valueElem.text('N/A');
+                        } else {
+                            try { txt = JSON.stringify(JSON.parse(txt), null, 2); } catch (e) {}
+                            var pre = $('<pre class="mb-0 text-break"></pre>').text(txt);
+                            valueElem.empty().append(pre);
+                        }
                     } else {
                         valueElem.text(displayValue);
                     }
@@ -8401,6 +8449,30 @@ HTML;
                         });
                         lengthForValidation = trimmedValues.length;
                         valueForField = trimmedValues.length ? trimmedValues.join(',') : null;
+                    } else if (type === 'json') {
+                        rawValue = input.val();
+                        if (rawValue === null || typeof rawValue === 'undefined') {
+                            valueForField = null;
+                            lengthForValidation = 0;
+                        } else {
+                            var jsonCandidate = String(rawValue).trim();
+                            if (jsonCandidate === '') {
+                                valueForField = null;
+                                lengthForValidation = 0;
+                            } else {
+                                try {
+                                    JSON.parse(jsonCandidate);
+                                    valueForField = jsonCandidate; // keep user formatting
+                                    lengthForValidation = jsonCandidate.length;
+                                } catch (e) {
+                                    validationPassed = false;
+                                    fieldErrors[column] = 'Invalid JSON.';
+                                    input.addClass('is-invalid');
+                                    valueForField = jsonCandidate;
+                                    lengthForValidation = jsonCandidate.length;
+                                }
+                            }
+                        }
                     } else {
                         rawValue = input.val();
                         if (rawValue === null || typeof rawValue === 'undefined') {

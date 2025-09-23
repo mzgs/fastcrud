@@ -73,7 +73,7 @@ Crud::init([
                     // ->join('user_id', 'users', 'id','user')
                     // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
                     ->columns('user_id,title,is_featured,content,image,color,file')
-                    ->fields('user_id,title,is_featured,image,gallery_images,file,color,content,created_at', false, 'Post Details' )
+                    ->fields('user_id,title,is_featured,json_field,image,gallery_images,file,color,content,created_at', false, 'Post Details' )
                     ->fields('slug', false, 'Post Summary' )
                     // ->fields('slug,content',false,'Content' )
                     ->change_type('file', 'files')
@@ -86,6 +86,7 @@ Crud::init([
                 //   ->pass_default('file','default.txt')
                     ->search_columns('title,content', 'title')
                     ->validation_required('slug')
+                    ->change_type('json_field', 'json', '', ['rows' => 8])
                     
                     ->set_column_labels([
                         'user_id'    => 'Author',
@@ -125,42 +126,7 @@ Crud::init([
             </div>
 
             
-            <div class="col">
-                <div class="text-center mb-4">
-                    <h1 class="display-5">FastCRUD Demo</h1>
-                    <p class="lead">Dynamically rendered records for the configured table.</p>
-                </div>
-                <?php
-                $usersCrud = new Crud('users');
-                $usersCrud
-                    ->limit_list('5,10,25')
-                    
-                    ->order_by('role', 'asc')
-                    ->order_by('id', 'desc')
-                    ->search_columns('name,email', 'name')
-                    ->set_column_labels([
-                        'name'  => 'Name',
-                        'email' => 'Email Address',
-                        'role'  => 'Role',
-                    ])
-                    ->column_callback('role', 'fc_render_user_role')
-                    ->column_width('email', '30%')
-                    ->highlight('role', ['operator' => 'equals', 'value' => 'admin'], 'fw-semibold text-danger')
-                    ->highlight_row(['column' => 'role', 'operator' => 'equals', 'value' => 'admin'], 'table-warning')
-                    ->table_name('User Directory')
-                    ->table_tooltip('Core application users')
-                    ->table_icon('bi bi-people')
-                    ->column_summary('id', 'count', 'Total Users');
-                ?>
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-primary text-white">
-                        Users Table Preview
-                    </div>
-                    <div class="card-body">
-                        <?= $usersCrud->render(); ?>
-                    </div>
-                </div>
-            </div>
+             
 
            
         </div>

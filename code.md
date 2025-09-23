@@ -48,6 +48,7 @@ $.ajax({
   - Stores the saved filename in the DB (hidden input mirrors FilePond state).
   - Accept attribute can be customized via params: `->change_type('my_column', 'file', '', ['accept' => 'application/pdf,.docx'])`.
   - Server action `upload_filepond` supports both images and generic files. Images are validated against image extensions; generic files block executable/script extensions by default.
+ - `change_type('json')` renders a textarea optimized for JSON with live validation and optional pretty-print. Parameters: `['rows' => 6, 'pretty' => true]`.
 
 ## HTML Escaping Pattern
 ```php
