@@ -2747,12 +2747,15 @@ class Crud
                     continue;
                 }
 
-                if (
-                    strpos($field, '.') === false &&
-                    strpos($field, '(') === false &&
-                    strpos($field, ' ') === false
-                ) {
-                    $field = 'main.' . $field;
+                // Build a safe SQL expression for ORDER BY
+                // Support alias__column notation and quote identifiers when applicable.
+                $expr = $this->denormalizeColumnReference($normalized);
+                $isExpression = (str_contains($expr, ' ') || str_contains($expr, '(') || str_contains($expr, ')'));
+                if (!$isExpression) {
+                    if (strpos($expr, '.') === false) {
+                        $expr = 'main.' . $expr;
+                    }
+                    $expr = $this->quoteQualifiedIdentifier($expr);
                 }
 
                 $dir = strtoupper((string) $order['direction']);
@@ -2760,7 +2763,7 @@ class Crud
                     $dir = 'ASC';
                 }
 
-                $orderParts[] = $field . ' ' . $dir;
+                $orderParts[] = $expr . ' ' . $dir;
             }
 
             if ($orderParts !== []) {
@@ -2818,7 +2821,11 @@ class Crud
      */
     private function buildCountQuery(?string $searchTerm = null, ?string $searchColumn = null): array
     {
-        $sql = sprintf('SELECT COUNT(*) FROM %s', $this->buildFromClause());
+        // Use COUNT(DISTINCT main.pk) when joins are present to avoid overcounting
+        $useDistinct = $this->config['joins'] !== [];
+        $pkExpr = $this->quoteQualifiedIdentifier('main.' . $this->getPrimaryKeyColumn());
+        $countExpr = $useDistinct ? ('COUNT(DISTINCT ' . $pkExpr . ')') : 'COUNT(*)';
+        $sql = sprintf('SELECT %s FROM %s', $countExpr, $this->buildFromClause());
 
         $joins = $this->buildJoinClauses();
         if ($joins !== '') {
@@ -6861,88 +6868,116 @@ HTML;
             return item;
         }
 
+        // Helper functions for batched row rendering
+        function escapeHtml(value) {
+            var s = (value === null || typeof value === 'undefined') ? '' : String(value);
+            return s
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function deriveWidthAttr(widthValue) {
+            var w = String(widthValue || '').trim();
+            if (!w) { return { style: '', className: '' }; }
+            var lower = w.toLowerCase();
+            var units = ['px','rem','em','%','vw','vh'];
+            var isStyle = lower.indexOf('calc(') !== -1;
+            if (!isStyle) {
+                for (var i = 0; i < units.length; i++) { if (lower.endsWith(units[i])) { isStyle = true; break; } }
+            }
+            if (isStyle) { return { style: 'width: ' + escapeHtml(w) + ';', className: '' }; }
+            return { style: '', className: escapeHtml(w) };
+        }
+
+        function buildActionCellHtml(row) {
+            var json = escapeHtml(JSON.stringify(row || {}));
+            var html = '<td class="text-end fastcrud-actions-cell"><div class="btn-group btn-group-sm" role="group">';
+            html += '<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-view-btn" title="View" aria-label="View record" data-row-json="' + json + '">' + actionIcons.view + '</button>';
+            html += '<button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn" title="Edit" aria-label="Edit record" data-row-json="' + json + '">' + actionIcons.edit + '</button>';
+            html += '<button type="button" class="btn btn-sm btn-outline-danger fastcrud-delete-btn" title="Delete" aria-label="Delete record" data-row-json="' + json + '">' + actionIcons.delete + '</button>';
+            if (duplicateEnabled) {
+                html += '<button type="button" class="btn btn-sm btn-outline-info fastcrud-duplicate-btn" title="Duplicate" aria-label="Duplicate record" data-row-json="' + json + '">' + actionIcons.duplicate + '</button>';
+            }
+            html += '</div></td>';
+            return html;
+        }
+
         function populateTableRows(rows) {
             var tbody = table.find('tbody');
-            tbody.empty();
             var totalColumns = table.find('thead th').length || 1;
 
             if (!rows || rows.length === 0) {
+                tbody.html('');
                 showEmptyRow(totalColumns, 'No records found.');
                 return;
             }
 
-            $.each(rows, function(rowIndex, row) {
+            var html = '';
+            $.each(rows, function(_, row) {
                 var rowMeta = row.__fastcrud || {};
                 var cellsMeta = rowMeta.cells || {};
                 var rawValues = rowMeta.raw || {};
                 var rowData = $.extend({}, row);
                 delete rowData.__fastcrud;
-                if (rowData.__fastcrud_raw) {
-                    delete rowData.__fastcrud_raw;
-                }
-
+                if (rowData.__fastcrud_raw) { delete rowData.__fastcrud_raw; }
                 if (rawValues && typeof rawValues === 'object') {
                     Object.keys(rawValues).forEach(function(key) {
                         var rawValue = rawValues[key];
-                        if (typeof rawValue !== 'undefined') {
-                            rowData[key] = rawValue;
-                        }
+                        if (typeof rawValue !== 'undefined') { rowData[key] = rawValue; }
                     });
                 }
 
-                var tableRow = $('<tr></tr>');
-                if (rowMeta.row_class) {
-                    tableRow.addClass(rowMeta.row_class);
-                }
-
+                var rowClass = rowMeta.row_class ? ' class="' + escapeHtml(rowMeta.row_class) + '"' : '';
+                var cells = '';
                 $.each(columnsCache, function(colIndex, column) {
                     var cellMeta = cellsMeta[column] || {};
-                    var cell = $('<td></td>');
                     var displayValue;
-
                     if (typeof cellMeta.display !== 'undefined') {
                         displayValue = cellMeta.display;
                     } else {
                         var rawValue = row[column];
-                        if (rawValue === null || typeof rawValue === 'undefined') {
-                            displayValue = '';
-                        } else {
-                            displayValue = rawValue;
-                        }
+                        displayValue = (rawValue === null || typeof rawValue === 'undefined') ? '' : rawValue;
                     }
 
-                    if (cellMeta.class) {
-                        cell.addClass(cellMeta.class);
-                    } else if (columnClasses[column]) {
-                        cell.addClass(columnClasses[column]);
-                    }
+                    var cls = cellMeta.class ? String(cellMeta.class) : (columnClasses[column] || '');
+                    var widthValue = (cellMeta.width || columnWidths[column]);
+                    var widthAttr = deriveWidthAttr(widthValue);
+                    var classParts = [];
+                    if (cls) { classParts.push(escapeHtml(cls)); }
+                    if (widthAttr.className) { classParts.push(widthAttr.className); }
+                    var classAttr = classParts.length ? (' class="' + classParts.join(' ') + '"') : '';
+                    var styleAttr = widthAttr.style ? (' style="' + widthAttr.style + '"') : '';
 
-                    applyWidthToElement(cell, (cellMeta.width || columnWidths[column]));
-
+                    var attrs = '';
                     if (cellMeta.tooltip) {
-                        cell.attr('title', cellMeta.tooltip).attr('data-bs-toggle', 'tooltip');
+                        attrs += ' title="' + escapeHtml(cellMeta.tooltip) + '" data-bs-toggle="tooltip"';
                     }
-
                     if (cellMeta.attributes && typeof cellMeta.attributes === 'object') {
                         $.each(cellMeta.attributes, function(attrKey, attrValue) {
-                            cell.attr(attrKey, attrValue);
+                            var k = String(attrKey);
+                            var v = (attrValue === null || typeof attrValue === 'undefined') ? '' : String(attrValue);
+                            attrs += ' ' + escapeHtml(k) + '="' + escapeHtml(v) + '"';
                         });
                     }
 
+                    var inner = '';
                     if (cellMeta.html) {
-                        cell.html(cellMeta.html);
+                        inner = String(cellMeta.html);
                     } else {
-                        cell.text(displayValue);
+                        inner = escapeHtml(displayValue);
                     }
 
-
-                    tableRow.append(cell);
+                    cells += '<td' + classAttr + styleAttr + attrs + '>' + inner + '</td>';
                 });
 
-                var actionCell = buildActionCell(rowData);
-                tableRow.append(actionCell);
-                tbody.append(tableRow);
+                cells += buildActionCellHtml(rowData);
+                html += '<tr' + rowClass + '>' + cells + '</tr>';
             });
+
+            tbody.html(html);
         }
 
         function loadTableData(page) {
@@ -6951,10 +6986,7 @@ HTML;
             var tbody = table.find('tbody');
             var totalColumns = table.find('thead th').length || 1;
 
-            tbody.fadeOut(100, function() {
-                tbody.html('<tr><td colspan="' + totalColumns + '" class="text-center"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div> Loading...</td></tr>');
-                tbody.fadeIn(100);
-            });
+            tbody.html('<tr><td colspan="' + totalColumns + '" class="text-center"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div> Loading...</td></tr>');
 
             var payload = {
                 fastcrud_ajax: '1',
@@ -6986,12 +7018,8 @@ HTML;
                             primaryKeyColumn = findPrimaryKey(columnsCache);
                         }
 
-                        tbody.fadeOut(100, function() {
-                            populateTableRows(response.data || []);
-                            tbody.fadeIn(100, function() {
-                                refreshTooltips();
-                            });
-                        });
+                        populateTableRows(response.data || []);
+                        refreshTooltips();
 
                         renderSummaries(metaConfig.summaries || []);
 
@@ -8474,10 +8502,25 @@ HTML;
             return false;
         }
 
+        function getRowDataFromElement(el) {
+            var jqEl = $(el);
+            var row = jqEl.data('row');
+            if (row && typeof row === 'object') { return row; }
+            var json = jqEl.attr('data-row-json');
+            if (json) {
+                try {
+                    row = JSON.parse(json);
+                    jqEl.data('row', row);
+                    return row;
+                } catch (e) {}
+            }
+            return row || {};
+        }
+
         table.on('click', '.fastcrud-view-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
-            var row = $(this).data('row');
+            var row = getRowDataFromElement(this);
             showViewPanel(row || {});
             return false;
         });
@@ -8485,7 +8528,7 @@ HTML;
         table.on('click', '.fastcrud-edit-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
-            var row = $(this).data('row');
+            var row = getRowDataFromElement(this);
             showEditForm(row || {});
             return false;
         });
@@ -8610,7 +8653,7 @@ HTML;
         table.on('click', '.fastcrud-delete-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
-            var row = $(this).data('row');
+            var row = getRowDataFromElement(this);
             requestDelete(row || {});
             return false;
         });
@@ -8624,7 +8667,7 @@ HTML;
                 return false;
             }
 
-            var row = button.data('row') || {};
+            var row = getRowDataFromElement(button);
             var payload = {
                 tableId: tableId,
                 action: button.attr('data-action'),
@@ -8639,7 +8682,7 @@ HTML;
         table.on('click', '.fastcrud-duplicate-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
-            var row = $(this).data('row') || {};
+            var row = getRowDataFromElement(this) || {};
             table.trigger('fastcrud:duplicate', {
                 tableId: tableId,
                 row: row
