@@ -1983,10 +1983,36 @@ class Crud
     }
 
     /**
-     * @param string|array<int, string> $fields
+     * @param string|array<int, string>|array<string, string> $fields
      */
     public function order_by(string|array $fields, string $direction = 'asc'): self
     {
+        // Support associative arrays: ['status' => 'asc', 'name' => 'desc']
+        if (is_array($fields) && $this->isAssociativeArray($fields)) {
+            if ($fields === []) {
+                throw new InvalidArgumentException('Order by field cannot be empty.');
+            }
+
+            foreach ($fields as $field => $dir) {
+                if (!is_string($field)) {
+                    continue;
+                }
+
+                $dir = strtoupper(trim((string) $dir));
+                if (!in_array($dir, ['ASC', 'DESC'], true)) {
+                    throw new InvalidArgumentException('Order direction must be ASC or DESC.');
+                }
+
+                $this->config['order_by'][] = [
+                    'field'     => $field,
+                    'direction' => $dir,
+                ];
+            }
+
+            return $this;
+        }
+
+        // Fallback: list of fields or single field with one direction
         $list = $this->normalizeList($fields);
         if ($list === []) {
             throw new InvalidArgumentException('Order by field cannot be empty.');

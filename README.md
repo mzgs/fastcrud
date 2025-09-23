@@ -100,7 +100,12 @@ echo $posts->render();
 
 ```php
 $users = new Crud('users');
+// Single field + direction
 $users->order_by('created_at', 'desc');
+
+// Multiple fields with per-field directions
+$users->order_by(['status' => 'asc', 'name' => 'asc']);
+
 echo $users->render();
 ```
 
