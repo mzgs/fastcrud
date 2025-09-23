@@ -89,6 +89,7 @@ Crud::init([
                     ->search_columns('title,content', 'title')
                     ->validation_required('slug')
                     ->change_type('json_field', 'json', '', ['rows' => 8])
+                    ->inline_edit('title,color')
                     
                     ->set_column_labels([
                         'user_id'    => 'Author',

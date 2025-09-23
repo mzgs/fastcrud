@@ -73,6 +73,7 @@ class Crud
         'column_cuts' => [],
         'column_highlights' => [],
         'row_highlights' => [],
+        'inline_edit' => [],
         'table_meta' => [
             'name'    => null,
             'tooltip' => null,
@@ -191,6 +192,25 @@ class Crud
     public function setPanelWidth(string $width): self
     {
         $this->config['panel_width'] = $width;
+        return $this;
+    }
+
+    /**
+     * Enable inline edit for the given fields (excluding boolean switches which are always inline).
+     *
+     * @param string|array<int, string> $fields
+     */
+    public function inline_edit(string|array $fields): self
+    {
+        $list = $this->normalizeList($fields);
+        $map = [];
+        foreach ($list as $field) {
+            $normalized = $this->normalizeColumnReference($field);
+            if ($normalized !== '') {
+                $map[$normalized] = true;
+            }
+        }
+        $this->config['inline_edit'] = $map;
         return $this;
     }
 
@@ -4170,6 +4190,8 @@ HTML;
             ? $tableMeta['name']
             : $this->makeTitle($this->table);
 
+        $inline = array_values(array_keys(array_filter($this->config['inline_edit'] ?? [], static fn($v) => (bool) $v)));
+
         return [
             'table' => [
                 'key'       => $this->table,
@@ -4204,6 +4226,7 @@ HTML;
                 }
             )),
             'form' => $this->buildFormMeta($columns),
+            'inline_edit' => $inline,
         ];
     }
 
@@ -4477,6 +4500,8 @@ HTML;
         $formConfig['all_columns'] = $allColumns;
         $this->config['form']['all_columns'] = $allColumns;
 
+        $inline = array_values(array_keys(array_filter($this->config['inline_edit'] ?? [], static fn($v) => (bool) $v)));
+
         return [
             'per_page'       => $this->perPage,
             'where'          => $this->config['where'],
@@ -4505,6 +4530,7 @@ HTML;
             'field_labels'      => $this->config['field_labels'],
             'primary_key'       => $this->primaryKeyColumn,
             'form'              => $formConfig,
+            'inline_edit'       => $inline,
             'rich_editor'       => [
                 'upload_path' => CrudConfig::getUploadPath(),
             ],
@@ -5459,11 +5485,14 @@ HTML;
 
         return <<<SCRIPT
 <script>
-(function($) {
-    $(document).ready(function() {
+(function() {
+    try { if (window.console && console.log) console.log('FastCrud bootstrap script running'); } catch (e) {}
+    function FastCrudInit($) {
+        $(document).ready(function() {
         var tableId = '$id';
         var editHighlightClass = '$editRowClass';
         var table = $('#' + tableId);
+        try { if (window.console && console.log) console.log('FastCrud init for table', tableId); } catch (e) {}
         var tableName = table.data('table');
         var perPage = parseInt(table.data('per-page'), 10);
         if (isNaN(perPage) || perPage < 1) {
@@ -5497,6 +5526,7 @@ HTML;
         var orderBy = [];
         var duplicateEnabled = false;
         var sortDisabled = {};
+        var inlineEditFields = {};
         var formConfig = {
             layouts: {},
             default_tabs: {},
@@ -5982,6 +6012,18 @@ HTML;
                 };
                 delete clientConfig.form;
             }
+
+            // Inline edit fields (fallback to client config if meta missing/empty)
+            inlineEditFields = {};
+            var inlineArr = Array.isArray(meta.inline_edit) ? meta.inline_edit : [];
+            if (!inlineArr.length && Array.isArray(clientConfig.inline_edit)) {
+                inlineArr = clientConfig.inline_edit;
+            }
+            if (!Array.isArray(clientConfig.inline_edit) || clientConfig.inline_edit.length === 0) {
+                clientConfig.inline_edit = inlineArr.slice();
+            }
+            inlineArr.forEach(function(f){ if (f) { inlineEditFields[String(f)] = true; } });
+            try { if (window.console && console.log) console.log('FastCrud inline_edit fields:', Object.keys(inlineEditFields)); } catch (e) {}
 
             if (Array.isArray(formConfig.all_columns) && formConfig.all_columns.length) {
                 baseColumns = formConfig.all_columns.slice();
@@ -7224,8 +7266,22 @@ HTML;
                     var classParts = [];
                     if (cls) { classParts.push(escapeHtml(cls)); }
                     if (widthAttr.className) { classParts.push(widthAttr.className); }
+                    // Hint inline-editable cells for UX and easier debugging
+                    try {
+                        var baseKey = String(column).indexOf('__') !== -1 ? String(column).split('__').pop() : String(column);
+                        if (inlineEditFields[String(column)] || inlineEditFields[String(baseKey)]) {
+                            classParts.push('fastcrud-inline-cell');
+                        }
+                    } catch (e) {}
                     var classAttr = classParts.length ? (' class="' + classParts.join(' ') + '"') : '';
-                    var styleAttr = widthAttr.style ? (' style="' + widthAttr.style + '"') : '';
+                    var styleEnhance = '';
+                    try {
+                        var baseKey2 = String(column).indexOf('__') !== -1 ? String(column).split('__').pop() : String(column);
+                        if (inlineEditFields[String(column)] || inlineEditFields[String(baseKey2)]) {
+                            styleEnhance = 'cursor: text;';
+                        }
+                    } catch (e) {}
+                    var styleAttr = (widthAttr.style || styleEnhance) ? (' style="' + (widthAttr.style ? widthAttr.style + (styleEnhance ? ' ' + styleEnhance : '') : styleEnhance) + '"') : '';
 
                     var attrs = '';
                     if (cellMeta.tooltip) {
@@ -7246,18 +7302,26 @@ HTML;
                         inner = escapeHtml(displayValue);
                     }
 
-                    cells += '<td' + classAttr + styleAttr + attrs + '>' + inner + '</td>';
+                    cells += '<td data-fastcrud-column="' + escapeHtml(String(column)) + '"' + classAttr + styleAttr + attrs + '>' + inner + '</td>';
                 });
 
                 cells += buildActionCellHtml();
-                var trAttrs = '';
+                var trAttrList = [];
+                if (rowMeta.row_class) {
+                    trAttrList.push('class="' + escapeHtml(String(rowMeta.row_class)) + '"');
+                } else if (rowClass) {
+                    // In case rowClass already built, parse its value
+                    var m = rowClass.match(/class=\"([^\"]*)\"/);
+                    if (m && m[1]) { trAttrList.push('class="' + m[1] + '"'); }
+                }
                 if (rowPrimaryKeyColumn) {
-                    trAttrs += ' data-fastcrud-pk="' + escapeHtml(String(rowPrimaryKeyColumn)) + '"';
+                    trAttrList.push('data-fastcrud-pk="' + escapeHtml(String(rowPrimaryKeyColumn)) + '"');
                 }
                 if (typeof primaryValue !== 'undefined') {
-                    trAttrs += ' data-fastcrud-pk-value="' + escapeHtml(String(primaryValue)) + '"';
+                    trAttrList.push('data-fastcrud-pk-value="' + escapeHtml(String(primaryValue)) + '"');
                 }
-                html += '<tr' + rowClass + trAttrs + '>' + cells + '</tr>';
+                var trAttrString = trAttrList.length ? (' ' + trAttrList.join(' ')) : '';
+                html += '<tr' + trAttrString + '>' + cells + '</tr>';
             });
 
             tbody.html(html);
@@ -8916,6 +8980,194 @@ HTML;
             });
         }
 
+        // Inline edit core
+        function startInlineEdit(td) {
+            var cell = $(td);
+            var column = String(cell.attr('data-fastcrud-column') || '');
+            var baseKey = column.indexOf('__') !== -1 ? column.split('__').pop() : column;
+            if (!column || (!inlineEditFields[column] && !inlineEditFields[baseKey])) {
+                try { if (window.console && console.log) console.log('FastCrud inline skip: not enabled for', column); } catch (e) {}
+                return;
+            }
+            if (cell.closest('td').hasClass('fastcrud-actions-cell')) { return; }
+            if (cell.find('input.fastcrud-bool-view').length) { return; }
+            if (cell.data('fastcrudEditing')) { return; }
+
+            var pk = getPkInfoFromElement(cell);
+            if (!pk) { try { if (window.console && console.log) console.log('FastCrud inline skip: missing PK', cell.get(0)); } catch (e) {} return; }
+
+            cell.data('fastcrudEditing', true);
+            var originalHtml = cell.html();
+            cell.empty();
+            var wrapper = $('<div class="fastcrud-inline-editor"></div>');
+            var input = null;
+
+            // Try to pick a better editor based on behaviours
+            var fieldKey = inlineEditFields[column] ? column : baseKey;
+            var behaviours = resolveBehavioursForField(fieldKey, 'edit');
+            var changeMeta = behaviours && behaviours.change_type ? behaviours.change_type : {};
+            var changeType = String((changeMeta && changeMeta.type) || 'text').toLowerCase();
+            var params = (changeMeta && changeMeta.params && typeof changeMeta.params === 'object') ? changeMeta.params : {};
+
+            if (changeType === 'number') {
+                input = $('<input type="number" class="form-control form-control-sm fastcrud-inline-input" />');
+            } else if (changeType === 'email') {
+                input = $('<input type="email" class="form-control form-control-sm fastcrud-inline-input" />');
+            } else if (changeType === 'date') {
+                input = $('<input type="date" class="form-control form-control-sm fastcrud-inline-input" />');
+            } else if (changeType === 'datetime' || changeType === 'datetime-local') {
+                input = $('<input type="datetime-local" class="form-control form-control-sm fastcrud-inline-input" />');
+            } else if (changeType === 'time') {
+                input = $('<input type="time" class="form-control form-control-sm fastcrud-inline-input" />');
+            } else if (changeType === 'color') {
+                input = $('<input type="color" class="form-control form-control-color form-control-sm fastcrud-inline-input" />');
+            } else if (changeType === 'select' || changeType === 'multiselect') {
+                input = $('<select class="form-select form-select-sm fastcrud-inline-input" ' + (changeType === 'multiselect' ? 'multiple' : '') + '></select>');
+                var optionMap = params.values || params.options || {};
+                var optionsList = [];
+                if ($.isArray(optionMap)) {
+                    optionMap.forEach(function(optionValue) {
+                        optionsList.push({ value: optionValue, label: optionValue });
+                    });
+                } else if (typeof optionMap === 'object') {
+                    Object.keys(optionMap).forEach(function(key) {
+                        optionsList.push({ value: key, label: optionMap[key] });
+                    });
+                }
+                if (params.placeholder && changeType !== 'multiselect') {
+                    input.append($('<option value=""></option>').text(String(params.placeholder)));
+                }
+                optionsList.forEach(function(option) {
+                    input.append($('<option></option>').attr('value', option.value).text(option.label));
+                });
+            } else {
+                input = $('<input type="text" class="form-control form-control-sm fastcrud-inline-input" />');
+            }
+
+            wrapper.append(input);
+            cell.append(wrapper);
+
+            function restore() {
+                cell.data('fastcrudEditing', false);
+                cell.html(originalHtml);
+            }
+
+            function ensureColor(value) {
+                var s = String(value || '').trim();
+                if (!s) { return '#000000'; }
+                var hex6 = /^#([0-9a-fA-F]{6})$/;
+                if (hex6.test(s)) { return s; }
+                // accept without #
+                if (/^([0-9a-fA-F]{6})$/.test(s)) { return '#' + s; }
+                return '#000000';
+            }
+
+            fetchRowByPk(pk.column, pk.value).then(function(row){
+                var startValue = row && Object.prototype.hasOwnProperty.call(row, fieldKey) ? (row[fieldKey] == null ? '' : String(row[fieldKey])) : '';
+                if (changeType === 'color') {
+                    input.val(ensureColor(startValue)).focus();
+                } else if (input.is('select')) {
+                    if (input.prop('multiple')) {
+                        var parts = String(startValue).split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s.length; });
+                        input.val(parts);
+                    } else {
+                        input.val(startValue);
+                    }
+                    input.focus();
+                } else {
+                    input.val(startValue).focus().select();
+                }
+            }).catch(function(){
+                // If fetch fails, allow editing current display text
+                var current = cell.text();
+                if (changeType === 'color') {
+                    input.val(ensureColor(current)).focus();
+                } else if (input.is('select')) {
+                    input.val(current).focus();
+                } else {
+                    input.val(current).focus().select();
+                }
+            });
+
+            var committing = false;
+            function commit() {
+                if (committing) return;
+                committing = true;
+                var newValue;
+                if (input.is('select') && input.prop('multiple')) {
+                    var arr = input.val() || [];
+                    if (!Array.isArray(arr)) { arr = [arr]; }
+                    newValue = arr.join(',');
+                } else {
+                    newValue = String(input.val() || '');
+                }
+                var payload = {};
+                payload[fieldKey] = newValue;
+                $.ajax({
+                    url: window.location.pathname,
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        fastcrud_ajax: '1',
+                        action: 'update',
+                        table: tableName,
+                        id: tableId,
+                        primary_key_column: pk.column,
+                        primary_key_value: pk.value,
+                        fields: JSON.stringify(payload),
+                        config: JSON.stringify(clientConfig)
+                    },
+                    success: function(response) {
+                        if (response && response.success) {
+                            try {
+                                var key = rowCacheKey(pk.column, String(pk.value));
+                                if (response.row) { rowCache[key] = response.row; } else if (rowCache[key]) { delete rowCache[key]; }
+                            } catch (e) {}
+                            loadTableData(currentPage);
+                        } else {
+                            var message = response && response.error ? response.error : 'Failed to update value.';
+                            window.alert(message);
+                            restore();
+                        }
+                    },
+                    error: function(_, __, error) {
+                        window.alert('Failed to update value: ' + error);
+                        restore();
+                    }
+                });
+            }
+
+            input.on('keydown', function(e){
+                if (e.key === 'Enter') { e.preventDefault(); commit(); }
+                else if (e.key === 'Escape') { e.preventDefault(); restore(); }
+            });
+            if (changeType === 'color') {
+                input.on('change', function(){ commit(); });
+                input.on('blur', function(){ commit(); });
+            } else if (input.is('select')) {
+                input.on('change', function(){ commit(); });
+                input.on('blur', function(){ commit(); });
+            } else {
+                input.on('blur', function(){ commit(); });
+            }
+        }
+
+        table.on('click', 'tbody td[data-fastcrud-column]', function(event) {
+            // Ignore clicks on interactive elements inside the cell
+            var target = $(event.target);
+            if (target.is('a,button,input,select,textarea') || target.closest('.btn, .dropdown, .fastcrud-actions-cell').length) {
+                return;
+            }
+            try { if (window.console && console.log) console.log('FastCrud inline click on', $(this).attr('data-fastcrud-column')); } catch (e) {}
+            startInlineEdit(this);
+        });
+
+        // Allow double-click to force inline edit even if content is nested (e.g., inside <strong>)
+        table.on('dblclick', 'tbody td[data-fastcrud-column]', function(event) {
+            startInlineEdit(this);
+            event.preventDefault();
+        });
+
         table.on('click', '.fastcrud-view-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
@@ -9211,9 +9463,28 @@ HTML;
         };
 
         loadTableData(1);
-    });
-})(jQuery);
+        });
+    }
+    (function __fastcrud_wait() {
+        if (window.jQuery) {
+            try { FastCrudInit(window.jQuery); } catch (e) { try { if (window.console && console.error) console.error('FastCrud init error', e); } catch (e2) {} }
+        } else {
+            setTimeout(__fastcrud_wait, 50);
+        }
+    })();
+})();
 </script>
 SCRIPT;
     }
 }
+        if (isset($payload['inline_edit'])) {
+            $fields = $this->normalizeList($payload['inline_edit']);
+            $map = [];
+            foreach ($fields as $field) {
+                $normalized = $this->normalizeColumnReference($field);
+                if ($normalized !== '') {
+                    $map[$normalized] = true;
+                }
+            }
+            $this->config['inline_edit'] = $map;
+        }
