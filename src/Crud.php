@@ -7135,16 +7135,15 @@ HTML;
             return { style: '', className: escapeHtml(w) };
         }
 
-        function buildActionCellHtml(row) {
-            var json = escapeHtml(JSON.stringify(row || {}));
+        function buildActionCellHtml() {
             var html = '<td class="text-end fastcrud-actions-cell"><div class="btn-group btn-group-sm" role="group">';
             if (duplicateEnabled) {
                 // Place duplicate button to the left of other action buttons
-                html += '<button type="button" class="btn btn-sm btn-info fastcrud-duplicate-btn" title="Duplicate" aria-label="Duplicate record" data-row-json="' + json + '">' + actionIcons.duplicate + '</button>';
+                html += '<button type="button" class="btn btn-sm btn-info fastcrud-duplicate-btn" title="Duplicate" aria-label="Duplicate record">' + actionIcons.duplicate + '</button>';
             }
-            html += '<button type="button" class="btn btn-sm btn-secondary fastcrud-view-btn" title="View" aria-label="View record" data-row-json="' + json + '">' + actionIcons.view + '</button>';
-            html += '<button type="button" class="btn btn-sm btn-primary fastcrud-edit-btn" title="Edit" aria-label="Edit record" data-row-json="' + json + '">' + actionIcons.edit + '</button>';
-            html += '<button type="button" class="btn btn-sm btn-danger fastcrud-delete-btn" title="Delete" aria-label="Delete record" data-row-json="' + json + '">' + actionIcons.delete + '</button>';
+            html += '<button type="button" class="btn btn-sm btn-secondary fastcrud-view-btn" title="View" aria-label="View record">' + actionIcons.view + '</button>';
+            html += '<button type="button" class="btn btn-sm btn-primary fastcrud-edit-btn" title="Edit" aria-label="Edit record">' + actionIcons.edit + '</button>';
+            html += '<button type="button" class="btn btn-sm btn-danger fastcrud-delete-btn" title="Delete" aria-label="Delete record">' + actionIcons.delete + '</button>';
             html += '</div></td>';
             return html;
         }
@@ -7160,6 +7159,7 @@ HTML;
             }
 
             var html = '';
+            var builtRows = [];
             $.each(rows, function(_, row) {
                 var rowMeta = row.__fastcrud || {};
                 var cellsMeta = rowMeta.cells || {};
@@ -7217,11 +7217,22 @@ HTML;
                     cells += '<td' + classAttr + styleAttr + attrs + '>' + inner + '</td>';
                 });
 
-                cells += buildActionCellHtml(rowData);
+                cells += buildActionCellHtml();
                 html += '<tr' + rowClass + '>' + cells + '</tr>';
+                builtRows.push(rowData);
             });
 
             tbody.html(html);
+            // Attach the full row object to each <tr> to avoid duplicating large JSON in button attributes
+            try {
+                var trs = tbody.find('tr');
+                trs.each(function(i) {
+                    var dataObj = builtRows[i];
+                    if (typeof dataObj === 'object') {
+                        $(this).data('row', dataObj);
+                    }
+                });
+            } catch (e) {}
         }
 
         function loadTableData(page) {
@@ -8824,15 +8835,35 @@ HTML;
 
         function getRowDataFromElement(el) {
             var jqEl = $(el);
+            // Prefer the row object attached to the closest <tr>
+            try {
+                var tr = jqEl.closest('tr');
+                if (tr && tr.length) {
+                    var trRow = tr.data('row');
+                    if (trRow && typeof trRow === 'object') { return trRow; }
+                    var trJson = tr.attr('data-row-json');
+                    if (trJson) {
+                        try {
+                            var parsedTr = JSON.parse(trJson);
+                            tr.data('row', parsedTr);
+                            return parsedTr;
+                        } catch (e1) {}
+                    }
+                }
+            } catch (e2) {}
+
+            // Fallback: data cached on the element itself
             var row = jqEl.data('row');
             if (row && typeof row === 'object') { return row; }
+
+            // Legacy fallback: parse inline data attribute if present
             var json = jqEl.attr('data-row-json');
             if (json) {
                 try {
                     row = JSON.parse(json);
                     jqEl.data('row', row);
                     return row;
-                } catch (e) {}
+                } catch (e3) {}
             }
             return row || {};
         }
