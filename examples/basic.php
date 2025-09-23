@@ -82,6 +82,7 @@ Crud::init([
                   ->change_type('color', 'color', '#ff0000')
                   ->change_type('content', 'rich_editor', '', ['height' => 450])
                   ->change_type('created_at', 'hidden', date('Y-m-d H:i:s'))
+                  ->column_pattern("title","{title} - {slug}")
                 //   ->pass_default('file','default.txt')
                     ->search_columns('title,content', 'title')
                     ->validation_required('slug')

@@ -2992,6 +2992,7 @@ class Crud
         }
 
         $filteredRows = [];
+        $baseColumns = $this->getBaseTableColumns();
         foreach ($rows as $row) {
             $filteredRow = [
                 '__fastcrud_primary_key' => $row['__fastcrud_primary_key'] ?? null,
@@ -2999,6 +3000,14 @@ class Crud
             ];
             foreach ($visible as $column) {
                 $filteredRow[$column] = $row[$column] ?? null;
+            }
+
+            // Ensure all base table columns are present so edit forms can prefill
+            // even when a field is hidden in the grid.
+            foreach ($baseColumns as $baseColumn) {
+                if (!array_key_exists($baseColumn, $filteredRow)) {
+                    $filteredRow[$baseColumn] = $row[$baseColumn] ?? null;
+                }
             }
 
 
