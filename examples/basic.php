@@ -67,6 +67,7 @@ Crud::init([
                 $postsCrud = new Crud('posts');
                 $postsCrud
                     ->limit_list('5,10,25,all')
+                    ->enable_duplicate(true)
                     ->order_by('id', 'desc')
                     ->relation('user_id', 'users', 'id', 'username')
                     
@@ -78,6 +79,7 @@ Crud::init([
                     // ->fields('slug,content',false,'Content' )
                     ->change_type('file', 'files')
                     ->change_type('image', 'image')
+                    
                   ->change_type('gallery_images', 'images')
                   ->change_type('color', 'color', '#ff0000')
                   ->change_type('content', 'rich_editor', '', ['height' => 450])

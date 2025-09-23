@@ -77,6 +77,7 @@ class Crud
             'name'    => null,
             'tooltip' => null,
             'icon'    => null,
+            'duplicate' => false,
         ],
         'column_summaries' => [],
         'field_labels' => [],
@@ -1682,6 +1683,13 @@ class Crud
     {
         $iconClass = $this->normalizeCssClassList($iconClass);
         $this->config['table_meta']['icon'] = $iconClass === '' ? null : $iconClass;
+
+        return $this;
+    }
+
+    public function enable_duplicate(bool $enabled = true): self
+    {
+        $this->config['table_meta']['duplicate'] = (bool) $enabled;
 
         return $this;
     }
@@ -4168,6 +4176,7 @@ HTML;
                 'name'      => $tableName,
                 'tooltip'   => $tableMeta['tooltip'] ?? null,
                 'icon'      => $tableMeta['icon'] ?? null,
+                'duplicate' => isset($tableMeta['duplicate']) ? (bool) $tableMeta['duplicate'] : false,
             ],
             'primary_key'    => $this->getPrimaryKeyColumn(),
             'columns'        => $columns,
@@ -4594,6 +4603,7 @@ HTML;
                 'name'    => isset($meta['name']) && is_string($meta['name']) ? $meta['name'] : null,
                 'tooltip' => isset($meta['tooltip']) && is_string($meta['tooltip']) ? $meta['tooltip'] : null,
                 'icon'    => isset($meta['icon']) && is_string($meta['icon']) ? $meta['icon'] : null,
+                'duplicate' => isset($meta['duplicate']) ? (bool) $meta['duplicate'] : false,
             ];
         }
 
@@ -5106,6 +5116,284 @@ HTML;
         }
 
         return $statement->rowCount() > 0;
+    }
+
+    /**
+     * Duplicate a record by copying its fields into a new row.
+     * Returns the newly created row, or null on failure.
+     *
+     * @param string $primaryKeyColumn
+     * @param mixed $primaryKeyValue
+     * @return array<string, mixed>|null
+     */
+    public function duplicateRecord(string $primaryKeyColumn, mixed $primaryKeyValue): ?array
+    {
+        // 1) Validate PK column
+        $primaryKeyColumn = trim($primaryKeyColumn);
+        if ($primaryKeyColumn === '') {
+            throw new InvalidArgumentException('Primary key column is required.');
+        }
+
+        $columns = $this->getTableColumnsFor($this->table);
+        if (!in_array($primaryKeyColumn, $columns, true)) {
+            throw new InvalidArgumentException(sprintf('Unknown primary key column "%s".', $primaryKeyColumn));
+        }
+
+        // 2) Load source row
+        $source = $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
+        if ($source === null) {
+            throw new InvalidArgumentException('Record not found for duplication.');
+        }
+
+        // 3) Copy all base-table columns except the PK (exactly as requested)
+        $fields = [];
+        foreach ($columns as $column) {
+            if ($column === $primaryKeyColumn) {
+                continue; // remove id
+            }
+            if (array_key_exists($column, $source)) {
+                $fields[$column] = $source[$column];
+            }
+        }
+
+        if ($fields === []) {
+            throw new RuntimeException('Nothing to duplicate.');
+        }
+
+        // 4) Insert new row
+        $placeholders = [];
+        $parameters = [];
+        foreach ($fields as $column => $value) {
+            $ph = ':col_' . $column;
+            $placeholders[] = $ph;
+            $parameters[$ph] = $value;
+        }
+
+        $sql = sprintf(
+            'INSERT INTO %s (%s) VALUES (%s)',
+            $this->table,
+            implode(', ', array_keys($fields)),
+            implode(', ', $placeholders)
+        );
+
+        $statement = $this->connection->prepare($sql);
+        if ($statement === false) {
+            throw new RuntimeException('Failed to prepare insert statement.');
+        }
+
+        try {
+            $statement->execute($parameters);
+        } catch (PDOException $exception) {
+            if ($this->isDuplicateKeyException($exception)) {
+                // Try to resolve by adjusting unique columns and retry once
+                $adjusted = $this->resolveDuplicateByAdjustingUniqueColumns($fields);
+                if ($adjusted !== null) {
+                    $fields = $adjusted;
+                    // rebuild placeholders and parameters
+                    $placeholders = [];
+                    $parameters = [];
+                    foreach ($fields as $column => $value) {
+                        $ph = ':col_' . $column;
+                        $placeholders[] = $ph;
+                        $parameters[$ph] = $value;
+                    }
+                    $sql = sprintf(
+                        'INSERT INTO %s (%s) VALUES (%s)',
+                        $this->table,
+                        implode(', ', array_keys($fields)),
+                        implode(', ', $placeholders)
+                    );
+                    $statement = $this->connection->prepare($sql);
+                    if ($statement === false) {
+                        throw new RuntimeException('Failed to prepare retry insert statement.');
+                    }
+                    try {
+                        $statement->execute($parameters);
+                    } catch (PDOException $retryException) {
+                        $message = trim($retryException->getMessage() ?: '');
+                        if ($message !== '') {
+                            throw new RuntimeException('Failed to duplicate record: ' . $message, 0, $retryException);
+                        }
+                        throw new RuntimeException('Failed to duplicate record.', 0, $retryException);
+                    }
+                } else {
+                    // Could not auto-resolve
+                    $message = trim($exception->getMessage() ?: '');
+                    if ($message !== '') {
+                        throw new RuntimeException('Failed to duplicate record: ' . $message, 0, $exception);
+                    }
+                    throw new RuntimeException('Failed to duplicate record.', 0, $exception);
+                }
+            } else {
+                $message = trim($exception->getMessage() ?: '');
+                if ($message !== '') {
+                    throw new RuntimeException('Failed to duplicate record: ' . $message, 0, $exception);
+                }
+                throw new RuntimeException('Failed to duplicate record.', 0, $exception);
+            }
+        }
+
+        // 5) Return new row (try lastInsertId first)
+        try {
+            $newPk = $this->connection->lastInsertId();
+            if (is_string($newPk) && $newPk !== '' && $newPk !== '0') {
+                return $this->findRowByPrimaryKey($primaryKeyColumn, $newPk);
+            }
+        } catch (PDOException) {
+            // ignore, fallback below
+        }
+
+        // Fallback: last by PK desc
+        try {
+            $sql = sprintf('SELECT * FROM %s ORDER BY %s DESC LIMIT 1', $this->table, $primaryKeyColumn);
+            $fallbackStmt = $this->connection->query($sql);
+            if ($fallbackStmt !== false) {
+                $row = $fallbackStmt->fetch(PDO::FETCH_ASSOC);
+                return is_array($row) ? $row : null;
+            }
+        } catch (PDOException) {
+            // ignore
+        }
+
+        return null;
+    }
+
+    private function isDuplicateKeyException(PDOException $exception): bool
+    {
+        // MySQL: SQLSTATE 23000, error code 1062; generic message contains 'Duplicate entry'
+        $code = $exception->getCode();
+        $message = strtolower((string) $exception->getMessage());
+        $info0 = is_array($exception->errorInfo ?? null) ? ($exception->errorInfo[0] ?? null) : null;
+        $info1 = is_array($exception->errorInfo ?? null) ? ($exception->errorInfo[1] ?? null) : null;
+        if ((string) $info0 === '23000' && (int) $info1 === 1062) {
+            return true;
+        }
+        if ((string) $code === '23000' && str_contains($message, 'duplicate')) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Attempt to adjust values for unique single-column indexes by appending a copy suffix.
+     * Returns updated fields or null if no adjustment is possible.
+     *
+     * @param array<string, mixed> $fields
+     * @return array<string, mixed>|null
+     */
+    private function resolveDuplicateByAdjustingUniqueColumns(array $fields): ?array
+    {
+        $driver = null;
+        try {
+            $driver = strtolower((string) $this->connection->getAttribute(PDO::ATTR_DRIVER_NAME));
+        } catch (PDOException) {
+            $driver = null;
+        }
+
+        if ($driver !== 'mysql') {
+            return null; // only support MySQL auto-resolution for now
+        }
+
+        $uniqueColumns = $this->getMysqlUniqueSingleColumns($this->table);
+        if ($uniqueColumns === []) {
+            return null;
+        }
+
+        $updated = $fields;
+        $changed = false;
+
+        foreach ($uniqueColumns as $column) {
+            if (!array_key_exists($column, $updated)) {
+                continue;
+            }
+            $value = $updated[$column];
+            if ($value === null || $value === '') {
+                continue;
+            }
+            if (!is_string($value)) {
+                continue;
+            }
+            // Find an unused variant by appending (copy), (copy 2), ...
+            $base = $this->stripCopySuffix($value);
+            $candidate = $base . ' (copy)';
+            $attempt = 2;
+            while ($this->valueExistsForColumn($column, $candidate) && $attempt < 100) {
+                $candidate = $base . ' (copy ' . $attempt . ')';
+                $attempt++;
+            }
+            if (!$this->valueExistsForColumn($column, $candidate)) {
+                $updated[$column] = $candidate;
+                $changed = true;
+            }
+        }
+
+        return $changed ? $updated : null;
+    }
+
+    private function stripCopySuffix(string $value): string
+    {
+        $trimmed = rtrim($value);
+        // Remove trailing " (copy)" or " (copy N)"
+        $trimmed = (string) preg_replace('/\s*\(copy(?:\s+\d+)?\)$/i', '', $trimmed);
+        return $trimmed;
+    }
+
+    private function valueExistsForColumn(string $column, string $value): bool
+    {
+        $sql = sprintf('SELECT COUNT(*) FROM %s WHERE %s = :v', $this->table, $column);
+        $stmt = $this->connection->prepare($sql);
+        if ($stmt === false) {
+            return false;
+        }
+        try {
+            $stmt->execute([':v' => $value]);
+            $count = (int) $stmt->fetchColumn();
+            return $count > 0;
+        } catch (PDOException) {
+            return false;
+        }
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function getMysqlUniqueSingleColumns(string $table): array
+    {
+        $columns = [];
+        $sql = sprintf('SHOW INDEX FROM `%s`', $table);
+        try {
+            $stmt = $this->connection->query($sql);
+        } catch (PDOException) {
+            return $columns;
+        }
+        if ($stmt === false) {
+            return $columns;
+        }
+        $indexes = [];
+        while (($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== false) {
+            // Rows: Table, Non_unique(0=unique), Key_name, Seq_in_index, Column_name, ...
+            $nonUnique = isset($row['Non_unique']) ? (int) $row['Non_unique'] : 1;
+            $keyName = isset($row['Key_name']) ? (string) $row['Key_name'] : '';
+            $seq = isset($row['Seq_in_index']) ? (int) $row['Seq_in_index'] : 0;
+            $col = isset($row['Column_name']) ? (string) $row['Column_name'] : '';
+            if ($nonUnique === 0 && $keyName !== 'PRIMARY' && $col !== '') {
+                if (!isset($indexes[$keyName])) {
+                    $indexes[$keyName] = [];
+                }
+                $indexes[$keyName][$seq] = $col;
+            }
+        }
+        foreach ($indexes as $keyName => $parts) {
+            ksort($parts, SORT_NUMERIC);
+            $cols = array_values($parts);
+            if (count($cols) === 1) {
+                $col = $cols[0];
+                if ($col !== $this->getPrimaryKeyColumn() && !in_array($col, $columns, true)) {
+                    $columns[] = $col;
+                }
+            }
+        }
+        return $columns;
     }
 
     /**
@@ -6848,12 +7136,13 @@ HTML;
         function buildActionCellHtml(row) {
             var json = escapeHtml(JSON.stringify(row || {}));
             var html = '<td class="text-end fastcrud-actions-cell"><div class="btn-group btn-group-sm" role="group">';
+            if (duplicateEnabled) {
+                // Place duplicate button to the left of other action buttons
+                html += '<button type="button" class="btn btn-sm btn-info fastcrud-duplicate-btn" title="Duplicate" aria-label="Duplicate record" data-row-json="' + json + '">' + actionIcons.duplicate + '</button>';
+            }
             html += '<button type="button" class="btn btn-sm btn-secondary fastcrud-view-btn" title="View" aria-label="View record" data-row-json="' + json + '">' + actionIcons.view + '</button>';
             html += '<button type="button" class="btn btn-sm btn-primary fastcrud-edit-btn" title="Edit" aria-label="Edit record" data-row-json="' + json + '">' + actionIcons.edit + '</button>';
             html += '<button type="button" class="btn btn-sm btn-danger fastcrud-delete-btn" title="Delete" aria-label="Delete record" data-row-json="' + json + '">' + actionIcons.delete + '</button>';
-            if (duplicateEnabled) {
-                html += '<button type="button" class="btn btn-sm btn-info fastcrud-duplicate-btn" title="Duplicate" aria-label="Duplicate record" data-row-json="' + json + '">' + actionIcons.duplicate + '</button>';
-            }
             html += '</div></td>';
             return html;
         }
@@ -8706,6 +8995,69 @@ HTML;
             });
         }
 
+        function requestDuplicate(row) {
+            if (!row) {
+                showError('Unable to determine primary key for duplication.');
+                return;
+            }
+
+            var rowPrimaryKeyColumn = row.__fastcrud_primary_key || primaryKeyColumn;
+            if (!rowPrimaryKeyColumn) {
+                showError('Unable to determine primary key for duplication.');
+                return;
+            }
+
+            var primaryValue;
+            if (Object.prototype.hasOwnProperty.call(row, '__fastcrud_primary_value') && typeof row.__fastcrud_primary_value !== 'undefined') {
+                primaryValue = row.__fastcrud_primary_value;
+            } else {
+                primaryValue = row[rowPrimaryKeyColumn];
+            }
+
+            if (!primaryKeyColumn) {
+                primaryKeyColumn = rowPrimaryKeyColumn;
+            }
+
+            if (typeof primaryValue === 'undefined' || primaryValue === null || String(primaryValue).length === 0) {
+                showError('Missing primary key value for selected record.');
+                return;
+            }
+
+            $.ajax({
+                url: window.location.pathname,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    fastcrud_ajax: '1',
+                    action: 'duplicate',
+                    table: tableName,
+                    id: tableId,
+                    primary_key_column: rowPrimaryKeyColumn,
+                    primary_key_value: primaryValue,
+                    config: JSON.stringify(clientConfig)
+                },
+                success: function(response) {
+                    if (response && response.success) {
+                        // Trigger event with both source and new rows
+                        try {
+                            table.trigger('fastcrud:duplicate', {
+                                tableId: tableId,
+                                row: row,
+                                newRow: response.row || null
+                            });
+                        } catch (e) {}
+                        loadTableData(currentPage);
+                    } else {
+                        var message = response && response.error ? response.error : 'Failed to duplicate record.';
+                        showError(message);
+                    }
+                },
+                error: function(_, __, error) {
+                    showError('Failed to duplicate record: ' + error);
+                }
+            });
+        }
+
         table.on('click', '.fastcrud-delete-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
@@ -8720,10 +9072,7 @@ HTML;
             event.preventDefault();
             event.stopPropagation();
             var row = getRowDataFromElement(this) || {};
-            table.trigger('fastcrud:duplicate', {
-                tableId: tableId,
-                row: row
-            });
+            requestDuplicate(row);
             return false;
         });
 

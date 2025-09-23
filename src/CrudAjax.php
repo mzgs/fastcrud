@@ -29,6 +29,9 @@ class CrudAjax
                 case 'delete':
                     self::handleDelete($request);
                     break;
+                case 'duplicate':
+                    self::handleDuplicate($request);
+                    break;
                 case 'upload_image':
                     self::handleUploadImage($request);
                     break;
@@ -197,6 +200,61 @@ class CrudAjax
         }
 
         self::respond($response, $deleted ? 200 : 404);
+    }
+
+    /**
+     * Handle record duplication via AJAX.
+     *
+     * @param array<string, mixed> $request
+     */
+    private static function handleDuplicate(array $request): void
+    {
+        if (!isset($request['table'])) {
+            throw new InvalidArgumentException('Table parameter is required');
+        }
+
+        if (!isset($request['primary_key_column']) || !is_string($request['primary_key_column'])) {
+            throw new InvalidArgumentException('Primary key column is required.');
+        }
+
+        if (!array_key_exists('primary_key_value', $request)) {
+            throw new InvalidArgumentException('Primary key value is required.');
+        }
+
+        $crud = Crud::fromAjax(
+            (string) $request['table'],
+            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
+            $request['config'] ?? null
+        );
+
+        try {
+            $newRow = $crud->duplicateRecord(
+                (string) $request['primary_key_column'],
+                $request['primary_key_value']
+            );
+
+            if ($newRow === null) {
+                self::respond([
+                    'success' => false,
+                    'error' => 'Failed to duplicate record.',
+                    'id' => $request['id'] ?? null,
+                ], 200);
+                return;
+            }
+
+            self::respond([
+                'success' => true,
+                'row' => $newRow,
+                'columns' => array_keys($newRow),
+                'id' => $request['id'] ?? null,
+            ], 201);
+        } catch (\Throwable $e) {
+            self::respond([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'id' => $request['id'] ?? null,
+            ], 200);
+        }
     }
 
     /**

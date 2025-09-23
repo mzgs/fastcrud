@@ -312,6 +312,31 @@ $posts
 
 Metadata renders above the toolbar (icon + title + tooltip) while summaries appear in a Bootstrap-styled footer row. Summary queries respect the current filters/search term and support the aggregation types `sum`, `avg`, `min`, `max`, and `count`.
 
+### Duplicate Button
+
+Show a Duplicate button in the actions column and handle the event on the client.
+
+```php
+$users = new Crud('users');
+$users->enable_duplicate(true); // enable duplicate button in each row
+echo $users->render();
+```
+
+The button emits a delegated jQuery event you can hook into:
+
+```javascript
+$(document).on('fastcrud:duplicate', function (event, payload) {
+  // payload = { tableId: string, row: object }
+  const tableId = payload.tableId;
+  const sourceRow = payload.row; // full row JSON for the clicked record
+
+  // Implement your duplication flow here (e.g., open a custom form
+  // pre-filled with sourceRow, or POST to your own endpoint to insert).
+});
+```
+
+FastCRUD also performs a server-side duplicate by default when you click the button. The event still fires after a successful duplication with `payload.newRow` containing the created record.
+
 ### Form Layout & Tabs (`fields` / `default_tab`)
 
 Edit forms can be curated without touching templates. Use `fields()` to choose the inputs to display and optionally group them into tabs, or pass `true` as the second argument to hide fields instead.
