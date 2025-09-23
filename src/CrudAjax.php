@@ -72,7 +72,12 @@ class CrudAjax
         }
 
         $searchTerm = isset($request['search_term']) ? (string) $request['search_term'] : null;
-        $searchColumn = isset($request['search_column']) ? (string) $request['search_column'] : null;
+        // Normalize empty string to null for "All" selection
+        $searchColumnRaw = $request['search_column'] ?? null;
+        $searchColumn = is_string($searchColumnRaw) ? trim($searchColumnRaw) : null;
+        if ($searchColumn === '') {
+            $searchColumn = null;
+        }
 
         $crud = Crud::fromAjax(
             $table,

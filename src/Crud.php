@@ -2410,30 +2410,43 @@ class Crud
         }
 
         if ($searchTerm !== null && $searchTerm !== '' && $this->config['search_columns'] !== []) {
-            $columns = $this->config['search_columns'];
+            $configuredColumns = $this->config['search_columns'];
             $targetColumn = null;
 
-            if ($searchColumn !== null && $searchColumn !== '' && in_array($searchColumn, $columns, true)) {
+            if ($searchColumn !== null && $searchColumn !== '' && in_array($searchColumn, $configuredColumns, true)) {
                 $targetColumn = $searchColumn;
             }
 
-            $placeholder = ':search_term';
-            $parameters[$placeholder] = '%' . $searchTerm . '%';
-
             if ($targetColumn !== null) {
-                $searchClause = sprintf('%s LIKE %s', $targetColumn, $placeholder);
+                $placeholder = ':search_term';
+                $parameters[$placeholder] = '%' . $searchTerm . '%';
+                $fieldExpr = $this->normalizeWhereField($targetColumn);
+                $searchClause = $fieldExpr !== '' ? sprintf('%s LIKE %s', $fieldExpr, $placeholder) : '';
             } else {
-                $parts = array_map(
-                    static fn(string $column): string => sprintf('%s LIKE %s', $column, $placeholder),
-                    $columns
-                );
-                $searchClause = '(' . implode(' OR ', $parts) . ')';
+                // When "All" is selected (or no specific column picked),
+                // search across the visible grid columns if available,
+                // otherwise fall back to configured search columns.
+                $allColumns = $this->getWhereColumnsForAllSearch();
+                $columns = $allColumns !== [] ? $allColumns : $configuredColumns;
+
+                $parts = [];
+                $value = '%' . $searchTerm . '%';
+                foreach ($columns as $idx => $col) {
+                    $expr = $this->normalizeWhereField($col);
+                    if ($expr === '') { continue; }
+                    $ph = ':search_term_' . $idx;
+                    $parameters[$ph] = $value;
+                    $parts[] = sprintf('%s LIKE %s', $expr, $ph);
+                }
+                $searchClause = $parts !== [] ? '(' . implode(' OR ', $parts) . ')' : '';
             }
 
-            $clauses[] = [
-                'glue'   => 'AND',
-                'clause' => $searchClause,
-            ];
+            if ($searchClause !== '') {
+                $clauses[] = [
+                    'glue'   => 'AND',
+                    'clause' => $searchClause,
+                ];
+            }
         }
 
         if ($clauses === []) {
@@ -2447,6 +2460,227 @@ class Crud
         }
 
         return $sql;
+    }
+
+    private function getSqlIdentifierQuotes(): array
+    {
+        $driver = 'mysql';
+        try {
+            $driver = strtolower((string) $this->connection->getAttribute(PDO::ATTR_DRIVER_NAME));
+        } catch (PDOException) {
+            $driver = 'mysql';
+        }
+
+        if ($driver === 'pgsql' || $driver === 'sqlite') {
+            return ['"', '"'];
+        }
+
+        // Default to MySQL backticks
+        return ['`', '`'];
+    }
+
+    private function quoteIdentifierPart(string $part): string
+    {
+        [$l, $r] = $this->getSqlIdentifierQuotes();
+        $trimmed = trim($part);
+        if ($trimmed === '') {
+            return $part;
+        }
+        // If already quoted, return as-is
+        if ((str_starts_with($trimmed, '`') && str_ends_with($trimmed, '`')) ||
+            (str_starts_with($trimmed, '"') && str_ends_with($trimmed, '"'))) {
+            return $trimmed;
+        }
+
+        // Escape any embedded quote of the same type
+        $escaped = str_replace([$l, $r], [$l . $l, $r . $r], $trimmed);
+        return $l . $escaped . $r;
+    }
+
+    private function quoteQualifiedIdentifier(string $qualified): string
+    {
+        $expr = trim($qualified);
+        if ($expr === '') {
+            return '';
+        }
+        // Only quote simple alias.column paths. If expression contains spaces or parentheses, return as-is.
+        if (str_contains($expr, ' ') || str_contains($expr, '(') || str_contains($expr, ')')) {
+            return $expr;
+        }
+
+        $parts = explode('.', $expr);
+        $quoted = [];
+        foreach ($parts as $p) {
+            if ($p === '') { continue; }
+            $quoted[] = $this->quoteIdentifierPart($p);
+        }
+        return implode('.', $quoted);
+    }
+
+    private function normalizeWhereField(string $column): string
+    {
+        $raw = trim((string) $column);
+        if ($raw === '') {
+            return '';
+        }
+
+        // Allow expressions; otherwise, normalize to alias.column
+        if (str_contains($raw, ' ') || str_contains($raw, '(') || str_contains($raw, ')')) {
+            return $raw;
+        }
+
+        // Map alias__name => alias.name
+        if (str_contains($raw, '__') && !str_contains($raw, '.')) {
+            $raw = $this->denormalizeColumnReference($raw);
+        }
+
+        if (!str_contains($raw, '.')) {
+            $raw = 'main.' . $raw;
+        }
+
+        return $this->quoteQualifiedIdentifier($raw);
+    }
+
+    /**
+     * Build the list of SQL column references to search when "All" is selected.
+     *
+     * This resolves the final visible grid columns without executing the main query,
+     * and maps them to SQL-usable expressions for the WHERE clause:
+     *  - Base table columns -> prefixed with "main." (e.g., main.title)
+     *  - Joined table columns -> "alias.column" based on configured joins
+     *  - Subselect columns are excluded (not searchable in WHERE)
+     *
+     * @return array<int, string>
+     */
+    private function getWhereColumnsForAllSearch(): array
+    {
+        // If using a custom query, we cannot infer columns reliably.
+        // Fallback to configured search columns in that case.
+        if ($this->config['custom_query'] !== null) {
+            return [];
+        }
+
+        // Build the available display columns as they appear in the grid
+        // (base columns + join alias columns + subselect columns)
+        $available = [];
+
+        // Build alias => table map for later schema lookups
+        $aliasToTable = [];
+        foreach ($this->config['joins'] as $index => $join) {
+            $alias = isset($join['alias']) && is_string($join['alias']) && $join['alias'] !== ''
+                ? $join['alias']
+                : ('j' . $index);
+            $aliasToTable[$alias] = $join['table'];
+        }
+
+        // Base table
+        foreach ($this->getBaseTableColumns() as $col) {
+            if (is_string($col) && $col !== '') {
+                $available[] = $col; // display name
+            }
+        }
+
+        // Joins
+        foreach ($this->config['joins'] as $index => $join) {
+            $alias = isset($join['alias']) && is_string($join['alias']) && $join['alias'] !== ''
+                ? $join['alias']
+                : ('j' . $index);
+            $joinColumns = $this->getTableColumnsFor($join['table']);
+            foreach ($joinColumns as $jcol) {
+                if (is_string($jcol) && $jcol !== '') {
+                    $available[] = $alias . '__' . $jcol; // display name
+                }
+            }
+        }
+
+        // Subselects (tracked so we can exclude them from WHERE search)
+        $subselectNames = [];
+        foreach ($this->config['subselects'] as $sub) {
+            $name = isset($sub['column']) ? (string) $sub['column'] : '';
+            if ($name !== '') {
+                $available[] = $name; // display name present in grid
+                $subselectNames[$name] = true; // mark to exclude from WHERE
+            }
+        }
+
+        // Calculate visible columns from the available set
+        $visible = $this->calculateVisibleColumns($available);
+        if ($visible === []) {
+            return [];
+        }
+
+        // Preload table schemas for type filtering
+        $mainSchema = $this->getTableSchema($this->table);
+        $joinSchemas = [];
+        foreach ($aliasToTable as $alias => $table) {
+            $joinSchemas[$alias] = $this->getTableSchema($table);
+        }
+
+        $isSearchableType = static function (?string $type): bool {
+            if ($type === null || $type === '') {
+                return true; // unknown types: allow by default
+            }
+            $t = strtolower($type);
+            // Normalize e.g. varchar(255) -> varchar
+            $paren = strpos($t, '(');
+            if ($paren !== false) {
+                $t = substr($t, 0, $paren);
+            }
+            // Exclude types where LIKE is invalid or nonsensical in MySQL
+            $blocked = [
+                'json','blob','tinyblob','mediumblob','longblob',
+                'binary','varbinary','bit',
+                'geometry','point','linestring','polygon','multipoint','multilinestring','multipolygon','geometrycollection'
+            ];
+            foreach ($blocked as $b) {
+                if ($t === $b) {
+                    return false;
+                }
+            }
+            return true;
+        };
+
+        // Map visible display columns to SQL WHERE-capable references, excluding non-searchable types
+        $whereColumns = [];
+        foreach ($visible as $displayCol) {
+            if (!is_string($displayCol) || $displayCol === '') {
+                continue;
+            }
+
+            // Skip subselect-generated columns in WHERE search
+            if (isset($subselectNames[$displayCol])) {
+                continue;
+            }
+
+            if (strpos($displayCol, '__') !== false) {
+                // Joined column (alias__name) -> alias.name, check join table schema for type
+                [$alias, $name] = array_map('trim', explode('__', $displayCol, 2));
+                $typeMeta = $joinSchemas[$alias][$name]['type'] ?? null;
+                if (!$isSearchableType(is_string($typeMeta) ? $typeMeta : null)) {
+                    continue;
+                }
+                $whereColumns[] = $alias . '.' . $name;
+            } else {
+                // Base table column -> prefix with main. Check base schema type
+                $typeMeta = $mainSchema[$displayCol]['type'] ?? null;
+                if (!$isSearchableType(is_string($typeMeta) ? $typeMeta : null)) {
+                    continue;
+                }
+                $whereColumns[] = 'main.' . $displayCol;
+            }
+        }
+
+        // Deduplicate while preserving order
+        $unique = [];
+        $result = [];
+        foreach ($whereColumns as $col) {
+            if (!isset($unique[$col])) {
+                $unique[$col] = true;
+                $result[] = $col;
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -3515,7 +3749,7 @@ HTML;
         try {
             $statement->execute($query['params']);
         } catch (PDOException $exception) {
-            throw new RuntimeException('Failed to execute select query.', 0, $exception);
+            throw new RuntimeException('Failed to execute select query: ' . $exception->getMessage(), 0, $exception);
         }
 
         $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
@@ -3859,7 +4093,7 @@ HTML;
         try {
             $countStatement->execute($countQuery['params']);
         } catch (PDOException $exception) {
-            throw new RuntimeException('Failed to execute count query.', 0, $exception);
+            throw new RuntimeException('Failed to execute count query: ' . $exception->getMessage(), 0, $exception);
         }
 
         $totalRows = (int) $countStatement->fetchColumn();
@@ -5491,11 +5725,15 @@ HTML;
                 clientConfig.search_columns = meta.search.columns;
                 clientConfig.search_default = meta.search.default || null;
 
-                if (!currentSearchColumn && typeof searchConfig.default === 'string' && searchConfig.default !== '') {
+                // Only apply default search column on initial load.
+                if (!metaInitialized && !currentSearchColumn && typeof searchConfig.default === 'string' && searchConfig.default !== '') {
                     currentSearchColumn = searchConfig.default;
                 }
 
                 ensureSearchControls();
+                if (searchSelect) {
+                    searchSelect.val(currentSearchColumn || '');
+                }
             } else {
                 searchConfig = { columns: [], default: null };
                 ensureSearchControls();
@@ -5530,20 +5768,27 @@ HTML;
 
             searchGroup = $('<div class="input-group fastcrud-search-group" style="max-width: 24rem;"></div>');
 
-            if (searchConfig.columns.length > 1) {
-                searchSelect = $('<select class="form-select"></select>');
-                $.each(searchConfig.columns, function(_, column) {
-                    var option = $('<option></option>').attr('value', column).text(makeLabel(column));
-                    if (column === currentSearchColumn) {
-                        option.attr('selected', 'selected');
-                    }
-                    searchSelect.append(option);
-                });
-                searchSelect.on('change', function() {
-                    currentSearchColumn = $(this).val() || null;
-                });
-                searchGroup.append(searchSelect);
+            // Always render the select and include an "All" option first
+            searchSelect = $('<select class="form-select"></select>');
+            // "All" option: empty value so it maps to null in state
+            var allOption = $('<option></option>').attr('value', '').text('All');
+            if (!currentSearchColumn) {
+                allOption.attr('selected', 'selected');
             }
+            searchSelect.append(allOption);
+
+            $.each(searchConfig.columns, function(_, column) {
+                var option = $('<option></option>').attr('value', column).text(makeLabel(column));
+                if (column === currentSearchColumn) {
+                    option.attr('selected', 'selected');
+                }
+                searchSelect.append(option);
+            });
+            searchSelect.on('change', function() {
+                var val = $(this).val();
+                currentSearchColumn = val ? String(val) : undefined; // omit from request when "All"
+            });
+            searchGroup.append(searchSelect);
 
             searchInput = $('<input type="search" class="form-control" placeholder="Search..." aria-label="Search">');
             searchInput.on('keydown', function(event) {
@@ -6696,21 +6941,25 @@ HTML;
                 tbody.fadeIn(100);
             });
 
+            var payload = {
+                fastcrud_ajax: '1',
+                action: 'fetch',
+                table: tableName,
+                id: tableId,
+                page: currentPage,
+                per_page: perPage > 0 ? perPage : 0,
+                search_term: currentSearchTerm,
+                config: JSON.stringify(clientConfig)
+            };
+            if (typeof currentSearchColumn !== 'undefined' && currentSearchColumn !== null && String(currentSearchColumn).length) {
+                payload.search_column = currentSearchColumn;
+            }
+
             $.ajax({
                 url: window.location.pathname,
                 type: 'POST',
                 dataType: 'json',
-                data: {
-                    fastcrud_ajax: '1',
-                    action: 'fetch',
-                    table: tableName,
-                    id: tableId,
-                    page: currentPage,
-                    per_page: perPage > 0 ? perPage : 0,
-                    search_term: currentSearchTerm,
-                    search_column: currentSearchColumn,
-                    config: JSON.stringify(clientConfig)
-                },
+                data: payload,
                 success: function(response) {
                     if (response && response.success) {
                         applyMeta(response.meta || {});
