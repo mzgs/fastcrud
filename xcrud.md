@@ -410,34 +410,7 @@ $xcrud->sum('price,tax,total');
 $xcrud->sum('amount', 'text-bold', 'Grand Total: {value}');
 ```
 
-### Action Buttons
-
-#### `button($link, $name = '', $icon = '', $class = '', $parameters = [], $condition = [])`
-Add custom buttons.
-
-```php
-// Simple button
-$xcrud->button('http://example.com/invoice/{id}', 'View Invoice', 'icon-file');
-
-// Button with condition
-$xcrud->button('#', 'Approve', 'icon-check', 'btn-approve', 
-    array('data-id' => '{id}'), 
-    array('status', '=', 'pending'));
-
-// Button with target
-$xcrud->button('http://example.com/user/{user_id}', 'Profile', 'icon-user', '', 
-    array('target' => '_blank'));
-```
-
-#### `duplicate_button($bool = true)`
-Show/hide duplicate buttons.
-
-```php
-$xcrud->duplicate_button();
-
-// Conditional duplicate
-$xcrud->duplicate_button(true, 'status', '=', 'template');
-```
+<!-- Removed: Action Buttons (custom buttons/duplicate) — not supported in FastCRUD -->
 
 ### Visibility Controls
 
@@ -890,38 +863,7 @@ function process_after_delete($primary_key, $xcrud) {
 }
 ```
 
-### Custom Actions
-
-#### Replace Standard Actions
-
-```php
-// Replace insert
-$xcrud->replace_insert('custom_insert');
-
-// Replace update
-$xcrud->replace_update('custom_update');
-
-// Replace remove
-$xcrud->replace_remove('custom_delete');
-
-// In functions.php
-function custom_insert($postdata, $xcrud) {
-    $db = Xcrud_db::get_instance();
-    
-    // Custom insert logic
-    $fields = $postdata->to_array();
-    // Process fields...
-    
-    // Must return primary key!
-    return $db->insert_id();
-}
-
-function custom_update($postdata, $primary_key, $xcrud) {
-    // Custom update logic
-    // Must return primary key!
-    return $primary_key;
-}
-```
+<!-- Removed: Custom Actions (replace_insert/update/remove) — not applicable here -->
 
 ### Field Callbacks
 

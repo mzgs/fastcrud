@@ -2562,22 +2562,7 @@ class Crud
         return $this->quoteQualifiedIdentifier($raw);
     }
 
-    /**
-     * Build the list of SQL column references to search when "All" is selected.
-     *
-     * This resolves the final visible grid columns without executing the main query,
-     * and maps them to SQL-usable expressions for the WHERE clause:
-     *  - Base table columns -> prefixed with "main." (e.g., main.title)
-     *  - Joined table columns -> "alias.column" based on configured joins
-     *  - Subselect columns are excluded (not searchable in WHERE)
-     *
-     * @return array<int, string>
-     */
-    private function getWhereColumnsForAllSearch(): array
-    {
-        $map = $this->getWhereColumnsMapForAllSearch();
-        return array_values($map);
-    }
+    
 
     /**
      * Map visible display columns to WHERE-capable SQL expressions.
@@ -3877,10 +3862,7 @@ HTML;
         return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
-    private function formatValue(mixed $value): string
-    {
-        return (string) $value;
-    }
+    
 
     private function generateId(): string
     {
@@ -6848,11 +6830,11 @@ HTML;
         function buildActionCellHtml(row) {
             var json = escapeHtml(JSON.stringify(row || {}));
             var html = '<td class="text-end fastcrud-actions-cell"><div class="btn-group btn-group-sm" role="group">';
-            html += '<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-view-btn" title="View" aria-label="View record" data-row-json="' + json + '">' + actionIcons.view + '</button>';
-            html += '<button type="button" class="btn btn-sm btn-outline-primary fastcrud-edit-btn" title="Edit" aria-label="Edit record" data-row-json="' + json + '">' + actionIcons.edit + '</button>';
-            html += '<button type="button" class="btn btn-sm btn-outline-danger fastcrud-delete-btn" title="Delete" aria-label="Delete record" data-row-json="' + json + '">' + actionIcons.delete + '</button>';
+            html += '<button type="button" class="btn btn-sm btn-secondary fastcrud-view-btn" title="View" aria-label="View record" data-row-json="' + json + '">' + actionIcons.view + '</button>';
+            html += '<button type="button" class="btn btn-sm btn-primary fastcrud-edit-btn" title="Edit" aria-label="Edit record" data-row-json="' + json + '">' + actionIcons.edit + '</button>';
+            html += '<button type="button" class="btn btn-sm btn-danger fastcrud-delete-btn" title="Delete" aria-label="Delete record" data-row-json="' + json + '">' + actionIcons.delete + '</button>';
             if (duplicateEnabled) {
-                html += '<button type="button" class="btn btn-sm btn-outline-info fastcrud-duplicate-btn" title="Duplicate" aria-label="Duplicate record" data-row-json="' + json + '">' + actionIcons.duplicate + '</button>';
+                html += '<button type="button" class="btn btn-sm btn-info fastcrud-duplicate-btn" title="Duplicate" aria-label="Duplicate record" data-row-json="' + json + '">' + actionIcons.duplicate + '</button>';
             }
             html += '</div></td>';
             return html;
@@ -8687,26 +8669,7 @@ HTML;
             return false;
         });
 
-        table.on('click', '.fastcrud-custom-btn', function(event) {
-            event.preventDefault();
-            event.stopPropagation();
-            var button = $(this);
-            var confirmMessage = button.attr('data-confirm');
-            if (confirmMessage && !window.confirm(confirmMessage)) {
-                return false;
-            }
-
-            var row = getRowDataFromElement(button);
-            var payload = {
-                tableId: tableId,
-                action: button.attr('data-action'),
-                row: row,
-                definition: button.data('definition') || null
-            };
-
-            table.trigger('fastcrud:action', payload);
-            return false;
-        });
+        // Removed handler for unused custom buttons.
 
         table.on('click', '.fastcrud-duplicate-btn', function(event) {
             event.preventDefault();

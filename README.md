@@ -300,18 +300,6 @@ $posts
 
 Highlight conditions support `equals`, `not_equals`, `contains`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in`, `empty`, and `not_empty`. Cell highlights append Bootstrap text/background classes, while row highlights add table-level classes (e.g. `table-success`).
 
-### Custom Actions
-
-```php
-$(document).on('fastcrud:action', '#posts-table', function(event, payload) {
-    if (payload.action === 'preview-post') {
-        console.log('Preview row', payload.row);
-    }
-});
-```
-
-Column buttons render Bootstrap button groups inside the specified column, and every click triggers a `fastcrud:action` event so you can react without forking the core script.
-
 ### Table Metadata & Summary Rows
 
 ```php
