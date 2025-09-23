@@ -69,6 +69,7 @@ Crud::init([
                     ->limit_list('5,10,25,all')
                     ->order_by('id', 'desc')
                     ->relation('user_id', 'users', 'id', 'username')
+                    
                     // ->join('user_id', 'users', 'id','user')
                     // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
                     ->columns('user_id,title,slug,is_featured,content,created_at,image,gallery_images,file')

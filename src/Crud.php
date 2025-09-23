@@ -53,6 +53,7 @@ class Crud
     private array $config = [
         'where' => [],
         'order_by' => [],
+        'sort_disabled' => [],
         'no_quotes' => [],
         'limit_options' => [5, 10, 25, 50, 100],
         'limit_default' => null,
@@ -2033,6 +2034,42 @@ class Crud
         return $this;
     }
 
+    /**
+     * Disable sorting for specific columns in the UI and server ordering.
+     *
+     * @param string|array<int, string> $columns
+     */
+    public function disable_sort(string|array $columns): self
+    {
+        $list = $this->normalizeList($columns);
+        if ($list === []) {
+            throw new InvalidArgumentException('disable_sort requires at least one column.');
+        }
+
+        $normalized = [];
+        foreach ($list as $column) {
+            $c = $this->normalizeColumnReference($column);
+            if ($c !== '') {
+                $normalized[$c] = true;
+            }
+        }
+
+        if ($normalized === []) {
+            throw new InvalidArgumentException('disable_sort requires at least one valid column name.');
+        }
+
+        $current = [];
+        foreach ($this->config['sort_disabled'] as $existing) {
+            if (is_string($existing) && $existing !== '') {
+                $current[$existing] = true;
+            }
+        }
+
+        $this->config['sort_disabled'] = array_keys($current + $normalized);
+
+        return $this;
+    }
+
     public function search_columns(string|array $columns, string|false $default = false): self
     {
         $list = $this->normalizeList($columns);
@@ -2447,22 +2484,44 @@ class Crud
         }
 
         if ($this->config['order_by'] !== []) {
-            $orderParts = array_map(
-                static function (array $order): string {
-                    $field = $order['field'];
-                    if (
-                        strpos($field, '.') === false &&
-                        strpos($field, '(') === false &&
-                        strpos($field, ' ') === false
-                    ) {
-                        $field = 'main.' . $field;
-                    }
+            $disabled = [];
+            foreach ($this->config['sort_disabled'] as $dcol) {
+                if (is_string($dcol) && $dcol !== '') {
+                    $disabled[$dcol] = true;
+                }
+            }
 
-                    return $field . ' ' . $order['direction'];
-                },
-                $this->config['order_by']
-            );
-            $sql .= ' ORDER BY ' . implode(', ', $orderParts);
+            $orderParts = [];
+            foreach ($this->config['order_by'] as $order) {
+                if (!is_array($order) || !isset($order['field'], $order['direction'])) {
+                    continue;
+                }
+                $field = (string) $order['field'];
+                $normalized = $this->normalizeColumnReference($field);
+                if ($normalized !== '' && isset($disabled[$normalized])) {
+                    // Skip disabled columns from ORDER BY
+                    continue;
+                }
+
+                if (
+                    strpos($field, '.') === false &&
+                    strpos($field, '(') === false &&
+                    strpos($field, ' ') === false
+                ) {
+                    $field = 'main.' . $field;
+                }
+
+                $dir = strtoupper((string) $order['direction']);
+                if ($dir !== 'ASC' && $dir !== 'DESC') {
+                    $dir = 'ASC';
+                }
+
+                $orderParts[] = $field . ' ' . $dir;
+            }
+
+            if ($orderParts !== []) {
+                $sql .= ' ORDER BY ' . implode(', ', $orderParts);
+            }
         }
 
         if ($limit !== null) {
@@ -3686,6 +3745,16 @@ HTML;
     position: relative;
 }
 
+#{$containerId} table thead th.fastcrud-sortable {
+    cursor: pointer;
+    user-select: none;
+}
+#{$containerId} table thead th.fastcrud-sortable .fastcrud-sort-indicator {
+    opacity: 0.7;
+    margin-left: 0.25rem;
+    font-size: 0.9em;
+}
+
 #{$containerId} table thead th.fastcrud-actions,
 #{$containerId} table tbody td.fastcrud-actions-cell {
     position: sticky;
@@ -3911,6 +3980,12 @@ HTML;
                 ],
                 $this->config['order_by']
             ),
+            'sort_disabled'  => array_values(array_filter(
+                $this->config['sort_disabled'],
+                static function ($col) use ($columnLookup): bool {
+                    return is_string($col) && isset($columnLookup[$col]);
+                }
+            )),
             'form' => $this->buildFormMeta($columns),
         ];
     }
@@ -4242,6 +4317,7 @@ HTML;
         $arrayKeys = [
             'where',
             'order_by',
+            'sort_disabled',
             'no_quotes',
             'joins',
             'relations',
@@ -4892,7 +4968,9 @@ HTML;
         var columnLabels = {};
         var columnClasses = {};
         var columnWidths = {};
+        var orderBy = [];
         var duplicateEnabled = false;
+        var sortDisabled = {};
         var formConfig = {
             layouts: {},
             default_tabs: {},
@@ -5375,7 +5453,22 @@ HTML;
             duplicateEnabled = !!tableMeta.duplicate;
 
             updateMetaContainer(tableMeta);
+            // sort disabled list from meta
+            sortDisabled = {};
+            if (Array.isArray(meta.sort_disabled)) {
+                meta.sort_disabled.forEach(function(col){ if (col) { sortDisabled[String(col)] = true; } });
+            }
             applyHeaderMetadata();
+            // Read initial sort from meta and sync client config
+            if (Array.isArray(meta.order_by)) {
+                orderBy = meta.order_by.slice();
+                clientConfig.order_by = orderBy.slice();
+            } else {
+                orderBy = [];
+                clientConfig.order_by = [];
+            }
+            updateSortIndicators();
+            ensureSortHandlers();
 
             if (Array.isArray(meta.limit_options) && meta.limit_options.length) {
                 perPageOptions = meta.limit_options;
@@ -5521,9 +5614,109 @@ HTML;
                 }
 
                 var cell = $(this);
-                cell.text(makeLabel(column));
+                cell.empty();
+                var label = $('<span class="fastcrud-sort-label"></span>').text(makeLabel(column));
+                cell.append(label);
+                // Mark sortable only when not disabled
+                if (!sortDisabled[column]) {
+                    cell.addClass('fastcrud-sortable');
+                } else {
+                    cell.removeClass('fastcrud-sortable');
+                }
                 applyWidthToElement(cell, columnWidths[column]);
             });
+        }
+
+        function normalizeFieldForHeader(field) {
+            if (!field) { return ''; }
+            return String(field).replace(/\./g, '__');
+        }
+
+        function denormalizeHeaderColumn(column) {
+            if (!column) { return ''; }
+            return String(column).replace(/__/g, '.');
+        }
+
+        function findOrderIndex(column) {
+            if (!Array.isArray(orderBy) || !orderBy.length) { return -1; }
+            for (var i = 0; i < orderBy.length; i++) {
+                var f = String(orderBy[i].field || '');
+                if (normalizeFieldForHeader(f) === column) { return i; }
+            }
+            return -1;
+        }
+
+        function getDirectionForColumn(column) {
+            var idx = findOrderIndex(column);
+            if (idx === -1) { return null; }
+            var dir = String(orderBy[idx].direction || '').toLowerCase();
+            return (dir === 'asc' || dir === 'desc') ? dir : null;
+        }
+
+        function setOrder(column, direction, additive) {
+            // column is header-normalized; store denormalized in config
+            if (!column) { return; }
+            var field = denormalizeHeaderColumn(column);
+            var dir = String(direction || 'asc').toUpperCase();
+            if (dir !== 'ASC' && dir !== 'DESC') { dir = 'ASC'; }
+
+            if (additive) {
+                var idx = findOrderIndex(column);
+                if (idx >= 0) {
+                    orderBy[idx] = { field: field, direction: dir };
+                } else {
+                    orderBy.push({ field: field, direction: dir });
+                }
+            } else {
+                orderBy = [{ field: field, direction: dir }];
+            }
+            clientConfig.order_by = orderBy.slice();
+        }
+
+        function updateSortIndicators() {
+            var headerCells = table.find('thead th').not('.fastcrud-actions');
+            headerCells.each(function(index) {
+                var cell = $(this);
+                var column = columnsCache[index];
+                if (!column) { return; }
+                cell.find('.fastcrud-sort-indicator').remove();
+                var dir = getDirectionForColumn(column);
+                if (dir === 'asc') {
+                    cell.append('<span class="fastcrud-sort-indicator" aria-hidden="true">▲</span>');
+                    cell.attr('aria-sort', 'ascending');
+                } else if (dir === 'desc') {
+                    cell.append('<span class="fastcrud-sort-indicator" aria-hidden="true">▼</span>');
+                    cell.attr('aria-sort', 'descending');
+                } else {
+                    cell.removeAttr('aria-sort');
+                }
+            });
+        }
+
+        var sortHandlersBound = false;
+        function ensureSortHandlers() {
+            if (sortHandlersBound) { return; }
+            table.on('click.fastcrudSort', 'thead th.fastcrud-sortable', function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                var cell = $(this);
+                var column = String(cell.attr('data-column') || '').trim();
+                if (!column) {
+                    // Fallback: derive from index
+                    var index = cell.index();
+                    column = columnsCache[index] || '';
+                }
+                if (!column) { return false; }
+                if (sortDisabled[column]) { return false; }
+                var current = getDirectionForColumn(column);
+                var next = (current === 'asc') ? 'desc' : 'asc';
+                var additive = !!(event.shiftKey);
+                setOrder(column, next || 'asc', additive);
+                updateSortIndicators();
+                loadTableData(1);
+                return false;
+            });
+            sortHandlersBound = true;
         }
 
         function applyWidthToElement(element, widthValue) {
