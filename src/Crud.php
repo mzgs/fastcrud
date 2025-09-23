@@ -1044,6 +1044,18 @@ class Crud
                         $html = '<img src="' . $this->escapeHtml($src) . '" alt="" class="img-thumbnail"' . $style . ' />';
                     }
                 }
+            } elseif ($type === 'color') {
+                $raw = $rawOriginal;
+                if ($raw === null || $raw === '') {
+                    $raw = $value;
+                }
+                $colorValue = trim($this->stringifyValue($raw));
+                if ($colorValue !== '') {
+                    $accent = $this->resolveAccentColor($colorValue);
+                    $swatch = '<span style="display:inline-block;width:14px;height:14px;border:1px solid rgba(0,0,0,.2);vertical-align:middle;background-color: ' . $this->escapeHtml($accent) . ';"></span>';
+                    $text = $this->escapeHtml($this->stringifyValue($value));
+                    $html = $swatch . ' ' . $text;
+                }
             }
         }
 
@@ -7160,6 +7172,8 @@ HTML;
 
                 var group = $('<div class="mb-3"></div>').attr('data-fastcrud-group', column);
                 var input;
+                var compound = null; // optional wrapper for composite inputs (e.g., color)
+                var colorPicker = null; // used when changeType === 'color'
                 var dataType = changeType;
                 var normalizedValue = currentValue;
 
@@ -7298,6 +7312,43 @@ HTML;
                     input = $('<input type="email" class="form-control" />')
                         .attr('id', fieldId)
                         .val(String(normalizedValue));
+                } else if (changeType === 'color') {
+                    var startColor = String(normalizedValue || '').trim();
+                    if (!startColor) { startColor = '#000000'; }
+                    // Text input is the value holder submitted to server
+                    input = $('<input type="text" class="form-control" />')
+                        .attr('id', fieldId)
+                        .attr('placeholder', '#RRGGBB')
+                        .val(startColor);
+                    dataType = 'color';
+                    // Color picker on the left inside an input-group
+                    colorPicker = $('<input type="color" class="form-control form-control-color" />')
+                        .attr('id', fieldId + '-picker')
+                        .val(startColor)
+                        .css({ minWidth: '3rem' });
+                    compound = $('<div class="input-group align-items-stretch"></div>');
+                    var addon = $('<span class="input-group-text p-0"></span>');
+                    addon.append(colorPicker);
+                    compound.append(addon).append(input);
+                    // Keep values in sync both ways
+                    colorPicker.on('input change', function() {
+                        try { input.val(String(colorPicker.val() || '')).trigger('input').trigger('change'); } catch (e) {}
+                    });
+                    input.on('input change', function() {
+                        try {
+                            var v = String(input.val() || '').trim();
+                            if (/^#([0-9a-fA-F]{6})$/.test(v)) { colorPicker.val(v); }
+                        } catch (e) {}
+                    });
+                    // Clicking or focusing the hex input opens the color picker
+                    function openColorPicker() {
+                        try {
+                            if (input.prop('disabled') || input.prop('readonly')) { return; }
+                            colorPicker.trigger('click');
+                        } catch (e) {}
+                    }
+                    input.on('focus', openColorPicker);
+                    input.on('click', function() { openColorPicker(); });
                 } else if (changeType === 'number' || changeType === 'int' || changeType === 'integer' || changeType === 'float' || changeType === 'decimal') {
                     input = $('<input type="number" class="form-control" />')
                         .attr('id', fieldId)
@@ -7343,7 +7394,11 @@ HTML;
 
                 if (changeType !== 'bool' && changeType !== 'checkbox') {
                     group.append($('<label class="form-label"></label>').attr('for', labelForId).text(resolveFieldLabel(column)));
-                    group.append(input);
+                    if (changeType === 'color' && compound) {
+                        group.append(compound);
+                    } else {
+                        group.append(input);
+                    }
                     if (changeType === 'image' || changeType === 'images' || changeType === 'file' || changeType === 'files') {
                         // Append the hidden value holder so it gets included on submit
                         group.append(hiddenInput);
@@ -7396,6 +7451,9 @@ HTML;
                         input.prop('readonly', true);
                     }
                     group.addClass('fastcrud-field-readonly');
+                    if (changeType === 'color' && colorPicker) {
+                        try { colorPicker.prop('disabled', true); } catch (e) {}
+                    }
                     if (changeType === 'image' || changeType === 'images' || changeType === 'file' || changeType === 'files') {
                         // Prevent posting hidden value when field is readonly
                         try { hiddenInput.prop('disabled', true); } catch (e) {}
@@ -7405,6 +7463,9 @@ HTML;
                 if (behaviours.disabled) {
                     input.prop('disabled', true);
                     group.addClass('fastcrud-field-disabled');
+                    if (changeType === 'color' && colorPicker) {
+                        try { colorPicker.prop('disabled', true); } catch (e) {}
+                    }
                     if (changeType === 'image' || changeType === 'images' || changeType === 'file' || changeType === 'files') {
                         try { hiddenInput.prop('disabled', true); } catch (e) {}
                     }
@@ -8167,6 +8228,12 @@ HTML;
                         } else {
                             valueElem.text('N/A');
                         }
+                    } else if (changeType === 'color') {
+                        var c = String(value || '').trim();
+                        if (!c) { c = '#000000'; }
+                        var swatch = $('<span></span>')
+                            .css({ display: 'inline-block', width: '14px', height: '14px', verticalAlign: 'middle', border: '1px solid rgba(0,0,0,.2)', backgroundColor: c });
+                        valueElem.empty().append(swatch).append(' ').append(document.createTextNode(String(displayValue)));
                     } else {
                         valueElem.text(displayValue);
                     }
