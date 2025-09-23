@@ -5096,7 +5096,9 @@ HTML;
             throw new InvalidArgumentException('Primary key column is required.');
         }
 
-        $columns = $this->getColumnNames();
+        // Validate against base table columns (not just visible columns)
+        // to support cases where the primary key isn't displayed in the grid.
+        $columns = $this->getTableColumnsFor($this->table);
         if (!in_array($primaryKeyColumn, $columns, true)) {
             $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
             throw new InvalidArgumentException($message);
