@@ -109,7 +109,7 @@ Crud::init([
                     // ->column_width('title', '30%')
                     ->column_cut('content', 10)
                     ->setPanelWidth('30%')
-                    ->link_button('example.com?id={id}', 'bi bi-person', '', 'btn btn-success', ['target' => '_blank'] )
+                    ->link_button('example.com?id={id}', 'bi bi-person', '', 'btn btn-success', ['target' => '_blank', 'class' => 'me-5'] )
                     // ->change_type('title', 'textarea','',['rows' => 12])
                   
                     // ->highlight('id', ['operator' => 'equals', 'value' => 32], 'bg-info')
