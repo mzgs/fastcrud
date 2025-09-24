@@ -31,26 +31,22 @@ function render_status_badge(array $row): string
 
 function my_color_input(string $field, mixed $value, array $row, string $formType): string
 {
-    $safeField = htmlspecialchars($field, ENT_QUOTES, 'UTF-8');
-    $safeValue = htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
-
     return <<<HTML
         <input
             type="color"
             class="form-control form-control-color"
-            name="{$safeField}"
-            data-fastcrud-field="{$safeField}"
-            value="{$safeValue}"
+            name="{$field}"
+            data-fastcrud-field="{$field}"
+            value="{$value}"
             title="Choose your color"
         >
+        
     HTML;
 }
 
 function render_status_note_field(string $field, mixed $value, array $row, string $formType): string
 {
-    return !empty($row['is_featured'])
-        ? 'Featured posts are highlighted and surface in key sections.'
-        : 'Standard posts appear in chronological listings.';
+    return  '<hr><span class="text-primary">Featured posts are highlighted and surface in key sections.</span>' ;
 }
 
 
