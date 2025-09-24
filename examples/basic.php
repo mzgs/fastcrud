@@ -73,7 +73,7 @@ Crud::init([
                     
                     // ->join('user_id', 'users', 'id','user')
                     // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
-                    ->columns('user_id,title,is_featured,slug,file,content,image,color,file')
+                    ->columns('user_id,title,is_featured,file,content,image,color')
                     ->fields('user_id,title,is_featured,json_field,image,gallery_images,file,color,content,created_at', false, 'Post Details' )
                     ->fields('slug', false, 'Post Summary' )
                     // ->fields('slug,content',false,'Content' )
@@ -109,7 +109,7 @@ Crud::init([
                     // ->column_width('title', '30%')
                     ->column_cut('content', 30)
                     ->setPanelWidth('30%')
-                    ->link_button('example.com?id={id}', 'bi bi-person', '', 'btn btn-success', ['target' => '_blank', 'class' => 'me-5'] )
+                    ->link_button('example.com?id={id}', 'bi bi-person', '', 'btn btn-success', ['target' => '_blank', 'class' => 'me-2'] )
                     // ->change_type('title', 'textarea','',['rows' => 12])
                   
                     // ->highlight('id', ['operator' => 'equals', 'value' => 32], 'bg-info')

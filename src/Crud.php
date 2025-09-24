@@ -4158,8 +4158,9 @@ HTML;
     position: relative;
     border-collapse: collapse;
     border-spacing: 0;
-    width: max-content;
+    width: 100%;
     min-width: 100%;
+    table-layout: auto;
 }
 
 #{$containerId} table thead th.fastcrud-sortable {
@@ -4178,7 +4179,7 @@ HTML;
     position: sticky;
     right: 0;
     background-color: var(--bs-body-bg, #ffffff);
-    min-width: 14rem;
+    min-width: 12rem;
 }
 
 #{$containerId} table thead th.fastcrud-actions {
@@ -4213,7 +4214,7 @@ HTML;
     display: inline-flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 0.35rem;
+    gap: 0.3rem;
     flex-wrap: nowrap;
     width: 100%;
 }
