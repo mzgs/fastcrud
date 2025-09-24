@@ -26,7 +26,19 @@ function render_status_badge(array $row): string
     $label = $isFeatured ? 'Featured' : 'Standard';
     $variant = $isFeatured ? 'success' : 'secondary';
 
-    return '<span class="badge bg-' . $variant .  '">' . $label . '</span> sdfdsf  ' . $row['slug'] ;
+    return '<span class="badge bg-' . $variant . '">' . $label . '</span>';
+}
+
+function my_color_input(string $field, mixed $value, array $row, string $formType): string
+{
+    return '<b>color</b>';
+}
+
+function render_status_note_field(string $field, mixed $value, array $row, string $formType): string
+{
+    return !empty($row['is_featured'])
+        ? 'Featured posts are highlighted and surface in key sections.'
+        : 'Standard posts appear in chronological listings.';
 }
 
 
@@ -84,7 +96,7 @@ Crud::init([
                     // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
                     ->columns('user_id,title,is_featured,file,status_label,content,image,color')
                     ->fields('user_id,title,is_featured,json_field,image,gallery_images,file,color,content,created_at', false, 'Post Details' )
-                    ->fields('slug', false, 'Post Summary' )
+                    ->fields('slug,status_note', false, 'Post Summary' )
                     // ->fields('slug,content',false,'Content' )
                     ->change_type('file', 'files')
                     ->change_type('image', 'image')
@@ -101,6 +113,10 @@ Crud::init([
                     ->validation_required('slug')
                     ->change_type('json_field', 'json', '', ['rows' => 8])
                     ->inline_edit('title,color')
+                    ->field_callback('color', 'my_color_input')
+                    ->custom_field('status_note', 'render_status_note_field')
+                    ->change_type('status_note', 'textarea', '', ['rows' => 2])
+                    ->readonly('status_note')
                     
                     ->set_column_labels([
                         'user_id'    => 'Author',
@@ -112,6 +128,7 @@ Crud::init([
                     ->set_field_labels([
                         'user_id'    => 'Select User',
                         'title'      => 'Post Title',
+                        'status_note' => 'Status Notes',
                        
                     ])
                     ->column_pattern('slug', '<strong>{value} - {id} | {status}</strong>')

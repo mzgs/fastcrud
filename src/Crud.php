@@ -69,6 +69,8 @@ class Crud
         'column_patterns' => [],
         'column_callbacks' => [],
         'custom_columns' => [],
+        'field_callbacks' => [],
+        'custom_fields' => [],
         'column_classes' => [],
         'column_widths' => [],
         'column_cuts' => [],
@@ -1059,6 +1061,64 @@ class Crud
 
     /**
      * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function applyFieldCallbacksToRow(array $row, string $mode = 'edit'): array
+    {
+        if ($row === []) {
+            return $row;
+        }
+
+        $original = $row;
+
+        $customDefinitions = $this->config['custom_fields'] ?? [];
+        foreach ($customDefinitions as $field => $callable) {
+            if (!is_string($field) || $field === '' || !is_callable($callable)) {
+                continue;
+            }
+
+            $initialValue = $original[$field] ?? null;
+            $result = call_user_func($callable, $field, $initialValue, $original, $mode);
+            $row = $this->applyFieldCallbackResult($row, $field, $result, $initialValue);
+        }
+
+        $fieldCallbacks = $this->config['field_callbacks'] ?? [];
+        foreach ($fieldCallbacks as $field => $callable) {
+            if (!is_string($field) || $field === '' || !is_callable($callable)) {
+                continue;
+            }
+
+            $currentValue = $row[$field] ?? ($original[$field] ?? null);
+            $result = call_user_func($callable, $field, $currentValue, $row, $mode);
+            $row = $this->applyFieldCallbackResult($row, $field, $result, $currentValue);
+        }
+
+        return $row;
+    }
+
+    private function applyFieldCallbackResult(array $row, string $field, mixed $result, mixed $fallbackValue): array
+    {
+        if (!is_string($result)) {
+            $result = (string) ($result ?? '');
+        }
+
+        if (!isset($row['__fastcrud_field_html']) || !is_array($row['__fastcrud_field_html'])) {
+            $row['__fastcrud_field_html'] = [];
+        }
+
+        $row['__fastcrud_field_html'][$field] = $result;
+
+        if ($fallbackValue !== null) {
+            $row[$field] = $fallbackValue;
+        } else {
+            unset($row[$field]);
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param array<string, mixed> $row
      */
     private function buildLinkButtonMetaForRow(array $row): ?array
     {
@@ -1724,6 +1784,81 @@ class Crud
 
         $this->config['custom_columns'][$normalizedColumn] = $serialized;
         $this->disable_sort($normalizedColumn);
+
+        return $this;
+    }
+
+    /**
+     * Apply a callback to transform form field values before they are sent to the client.
+     *
+     * The callback receives the field name, the current value, the full row array, and the form
+     * mode (`edit`, `create`, or `view`). Whatever value it returns (including null) replaces the
+     * existing field value. Return an array with an `html` key or a plain string (text or markup)
+     * to provide custom form controls rendered as raw HTML. When returning custom markup, include
+     * your own inputs with `data-fastcrud-field="{field}"` so the Ajax submit logic can capture
+     * the value.
+     */
+    public function field_callback(string|array $fields, callable|string|array $callback): self
+    {
+        $list = $this->normalizeList($fields);
+        if ($list === []) {
+            throw new InvalidArgumentException('field_callback requires at least one field.');
+        }
+
+        $serialized = $this->normalizeCallable($callback);
+
+        if (!is_callable($serialized)) {
+            throw new InvalidArgumentException('Provided callback is not callable: ' . $serialized);
+        }
+
+        $applied = false;
+
+        foreach ($list as $field) {
+            $normalized = $this->normalizeColumnReference($field);
+            if ($normalized === '') {
+                continue;
+            }
+
+            $this->config['field_callbacks'][$normalized] = $serialized;
+            $applied = true;
+        }
+
+        if (!$applied) {
+            throw new InvalidArgumentException('field_callback requires at least one valid field name.');
+        }
+
+        return $this;
+    }
+
+    /**
+     * Register a form field that is not stored in the database.
+     *
+     * The callback receives the field name, the initial value (or null), the row array, and the
+     * current form mode. Return a string of HTML or an array with `html`/`value` keys to inject
+     * custom form controls. Escape the markup yourself if it contains untrusted data.
+     */
+    public function custom_field(string $field, callable|string|array $callback): self
+    {
+        $normalizedField = $this->normalizeColumnReference($field);
+        if ($normalizedField === '') {
+            throw new InvalidArgumentException('Custom field name cannot be empty.');
+        }
+
+        $serialized = $this->normalizeCallable($callback);
+
+        if (!is_callable($serialized)) {
+            throw new InvalidArgumentException('Provided callback is not callable: ' . $serialized);
+        }
+
+        $this->config['custom_fields'][$normalizedField] = $serialized;
+
+        if (!isset($this->config['form']['all_columns']) || !is_array($this->config['form']['all_columns'])) {
+            $this->config['form']['all_columns'] = [];
+        }
+
+        if (!in_array($normalizedField, $this->config['form']['all_columns'], true)) {
+            $this->config['form']['all_columns'][] = $normalizedField;
+        }
 
         return $this;
     }
@@ -4473,6 +4608,18 @@ HTML;
             }
         }
 
+        foreach (array_keys($this->config['custom_columns'] ?? []) as $customColumn) {
+            $register($customColumn);
+        }
+
+        foreach (array_keys($this->config['custom_fields'] ?? []) as $customField) {
+            $register($customField);
+        }
+
+        foreach (array_keys($this->config['field_callbacks'] ?? []) as $callbackField) {
+            $register($callbackField);
+        }
+
         return $lookup;
     }
 
@@ -4688,12 +4835,34 @@ HTML;
             }
         }
 
+        $allColumns = $this->getBaseTableColumns();
+        if (isset($this->config['form']['all_columns']) && is_array($this->config['form']['all_columns'])) {
+            foreach ($this->config['form']['all_columns'] as $column) {
+                $normalized = $this->normalizeColumnReference((string) $column);
+                if ($normalized !== '' && !in_array($normalized, $allColumns, true)) {
+                    $allColumns[] = $normalized;
+                }
+            }
+        }
+
+        foreach (array_keys($this->config['custom_fields'] ?? []) as $customField) {
+            if (is_string($customField) && $customField !== '' && !in_array($customField, $allColumns, true)) {
+                $allColumns[] = $customField;
+            }
+        }
+
+        foreach (array_keys($this->config['custom_columns'] ?? []) as $customColumn) {
+            if (is_string($customColumn) && $customColumn !== '' && !in_array($customColumn, $allColumns, true)) {
+                $allColumns[] = $customColumn;
+            }
+        }
+
         return [
             'layouts'      => $layouts,
             'default_tabs' => $defaultTabs,
             'behaviours'   => $behaviours,
             'labels'       => $fieldLabels,
-            'all_columns'  => $this->getBaseTableColumns(),
+            'all_columns'  => array_values($allColumns),
         ];
     }
 
@@ -4799,6 +4968,12 @@ HTML;
             }
         }
 
+        foreach (array_keys($this->config['custom_fields']) as $customField) {
+            if (is_string($customField) && $customField !== '' && !in_array($customField, $allColumns, true)) {
+                $allColumns[] = $customField;
+            }
+        }
+
         if (isset($formConfig['layouts']) && is_array($formConfig['layouts'])) {
             foreach ($formConfig['layouts'] as $entries) {
                 if (!is_array($entries)) {
@@ -4851,6 +5026,21 @@ HTML;
             }
         }
 
+        foreach (array_keys($this->config['custom_fields']) as $customField) {
+            if (!is_string($customField) || $customField === '') {
+                continue;
+            }
+
+            $normalized = $this->normalizeColumnReference($customField);
+            if ($normalized === '') {
+                continue;
+            }
+
+            if (!in_array($normalized, $sortDisabled, true)) {
+                $sortDisabled[] = $normalized;
+            }
+        }
+
         return [
             'per_page'       => $this->perPage,
             'where'          => $this->config['where'],
@@ -4870,6 +5060,8 @@ HTML;
             'column_patterns' => $this->config['column_patterns'],
             'column_callbacks' => $this->config['column_callbacks'],
             'custom_columns'   => $this->config['custom_columns'],
+            'field_callbacks'  => $this->config['field_callbacks'],
+            'custom_fields'    => $this->config['custom_fields'],
             'sort_disabled'    => $sortDisabled,
             'column_classes'  => $this->config['column_classes'],
             'column_widths'   => $this->config['column_widths'],
@@ -5026,6 +5218,37 @@ HTML;
             }
         }
 
+        if (isset($payload['field_callbacks']) && is_array($payload['field_callbacks'])) {
+            $normalized = [];
+            foreach ($payload['field_callbacks'] as $field => $entry) {
+                if (!is_string($field)) {
+                    continue;
+                }
+
+                $normalizedField = $this->normalizeColumnReference($field);
+                if ($normalizedField === '') {
+                    continue;
+                }
+
+                $callable = null;
+                if (is_string($entry)) {
+                    $callable = $entry;
+                } elseif (is_array($entry) && isset($entry['callable'])) {
+                    $callable = (string) $entry['callable'];
+                }
+
+                if ($callable === null || $callable === '' || !is_callable($callable)) {
+                    continue;
+                }
+
+                $normalized[$normalizedField] = $callable;
+            }
+
+            if ($normalized !== []) {
+                $this->config['field_callbacks'] = $normalized;
+            }
+        }
+
         if (isset($payload['custom_columns']) && is_array($payload['custom_columns'])) {
             $custom = [];
             foreach ($payload['custom_columns'] as $column => $entry) {
@@ -5054,6 +5277,47 @@ HTML;
 
             if ($custom !== []) {
                 $this->config['custom_columns'] = $custom;
+            }
+        }
+
+        if (isset($payload['custom_fields']) && is_array($payload['custom_fields'])) {
+            $custom = [];
+            foreach ($payload['custom_fields'] as $field => $entry) {
+                if (!is_string($field)) {
+                    continue;
+                }
+
+                $normalizedField = $this->normalizeColumnReference($field);
+                if ($normalizedField === '') {
+                    continue;
+                }
+
+                $callable = null;
+                if (is_string($entry)) {
+                    $callable = $entry;
+                } elseif (is_array($entry) && isset($entry['callable'])) {
+                    $callable = (string) $entry['callable'];
+                }
+
+                if ($callable === null || $callable === '' || !is_callable($callable)) {
+                    continue;
+                }
+
+                $custom[$normalizedField] = $callable;
+            }
+
+            if ($custom !== []) {
+                $this->config['custom_fields'] = $custom;
+
+                if (!isset($this->config['form']['all_columns']) || !is_array($this->config['form']['all_columns'])) {
+                    $this->config['form']['all_columns'] = [];
+                }
+
+                foreach (array_keys($custom) as $fieldName) {
+                    if (!in_array($fieldName, $this->config['form']['all_columns'], true)) {
+                        $this->config['form']['all_columns'][] = $fieldName;
+                    }
+                }
             }
         }
 
@@ -5840,7 +6104,15 @@ HTML;
 
         $row = $statement->fetch(PDO::FETCH_ASSOC);
 
-        return is_array($row) ? $row : null;
+        if (!is_array($row)) {
+            return null;
+        }
+
+        $primaryKey = $this->getPrimaryKeyColumn();
+        $row['__fastcrud_primary_key'] = $primaryKey;
+        $row['__fastcrud_primary_value'] = $row[$primaryKey] ?? null;
+
+        return $this->applyFieldCallbacksToRow($row, 'edit');
     }
 
     /**
@@ -7962,6 +8234,9 @@ HTML;
             editForm.find('input[type="hidden"][data-fastcrud-field]').remove();
 
             var templateContext = $.extend({}, row);
+            var customFieldHtml = row.__fastcrud_field_html && typeof row.__fastcrud_field_html === 'object'
+                ? row.__fastcrud_field_html
+                : {};
 
             var layout = buildFormLayout('edit');
             var fields = layout.fields.slice();
@@ -8087,6 +8362,24 @@ HTML;
                             container = entry.pane;
                         }
                     }
+                }
+
+                if (typeof customFieldHtml[column] !== 'undefined') {
+                    var customContainer = $('<div class="mb-3"></div>').attr('data-fastcrud-group', column);
+                    var htmlContent = customFieldHtml[column];
+                    if (htmlContent && typeof htmlContent === 'object' && htmlContent.jquery) {
+                        customContainer.append(htmlContent);
+                    } else if (typeof htmlContent === 'string') {
+                        if (htmlContent.indexOf('<') !== -1) {
+                            customContainer.append(htmlContent);
+                        } else {
+                            customContainer.text(htmlContent);
+                        }
+                    } else {
+                        customContainer.append(htmlContent);
+                    }
+                    container.append(customContainer);
+                    return;
                 }
 
                 var group = $('<div class="mb-3"></div>').attr('data-fastcrud-group', column);
@@ -9020,6 +9313,10 @@ HTML;
                 viewHeading.text(headingText);
             }
 
+            var customFieldHtml = row.__fastcrud_field_html && typeof row.__fastcrud_field_html === 'object'
+                ? row.__fastcrud_field_html
+                : {};
+
             var viewLayout = buildFormLayout('view');
             var viewFields = viewLayout.fields.length
                 ? viewLayout.fields.slice()
@@ -9130,6 +9427,25 @@ HTML;
                 item.append($('<div class="fw-semibold text-muted mb-1"></div>').text(label));
 
                 var valueElem = $('<div class="text-break"></div>');
+                if (typeof customFieldHtml[column] !== 'undefined') {
+                    var viewHtml = customFieldHtml[column];
+                    if (viewHtml && typeof viewHtml === 'object' && viewHtml.jquery) {
+                        valueElem.append(viewHtml);
+                    } else if (typeof viewHtml === 'string') {
+                        if (viewHtml.indexOf('<') !== -1) {
+                            valueElem.append(viewHtml);
+                        } else {
+                            valueElem.text(viewHtml);
+                        }
+                    } else {
+                        valueElem.append(viewHtml);
+                    }
+                    item.append(valueElem);
+                    container.append(item);
+                    viewHasContent = true;
+                    return;
+                }
+
                 try {
                     var viewBehaviours = resolveBehavioursForField(column, 'view');
                     var changeMeta = (viewBehaviours && viewBehaviours.change_type) ? viewBehaviours.change_type : {};

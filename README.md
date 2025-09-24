@@ -376,6 +376,27 @@ $crud
 ```
 
  - **Type controls:** `change_type()` swaps the rendered input (e.g. select, textarea, checkbox) and accepts defaults plus extra parameters like option lists. FastCrud now inspects the table schema and picks sensible HTML controls automatically—MySQL `TEXT` columns render as `<textarea>`, `DATE` becomes `<input type="date">`, date times become `datetime-local`, `TINYINT(1)`/boolean flags turn into checkboxes, and numeric types map to `<input type="number">`. Calling `change_type()` still overrides the detected defaults when you need something custom. Accepted `type` values include `textarea`, `json` (textarea with JSON validation/pretty-print), `select`/`dropdown`, `multiselect`, `hidden`, `date`, `datetime`/`datetime-local`, `time`, `email`, `number` (`int`/`integer`/`float`/`decimal` aliases), `password`, TinyMCE-backed `rich_editor`, generic file upload `file` (single-file), multi-file upload `files` (comma-separated list), image upload `image` (single-file FilePond with preview), multi-image upload `images` (FilePond with multi-select storing comma-separated filenames), and boolean helpers (`bool`/`checkbox`/`switch`). Use the `$params` argument to tweak each control—for example `['rows' => 6]` for textareas/JSON editors, `['values' => ['draft' => 'Draft']]` for selects, number constraints like `['step' => '0.01', 'min' => 0]`, or WYSIWYG tuning such as `['height' => 400, 'editor' => ['toolbar' => 'undo redo | bold italic']]`. For `file`/`files`, you can restrict types with `['accept' => 'application/pdf,.docx']`. For `image` and `images`, FilePond handles client-side preview and uploads to the path configured by `CrudConfig::getUploadPath()`, automatically restoring previews for existing filenames. Fields wired with `relation()` automatically inherit `select`/`multiselect` widgets plus option lists pulled from the related table, so most lookup dropdowns work out of the box.
+- **Custom form widgets:** `field_callback()` lets you replace the generated control with your own markup. The callback receives the field name, current value, hydrated row, and the form mode—return a string (HTML or plain text). When you output your own `<input>`/`<textarea>` you **must** include `data-fastcrud-field="{field}`` so the AJAX submit logic can collect the value:
+
+    ```php
+    $crud->field_callback('color', 'my_color_input');
+
+    function my_color_input(string $field, mixed $value, array $row, string $formType): string
+    {
+        $current = is_string($value) && $value !== '' ? $value : '#ff0000';
+
+        return '<input type="color" class="form-control" data-fastcrud-field="'
+            . $field
+            . '" value="'
+            . htmlspecialchars($current, ENT_QUOTES)
+            . '">';
+    }
+    ```
+
+    The callback signature is `function(string $field, mixed $value, array $row, string $formType)` where
+    `$formType` is `edit`, `view`, or `create`.
+
+- **Virtual fields:** `custom_field()` registers additional form fields that do not exist in the database. It shares the same callback signature as `field_callback()` (`string $field, mixed $value, array $row, string $formType`) where `$formType` is `edit`, `view`, or `create`. Return a string (HTML or plain text) and reference the field in `->fields()`/`->change_type()` just like a real column.
 - **Templated values:** `pass_default()` and `pass_var()` inject placeholders such as `{column}` or custom tokens whenever an input is empty or omitted entirely.
 - **Mode-aware locks:** `readonly()` and `disabled()` honour per-mode rules so audit fields stay untouched during edits.
 - **Validation helpers:** `validation_required()`, `validation_pattern()`, and `unique()` run checks in JavaScript and repeat them on the server before executing updates.
