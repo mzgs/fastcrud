@@ -79,6 +79,7 @@ class Crud
             'tooltip' => null,
             'icon'    => null,
             'duplicate' => false,
+            'delete_confirm' => true,
         ],
         'column_summaries' => [],
         'field_labels' => [],
@@ -1710,6 +1711,13 @@ class Crud
     public function enable_duplicate(bool $enabled = true): self
     {
         $this->config['table_meta']['duplicate'] = (bool) $enabled;
+
+        return $this;
+    }
+
+    public function enable_delete_confirm(bool $enabled = true): self
+    {
+        $this->config['table_meta']['delete_confirm'] = (bool) $enabled;
 
         return $this;
     }
@@ -9302,9 +9310,12 @@ HTML;
                 return;
             }
 
-            var confirmationMessage = 'Are you sure you want to delete record ' + primaryValue + '?';
-            if (!window.confirm(confirmationMessage)) {
-                return;
+            var deleteConfirm = clientConfig.table_meta && clientConfig.table_meta.delete_confirm !== false;
+            if (deleteConfirm) {
+                var confirmationMessage = 'Are you sure you want to delete record ' + primaryValue + '?';
+                if (!window.confirm(confirmationMessage)) {
+                    return;
+                }
             }
 
             $.ajax({

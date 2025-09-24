@@ -79,6 +79,7 @@ Crud::init([
                     // ->fields('slug,content',false,'Content' )
                     ->change_type('file', 'files')
                     ->change_type('image', 'image')
+                    // ->enable_delete_confirm(false)
                     
                   ->change_type('gallery_images', 'images')
                   ->change_type('color', 'color', '#ff0000')
