@@ -4179,11 +4179,17 @@ HTML;
     box-shadow: -6px 0 6px -6px rgba(0, 0, 0, 0.2);
 }
 
-#{$containerId} table tbody td.fastcrud-actions-cell .btn {
+#{$containerId} table tbody td.fastcrud-actions-cell .btn,
+#{$containerId} table tbody td.fastcrud-actions-cell .fastcrud-action-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    line-height: 1;
+    line-height: 1.25;
+    padding: 0.25rem 0.65rem;
+}
+
+#{$containerId} table tbody td.fastcrud-actions-cell .fastcrud-action-button {
+    min-height: calc(1.5rem + 0.5rem);
 }
 
 #{$containerId} .fastcrud-icon {
@@ -7425,7 +7431,7 @@ HTML;
         }
 
         function buildActionCellHtml(rowMeta) {
-            var html = '<td class="text-end fastcrud-actions-cell"><div class="btn-group btn-group-sm" role="group">';
+            var fragments = [];
 
             if (linkButtonConfig && rowMeta && rowMeta.link_button && rowMeta.link_button.url) {
                 var linkMeta = rowMeta.link_button;
@@ -7436,20 +7442,41 @@ HTML;
                     if (classParts.indexOf('btn') === -1) {
                         classParts.unshift('btn');
                     }
+                    if (classParts.indexOf('btn-sm') === -1) {
+                        classParts.push('btn-sm');
+                    }
+                    if (classParts.indexOf('fastcrud-action-button') === -1) {
+                        classParts.push('fastcrud-action-button');
+                    }
                     if (classParts.indexOf('fastcrud-link-btn') === -1) {
                         classParts.push('fastcrud-link-btn');
                     }
-                    var classAttr = classParts.join(' ');
-
                     var labelRaw = typeof linkMeta.label === 'string' ? linkMeta.label : '';
                     var labelText = labelRaw.trim();
                     var options = linkButtonConfig.options && typeof linkButtonConfig.options === 'object'
-                        ? linkButtonConfig.options
+                        ? Object.assign({}, linkButtonConfig.options)
                         : {};
                     var attrString = '';
                     var hasTitleAttr = false;
                     var hasAriaAttr = false;
                     var hasRoleAttr = false;
+
+                    var optionClassRaw = '';
+                    if (Object.prototype.hasOwnProperty.call(options, 'class')) {
+                        optionClassRaw = String(options['class'] || '').trim();
+                        delete options['class'];
+                    }
+
+                    if (optionClassRaw) {
+                        optionClassRaw.split(/\s+/).forEach(function(extra) {
+                            if (!extra) { return; }
+                            if (classParts.indexOf(extra) === -1) {
+                                classParts.push(extra);
+                            }
+                        });
+                    } else if (classParts.indexOf('me-1') === -1) {
+                        classParts.push('me-1');
+                    }
 
                     Object.keys(options).forEach(function(optionKey) {
                         if (!Object.prototype.hasOwnProperty.call(options, optionKey)) {
@@ -7501,19 +7528,20 @@ HTML;
                         contentHtml = '<span class="visually-hidden">Open link</span>';
                     }
 
-                    html += '<a href="' + escapeHtml(href) + '" class="' + escapeHtml(classAttr) + '"' + attrString + '>' + contentHtml + '</a>';
+                    var classAttr = classParts.join(' ');
+                    fragments.push('<a href="' + escapeHtml(href) + '" class="' + escapeHtml(classAttr) + '"' + attrString + '>' + contentHtml + '</a>');
                 }
             }
 
             if (duplicateEnabled) {
                 // Place duplicate button to the left of other action buttons
-                html += '<button type="button" class="btn btn-sm btn-info fastcrud-duplicate-btn" title="Duplicate" aria-label="Duplicate record">' + actionIcons.duplicate + '</button>';
+                fragments.push('<button type="button" class="btn btn-sm btn-info fastcrud-action-button fastcrud-duplicate-btn me-1" title="Duplicate" aria-label="Duplicate record">' + actionIcons.duplicate + '</button>');
             }
-            html += '<button type="button" class="btn btn-sm btn-secondary fastcrud-view-btn" title="View" aria-label="View record">' + actionIcons.view + '</button>';
-            html += '<button type="button" class="btn btn-sm btn-primary fastcrud-edit-btn" title="Edit" aria-label="Edit record">' + actionIcons.edit + '</button>';
-            html += '<button type="button" class="btn btn-sm btn-danger fastcrud-delete-btn" title="Delete" aria-label="Delete record">' + actionIcons.delete + '</button>';
-            html += '</div></td>';
-            return html;
+            fragments.push('<button type="button" class="btn btn-sm btn-secondary fastcrud-action-button fastcrud-view-btn me-1" title="View" aria-label="View record">' + actionIcons.view + '</button>');
+            fragments.push('<button type="button" class="btn btn-sm btn-primary fastcrud-action-button fastcrud-edit-btn me-1" title="Edit" aria-label="Edit record">' + actionIcons.edit + '</button>');
+            fragments.push('<button type="button" class="btn btn-sm btn-danger fastcrud-action-button fastcrud-delete-btn" title="Delete" aria-label="Delete record">' + actionIcons.delete + '</button>');
+
+            return '<td class="text-end fastcrud-actions-cell">' + fragments.join('') + '</td>';
         }
 
         function populateTableRows(rows) {
