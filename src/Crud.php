@@ -73,6 +73,7 @@ class Crud
         'column_cuts' => [],
         'column_highlights' => [],
         'row_highlights' => [],
+        'link_button' => null,
         'inline_edit' => [],
         'table_meta' => [
             'name'    => null,
@@ -249,6 +250,66 @@ class Crud
     {
         $list = $this->normalizeList($classes);
         return implode(' ', $list);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function normalizeLinkButtonConfigPayload(array $payload): ?array
+    {
+        $url = isset($payload['url']) ? trim((string) $payload['url']) : '';
+        if ($url === '') {
+            return null;
+        }
+
+        $iconRaw = isset($payload['icon']) ? (string) $payload['icon'] : '';
+        $iconClass = $this->normalizeCssClassList($iconRaw);
+        if ($iconClass === '') {
+            return null;
+        }
+
+        $buttonClass = null;
+        if (array_key_exists('button_class', $payload) && $payload['button_class'] !== null) {
+            $buttonClassRaw = (string) $payload['button_class'];
+            $normalizedButton = $this->normalizeCssClassList($buttonClassRaw);
+            if ($normalizedButton !== '') {
+                $buttonClass = $normalizedButton;
+            }
+        }
+
+        $label = null;
+        if (array_key_exists('label', $payload) && $payload['label'] !== null) {
+            $labelString = trim((string) $payload['label']);
+            if ($labelString !== '') {
+                $label = $labelString;
+            }
+        }
+
+        $options = [];
+        if (isset($payload['options']) && is_array($payload['options'])) {
+            foreach ($payload['options'] as $key => $value) {
+                if (!is_string($key)) {
+                    continue;
+                }
+
+                $normalizedKey = trim($key);
+                if ($normalizedKey === '') {
+                    continue;
+                }
+
+                if (is_scalar($value)) {
+                    $options[$normalizedKey] = (string) $value;
+                }
+            }
+        }
+
+        return [
+            'url'          => $url,
+            'icon'         => $iconClass,
+            'label'        => $label,
+            'button_class' => $buttonClass ?? 'btn btn-sm btn-outline-secondary',
+            'options'      => $options,
+        ];
     }
 
     private function normalizeCallable(callable|string|array $callback): string
@@ -931,6 +992,11 @@ class Crud
             $meta['row_class'] = implode(' ', $rowClasses);
         }
 
+        $linkButton = $this->buildLinkButtonMetaForRow($sourceRow);
+        if ($linkButton !== null) {
+            $meta['link_button'] = $linkButton;
+        }
+
         return $meta;
     }
 
@@ -956,6 +1022,82 @@ class Crud
         }
 
         return $rows;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function buildLinkButtonMetaForRow(array $row): ?array
+    {
+        $config = $this->config['link_button'];
+        if (!is_array($config)) {
+            return null;
+        }
+
+        $urlPattern = isset($config['url']) ? trim((string) $config['url']) : '';
+        if ($urlPattern === '') {
+            return null;
+        }
+
+        $resolvedUrl = trim($this->applyPattern($urlPattern, '', null, 'link_button', $row));
+        if ($resolvedUrl === '') {
+            return null;
+        }
+
+        $labelPattern = $config['label'] ?? null;
+        $resolvedLabel = null;
+        if (is_string($labelPattern) && $labelPattern !== '') {
+            $labelResult = trim($this->applyPattern($labelPattern, '', null, 'link_button', $row));
+            if ($labelResult !== '') {
+                $resolvedLabel = $labelResult;
+            }
+        }
+
+        return [
+            'url'   => $resolvedUrl,
+            'label' => $resolvedLabel,
+        ];
+    }
+
+    private function buildLinkButtonConfig(): ?array
+    {
+        $config = $this->config['link_button'];
+        if (!is_array($config)) {
+            return null;
+        }
+
+        $urlPattern = isset($config['url']) ? trim((string) $config['url']) : '';
+        $iconClass = isset($config['icon']) ? trim((string) $config['icon']) : '';
+        if ($urlPattern === '' || $iconClass === '') {
+            return null;
+        }
+
+        $buttonClass = isset($config['button_class']) ? trim((string) $config['button_class']) : '';
+        if ($buttonClass === '') {
+            $buttonClass = 'btn btn-sm btn-outline-secondary';
+        }
+
+        $options = [];
+        if (isset($config['options']) && is_array($config['options'])) {
+            foreach ($config['options'] as $key => $value) {
+                if (!is_string($key)) {
+                    continue;
+                }
+                $normalizedKey = trim($key);
+                if ($normalizedKey === '') {
+                    continue;
+                }
+                if (is_scalar($value)) {
+                    $options[$normalizedKey] = (string) $value;
+                }
+            }
+        }
+
+        return [
+            'icon'         => $iconClass,
+            'button_class' => $buttonClass,
+            'options'      => $options,
+        ];
     }
 
     /**
@@ -1718,6 +1860,28 @@ class Crud
     public function enable_delete_confirm(bool $enabled = true): self
     {
         $this->config['table_meta']['delete_confirm'] = (bool) $enabled;
+
+        return $this;
+    }
+
+    /**
+     * @param array<string, bool|float|int|string> $options
+     */
+    public function link_button(string $url, string $iconClass, ?string $label = null, ?string $buttonClass = null, array $options = []): self
+    {
+        $normalized = $this->normalizeLinkButtonConfigPayload([
+            'url'          => $url,
+            'icon'         => $iconClass,
+            'label'        => $label,
+            'button_class' => $buttonClass,
+            'options'      => $options,
+        ]);
+
+        if ($normalized === null) {
+            throw new InvalidArgumentException('Link button requires a non-empty URL and icon class.');
+        }
+
+        $this->config['link_button'] = $normalized;
 
         return $this;
     }
@@ -4208,6 +4372,7 @@ HTML;
                 'icon'      => $tableMeta['icon'] ?? null,
                 'duplicate' => isset($tableMeta['duplicate']) ? (bool) $tableMeta['duplicate'] : false,
             ],
+            'link_button'    => $this->buildLinkButtonConfig(),
             'primary_key'    => $this->getPrimaryKeyColumn(),
             'columns'        => $columns,
             'labels'         => $filterColumns($this->config['column_labels']),
@@ -4533,6 +4698,7 @@ HTML;
             'column_cuts'     => $this->config['column_cuts'],
             'column_highlights' => $this->config['column_highlights'],
             'row_highlights'    => $this->config['row_highlights'],
+            'link_button'       => $this->config['link_button'],
             'table_meta'        => $this->config['table_meta'],
             'column_summaries'  => $this->config['column_summaries'],
             'field_labels'      => $this->config['field_labels'],
@@ -4639,6 +4805,16 @@ HTML;
                 'icon'    => isset($meta['icon']) && is_string($meta['icon']) ? $meta['icon'] : null,
                 'duplicate' => isset($meta['duplicate']) ? (bool) $meta['duplicate'] : false,
             ];
+        }
+
+        if (array_key_exists('link_button', $payload)) {
+            $linkConfig = $payload['link_button'];
+            if (is_array($linkConfig)) {
+                $normalizedLink = $this->normalizeLinkButtonConfigPayload($linkConfig);
+                $this->config['link_button'] = $normalizedLink;
+            } elseif ($linkConfig === null) {
+                $this->config['link_button'] = null;
+            }
         }
 
         if (isset($payload['column_callbacks']) && is_array($payload['column_callbacks'])) {
@@ -5533,6 +5709,7 @@ HTML;
         var columnWidths = {};
         var orderBy = [];
         var duplicateEnabled = false;
+        var linkButtonConfig = null;
         var sortDisabled = {};
         var inlineEditFields = {};
         var formConfig = {
@@ -6041,6 +6218,44 @@ HTML;
 
             var tableMeta = meta.table && typeof meta.table === 'object' ? meta.table : {};
             duplicateEnabled = !!tableMeta.duplicate;
+
+            var metaLinkButton = meta.link_button;
+            if (metaLinkButton && typeof metaLinkButton === 'object') {
+                var iconValue = typeof metaLinkButton.icon === 'string' ? metaLinkButton.icon : '';
+                var buttonClassValue = typeof metaLinkButton.button_class === 'string' ? metaLinkButton.button_class : '';
+                var optionsValue = {};
+                if (metaLinkButton.options && typeof metaLinkButton.options === 'object') {
+                    Object.keys(metaLinkButton.options).forEach(function(optionKey) {
+                        if (!Object.prototype.hasOwnProperty.call(metaLinkButton.options, optionKey)) {
+                            return;
+                        }
+                        var normalizedKey = String(optionKey);
+                        if (!/^[A-Za-z0-9_:-]+$/.test(normalizedKey)) {
+                            return;
+                        }
+                        var optionValue = metaLinkButton.options[optionKey];
+                        if (optionValue === null || typeof optionValue === 'undefined') {
+                            return;
+                        }
+                        optionsValue[normalizedKey] = String(optionValue);
+                    });
+                }
+
+                if (iconValue) {
+                    if (!buttonClassValue) {
+                        buttonClassValue = 'btn btn-sm btn-outline-secondary';
+                    }
+                    linkButtonConfig = {
+                        icon: iconValue,
+                        button_class: buttonClassValue,
+                        options: optionsValue
+                    };
+                } else {
+                    linkButtonConfig = null;
+                }
+            } else {
+                linkButtonConfig = null;
+            }
 
             updateMetaContainer(tableMeta);
             // sort disabled list from meta
@@ -7209,8 +7424,87 @@ HTML;
             return { style: '', className: escapeHtml(w) };
         }
 
-        function buildActionCellHtml() {
+        function buildActionCellHtml(rowMeta) {
             var html = '<td class="text-end fastcrud-actions-cell"><div class="btn-group btn-group-sm" role="group">';
+
+            if (linkButtonConfig && rowMeta && rowMeta.link_button && rowMeta.link_button.url) {
+                var linkMeta = rowMeta.link_button;
+                var href = String(linkMeta.url || '').trim();
+                if (href.length) {
+                    var classSource = String(linkButtonConfig.button_class || '').trim();
+                    var classParts = classSource.length ? classSource.split(/\s+/) : [];
+                    if (classParts.indexOf('btn') === -1) {
+                        classParts.unshift('btn');
+                    }
+                    if (classParts.indexOf('fastcrud-link-btn') === -1) {
+                        classParts.push('fastcrud-link-btn');
+                    }
+                    var classAttr = classParts.join(' ');
+
+                    var labelRaw = typeof linkMeta.label === 'string' ? linkMeta.label : '';
+                    var labelText = labelRaw.trim();
+                    var options = linkButtonConfig.options && typeof linkButtonConfig.options === 'object'
+                        ? linkButtonConfig.options
+                        : {};
+                    var attrString = '';
+                    var hasTitleAttr = false;
+                    var hasAriaAttr = false;
+                    var hasRoleAttr = false;
+
+                    Object.keys(options).forEach(function(optionKey) {
+                        if (!Object.prototype.hasOwnProperty.call(options, optionKey)) {
+                            return;
+                        }
+                        var attrName = String(optionKey);
+                        if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
+                            return;
+                        }
+                        var lowerName = attrName.toLowerCase();
+                        if (lowerName === 'href' || lowerName === 'class') {
+                            return;
+                        }
+                        if (lowerName === 'title') {
+                            hasTitleAttr = true;
+                        } else if (lowerName === 'aria-label') {
+                            hasAriaAttr = true;
+                        } else if (lowerName === 'role') {
+                            hasRoleAttr = true;
+                        }
+                        var attrValue = options[optionKey];
+                        if (attrValue === null || typeof attrValue === 'undefined') {
+                            return;
+                        }
+                        attrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
+                    });
+
+                    if (!hasAriaAttr) {
+                        var ariaLabel = labelText ? labelText : 'Open link';
+                        attrString += ' aria-label="' + escapeHtml(ariaLabel) + '"';
+                    }
+                    if (!hasTitleAttr && labelText) {
+                        attrString += ' title="' + escapeHtml(labelText) + '"';
+                    }
+                    if (!hasRoleAttr) {
+                        attrString += ' role="button"';
+                    }
+
+                    var iconClass = linkButtonConfig.icon || '';
+                    var iconHtml = iconClass ? '<i class="' + escapeHtml(iconClass) + '"></i>' : '';
+                    var contentHtml;
+                    if (iconHtml && labelText) {
+                        contentHtml = iconHtml + '<span class="fastcrud-link-btn-text ms-1">' + escapeHtml(labelText) + '</span>';
+                    } else if (iconHtml) {
+                        contentHtml = iconHtml;
+                    } else if (labelText) {
+                        contentHtml = escapeHtml(labelText);
+                    } else {
+                        contentHtml = '<span class="visually-hidden">Open link</span>';
+                    }
+
+                    html += '<a href="' + escapeHtml(href) + '" class="' + escapeHtml(classAttr) + '"' + attrString + '>' + contentHtml + '</a>';
+                }
+            }
+
             if (duplicateEnabled) {
                 // Place duplicate button to the left of other action buttons
                 html += '<button type="button" class="btn btn-sm btn-info fastcrud-duplicate-btn" title="Duplicate" aria-label="Duplicate record">' + actionIcons.duplicate + '</button>';
@@ -7313,7 +7607,7 @@ HTML;
                     cells += '<td data-fastcrud-column="' + escapeHtml(String(column)) + '"' + classAttr + styleAttr + attrs + '>' + inner + '</td>';
                 });
 
-                cells += buildActionCellHtml();
+                cells += buildActionCellHtml(rowMeta);
                 var trAttrList = [];
                 if (rowMeta.row_class) {
                     trAttrList.push('class="' + escapeHtml(String(rowMeta.row_class)) + '"');
