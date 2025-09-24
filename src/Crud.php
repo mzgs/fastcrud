@@ -4201,7 +4201,7 @@ HTML;
     align-items: center;
     justify-content: center;
     line-height: 1.25;
-    padding: 0.25rem 0.65rem;
+   
     flex: 0 0 auto;
 }
 
@@ -4222,6 +4222,15 @@ HTML;
 #{$containerId} .fastcrud-icon {
     width: 1.25rem;
     height: 1.25rem;
+}
+
+#{$containerId} .fastcrud-link-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+#{$containerId} .fastcrud-link-btn-text {
+    line-height: 1.25rem;
 }
 
 /* Align boolean switches neatly inside cells */
@@ -7540,8 +7549,8 @@ HTML;
                         attrString += ' role="button"';
                     }
 
-                    var iconClass = linkButtonConfig.icon || '';
-                    var iconHtml = iconClass ? '<i class="' + escapeHtml(iconClass) + '"></i>' : '';
+                    var iconClass = (linkButtonConfig.icon || '').trim();
+                    var iconHtml = iconClass ? '<i class="fastcrud-link-icon ' + escapeHtml(iconClass) + '"></i>' : '';
                     var contentHtml;
                     if (iconHtml && labelText) {
                         contentHtml = iconHtml + '<span class="fastcrud-link-btn-text ms-1">' + escapeHtml(labelText) + '</span>';
