@@ -4148,8 +4148,18 @@ HTML;
 
         return <<<HTML
 <style>
+#{$containerId} .table-responsive {
+    position: relative;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
 #{$containerId} table {
     position: relative;
+    border-collapse: collapse;
+    border-spacing: 0;
+    width: max-content;
+    min-width: 100%;
 }
 
 #{$containerId} table thead th.fastcrud-sortable {
@@ -4163,7 +4173,8 @@ HTML;
 }
 
 #{$containerId} table thead th.fastcrud-actions,
-#{$containerId} table tbody td.fastcrud-actions-cell {
+#{$containerId} table tbody td.fastcrud-actions-cell,
+#{$containerId} table tfoot td.fastcrud-actions-cell {
     position: sticky;
     right: 0;
     background-color: var(--bs-body-bg, #ffffff);
@@ -4172,11 +4183,15 @@ HTML;
 
 #{$containerId} table thead th.fastcrud-actions {
     z-index: 3;
+    text-align: right;
+    white-space: nowrap;
 }
 
-#{$containerId} table tbody td.fastcrud-actions-cell {
+#{$containerId} table tbody td.fastcrud-actions-cell,
+#{$containerId} table tfoot td.fastcrud-actions-cell {
     z-index: 2;
     box-shadow: -6px 0 6px -6px rgba(0, 0, 0, 0.2);
+    white-space: nowrap;
 }
 
 #{$containerId} table tbody td.fastcrud-actions-cell .btn,
@@ -4186,10 +4201,21 @@ HTML;
     justify-content: center;
     line-height: 1.25;
     padding: 0.25rem 0.65rem;
+    flex: 0 0 auto;
 }
 
 #{$containerId} table tbody td.fastcrud-actions-cell .fastcrud-action-button {
     min-height: calc(1.5rem + 0.5rem);
+}
+
+#{$containerId} table tbody td.fastcrud-actions-cell .fastcrud-actions-stack,
+#{$containerId} table tfoot td.fastcrud-actions-cell .fastcrud-actions-stack {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    flex-wrap: nowrap;
+    width: 100%;
 }
 
 #{$containerId} .fastcrud-icon {
@@ -6624,7 +6650,7 @@ HTML;
                     row.append(cell);
                 });
 
-                row.append('<td class="text-end fastcrud-actions-cell">&nbsp;</td>');
+                row.append('<td class="text-end fastcrud-actions-cell"><div class="fastcrud-actions-stack">&nbsp;</div></td>');
                 summaryFooter.append(row);
             });
         }
@@ -7474,8 +7500,6 @@ HTML;
                                 classParts.push(extra);
                             }
                         });
-                    } else if (classParts.indexOf('me-1') === -1) {
-                        classParts.push('me-1');
                     }
 
                     Object.keys(options).forEach(function(optionKey) {
@@ -7535,13 +7559,14 @@ HTML;
 
             if (duplicateEnabled) {
                 // Place duplicate button to the left of other action buttons
-                fragments.push('<button type="button" class="btn btn-sm btn-info fastcrud-action-button fastcrud-duplicate-btn me-1" title="Duplicate" aria-label="Duplicate record">' + actionIcons.duplicate + '</button>');
+                fragments.push('<button type="button" class="btn btn-sm btn-info fastcrud-action-button fastcrud-duplicate-btn" title="Duplicate" aria-label="Duplicate record">' + actionIcons.duplicate + '</button>');
             }
-            fragments.push('<button type="button" class="btn btn-sm btn-secondary fastcrud-action-button fastcrud-view-btn me-1" title="View" aria-label="View record">' + actionIcons.view + '</button>');
-            fragments.push('<button type="button" class="btn btn-sm btn-primary fastcrud-action-button fastcrud-edit-btn me-1" title="Edit" aria-label="Edit record">' + actionIcons.edit + '</button>');
+            fragments.push('<button type="button" class="btn btn-sm btn-secondary fastcrud-action-button fastcrud-view-btn" title="View" aria-label="View record">' + actionIcons.view + '</button>');
+            fragments.push('<button type="button" class="btn btn-sm btn-primary fastcrud-action-button fastcrud-edit-btn" title="Edit" aria-label="Edit record">' + actionIcons.edit + '</button>');
             fragments.push('<button type="button" class="btn btn-sm btn-danger fastcrud-action-button fastcrud-delete-btn" title="Delete" aria-label="Delete record">' + actionIcons.delete + '</button>');
 
-            return '<td class="text-end fastcrud-actions-cell">' + fragments.join('') + '</td>';
+            var buttonsHtml = fragments.join('');
+            return '<td class="text-end fastcrud-actions-cell"><div class="fastcrud-actions-stack">' + buttonsHtml + '</div></td>';
         }
 
         function populateTableRows(rows) {
