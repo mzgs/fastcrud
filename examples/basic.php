@@ -96,6 +96,7 @@ Crud::init([
                   ->change_type('created_at', 'hidden', date('Y-m-d H:i:s'))
                   ->column_pattern("title","{title} - {slug}")
                 //   ->pass_default('file','default.txt')
+                
                     ->search_columns('title,content', 'title')
                     ->validation_required('slug')
                     ->change_type('json_field', 'json', '', ['rows' => 8])
