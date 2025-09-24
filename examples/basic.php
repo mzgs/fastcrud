@@ -141,7 +141,7 @@ Crud::init([
                         'user_id'    => 'Select User',
                         'title'      => 'Post Title',
                         'status_note' => 'Status Notes',
-                        'color' => ''
+                         
                        
                     ])
                     ->column_pattern('slug', '<strong>{value} - {id} | {status}</strong>')
