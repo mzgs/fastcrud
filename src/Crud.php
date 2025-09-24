@@ -68,6 +68,7 @@ class Crud
         'column_labels' => [],
         'column_patterns' => [],
         'column_callbacks' => [],
+        'custom_columns' => [],
         'column_classes' => [],
         'column_widths' => [],
         'column_cuts' => [],
@@ -1025,6 +1026,38 @@ class Crud
     }
 
     /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function applyCustomColumns(array $rows): array
+    {
+        $definitions = $this->config['custom_columns'] ?? [];
+        if ($rows === [] || $definitions === []) {
+            return $rows;
+        }
+
+        foreach ($rows as $index => $row) {
+            foreach ($definitions as $column => $callable) {
+                if (!is_string($column) || $column === '' || !is_callable($callable)) {
+                    continue;
+                }
+
+                $value = call_user_func($callable, $rows[$index]);
+
+                $rows[$index][$column] = $value;
+
+                if (!isset($rows[$index]['__fastcrud_raw']) || !is_array($rows[$index]['__fastcrud_raw'])) {
+                    $rows[$index]['__fastcrud_raw'] = [];
+                }
+
+                $rows[$index]['__fastcrud_raw'][$column] = $value;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param array<string, mixed> $row
      */
     private function buildLinkButtonMetaForRow(array $row): ?array
@@ -1151,6 +1184,14 @@ class Crud
                     $html = $stringResult;
                     $display = $stringResult;
                 }
+            }
+        }
+
+        if ($html === null && isset($this->config['custom_columns'][$column])) {
+            $stringValue = $this->stringifyValue($value);
+            if ($stringValue !== '') {
+                $html = $stringValue;
+                $display = $stringValue;
             }
         }
 
@@ -1657,6 +1698,31 @@ class Crud
         if (!$applied) {
             throw new InvalidArgumentException('column_callback requires at least one valid column name.');
         }
+
+        return $this;
+    }
+
+    /**
+     * Register a computed column that is not part of the underlying table.
+     *
+     * The callback receives the current row array and should return the value to display.
+     * Returned strings are injected as raw HTML in the grid, so escape the output yourself
+     * if it comes from an untrusted source.
+     */
+    public function custom_column(string $column, callable|string|array $callback): self
+    {
+        $normalizedColumn = $this->normalizeColumnReference($column);
+        if ($normalizedColumn === '') {
+            throw new InvalidArgumentException('Custom column name cannot be empty.');
+        }
+
+        $serialized = $this->normalizeCallable($callback);
+
+        if (!is_callable($serialized)) {
+            throw new InvalidArgumentException('Provided callback is not callable: ' . $serialized);
+        }
+
+        $this->config['custom_columns'][$normalizedColumn] = $serialized;
 
         return $this;
     }
@@ -3259,6 +3325,28 @@ class Crud
         return $result !== [] ? $result : $available;
     }
 
+    /**
+     * @param array<int, string> $columns
+     * @return array<int, string>
+     */
+    private function ensureCustomColumnNames(array $columns): array
+    {
+        $customColumns = array_keys($this->config['custom_columns'] ?? []);
+        foreach ($customColumns as $column) {
+            if (!is_string($column)) {
+                continue;
+            }
+
+            if ($column === '' || in_array($column, $columns, true)) {
+                continue;
+            }
+
+            $columns[] = $column;
+        }
+
+        return $columns;
+    }
+
     private function splitValues(string $value): array
     {
         $parts = array_map('trim', explode(',', $value));
@@ -3970,8 +4058,10 @@ HTML;
         $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
         $rows = $this->attachPrimaryKeyMetadata($rows);
         $rows = $this->applyRelations($rows);
+        $rows = $this->applyCustomColumns($rows);
 
         $columns = $this->extractColumnNames($statement, $rows);
+        $columns = $this->ensureCustomColumnNames($columns);
         [$rows, $columns] = $this->applyColumnVisibility($rows, $columns);
 
         $rows = $this->decorateRows($rows, $columns);
@@ -4685,6 +4775,12 @@ HTML;
         $allColumns = $this->getBaseTableColumns();
         $formConfig = $this->config['form'];
 
+        foreach (array_keys($this->config['custom_columns']) as $customColumn) {
+            if (is_string($customColumn) && $customColumn !== '' && !in_array($customColumn, $allColumns, true)) {
+                $allColumns[] = $customColumn;
+            }
+        }
+
         if (isset($formConfig['layouts']) && is_array($formConfig['layouts'])) {
             foreach ($formConfig['layouts'] as $entries) {
                 if (!is_array($entries)) {
@@ -4735,6 +4831,7 @@ HTML;
             'column_labels'   => $this->config['column_labels'],
             'column_patterns' => $this->config['column_patterns'],
             'column_callbacks' => $this->config['column_callbacks'],
+            'custom_columns'   => $this->config['custom_columns'],
             'column_classes'  => $this->config['column_classes'],
             'column_widths'   => $this->config['column_widths'],
             'column_cuts'     => $this->config['column_cuts'],
@@ -4887,6 +4984,37 @@ HTML;
 
             if ($normalized !== []) {
                 $this->config['column_callbacks'] = $normalized;
+            }
+        }
+
+        if (isset($payload['custom_columns']) && is_array($payload['custom_columns'])) {
+            $custom = [];
+            foreach ($payload['custom_columns'] as $column => $entry) {
+                if (!is_string($column)) {
+                    continue;
+                }
+
+                $normalizedColumn = $this->normalizeColumnReference($column);
+                if ($normalizedColumn === '') {
+                    continue;
+                }
+
+                $callable = null;
+                if (is_string($entry)) {
+                    $callable = $entry;
+                } elseif (is_array($entry) && isset($entry['callable'])) {
+                    $callable = (string) $entry['callable'];
+                }
+
+                if ($callable === null || $callable === '' || !is_callable($callable)) {
+                    continue;
+                }
+
+                $custom[$normalizedColumn] = $callable;
+            }
+
+            if ($custom !== []) {
+                $this->config['custom_columns'] = $custom;
             }
         }
 
@@ -5098,6 +5226,7 @@ HTML;
         $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
 
         $columns = $this->extractColumnNames($statement, $rows);
+        $columns = $this->ensureCustomColumnNames($columns);
 
         return $this->calculateVisibleColumns($columns);
     }
