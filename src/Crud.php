@@ -637,7 +637,7 @@ class Crud
 
         if (isset($form['labels']) && is_array($form['labels'])) {
             foreach ($form['labels'] as $field => $label) {
-                if (!is_string($field) || !is_string($label)) {
+                if (!is_string($field)) {
                     continue;
                 }
 
@@ -646,9 +646,19 @@ class Crud
                     continue;
                 }
 
-                $trimmed = trim($label);
-                if ($trimmed === '') {
+                if ($label === null) {
                     unset($this->config['field_labels'][$normalizedField]);
+                    continue;
+                }
+
+                if (!is_string($label)) {
+                    continue;
+                }
+
+                $trimmed = trim($label);
+
+                if ($trimmed === '') {
+                    $this->config['field_labels'][$normalizedField] = '';
                     continue;
                 }
 
@@ -1680,9 +1690,16 @@ class Crud
             throw new InvalidArgumentException('Field name cannot be empty when setting labels.');
         }
 
+        if ($label === null) {
+            unset($this->config['field_labels'][$field]);
+            return $this;
+        }
+
         $resolvedLabel = trim((string) $label);
+
         if ($resolvedLabel === '') {
-            throw new InvalidArgumentException('Field label cannot be empty.');
+            $this->config['field_labels'][$field] = '';
+            return $this;
         }
 
         $this->config['field_labels'][$field] = $resolvedLabel;
@@ -4822,12 +4839,23 @@ HTML;
                     continue;
                 }
 
+                if ($label === null) {
+                    $fieldLabels[$field] = '';
+                    continue;
+                }
+
                 if (!is_string($label)) {
+                    continue;
+                }
+
+                if ($label === '') {
+                    $fieldLabels[$field] = '';
                     continue;
                 }
 
                 $trimmed = trim($label);
                 if ($trimmed === '') {
+                    $fieldLabels[$field] = '';
                     continue;
                 }
 
@@ -5343,7 +5371,7 @@ HTML;
         if (isset($payload['field_labels']) && is_array($payload['field_labels'])) {
             $fieldLabels = [];
             foreach ($payload['field_labels'] as $field => $label) {
-                if (!is_string($field) || !is_string($label)) {
+                if (!is_string($field)) {
                     continue;
                 }
 
@@ -5352,8 +5380,17 @@ HTML;
                     continue;
                 }
 
+                if ($label === null) {
+                    continue;
+                }
+
+                if (!is_string($label)) {
+                    continue;
+                }
+
                 $trimmed = trim($label);
                 if ($trimmed === '') {
+                    $fieldLabels[$normalizedField] = '';
                     continue;
                 }
 
@@ -7371,8 +7408,11 @@ HTML;
         function resolveFieldLabel(column) {
             if (formConfig.labels && Object.prototype.hasOwnProperty.call(formConfig.labels, column)) {
                 var label = formConfig.labels[column];
-                if (typeof label === 'string' && label.length) {
+                if (typeof label === 'string') {
                     return label;
+                }
+                if (label === null) {
+                    return '';
                 }
             }
 
@@ -8326,6 +8366,7 @@ HTML;
                 var fieldId = editFormId + '-' + column;
                 var labelForId = fieldId;
                 var saveColumn = column;
+                var fieldLabel = resolveFieldLabel(column);
 
                 var currentValue = typeof row[column] !== 'undefined' && row[column] !== null ? row[column] : '';
                 if ((currentValue === null || currentValue === '') && typeof behaviours.pass_default !== 'undefined') {
@@ -8367,7 +8408,24 @@ HTML;
                 if (typeof customFieldHtml[column] !== 'undefined') {
                     var customContainer = $('<div class="mb-3"></div>').attr('data-fastcrud-group', column);
                     var htmlContent = customFieldHtml[column];
+                    var implicitLabel = false;
+
+                    if (typeof htmlContent === 'string') {
+                        implicitLabel = /<label\b/i.test(htmlContent);
+                    } else if (htmlContent && (htmlContent.jquery || htmlContent.nodeType === 1)) {
+                        var contentProbe = htmlContent.jquery ? htmlContent : $(htmlContent);
+                        implicitLabel = contentProbe.is('label') || contentProbe.find('label').length > 0;
+                    }
+
+                    if (fieldLabel !== '' && !implicitLabel) {
+                        customContainer.append($('<label class="form-label"></label>').text(fieldLabel));
+                    } else if (fieldLabel === '') {
+                        customContainer.addClass('fastcrud-field-no-label');
+                    }
+
                     if (htmlContent && typeof htmlContent === 'object' && htmlContent.jquery) {
+                        customContainer.append(htmlContent);
+                    } else if (htmlContent && htmlContent.nodeType === 1 && typeof htmlContent.cloneNode === 'function') {
                         customContainer.append(htmlContent);
                     } else if (typeof htmlContent === 'string') {
                         if (htmlContent.indexOf('<') !== -1) {
@@ -8627,10 +8685,18 @@ HTML;
                         .attr('data-fastcrud-type', 'checkbox');
                     var isChecked = normalizedValue === true || normalizedValue === 1 || normalizedValue === '1' || normalizedValue === 'true';
                     input.prop('checked', isChecked);
-                    var checkboxLabel = $('<label class="form-check-label"></label>')
-                        .attr('for', fieldId)
-                        .text(resolveFieldLabel(column));
-                    group.append(input).append(checkboxLabel);
+                    var checkboxLabel = null;
+                    if (fieldLabel !== '') {
+                        checkboxLabel = $('<label class="form-check-label"></label>')
+                            .attr('for', fieldId)
+                            .text(fieldLabel);
+                    } else {
+                        group.addClass('fastcrud-field-no-label');
+                    }
+                    group.append(input);
+                    if (checkboxLabel) {
+                        group.append(checkboxLabel);
+                    }
                     dataType = 'checkbox';
                 } else {
                     input = $('<input type="text" class="form-control" />')
@@ -8643,8 +8709,12 @@ HTML;
                     return;
                 }
 
-                if (changeType !== 'bool' && changeType !== 'checkbox') {
-                    group.append($('<label class="form-label"></label>').attr('for', labelForId).text(resolveFieldLabel(column)));
+                if (changeType !== 'bool' && changeType !== 'checkbox' && changeType !== 'switch') {
+                    if (fieldLabel !== '') {
+                        group.append($('<label class="form-label"></label>').attr('for', labelForId).text(fieldLabel));
+                    } else {
+                        group.addClass('fastcrud-field-no-label');
+                    }
                     if (changeType === 'color' && compound) {
                         group.append(compound);
                     } else {
@@ -9803,7 +9873,7 @@ HTML;
             return new Promise(function(resolve, reject) {
                 $.ajax({
                     url: window.location.pathname,
-                    type: 'GET',
+                    type: 'POST',
                     dataType: 'json',
                     data: {
                         fastcrud_ajax: '1',

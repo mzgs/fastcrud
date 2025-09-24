@@ -383,13 +383,18 @@ $crud
 
     function my_color_input(string $field, mixed $value, array $row, string $formType): string
     {
+        $safeField = htmlspecialchars($field, ENT_QUOTES, 'UTF-8');
         $current = is_string($value) && $value !== '' ? $value : '#ff0000';
+        $safeValue = htmlspecialchars((string) $current, ENT_QUOTES, 'UTF-8');
 
-        return '<input type="color" class="form-control" data-fastcrud-field="'
-            . $field
-            . '" value="'
-            . htmlspecialchars($current, ENT_QUOTES)
-            . '">';
+        return <<<HTML
+            <input
+                type="color"
+                class="form-control"
+                data-fastcrud-field="{$safeField}"
+                value="{$safeValue}"
+            >
+        HTML;
     }
     ```
 

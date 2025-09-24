@@ -31,7 +31,19 @@ function render_status_badge(array $row): string
 
 function my_color_input(string $field, mixed $value, array $row, string $formType): string
 {
-    return '<b>color</b>';
+    $safeField = htmlspecialchars($field, ENT_QUOTES, 'UTF-8');
+    $safeValue = htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+
+    return <<<HTML
+        <input
+            type="color"
+            class="form-control form-control-color"
+            name="{$safeField}"
+            data-fastcrud-field="{$safeField}"
+            value="{$safeValue}"
+            title="Choose your color"
+        >
+    HTML;
 }
 
 function render_status_note_field(string $field, mixed $value, array $row, string $formType): string
@@ -129,6 +141,7 @@ Crud::init([
                         'user_id'    => 'Select User',
                         'title'      => 'Post Title',
                         'status_note' => 'Status Notes',
+                        'color' => ''
                        
                     ])
                     ->column_pattern('slug', '<strong>{value} - {id} | {status}</strong>')
