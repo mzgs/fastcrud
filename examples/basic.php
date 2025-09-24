@@ -121,7 +121,6 @@ Crud::init([
                     ->validation_required('slug')
                     ->change_type('json_field', 'json', '', ['rows' => 8])
                     ->inline_edit('title,color')
-                    ->field_callback('color', 'my_color_input')
                     ->custom_field('status_note', 'render_status_note_field')
                     ->change_type('status_note', 'textarea', '', ['rows' => 2])
                     ->readonly('status_note')

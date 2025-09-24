@@ -8649,15 +8649,7 @@ HTML;
                             if (/^#([0-9a-fA-F]{6})$/.test(v)) { colorPicker.val(v); }
                         } catch (e) {}
                     });
-                    // Clicking or focusing the hex input opens the color picker
-                    function openColorPicker() {
-                        try {
-                            if (input.prop('disabled') || input.prop('readonly')) { return; }
-                            colorPicker.trigger('click');
-                        } catch (e) {}
-                    }
-                    input.on('focus', openColorPicker);
-                    input.on('click', function() { openColorPicker(); });
+                    // Let the browser open the picker when the swatch is clicked; keep manual edits possible
                 } else if (changeType === 'number' || changeType === 'int' || changeType === 'integer' || changeType === 'float' || changeType === 'decimal') {
                     input = $('<input type="number" class="form-control" />')
                         .attr('id', fieldId)
