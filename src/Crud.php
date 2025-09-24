@@ -1723,6 +1723,7 @@ class Crud
         }
 
         $this->config['custom_columns'][$normalizedColumn] = $serialized;
+        $this->disable_sort($normalizedColumn);
 
         return $this;
     }
@@ -4496,6 +4497,28 @@ HTML;
 
         $inline = array_values(array_keys(array_filter($this->config['inline_edit'] ?? [], static fn($v) => (bool) $v)));
 
+        $sortDisabled = array_values(array_filter(
+            $this->config['sort_disabled'],
+            static function ($col) use ($columnLookup): bool {
+                return is_string($col) && isset($columnLookup[$col]);
+            }
+        ));
+
+        foreach (array_keys($this->config['custom_columns']) as $customColumn) {
+            if (!is_string($customColumn)) {
+                continue;
+            }
+
+            $normalized = $this->normalizeColumnReference($customColumn);
+            if ($normalized === '' || isset($columnLookup[$normalized]) === false) {
+                continue;
+            }
+
+            if (!in_array($normalized, $sortDisabled, true)) {
+                $sortDisabled[] = $normalized;
+            }
+        }
+
         return [
             'table' => [
                 'key'       => $this->table,
@@ -4524,12 +4547,7 @@ HTML;
                 ],
                 $this->config['order_by']
             ),
-            'sort_disabled'  => array_values(array_filter(
-                $this->config['sort_disabled'],
-                static function ($col) use ($columnLookup): bool {
-                    return is_string($col) && isset($columnLookup[$col]);
-                }
-            )),
+            'sort_disabled'  => $sortDisabled,
             'form' => $this->buildFormMeta($columns),
             'inline_edit' => $inline,
         ];
@@ -4813,6 +4831,26 @@ HTML;
 
         $inline = array_values(array_keys(array_filter($this->config['inline_edit'] ?? [], static fn($v) => (bool) $v)));
 
+        $sortDisabled = array_values(array_filter(
+            $this->config['sort_disabled'],
+            static fn($col): bool => is_string($col) && $col !== ''
+        ));
+
+        foreach (array_keys($this->config['custom_columns']) as $customColumn) {
+            if (!is_string($customColumn) || $customColumn === '') {
+                continue;
+            }
+
+            $normalized = $this->normalizeColumnReference($customColumn);
+            if ($normalized === '') {
+                continue;
+            }
+
+            if (!in_array($normalized, $sortDisabled, true)) {
+                $sortDisabled[] = $normalized;
+            }
+        }
+
         return [
             'per_page'       => $this->perPage,
             'where'          => $this->config['where'],
@@ -4832,6 +4870,7 @@ HTML;
             'column_patterns' => $this->config['column_patterns'],
             'column_callbacks' => $this->config['column_callbacks'],
             'custom_columns'   => $this->config['custom_columns'],
+            'sort_disabled'    => $sortDisabled,
             'column_classes'  => $this->config['column_classes'],
             'column_widths'   => $this->config['column_widths'],
             'column_cuts'     => $this->config['column_cuts'],
