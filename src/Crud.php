@@ -4220,8 +4220,8 @@ HTML;
 }
 
 #{$containerId} .fastcrud-icon {
-    width: 1rem;
-    height: 1rem;
+    width: 1.25rem;
+    height: 1.25rem;
 }
 
 /* Align boolean switches neatly inside cells */
@@ -6874,10 +6874,10 @@ HTML;
         // It was unused and removed to reduce dead code.
 
         var actionIcons = {
-            view: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
-            edit: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 21h4l11-11a2.828 2.828 0 1 0-4-4L4 17v4Z"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.5 6.5 17.5 9.5"/></svg>',
-            delete: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 6h18"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.5 6 17.6 19.25a1.75 1.75 0 0 1-1.74 1.6H8.14a1.75 1.75 0 0 1-1.74-1.6L5.5 6"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 11v6"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 11v6"/></svg>',
-            duplicate: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect width="11" height="11" x="9.5" y="9.5" rx="2" ry="2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>'
+            view: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
+            edit: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 21h4l11-11a2.828 2.828 0 1 0-4-4L4 17v4Z"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.5 6.5 17.5 9.5"/></svg>',
+            delete: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 6h18"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.5 6 17.6 19.25a1.75 1.75 0 0 1-1.74 1.6H8.14a1.75 1.75 0 0 1-1.74-1.6L5.5 6"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 11v6"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 11v6"/></svg>',
+            duplicate: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect width="11" height="11" x="9.5" y="9.5" rx="2" ry="2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>'
         };
 
         // Note: previously had a jQuery-based builder for the action cell here.
