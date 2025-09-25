@@ -328,6 +328,19 @@ To show the Duplicate button only when a row matches a condition (for example, `
 $users->enable_duplicate(true, 'status', '=', 'template');
 ```
 
+Control the other built-in actions (Add is boolean; Edit/Delete/Duplicate accept optional conditions):
+
+```php
+$users
+    ->enable_add(true) // disable Add globally by passing false
+    ->enable_view(true, 'status', '!=', 'archived') // hide View when the row is archived
+    ->enable_edit(true, 'status', '!=', 'archived') // hide Edit when the row is archived
+    ->enable_delete(true, 'status', '!=', 'archived') // hide Delete when the row is archived
+    ->enable_duplicate(true, 'status', '=', 'template');
+```
+
+`enable_add` only accepts a boolean to toggle the Add button. View/Edit/Delete/Duplicate evaluate each row's raw database values, so the buttons stay hidden when the rule fails.
+
 The button emits a delegated jQuery event you can hook into:
 
 ```javascript

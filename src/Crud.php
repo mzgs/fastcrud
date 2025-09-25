@@ -86,6 +86,13 @@ class Crud
             'name'    => null,
             'tooltip' => null,
             'icon'    => null,
+            'add' => true,
+            'view' => true,
+            'view_condition' => null,
+            'edit' => true,
+            'edit_condition' => null,
+            'delete' => true,
+            'delete_condition' => null,
             'duplicate' => false,
             'duplicate_condition' => null,
             'delete_confirm' => true,
@@ -821,7 +828,7 @@ class Crud
     /**
      * @return array{column: string, operator: string, value: mixed}
      */
-    private function normalizeDuplicateCondition(string $field, string $operand, mixed $value): array
+    private function normalizeActionCondition(string $field, string $operand, mixed $value): array
     {
         $column = $this->normalizeColumnReference($field);
         if ($column === '') {
@@ -908,14 +915,36 @@ class Crud
         ];
     }
 
-    private function isDuplicateAllowedForRow(array $row): bool
+    private function isActionEnabled(string $action): bool
     {
-        if (empty($this->config['table_meta']['duplicate'])) {
+        $meta = $this->config['table_meta'] ?? [];
+
+        return match ($action) {
+            'add'       => isset($meta['add']) ? (bool) $meta['add'] : true,
+            'view'      => isset($meta['view']) ? (bool) $meta['view'] : true,
+            'edit'      => isset($meta['edit']) ? (bool) $meta['edit'] : true,
+            'delete'    => isset($meta['delete']) ? (bool) $meta['delete'] : true,
+            'duplicate' => isset($meta['duplicate']) ? (bool) $meta['duplicate'] : false,
+            default     => false,
+        };
+    }
+
+    private function getActionCondition(string $action): ?array
+    {
+        $key = $action . '_condition';
+        $condition = $this->config['table_meta'][$key] ?? null;
+
+        return is_array($condition) ? $condition : null;
+    }
+
+    private function isActionAllowedForRow(string $action, array $row): bool
+    {
+        if (!$this->isActionEnabled($action)) {
             return false;
         }
 
-        $condition = $this->config['table_meta']['duplicate_condition'] ?? null;
-        if ($condition === null || !is_array($condition)) {
+        $condition = $this->getActionCondition($action);
+        if ($condition === null) {
             return true;
         }
 
@@ -1128,9 +1157,10 @@ class Crud
             $meta['link_button'] = $linkButton;
         }
 
-        if (!empty($this->config['table_meta']['duplicate']) && is_array($this->config['table_meta']['duplicate_condition'])) {
-            $meta['duplicate_allowed'] = $this->isDuplicateAllowedForRow($sourceRow);
-        }
+        $meta['view_allowed'] = $this->isActionAllowedForRow('view', $sourceRow);
+        $meta['duplicate_allowed'] = $this->isActionAllowedForRow('duplicate', $sourceRow);
+        $meta['edit_allowed'] = $this->isActionAllowedForRow('edit', $sourceRow);
+        $meta['delete_allowed'] = $this->isActionAllowedForRow('delete', $sourceRow);
 
         return $meta;
     }
@@ -2191,6 +2221,64 @@ class Crud
         return $this;
     }
 
+    public function enable_add(bool $enabled = true): self
+    {
+        $this->config['table_meta']['add'] = (bool) $enabled;
+
+        return $this;
+    }
+
+    public function enable_view(bool $enabled = true, string|false $field = false, string|false $operand = false, mixed $value = false): self
+    {
+        $this->config['table_meta']['view'] = (bool) $enabled;
+
+        if ($enabled && func_num_args() >= 4) {
+            if ($field === false || $operand === false || $value === false) {
+                throw new InvalidArgumentException('View condition requires field, operator, and value.');
+            }
+
+            $this->config['table_meta']['view_condition'] = $this->normalizeActionCondition((string) $field, (string) $operand, $value);
+        } else {
+            $this->config['table_meta']['view_condition'] = null;
+        }
+
+        return $this;
+    }
+
+    public function enable_edit(bool $enabled = true, string|false $field = false, string|false $operand = false, mixed $value = false): self
+    {
+        $this->config['table_meta']['edit'] = (bool) $enabled;
+
+        if ($enabled && func_num_args() >= 4) {
+            if ($field === false || $operand === false || $value === false) {
+                throw new InvalidArgumentException('Edit condition requires field, operator, and value.');
+            }
+
+            $this->config['table_meta']['edit_condition'] = $this->normalizeActionCondition((string) $field, (string) $operand, $value);
+        } else {
+            $this->config['table_meta']['edit_condition'] = null;
+        }
+
+        return $this;
+    }
+
+    public function enable_delete(bool $enabled = true, string|false $field = false, string|false $operand = false, mixed $value = false): self
+    {
+        $this->config['table_meta']['delete'] = (bool) $enabled;
+
+        if ($enabled && func_num_args() >= 4) {
+            if ($field === false || $operand === false || $value === false) {
+                throw new InvalidArgumentException('Delete condition requires field, operator, and value.');
+            }
+
+            $this->config['table_meta']['delete_condition'] = $this->normalizeActionCondition((string) $field, (string) $operand, $value);
+        } else {
+            $this->config['table_meta']['delete_condition'] = null;
+        }
+
+        return $this;
+    }
+
     public function enable_duplicate(bool $enabled = true, string|false $field = false, string|false $operand = false, mixed $value = false): self
     {
         $this->config['table_meta']['duplicate'] = (bool) $enabled;
@@ -2200,7 +2288,7 @@ class Crud
                 throw new InvalidArgumentException('Duplicate condition requires field, operator, and value.');
             }
 
-            $this->config['table_meta']['duplicate_condition'] = $this->normalizeDuplicateCondition((string) $field, (string) $operand, $value);
+            $this->config['table_meta']['duplicate_condition'] = $this->normalizeActionCondition((string) $field, (string) $operand, $value);
         } else {
             $this->config['table_meta']['duplicate_condition'] = null;
         }
@@ -5081,10 +5169,24 @@ HTML;
                 'name'      => $tableName,
                 'tooltip'   => $tableMeta['tooltip'] ?? null,
                 'icon'      => $tableMeta['icon'] ?? null,
+                'add'       => isset($tableMeta['add']) ? (bool) $tableMeta['add'] : true,
+                'view'      => isset($tableMeta['view']) ? (bool) $tableMeta['view'] : true,
+                'view_condition' => isset($tableMeta['view_condition']) && is_array($tableMeta['view_condition'])
+                    ? $tableMeta['view_condition']
+                    : null,
+                'edit'      => isset($tableMeta['edit']) ? (bool) $tableMeta['edit'] : true,
+                'edit_condition' => isset($tableMeta['edit_condition']) && is_array($tableMeta['edit_condition'])
+                    ? $tableMeta['edit_condition']
+                    : null,
+                'delete'    => isset($tableMeta['delete']) ? (bool) $tableMeta['delete'] : true,
+                'delete_condition' => isset($tableMeta['delete_condition']) && is_array($tableMeta['delete_condition'])
+                    ? $tableMeta['delete_condition']
+                    : null,
                 'duplicate' => isset($tableMeta['duplicate']) ? (bool) $tableMeta['duplicate'] : false,
                 'duplicate_condition' => isset($tableMeta['duplicate_condition']) && is_array($tableMeta['duplicate_condition'])
                     ? $tableMeta['duplicate_condition']
                     : null,
+                'delete_confirm' => isset($tableMeta['delete_confirm']) ? (bool) $tableMeta['delete_confirm'] : true,
             ],
             'link_button'    => $this->buildLinkButtonConfig(),
             'primary_key'    => $this->getPrimaryKeyColumn(),
@@ -5768,10 +5870,24 @@ HTML;
                 'name'    => isset($meta['name']) && is_string($meta['name']) ? $meta['name'] : null,
                 'tooltip' => isset($meta['tooltip']) && is_string($meta['tooltip']) ? $meta['tooltip'] : null,
                 'icon'    => isset($meta['icon']) && is_string($meta['icon']) ? $meta['icon'] : null,
+                'add'     => isset($meta['add']) ? (bool) $meta['add'] : true,
+                'view'    => isset($meta['view']) ? (bool) $meta['view'] : true,
+                'view_condition' => isset($meta['view_condition']) && is_array($meta['view_condition'])
+                    ? $meta['view_condition']
+                    : null,
+                'edit'    => isset($meta['edit']) ? (bool) $meta['edit'] : true,
+                'edit_condition' => isset($meta['edit_condition']) && is_array($meta['edit_condition'])
+                    ? $meta['edit_condition']
+                    : null,
+                'delete'  => isset($meta['delete']) ? (bool) $meta['delete'] : true,
+                'delete_condition' => isset($meta['delete_condition']) && is_array($meta['delete_condition'])
+                    ? $meta['delete_condition']
+                    : null,
                 'duplicate' => isset($meta['duplicate']) ? (bool) $meta['duplicate'] : false,
                 'duplicate_condition' => isset($meta['duplicate_condition']) && is_array($meta['duplicate_condition'])
                     ? $meta['duplicate_condition']
                     : null,
+                'delete_confirm' => isset($meta['delete_confirm']) ? (bool) $meta['delete_confirm'] : true,
             ];
         }
 
@@ -6170,6 +6286,10 @@ HTML;
      */
     public function createRecord(array $fields): ?array
     {
+        if (!$this->isActionEnabled('add')) {
+            throw new RuntimeException('Add action is not enabled for this table.');
+        }
+
         $columns = $this->getTableColumnsFor($this->table);
         if ($columns === []) {
             throw new RuntimeException('Unable to determine table columns for insert.');
@@ -6228,6 +6348,10 @@ HTML;
         }
 
         $context = array_merge($context, $filtered);
+
+        if (!$this->isActionAllowedForRow('add', $context)) {
+            throw new RuntimeException('Add action is not permitted for this data.');
+        }
 
         $errors = [];
 
@@ -6417,6 +6541,10 @@ HTML;
             throw new InvalidArgumentException('Record not found for update.');
         }
 
+        if (!$this->isActionAllowedForRow('edit', $currentRow)) {
+            throw new RuntimeException('Edit action is not permitted for this record.');
+        }
+
         $readonly = $this->gatherBehaviourForMode('readonly', $mode);
         $disabled = $this->gatherBehaviourForMode('disabled', $mode);
 
@@ -6597,7 +6725,13 @@ HTML;
             throw new RuntimeException('Failed to update record.', 0, $exception);
         }
 
-        return $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
+        $row = $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
+
+        if ($row !== null && !$this->isActionAllowedForRow('view', $row)) {
+            throw new RuntimeException('View action is not permitted for this record.');
+        }
+
+        return $row;
     }
 
     /**
@@ -6616,6 +6750,15 @@ HTML;
         if (!in_array($primaryKeyColumn, $columns, true)) {
             $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
             throw new InvalidArgumentException($message);
+        }
+
+        $currentRow = $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
+        if ($currentRow === null) {
+            return false;
+        }
+
+        if (!$this->isActionAllowedForRow('delete', $currentRow)) {
+            throw new RuntimeException('Delete action is not permitted for this record.');
         }
 
         $sql       = sprintf('DELETE FROM %s WHERE %s = :pk', $this->table, $primaryKeyColumn);
@@ -6655,7 +6798,7 @@ HTML;
             throw new InvalidArgumentException(sprintf('Unknown primary key column "%s".', $primaryKeyColumn));
         }
 
-        if (empty($this->config['table_meta']['duplicate'])) {
+        if (!$this->isActionEnabled('duplicate')) {
             throw new RuntimeException('Duplicate action is not enabled for this table.');
         }
 
@@ -6665,7 +6808,7 @@ HTML;
             throw new InvalidArgumentException('Record not found for duplication.');
         }
 
-        if (is_array($this->config['table_meta']['duplicate_condition']) && !$this->isDuplicateAllowedForRow($source)) {
+        if (!$this->isActionAllowedForRow('duplicate', $source)) {
             throw new RuntimeException('Duplicate action is not permitted for this record.');
         }
 
@@ -7028,7 +7171,12 @@ HTML;
         var columnClasses = {};
         var columnWidths = {};
         var orderBy = [];
+        var addEnabled = true;
+        var viewEnabled = true;
+        var editEnabled = true;
+        var deleteEnabled = true;
         var duplicateEnabled = false;
+        var deleteConfirm = true;
         var linkButtonConfig = null;
         var sortDisabled = {};
         var inlineEditFields = {};
@@ -7538,7 +7686,16 @@ HTML;
             }
 
             var tableMeta = meta.table && typeof meta.table === 'object' ? meta.table : {};
+            clientConfig.table_meta = tableMeta;
+
+            addEnabled = tableMeta.hasOwnProperty('add') ? !!tableMeta.add : true;
+            viewEnabled = tableMeta.hasOwnProperty('view') ? !!tableMeta.view : true;
+            editEnabled = tableMeta.hasOwnProperty('edit') ? !!tableMeta.edit : true;
+            deleteEnabled = tableMeta.hasOwnProperty('delete') ? !!tableMeta.delete : true;
             duplicateEnabled = !!tableMeta.duplicate;
+            if (tableMeta.hasOwnProperty('delete_confirm')) {
+                deleteConfirm = !!tableMeta.delete_confirm;
+            }
 
             var metaLinkButton = meta.link_button;
             if (metaLinkButton && typeof metaLinkButton === 'object') {
@@ -7734,14 +7891,21 @@ HTML;
                 metaContainer.append(wrapper);
             }
 
-            var addButton = $('<button type="button" class="btn btn-sm btn-success fastcrud-add-btn ms-auto"></button>')
-                .attr('title', 'Add new record')
-                .attr('aria-label', 'Add new record')
-                .append('<span class="me-1">+</span>')
-                .append(document.createTextNode('Add'));
+            if (addEnabled) {
+                var addButton = $('<button type="button" class="btn btn-sm btn-success fastcrud-add-btn ms-auto"></button>')
+                    .attr('title', 'Add new record')
+                    .attr('aria-label', 'Add new record')
+                    .append('<span class="me-1">+</span>')
+                    .append(document.createTextNode('Add'));
 
-            metaContainer.append(addButton);
-            metaContainer.removeClass('d-none');
+                metaContainer.append(addButton);
+            }
+
+            if (metaContainer.children().length) {
+                metaContainer.removeClass('d-none');
+            } else {
+                metaContainer.addClass('d-none');
+            }
         }
 
         function applyHeaderMetadata() {
@@ -8857,19 +9021,45 @@ HTML;
             }
 
             if (duplicateEnabled) {
-                var allowDuplicate = true;
-                if (Object.prototype.hasOwnProperty.call(rowMeta, 'duplicate_allowed')) {
-                    allowDuplicate = !!rowMeta.duplicate_allowed;
-                }
+                var allowDuplicate = Object.prototype.hasOwnProperty.call(rowMeta, 'duplicate_allowed')
+                    ? !!rowMeta.duplicate_allowed
+                    : true;
 
                 if (allowDuplicate) {
                     // Place duplicate button to the left of other action buttons
                     fragments.push('<button type="button" class="btn btn-sm btn-info fastcrud-action-button fastcrud-duplicate-btn" title="Duplicate" aria-label="Duplicate record">' + actionIcons.duplicate + '</button>');
                 }
             }
-            fragments.push('<button type="button" class="btn btn-sm btn-secondary fastcrud-action-button fastcrud-view-btn" title="View" aria-label="View record">' + actionIcons.view + '</button>');
-            fragments.push('<button type="button" class="btn btn-sm btn-primary fastcrud-action-button fastcrud-edit-btn" title="Edit" aria-label="Edit record">' + actionIcons.edit + '</button>');
-            fragments.push('<button type="button" class="btn btn-sm btn-danger fastcrud-action-button fastcrud-delete-btn" title="Delete" aria-label="Delete record">' + actionIcons.delete + '</button>');
+
+            if (viewEnabled) {
+                var allowView = Object.prototype.hasOwnProperty.call(rowMeta, 'view_allowed')
+                    ? !!rowMeta.view_allowed
+                    : true;
+
+                if (allowView) {
+                    fragments.push('<button type="button" class="btn btn-sm btn-secondary fastcrud-action-button fastcrud-view-btn" title="View" aria-label="View record">' + actionIcons.view + '</button>');
+                }
+            }
+
+            if (editEnabled) {
+                var allowEdit = Object.prototype.hasOwnProperty.call(rowMeta, 'edit_allowed')
+                    ? !!rowMeta.edit_allowed
+                    : true;
+
+                if (allowEdit) {
+                    fragments.push('<button type="button" class="btn btn-sm btn-primary fastcrud-action-button fastcrud-edit-btn" title="Edit" aria-label="Edit record">' + actionIcons.edit + '</button>');
+                }
+            }
+
+            if (deleteEnabled) {
+                var allowDelete = Object.prototype.hasOwnProperty.call(rowMeta, 'delete_allowed')
+                    ? !!rowMeta.delete_allowed
+                    : true;
+
+                if (allowDelete) {
+                    fragments.push('<button type="button" class="btn btn-sm btn-danger fastcrud-action-button fastcrud-delete-btn" title="Delete" aria-label="Delete record">' + actionIcons.delete + '</button>');
+                }
+            }
 
             var buttonsHtml = fragments.join('');
             return '<td class="text-end fastcrud-actions-cell"><div class="fastcrud-actions-stack">' + buttonsHtml + '</div></td>';
@@ -11099,7 +11289,6 @@ HTML;
                 return;
             }
 
-            var deleteConfirm = clientConfig.table_meta && clientConfig.table_meta.delete_confirm !== false;
             if (deleteConfirm) {
                 var confirmationMessage = 'Are you sure you want to delete record ' + primaryValue + '?';
                 if (!window.confirm(confirmationMessage)) {

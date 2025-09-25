@@ -96,6 +96,10 @@ Crud::init([
                 $postsCrud = new Crud('posts');
                 $postsCrud
                     ->limit_list('5,10,25,all')
+                    ->enable_add(true)
+                    ->enable_view(true, 'user_id', '=', '1')
+                    ->enable_edit(true, 'user_id', '=', '1')
+                    ->enable_delete(true, 'user_id', '=', '1')
                     ->enable_duplicate(true,'user_id','=','1')  
                     ->order_by('id', 'desc')
                     ->relation('user_id', 'users', 'id', 'username')
