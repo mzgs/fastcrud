@@ -103,17 +103,17 @@ Crud::init([
                     // ->join('user_id', 'users', 'id','user')
                     // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
                     ->columns('user_id,title,is_featured,file,status_label,content,image,color')
-                    ->fields('user_id,title,is_featured,json_field,image,gallery_images,file,color,content,created_at', false, 'Post Details' )
+                    ->fields('user_id,status,title,is_featured,json_field,image,gallery_images,file,color,content,created_at', false, 'Post Details' )
                     ->fields('slug,status_note', false, 'Post Summary' )
                     // ->fields('slug,content',false,'Content' )
                     ->change_type('file', 'files')
                     ->change_type('image', 'image')
                     // ->enable_delete_confirm(false)
-                    
-                  ->change_type('gallery_images', 'images')
-                  ->change_type('color', 'color', '#ff0000')
-                  ->change_type('content', 'rich_editor', '', ['height' => 450])
-                  ->change_type('created_at', 'hidden', date('Y-m-d H:i:s'))
+                   
+                    ->change_type('gallery_images', 'images')
+                    ->change_type('color', 'color', '#ff0000')
+                    ->change_type('content', 'rich_editor', '', ['height' => 450])
+                    ->change_type('created_at', 'hidden', date('Y-m-d H:i:s'))
                   ->column_pattern("title","{title} - {slug}")
                 //   ->pass_default('file','default.txt')
                 

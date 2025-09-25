@@ -3625,7 +3625,7 @@ class Crud
         $schema = [];
 
         $sql = <<<'SQL'
-SELECT column_name, data_type, udt_name
+SELECT column_name, data_type, udt_name, is_nullable, column_default
 FROM information_schema.columns
 WHERE table_schema = current_schema()
   AND table_name = :table
@@ -4885,6 +4885,36 @@ HTML;
             }
         }
 
+        $autoRequired = $this->detectDatabaseRequiredColumns($columnLookup);
+        if ($autoRequired !== []) {
+            foreach ($autoRequired as $field => $minLength) {
+                if (!is_string($field) || $field === '') {
+                    continue;
+                }
+
+                $value = max(1, (int) $minLength);
+
+                if (!isset($behaviours['validation_required'][$field]) || !is_array($behaviours['validation_required'][$field])) {
+                    $behaviours['validation_required'][$field] = ['all' => $value];
+                    continue;
+                }
+
+                $current = $behaviours['validation_required'][$field];
+                if (!isset($current['all'])) {
+                    $existing = null;
+                    if (isset($current['create']) && is_numeric($current['create'])) {
+                        $existing = (int) $current['create'];
+                    } elseif (isset($current['edit']) && is_numeric($current['edit'])) {
+                        $existing = (int) $current['edit'];
+                    }
+
+                    $current['all'] = $existing !== null && $existing > 0 ? $existing : $value;
+                }
+
+                $behaviours['validation_required'][$field] = $current;
+            }
+        }
+
         return [
             'layouts'      => $layouts,
             'default_tabs' => $defaultTabs,
@@ -4892,6 +4922,148 @@ HTML;
             'labels'       => $fieldLabels,
             'all_columns'  => array_values($allColumns),
         ];
+    }
+
+    /**
+     * @param array<string, bool> $columnLookup
+     * @return array<string, int>
+     */
+    private function detectDatabaseRequiredColumns(array $columnLookup): array
+    {
+        if ($columnLookup === []) {
+            return [];
+        }
+
+        $schema = $this->getTableSchema($this->table);
+        if ($schema === []) {
+            return [];
+        }
+
+        $primaryKey = $this->normalizeColumnReference($this->getPrimaryKeyColumn());
+        $primaryKeyRaw = $this->denormalizeColumnReference($primaryKey);
+        $primaryKeyNameOnly = $primaryKey;
+        if (strpos($primaryKey, '__') !== false) {
+            $parts = explode('__', $primaryKey);
+            $primaryKeyNameOnly = (string) array_pop($parts);
+        }
+
+        $required = [];
+
+        foreach ($schema as $column => $meta) {
+            if (!is_string($column) || $column === '') {
+                continue;
+            }
+
+            $normalized = $this->normalizeColumnReference($column);
+            if ($normalized === '' || !isset($columnLookup[$normalized])) {
+                continue;
+            }
+
+            if (
+                $normalized === $primaryKey
+                || $normalized === $primaryKeyNameOnly
+                || $column === $primaryKeyRaw
+                || $column === $primaryKeyNameOnly
+            ) {
+                continue;
+            }
+
+            if ($this->schemaColumnIsRequired($meta)) {
+                $required[$normalized] = 1;
+            }
+        }
+
+        return $required;
+    }
+
+    /**
+     * @param array<string, mixed> $columnMeta
+     */
+    private function schemaColumnIsRequired(array $columnMeta): bool
+    {
+        $meta = $columnMeta['meta'] ?? [];
+        $meta = is_array($meta) ? $meta : [];
+
+        if (isset($meta['Null'])) {
+            $flag = strtoupper((string) $meta['Null']);
+            if ($flag !== 'NO') {
+                return false;
+            }
+
+            $extra = isset($meta['Extra']) ? strtolower((string) $meta['Extra']) : '';
+            if ($extra !== '' && str_contains($extra, 'auto_increment')) {
+                return false;
+            }
+
+            if (isset($meta['Generated']) && is_string($meta['Generated'])) {
+                $generated = strtolower($meta['Generated']);
+                if ($generated === 'stored' || $generated === 'always') {
+                    return false;
+                }
+            }
+
+            if (array_key_exists('Default', $meta) && $meta['Default'] !== null) {
+                return false;
+            }
+
+            return true;
+        }
+
+        if (isset($meta['is_nullable'])) {
+            $nullable = strtoupper((string) $meta['is_nullable']);
+            if ($nullable !== 'NO') {
+                return false;
+            }
+
+            if (array_key_exists('column_default', $meta) && $meta['column_default'] !== null) {
+                return false;
+            }
+
+            return true;
+        }
+
+        if (isset($meta['notnull'])) {
+            if ((int) $meta['notnull'] !== 1) {
+                return false;
+            }
+
+            if (!empty($meta['pk'])) {
+                return false;
+            }
+
+            if (array_key_exists('dflt_value', $meta) && $meta['dflt_value'] !== null) {
+                return false;
+            }
+
+            return true;
+        }
+
+        if (isset($meta['flags']) && is_array($meta['flags'])) {
+            $flags = array_map(
+                static fn($flag) => is_string($flag) ? strtolower($flag) : $flag,
+                $meta['flags']
+            );
+
+            if (!in_array('not_null', $flags, true)) {
+                return false;
+            }
+
+            if (in_array('auto_increment', $flags, true) || in_array('primary_key', $flags, true)) {
+                return false;
+            }
+
+            if (array_key_exists('default', $columnMeta) && $columnMeta['default'] !== null) {
+                return false;
+            }
+
+            if (array_key_exists('default_value', $columnMeta) && $columnMeta['default_value'] !== null) {
+                return false;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     private function buildSummaries(?string $searchTerm, ?string $searchColumn): array
