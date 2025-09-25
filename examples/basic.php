@@ -130,6 +130,7 @@ Crud::init([
                         'title'      => 'Title',
                         'content'    => 'Content',
                         'status_label' => 'Status',
+                        'is_featured' => 'Ft',
                      
                     ])
                     ->set_field_labels([
