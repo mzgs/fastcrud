@@ -5593,6 +5593,229 @@ HTML;
     }
 
     /**
+     * Create a record and return the freshly inserted row.
+     *
+     * @param array<string, mixed> $fields Column => value map to insert
+     * @return array<string, mixed>|null
+     */
+    public function createRecord(array $fields): ?array
+    {
+        $columns = $this->getTableColumnsFor($this->table);
+        if ($columns === []) {
+            throw new RuntimeException('Unable to determine table columns for insert.');
+        }
+
+        $primaryKeyColumn = $this->getPrimaryKeyColumn();
+
+        $readonly = $this->gatherBehaviourForMode('readonly', 'create');
+        $disabled = $this->gatherBehaviourForMode('disabled', 'create');
+
+        $filtered = [];
+        foreach ($fields as $column => $value) {
+            if (!is_string($column)) {
+                continue;
+            }
+
+            if (!in_array($column, $columns, true)) {
+                continue;
+            }
+
+            if (isset($readonly[$column]) || isset($disabled[$column])) {
+                continue;
+            }
+
+            $filtered[$column] = $value;
+        }
+
+        $context = array_merge($fields, $filtered);
+
+        $passDefaults = $this->gatherBehaviourForMode('pass_default', 'create');
+        foreach ($passDefaults as $column => $value) {
+            if (!in_array($column, $columns, true)) {
+                continue;
+            }
+
+            $needsDefault = !array_key_exists($column, $filtered)
+                || $filtered[$column] === null
+                || $filtered[$column] === '';
+
+            if ($needsDefault) {
+                $filtered[$column] = $this->renderTemplateValue($value, $context);
+                $context[$column] = $filtered[$column];
+            }
+        }
+
+        $context = array_merge($context, $filtered);
+
+        $passVars = $this->gatherBehaviourForMode('pass_var', 'create');
+        foreach ($passVars as $column => $value) {
+            if (!in_array($column, $columns, true)) {
+                continue;
+            }
+
+            $filtered[$column] = $this->renderTemplateValue($value, $context);
+            $context[$column] = $filtered[$column];
+        }
+
+        $context = array_merge($context, $filtered);
+
+        $errors = [];
+
+        $required = $this->gatherBehaviourForMode('validation_required', 'create');
+        foreach ($required as $column => $minLength) {
+            if (!in_array($column, $columns, true)) {
+                continue;
+            }
+
+            $value = $filtered[$column] ?? null;
+            $length = 0;
+            if ($value !== null) {
+                if (is_string($value)) {
+                    $normalized = trim($value);
+                    $length = function_exists('mb_strlen') ? mb_strlen($normalized) : strlen($normalized);
+                } elseif (is_numeric($value)) {
+                    $stringValue = (string) $value;
+                    $length = function_exists('mb_strlen') ? mb_strlen($stringValue) : strlen($stringValue);
+                }
+            }
+
+            if ($length < (int) $minLength) {
+                $errors[$column] = 'This field is required.';
+            }
+        }
+
+        $patterns = $this->gatherBehaviourForMode('validation_pattern', 'create');
+        foreach ($patterns as $column => $pattern) {
+            if (!in_array($column, $columns, true)) {
+                continue;
+            }
+
+            if (!array_key_exists($column, $filtered)) {
+                continue;
+            }
+
+            $value = $filtered[$column];
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            $regex = $this->compileValidationPattern((string) $pattern);
+            if ($regex === null) {
+                continue;
+            }
+
+            if (@preg_match($regex, (string) $value) !== 1) {
+                $errors[$column] = 'Value does not match the expected format.';
+            }
+        }
+
+        $uniqueRules = $this->gatherBehaviourForMode('unique', 'create');
+        foreach ($uniqueRules as $column => $flag) {
+            if (!$flag || !in_array($column, $columns, true)) {
+                continue;
+            }
+
+            if (!array_key_exists($column, $filtered)) {
+                continue;
+            }
+
+            $value = $filtered[$column];
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            $sql = sprintf('SELECT COUNT(*) FROM %s WHERE %s = :value', $this->table, $column);
+
+            $statement = $this->connection->prepare($sql);
+            if ($statement === false) {
+                continue;
+            }
+
+            try {
+                $statement->execute([':value' => $value]);
+            } catch (PDOException) {
+                continue;
+            }
+
+            $count = (int) $statement->fetchColumn();
+            if ($count > 0) {
+                $errors[$column] = 'This value must be unique.';
+            }
+        }
+
+        if ($errors !== []) {
+            throw new ValidationException('Validation failed.', $errors);
+        }
+
+        if (array_key_exists($primaryKeyColumn, $filtered)) {
+            $pkValue = $filtered[$primaryKeyColumn];
+            if ($pkValue === null || $pkValue === '') {
+                unset($filtered[$primaryKeyColumn]);
+            }
+        }
+
+        if ($filtered === []) {
+            throw new RuntimeException('No data provided for insert.');
+        }
+
+        $columnsList = array_keys($filtered);
+        $placeholders = [];
+        $parameters = [];
+        foreach ($filtered as $column => $value) {
+            $placeholder = ':col_' . $column;
+            $placeholders[] = $placeholder;
+            $parameters[$placeholder] = $value;
+        }
+
+        $sql = sprintf(
+            'INSERT INTO %s (%s) VALUES (%s)',
+            $this->table,
+            implode(', ', $columnsList),
+            implode(', ', $placeholders)
+        );
+
+        $statement = $this->connection->prepare($sql);
+        if ($statement === false) {
+            throw new RuntimeException('Failed to prepare insert statement.');
+        }
+
+        try {
+            $statement->execute($parameters);
+        } catch (PDOException $exception) {
+            throw new RuntimeException('Failed to insert record.', 0, $exception);
+        }
+
+        if (array_key_exists($primaryKeyColumn, $filtered)) {
+            $pkValue = $filtered[$primaryKeyColumn];
+            if ($pkValue !== null && $pkValue !== '') {
+                return $this->findRowByPrimaryKey($primaryKeyColumn, $pkValue);
+            }
+        }
+
+        try {
+            $newPk = $this->connection->lastInsertId();
+            if (is_string($newPk) && $newPk !== '' && $newPk !== '0') {
+                return $this->findRowByPrimaryKey($primaryKeyColumn, $newPk);
+            }
+        } catch (PDOException) {
+            // ignore and fall back below
+        }
+
+        try {
+            $sql = sprintf('SELECT * FROM %s ORDER BY %s DESC LIMIT 1', $this->table, $primaryKeyColumn);
+            $fallbackStmt = $this->connection->query($sql);
+            if ($fallbackStmt !== false) {
+                $row = $fallbackStmt->fetch(PDO::FETCH_ASSOC);
+                return is_array($row) ? $row : null;
+            }
+        } catch (PDOException) {
+            // ignore
+        }
+
+        return null;
+    }
+
+    /**
      * Update a record and return the fresh row data.
      *
      * @param string $primaryKeyColumn Column name for the primary key
@@ -6258,6 +6481,7 @@ HTML;
         var editSuccess = $('#' + tableId + '-edit-success');
         var editLabel = $('#' + tableId + '-edit-label');
         var editOffcanvasElement = $('#' + tableId + '-edit-panel');
+        editForm.data('mode', 'edit');
         var editOffcanvasInstance = null;
         if (editOffcanvasElement.length) {
             // Clear highlight as soon as the panel starts closing (no wait for animation)
@@ -6911,28 +7135,35 @@ HTML;
 
             metaContainer.empty();
 
-            if (!tableMeta || (!tableMeta.name && !tableMeta.icon && !tableMeta.tooltip)) {
-                metaContainer.addClass('d-none');
-                return;
-            }
+            var hasMeta = tableMeta && (tableMeta.name || tableMeta.icon || tableMeta.tooltip);
+            if (hasMeta) {
+                var wrapper = $('<div class="d-flex align-items-center gap-2"></div>');
 
-            var wrapper = $('<div class="d-flex align-items-center gap-2"></div>');
-
-            if (tableMeta.icon) {
-                wrapper.append($('<i></i>').addClass(tableMeta.icon));
-            }
-
-            if (tableMeta.name) {
-                var title = $('<h5 class="mb-0"></h5>').text(tableMeta.name);
-                if (tableMeta.tooltip) {
-                    title.attr('title', tableMeta.tooltip).attr('data-bs-toggle', 'tooltip');
+                if (tableMeta.icon) {
+                    wrapper.append($('<i></i>').addClass(tableMeta.icon));
                 }
-                wrapper.append(title);
-            } else if (tableMeta.tooltip) {
-                wrapper.append($('<span class="text-muted"></span>').text(tableMeta.tooltip));
+
+                if (tableMeta.name) {
+                    var title = $('<h5 class="mb-0"></h5>').text(tableMeta.name);
+                    if (tableMeta.tooltip) {
+                        title.attr('title', tableMeta.tooltip).attr('data-bs-toggle', 'tooltip');
+                    }
+                    wrapper.append(title);
+                } else if (tableMeta.tooltip) {
+                    wrapper.append($('<span class="text-muted"></span>').text(tableMeta.tooltip));
+                }
+
+                metaContainer.append(wrapper);
             }
 
-            metaContainer.removeClass('d-none').append(wrapper);
+            var addButton = $('<button type="button" class="btn btn-sm btn-success fastcrud-add-btn ms-auto"></button>')
+                .attr('title', 'Add new record')
+                .attr('aria-label', 'Add new record')
+                .append('<span class="me-1">+</span>')
+                .append(document.createTextNode('Add'));
+
+            metaContainer.append(addButton);
+            metaContainer.removeClass('d-none');
         }
 
         function applyHeaderMetadata() {
@@ -8234,18 +8465,20 @@ HTML;
         function showEditForm(row) {
             clearFormAlerts();
 
+            var formMode = String(editForm.data('mode') || 'edit');
+            var isCreateMode = formMode === 'create';
+
             if (viewOffcanvasInstance) {
                 viewOffcanvasInstance.hide();
             }
 
-            if (!row) {
-                showFormError('Unable to determine primary key for editing.');
-                return;
+            if (!row || typeof row !== 'object') {
+                row = {};
             }
 
             var rowPrimaryKeyColumn = row.__fastcrud_primary_key || primaryKeyColumn;
             if (!rowPrimaryKeyColumn) {
-                showFormError('Unable to determine primary key for editing.');
+                showFormError(isCreateMode ? 'Unable to determine primary key for creating records.' : 'Unable to determine primary key for editing.');
                 return;
             }
 
@@ -8254,19 +8487,32 @@ HTML;
                 : row[rowPrimaryKeyColumn];
 
             editForm.data('primaryKeyColumn', rowPrimaryKeyColumn);
-            editForm.data('primaryKeyValue', primaryKeyValue);
 
             if (!primaryKeyColumn) {
                 primaryKeyColumn = rowPrimaryKeyColumn;
             }
 
-            if (primaryKeyValue === null || typeof primaryKeyValue === 'undefined' || String(primaryKeyValue).length === 0) {
-                showFormError('Missing primary key value for selected record.');
-                return;
+            if (isCreateMode) {
+                editForm.data('primaryKeyValue', null);
+            } else {
+                if (primaryKeyValue === null || typeof primaryKeyValue === 'undefined' || String(primaryKeyValue).length === 0) {
+                    showFormError('Missing primary key value for selected record.');
+                    return;
+                }
+                editForm.data('primaryKeyValue', primaryKeyValue);
             }
 
             if (editLabel.length) {
-                editLabel.text('Edit Record ' + primaryKeyValue);
+                if (isCreateMode) {
+                    editLabel.text('Add Record');
+                } else {
+                    editLabel.text('Edit Record ' + primaryKeyValue);
+                }
+            }
+
+            var submitButton = editForm.find('button[type="submit"]');
+            if (submitButton.length) {
+                submitButton.text(isCreateMode ? 'Create Record' : 'Save Changes');
             }
 
             destroyRichEditors(editFieldsContainer);
@@ -8278,7 +8524,7 @@ HTML;
                 ? row.__fastcrud_field_html
                 : {};
 
-            var layout = buildFormLayout('edit');
+            var layout = buildFormLayout(formMode);
             var fields = layout.fields.slice();
             if (!fields.length) {
                 var fallbackColumns = baseColumns.length ? baseColumns : columnsCache;
@@ -8353,7 +8599,7 @@ HTML;
 
             visibleFields.forEach(function(field) {
                 var column = field.name;
-                var behaviours = resolveBehavioursForField(column, 'edit');
+                var behaviours = resolveBehavioursForField(column, formMode);
                 var changeMeta = behaviours.change_type || {};
                 var changeType = String(changeMeta.type || 'text').toLowerCase();
                 if (changeType === 'dropdown') {
@@ -9624,11 +9870,18 @@ HTML;
             event.preventDefault();
             event.stopPropagation();
 
+            var formMode = String(editForm.data('mode') || 'edit');
+            var isCreateMode = formMode === 'create';
             var primaryColumn = editForm.data('primaryKeyColumn');
             var primaryValue = editForm.data('primaryKeyValue');
 
             if (!primaryColumn) {
                 showFormError('Primary key column missing.');
+                return false;
+            }
+
+            if (!isCreateMode && (primaryValue === null || typeof primaryValue === 'undefined' || String(primaryValue).length === 0)) {
+                showFormError('Primary key value missing.');
                 return false;
             }
 
@@ -9641,7 +9894,7 @@ HTML;
 
             var submitButton = editForm.find('button[type="submit"]');
             var originalText = submitButton.text();
-            submitButton.prop('disabled', true).text('Saving...');
+            submitButton.prop('disabled', true).text(isCreateMode ? 'Creating...' : 'Saving...');
 
             // Ensure FilePond uploads (if any) finish before collecting values
             function waitForFilePondUploads() {
@@ -9789,35 +10042,47 @@ HTML;
                     offcanvas.hide();
                 }
 
+                var requestData = {
+                    fastcrud_ajax: '1',
+                    action: isCreateMode ? 'create' : 'update',
+                    table: tableName,
+                    id: tableId,
+                    fields: JSON.stringify(fields),
+                    config: JSON.stringify(clientConfig)
+                };
+                if (!isCreateMode) {
+                    requestData.primary_key_column = primaryColumn;
+                    requestData.primary_key_value = primaryValue;
+                }
+
                 $.ajax({
                     url: window.location.pathname,
                     type: 'POST',
                     dataType: 'json',
-                    data: {
-                        fastcrud_ajax: '1',
-                        action: 'update',
-                        table: tableName,
-                        id: tableId,
-                        primary_key_column: primaryColumn,
-                        primary_key_value: primaryValue,
-                        fields: JSON.stringify(fields),
-                        config: JSON.stringify(clientConfig)
-                    },
+                    data: requestData,
                     success: function(response) {
                         if (response && response.success) {
+                            if (isCreateMode) {
+                                editSuccess.text('Record created successfully.');
+                            } else {
+                                editSuccess.text('Changes saved successfully.');
+                            }
                             editSuccess.addClass('d-none');
                             currentFieldErrors = {};
-                            try {
-                                var key = rowCacheKey(primaryColumn, String(primaryValue));
-                                if (response.row) {
-                                    rowCache[key] = response.row;
-                                } else if (rowCache[key]) {
-                                    delete rowCache[key];
-                                }
-                            } catch (e) {}
+                            if (!isCreateMode) {
+                                try {
+                                    var key = rowCacheKey(primaryColumn, String(primaryValue));
+                                    if (response.row) {
+                                        rowCache[key] = response.row;
+                                    } else if (rowCache[key]) {
+                                        delete rowCache[key];
+                                    }
+                                } catch (e) {}
+                            }
                             loadTableData(currentPage);
                         } else {
-                            var message = response && response.error ? response.error : 'Failed to update record.';
+                            var fallbackMessage = isCreateMode ? 'Failed to create record.' : 'Failed to update record.';
+                            var message = response && response.error ? response.error : fallbackMessage;
                             if (response && response.errors) {
                                 currentFieldErrors = response.errors;
                                 applyFieldErrors(response.errors);
@@ -9829,7 +10094,8 @@ HTML;
                         }
                     },
                     error: function(_, __, error) {
-                        showFormError('Failed to update record: ' + error);
+                        var failureMessage = isCreateMode ? 'Failed to create record: ' + error : 'Failed to update record: ' + error;
+                        showFormError(failureMessage);
                         if (offcanvas) {
                             offcanvas.show();
                         }
@@ -10079,6 +10345,40 @@ HTML;
             event.preventDefault();
         });
 
+        metaContainer.on('click', '.fastcrud-add-btn', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!primaryKeyColumn) {
+                showError('Unable to determine primary key for creating records.');
+                return false;
+            }
+
+            editForm.data('mode', 'create');
+
+            try {
+                table.find('tbody tr.fastcrud-editing').each(function() {
+                    var trEl = $(this);
+                    var had = trEl.data('fastcrudHadClass');
+                    if (had !== 1 && had !== '1') { trEl.removeClass(editHighlightClass); }
+                    trEl.removeClass('fastcrud-editing').removeData('fastcrudHadClass');
+                });
+            } catch (e) {}
+
+            var templateRow = {
+                __fastcrud_primary_key: primaryKeyColumn,
+                __fastcrud_primary_value: null
+            };
+            var sourceColumns = baseColumns.length ? baseColumns : columnsCache;
+            sourceColumns.forEach(function(column) {
+                if (!Object.prototype.hasOwnProperty.call(templateRow, column)) {
+                    templateRow[column] = null;
+                }
+            });
+
+            showEditForm(templateRow);
+            return false;
+        });
+
         table.on('click', '.fastcrud-view-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
@@ -10102,6 +10402,7 @@ HTML;
         table.on('click', '.fastcrud-edit-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
+            editForm.data('mode', 'edit');
             // Highlight the row being edited
             try {
                 var tr = $(this).closest('tr');

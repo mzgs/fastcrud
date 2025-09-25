@@ -26,6 +26,9 @@ class CrudAjax
                 case 'read':
                     self::handleRead($request);
                     break;
+                case 'create':
+                    self::handleCreate($request);
+                    break;
                 case 'update':
                     self::handleUpdate($request);
                     break;
@@ -135,6 +138,59 @@ class CrudAjax
             'columns' => $row !== null ? array_keys($row) : [],
             'id' => $request['id'] ?? null,
         ], $row !== null ? 200 : 404);
+    }
+
+    /**
+     * Handle record creation via AJAX.
+     *
+     * @param array<string, mixed> $request
+     */
+    private static function handleCreate(array $request): void
+    {
+        if (!isset($request['table'])) {
+            throw new InvalidArgumentException('Table parameter is required');
+        }
+
+        $fieldsPayload = $request['fields'] ?? [];
+        $fields = [];
+
+        if (is_string($fieldsPayload) && $fieldsPayload !== '') {
+            $decoded = json_decode($fieldsPayload, true);
+            if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                throw new InvalidArgumentException('Invalid fields payload.');
+            }
+            $fields = $decoded;
+        } elseif (is_array($fieldsPayload)) {
+            $fields = $fieldsPayload;
+        }
+
+        if (!is_array($fields)) {
+            throw new InvalidArgumentException('Invalid fields payload.');
+        }
+
+        $crud = Crud::fromAjax(
+            (string) $request['table'],
+            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
+            $request['config'] ?? null
+        );
+
+        try {
+            $newRow = $crud->createRecord($fields);
+        } catch (ValidationException $exception) {
+            self::respond([
+                'success' => false,
+                'error' => $exception->getMessage(),
+                'errors' => $exception->getErrors(),
+                'id' => $request['id'] ?? null,
+            ], 422);
+        }
+
+        self::respond([
+            'success' => true,
+            'row' => $newRow,
+            'columns' => $newRow !== null ? array_keys($newRow) : [],
+            'id' => $request['id'] ?? null,
+        ]);
     }
 
     /**
