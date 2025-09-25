@@ -7785,8 +7785,10 @@ HTML;
 
         function updateBatchDeleteButtonState() {
             if (batchDeleteButton && batchDeleteButton.length) {
-                var enabled = batchDeleteEnabled && deleteEnabled && getSelectedCount() > 0;
+                var selectedCount = getSelectedCount();
+                var enabled = batchDeleteEnabled && deleteEnabled && selectedCount > 0;
                 batchDeleteButton.prop('disabled', !enabled);
+                batchDeleteButton.toggleClass('d-none', selectedCount === 0);
             }
 
             if (selectAllCheckbox && selectAllCheckbox.length) {
@@ -8115,7 +8117,7 @@ HTML;
 
             if (batchDeleteEnabled && deleteEnabled) {
                 actionsWrapper.append(
-                    $('<button type="button" class="btn btn-sm btn-outline-danger fastcrud-batch-delete-btn" disabled></button>')
+                    $('<button type="button" class="btn btn-sm btn-danger fastcrud-batch-delete-btn d-none" disabled></button>')
                         .attr('title', 'Delete selected records')
                         .attr('aria-label', 'Delete selected records')
                         .text('Delete Selected')
