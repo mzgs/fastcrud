@@ -95,6 +95,7 @@ class Crud
             'delete_condition' => null,
             'duplicate' => false,
             'duplicate_condition' => null,
+            'batch_delete' => false,
             'delete_confirm' => true,
         ],
         'column_summaries' => [],
@@ -927,6 +928,18 @@ class Crud
             'duplicate' => isset($meta['duplicate']) ? (bool) $meta['duplicate'] : false,
             default     => false,
         };
+    }
+
+    private function isBatchDeleteEnabled(): bool
+    {
+        $meta = $this->config['table_meta'] ?? [];
+
+        $batchDeleteEnabled = isset($meta['batch_delete']) ? (bool) $meta['batch_delete'] : false;
+        if (!$batchDeleteEnabled) {
+            return false;
+        }
+
+        return isset($meta['delete']) ? (bool) $meta['delete'] : true;
     }
 
     private function getActionCondition(string $action): ?array
@@ -2292,6 +2305,13 @@ class Crud
         } else {
             $this->config['table_meta']['duplicate_condition'] = null;
         }
+
+        return $this;
+    }
+
+    public function enable_batch_delete(bool $enabled = true): self
+    {
+        $this->config['table_meta']['batch_delete'] = (bool) $enabled;
 
         return $this;
     }
@@ -4606,10 +4626,11 @@ SQL;
             return '<div class="alert alert-warning">No columns available for this table.</div>';
         }
 
+        $batchDeleteEnabled = $this->isBatchDeleteEnabled();
         $headerHtml = $this->buildHeader($columns);
         $script     = $this->generateAjaxScript();
         $styles     = $this->buildActionColumnStyles($this->id);
-        $colspan    = $this->escapeHtml((string) (count($columns) + 1));
+        $colspan    = $this->escapeHtml((string) (count($columns) + 1 + ($batchDeleteEnabled ? 1 : 0)));
         $offcanvas  = $this->buildEditOffcanvas($id) . $this->buildViewOffcanvas($id);
 
         $configJson = '{}';
@@ -4710,6 +4731,10 @@ HTML;
     private function buildHeader(array $columns): string
     {
         $cells = [];
+
+        if ($this->isBatchDeleteEnabled()) {
+            $cells[] = '            <th scope="col" class="text-center fastcrud-select fastcrud-select-header"><input type="checkbox" class="form-check-input fastcrud-select-all" aria-label="Select all rows"></th>';
+        }
 
         foreach ($columns as $column) {
             $label = $this->resolveColumnLabel($column);
@@ -5186,6 +5211,7 @@ HTML;
                 'duplicate_condition' => isset($tableMeta['duplicate_condition']) && is_array($tableMeta['duplicate_condition'])
                     ? $tableMeta['duplicate_condition']
                     : null,
+                'batch_delete' => $this->isBatchDeleteEnabled(),
                 'delete_confirm' => isset($tableMeta['delete_confirm']) ? (bool) $tableMeta['delete_confirm'] : true,
             ],
             'link_button'    => $this->buildLinkButtonConfig(),
@@ -5887,6 +5913,7 @@ HTML;
                 'duplicate_condition' => isset($meta['duplicate_condition']) && is_array($meta['duplicate_condition'])
                     ? $meta['duplicate_condition']
                     : null,
+                'batch_delete' => isset($meta['batch_delete']) ? (bool) $meta['batch_delete'] : false,
                 'delete_confirm' => isset($meta['delete_confirm']) ? (bool) $meta['delete_confirm'] : true,
             ];
         }
@@ -6778,6 +6805,73 @@ HTML;
     }
 
     /**
+     * Delete multiple records by their primary key values.
+     *
+     * @param string $primaryKeyColumn
+     * @param array<int, mixed> $primaryKeyValues
+     * @return array{deleted: int, failures: array<int, array{value: mixed, error: string}>}
+     */
+    public function deleteRecords(string $primaryKeyColumn, array $primaryKeyValues): array
+    {
+        $primaryKeyColumn = trim($primaryKeyColumn);
+        if ($primaryKeyColumn === '') {
+            throw new InvalidArgumentException('Primary key column is required.');
+        }
+
+        $columns = $this->getTableColumnsFor($this->table);
+        if (!in_array($primaryKeyColumn, $columns, true)) {
+            $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
+            throw new InvalidArgumentException($message);
+        }
+
+        $normalizedValues = [];
+        foreach ($primaryKeyValues as $value) {
+            if ($value === null) {
+                continue;
+            }
+
+            if (is_string($value)) {
+                $value = trim($value);
+                if ($value === '') {
+                    continue;
+                }
+            }
+
+            $normalizedValues[] = $value;
+        }
+
+        if ($normalizedValues === []) {
+            return ['deleted' => 0, 'failures' => []];
+        }
+
+        $deletedCount = 0;
+        $failures = [];
+
+        foreach ($normalizedValues as $value) {
+            try {
+                $deleted = $this->deleteRecord($primaryKeyColumn, $value);
+            } catch (RuntimeException $exception) {
+                $failures[] = [
+                    'value' => $value,
+                    'error' => $exception->getMessage(),
+                ];
+                continue;
+            }
+
+            if ($deleted) {
+                $deletedCount++;
+            } else {
+                $failures[] = [
+                    'value' => $value,
+                    'error' => 'Record not found or already deleted.',
+                ];
+            }
+        }
+
+        return ['deleted' => $deletedCount, 'failures' => $failures];
+    }
+
+    /**
      * Duplicate a record by copying its fields into a new row.
      * Returns the newly created row, or null on failure.
      *
@@ -7180,6 +7274,10 @@ HTML;
         var linkButtonConfig = null;
         var sortDisabled = {};
         var inlineEditFields = {};
+        var batchDeleteEnabled = false;
+        var batchDeleteButton = null;
+        var selectAllCheckbox = null;
+        var selectedRows = {};
         var formConfig = {
             layouts: {},
             default_tabs: {},
@@ -7199,6 +7297,19 @@ HTML;
         var searchSelect = null;
         var searchButton = null;
         var clearButton = null;
+
+        selectAllCheckbox = table.find('thead .fastcrud-select-all');
+        if (selectAllCheckbox.length) {
+            selectAllCheckbox.on('change', function() {
+                if (!batchDeleteEnabled || !deleteEnabled) {
+                    $(this).prop('checked', false).prop('indeterminate', false);
+                    return;
+                }
+
+                var shouldSelect = $(this).is(':checked');
+                toggleSelectAll(shouldSelect);
+            });
+        }
 
         var editFormId = tableId + '-edit-form';
         var editForm = $('#' + editFormId);
@@ -7628,6 +7739,108 @@ HTML;
             return viewOffcanvasInstance;
         }
 
+        function selectionKey(pkCol, pkVal) {
+            if (!pkCol) {
+                return '';
+            }
+
+            if (typeof pkVal === 'undefined' || pkVal === null) {
+                return '';
+            }
+
+            return String(pkCol) + '::' + String(pkVal);
+        }
+
+        function setSelection(pkCol, pkVal, selected) {
+            var key = selectionKey(pkCol, pkVal);
+            if (!key) {
+                return;
+            }
+
+            if (selected) {
+                selectedRows[key] = { column: pkCol, value: pkVal };
+            } else if (Object.prototype.hasOwnProperty.call(selectedRows, key)) {
+                delete selectedRows[key];
+            }
+        }
+
+        function isSelected(pkCol, pkVal) {
+            return Object.prototype.hasOwnProperty.call(selectedRows, selectionKey(pkCol, pkVal));
+        }
+
+        function getSelectedCount() {
+            return Object.keys(selectedRows).length;
+        }
+
+        function clearSelection() {
+            selectedRows = {};
+            table.find('tbody .fastcrud-select-row').each(function() {
+                $(this).prop('checked', false);
+            });
+            if (selectAllCheckbox && selectAllCheckbox.length) {
+                selectAllCheckbox.prop('checked', false).prop('indeterminate', false);
+            }
+            updateBatchDeleteButtonState();
+        }
+
+        function updateBatchDeleteButtonState() {
+            if (batchDeleteButton && batchDeleteButton.length) {
+                var enabled = batchDeleteEnabled && deleteEnabled && getSelectedCount() > 0;
+                batchDeleteButton.prop('disabled', !enabled);
+            }
+
+            if (selectAllCheckbox && selectAllCheckbox.length) {
+                var allowSelection = batchDeleteEnabled && deleteEnabled;
+                selectAllCheckbox.prop('disabled', !allowSelection);
+                if (!allowSelection) {
+                    selectAllCheckbox.prop('checked', false).prop('indeterminate', false);
+                }
+            }
+        }
+
+        function refreshSelectAllState() {
+            if (!selectAllCheckbox || !selectAllCheckbox.length) {
+                return;
+            }
+
+            if (!batchDeleteEnabled || !deleteEnabled) {
+                selectAllCheckbox.prop('checked', false).prop('indeterminate', false);
+                return;
+            }
+
+            var enabledCheckboxes = table.find('tbody .fastcrud-select-row').filter(':not(:disabled)');
+            if (!enabledCheckboxes.length) {
+                selectAllCheckbox.prop('checked', false).prop('indeterminate', false);
+                return;
+            }
+
+            var checkedCount = enabledCheckboxes.filter(':checked').length;
+            selectAllCheckbox.prop('checked', checkedCount === enabledCheckboxes.length);
+            selectAllCheckbox.prop('indeterminate', checkedCount > 0 && checkedCount < enabledCheckboxes.length);
+        }
+
+        function toggleSelectAll(shouldSelect) {
+            if (!batchDeleteEnabled || !deleteEnabled) {
+                return;
+            }
+
+            var checkboxes = table.find('tbody .fastcrud-select-row').filter(':not(:disabled)');
+            checkboxes.each(function() {
+                var checkbox = $(this);
+                var pkCol = checkbox.attr('data-fastcrud-pk');
+                var pkVal = checkbox.attr('data-fastcrud-pk-value');
+                if (!pkCol || typeof pkVal === 'undefined') {
+                    return;
+                }
+
+                checkbox.prop('checked', shouldSelect);
+                setSelection(pkCol, pkVal, shouldSelect);
+            });
+
+            refreshSelectAllState();
+            updateBatchDeleteButtonState();
+        }
+
         function applyMeta(meta) {
             if (!meta || typeof meta !== 'object') {
                 return;
@@ -7696,6 +7909,10 @@ HTML;
             if (tableMeta.hasOwnProperty('delete_confirm')) {
                 deleteConfirm = !!tableMeta.delete_confirm;
             }
+            batchDeleteEnabled = !!tableMeta.batch_delete && deleteEnabled;
+            if (!batchDeleteEnabled) {
+                clearSelection();
+            }
 
             var metaLinkButton = meta.link_button;
             if (metaLinkButton && typeof metaLinkButton === 'object') {
@@ -7736,6 +7953,8 @@ HTML;
             }
 
             updateMetaContainer(tableMeta);
+            updateBatchDeleteButtonState();
+            refreshSelectAllState();
             // sort disabled list from meta
             sortDisabled = {};
             if (Array.isArray(meta.sort_disabled)) {
@@ -7891,14 +8110,35 @@ HTML;
                 metaContainer.append(wrapper);
             }
 
+            var actionsWrapper = $('<div class="d-flex align-items-center gap-2 ms-auto"></div>');
+            var hasActions = false;
+
+            if (batchDeleteEnabled && deleteEnabled) {
+                actionsWrapper.append(
+                    $('<button type="button" class="btn btn-sm btn-outline-danger fastcrud-batch-delete-btn" disabled></button>')
+                        .attr('title', 'Delete selected records')
+                        .attr('aria-label', 'Delete selected records')
+                        .text('Delete Selected')
+                );
+                hasActions = true;
+            }
+
             if (addEnabled) {
-                var addButton = $('<button type="button" class="btn btn-sm btn-success fastcrud-add-btn ms-auto"></button>')
+                var addButton = $('<button type="button" class="btn btn-sm btn-success fastcrud-add-btn"></button>')
                     .attr('title', 'Add new record')
                     .attr('aria-label', 'Add new record')
                     .append('<span class="me-1">+</span>')
                     .append(document.createTextNode('Add'));
 
-                metaContainer.append(addButton);
+                actionsWrapper.append(addButton);
+                hasActions = true;
+            }
+
+            if (hasActions) {
+                metaContainer.append(actionsWrapper);
+                batchDeleteButton = actionsWrapper.find('.fastcrud-batch-delete-btn');
+            } else {
+                batchDeleteButton = null;
             }
 
             if (metaContainer.children().length) {
@@ -7909,7 +8149,7 @@ HTML;
         }
 
         function applyHeaderMetadata() {
-            var headerCells = table.find('thead th').not('.fastcrud-actions');
+            var headerCells = table.find('thead th').not('.fastcrud-actions, .fastcrud-select-header');
             headerCells.each(function(index) {
                 var column = columnsCache[index];
                 if (!column) {
@@ -9072,6 +9312,8 @@ HTML;
             if (!rows || rows.length === 0) {
                 tbody.html('');
                 showEmptyRow(totalColumns, 'No records found.');
+                refreshSelectAllState();
+                updateBatchDeleteButtonState();
                 return;
             }
 
@@ -9101,6 +9343,36 @@ HTML;
 
                 var rowClass = rowMeta.row_class ? ' class="' + escapeHtml(rowMeta.row_class) + '"' : '';
                 var cells = '';
+
+                var rowDeleteAllowed = deleteEnabled;
+                if (rowDeleteAllowed && Object.prototype.hasOwnProperty.call(rowMeta, 'delete_allowed')) {
+                    rowDeleteAllowed = !!rowMeta.delete_allowed;
+                }
+
+                if (batchDeleteEnabled && deleteEnabled) {
+                    var attrs = ['type="checkbox"', 'class="form-check-input fastcrud-select-row"'];
+                    var selectable = rowDeleteAllowed
+                        && rowPrimaryKeyColumn
+                        && typeof primaryValue !== 'undefined'
+                        && primaryValue !== null
+                        && String(primaryValue).length > 0;
+
+                    if (selectable) {
+                        var selectKey = selectionKey(rowPrimaryKeyColumn, primaryValue);
+                        attrs.push('data-fastcrud-key="' + escapeHtml(selectKey) + '"');
+                        attrs.push('data-fastcrud-pk="' + escapeHtml(String(rowPrimaryKeyColumn)) + '"');
+                        attrs.push('data-fastcrud-pk-value="' + escapeHtml(String(primaryValue)) + '"');
+                        if (isSelected(rowPrimaryKeyColumn, primaryValue)) {
+                            attrs.push('checked');
+                        }
+                    } else {
+                        attrs.push('disabled');
+                        setSelection(rowPrimaryKeyColumn, primaryValue, false);
+                    }
+
+                    cells += '<td class="text-center fastcrud-select-cell"><input ' + attrs.join(' ') + '></td>';
+                }
+
                 $.each(columnsCache, function(colIndex, column) {
                     var cellMeta = cellsMeta[column] || {};
                     var displayValue;
@@ -9176,12 +9448,15 @@ HTML;
             });
 
             tbody.html(html);
+            refreshSelectAllState();
+            updateBatchDeleteButtonState();
         }
 
         function loadTableData(page) {
             currentPage = page || 1;
             // Clear row cache to avoid stale data after reloads
             rowCache = {};
+            clearSelection();
 
             var tbody = table.find('tbody');
             var totalColumns = table.find('thead th').length || 1;
@@ -11385,6 +11660,111 @@ HTML;
                 }
             });
         }
+
+        function requestBatchDelete() {
+            if (!batchDeleteEnabled || !deleteEnabled) {
+                return;
+            }
+
+            var keys = Object.keys(selectedRows);
+            if (!keys.length) {
+                return;
+            }
+
+            var grouped = {};
+            keys.forEach(function(key) {
+                var entry = selectedRows[key];
+                if (!entry || !entry.column) {
+                    return;
+                }
+
+                var column = entry.column;
+                if (!grouped[column]) {
+                    grouped[column] = [];
+                }
+
+                grouped[column].push(entry.value);
+            });
+
+            var columns = Object.keys(grouped);
+            if (!columns.length) {
+                showError('No valid selections available for batch delete.');
+                return;
+            }
+
+            if (columns.length > 1) {
+                showError('Batch delete requires all selections to share the same primary key column.');
+                return;
+            }
+
+            var pkColumn = columns[0];
+            var values = grouped[pkColumn];
+            if (!values.length) {
+                return;
+            }
+
+            var confirmationMessage = values.length === 1
+                ? 'Are you sure you want to delete the selected record?'
+                : 'Are you sure you want to delete the ' + values.length + ' selected records?';
+
+            if (deleteConfirm && !window.confirm(confirmationMessage)) {
+                return;
+            }
+
+            $.ajax({
+                url: window.location.pathname,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    fastcrud_ajax: '1',
+                    action: 'batch_delete',
+                    table: tableName,
+                    id: tableId,
+                    primary_key_column: pkColumn,
+                    primary_key_values: values,
+                    config: JSON.stringify(clientConfig)
+                },
+                success: function(response) {
+                    if (response && response.success) {
+                        clearSelection();
+                        loadTableData(currentPage);
+                    } else {
+                        var message = response && response.error ? response.error : 'Failed to delete selected records.';
+                        showError(message);
+                    }
+                },
+                error: function(_, __, error) {
+                    showError('Failed to delete selected records: ' + error);
+                }
+            });
+        }
+
+        table.on('change', '.fastcrud-select-row', function() {
+            if (!batchDeleteEnabled || !deleteEnabled) {
+                $(this).prop('checked', false);
+                return;
+            }
+
+            var checkbox = $(this);
+            var pkCol = checkbox.attr('data-fastcrud-pk');
+            var pkVal = checkbox.attr('data-fastcrud-pk-value');
+            if (!pkCol || typeof pkVal === 'undefined') {
+                checkbox.prop('checked', false);
+                return;
+            }
+
+            var checked = checkbox.is(':checked');
+            setSelection(pkCol, pkVal, checked);
+            refreshSelectAllState();
+            updateBatchDeleteButtonState();
+        });
+
+        metaContainer.on('click', '.fastcrud-batch-delete-btn', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            requestBatchDelete();
+            return false;
+        });
 
         table.on('click', '.fastcrud-delete-btn', function(event) {
             event.preventDefault();

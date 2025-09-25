@@ -35,6 +35,9 @@ class CrudAjax
                 case 'delete':
                     self::handleDelete($request);
                     break;
+                case 'batch_delete':
+                    self::handleBatchDelete($request);
+                    break;
                 case 'duplicate':
                     self::handleDuplicate($request);
                     break;
@@ -294,6 +297,67 @@ class CrudAjax
         }
 
         self::respond($response, $deleted ? 200 : 404);
+    }
+
+    /**
+     * Handle batch record deletions via AJAX.
+     *
+     * @param array<string, mixed> $request
+     */
+    private static function handleBatchDelete(array $request): void
+    {
+        if (!isset($request['table'])) {
+            throw new InvalidArgumentException('Table parameter is required');
+        }
+
+        if (!isset($request['primary_key_column']) || !is_string($request['primary_key_column'])) {
+            throw new InvalidArgumentException('Primary key column is required.');
+        }
+
+        if (!array_key_exists('primary_key_values', $request)) {
+            throw new InvalidArgumentException('Primary key values are required.');
+        }
+
+        $rawValues = $request['primary_key_values'];
+        if (is_string($rawValues)) {
+            $rawValues = [$rawValues];
+        }
+
+        if (!is_array($rawValues)) {
+            throw new InvalidArgumentException('Primary key values must be provided as an array.');
+        }
+
+        $values = array_values($rawValues);
+        if ($values === []) {
+            throw new InvalidArgumentException('At least one primary key value is required.');
+        }
+
+        $crud = Crud::fromAjax(
+            (string) $request['table'],
+            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
+            $request['config'] ?? null
+        );
+
+        $result = $crud->deleteRecords((string) $request['primary_key_column'], $values);
+        $deletedCount = $result['deleted'];
+        $failures = $result['failures'];
+
+        $success = $deletedCount > 0;
+
+        $response = [
+            'success' => $success,
+            'deleted' => $deletedCount,
+            'failures' => $failures,
+            'id' => $request['id'] ?? null,
+        ];
+
+        if (!$success) {
+            $response['error'] = 'No records were deleted.';
+        } elseif ($failures !== []) {
+            $response['warning'] = 'Some records could not be deleted.';
+        }
+
+        self::respond($response, $success ? 200 : 404);
     }
 
     /**
