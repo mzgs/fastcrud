@@ -322,6 +322,12 @@ $users->enable_duplicate(true); // enable duplicate button in each row
 echo $users->render();
 ```
 
+To show the Duplicate button only when a row matches a condition (for example, `status = "template"`), pass the field, operator, and value:
+
+```php
+$users->enable_duplicate(true, 'status', '=', 'template');
+```
+
 The button emits a delegated jQuery event you can hook into:
 
 ```javascript

@@ -96,7 +96,7 @@ Crud::init([
                 $postsCrud = new Crud('posts');
                 $postsCrud
                     ->limit_list('5,10,25,all')
-                    ->enable_duplicate(true)
+                    ->enable_duplicate(true,'user_id','=','1')  
                     ->order_by('id', 'desc')
                     ->relation('user_id', 'users', 'id', 'username')
                     

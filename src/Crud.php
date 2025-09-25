@@ -87,6 +87,7 @@ class Crud
             'tooltip' => null,
             'icon'    => null,
             'duplicate' => false,
+            'duplicate_condition' => null,
             'delete_confirm' => true,
         ],
         'column_summaries' => [],
@@ -817,6 +818,119 @@ class Crud
         ];
     }
 
+    /**
+     * @return array{column: string, operator: string, value: mixed}
+     */
+    private function normalizeDuplicateCondition(string $field, string $operand, mixed $value): array
+    {
+        $column = $this->normalizeColumnReference($field);
+        if ($column === '') {
+            throw new InvalidArgumentException('Duplicate condition requires a valid column name.');
+        }
+
+        $normalizedOperand = strtolower(trim($operand));
+        if ($normalizedOperand === '') {
+            throw new InvalidArgumentException('Duplicate condition operator cannot be empty.');
+        }
+
+        $normalizedOperand = str_replace(' ', '_', $normalizedOperand);
+
+        switch ($normalizedOperand) {
+            case '=':
+            case '==':
+            case '===':
+            case 'eq':
+            case 'equals':
+                $operator = 'equals';
+                break;
+            case '!=':
+            case '!==':
+            case '<>':
+            case 'ne':
+            case 'not_equals':
+                $operator = 'not_equals';
+                break;
+            case '>':
+            case 'gt':
+                $operator = 'gt';
+                break;
+            case '>=':
+            case 'gte':
+                $operator = 'gte';
+                break;
+            case '<':
+            case 'lt':
+                $operator = 'lt';
+                break;
+            case '<=':
+            case 'lte':
+                $operator = 'lte';
+                break;
+            case 'in':
+                $operator = 'in';
+                break;
+            case 'not_in':
+            case 'notin':
+                $operator = 'not_in';
+                break;
+            case 'contains':
+                $operator = 'contains';
+                break;
+            default:
+                throw new InvalidArgumentException('Unsupported duplicate condition operator: ' . $operand);
+        }
+
+        if (in_array($operator, ['in', 'not_in'], true)) {
+            if (is_string($value)) {
+                $value = $this->normalizeList($value);
+            }
+
+            if (!is_array($value) || $value === []) {
+                throw new InvalidArgumentException('IN/NOT IN duplicate conditions require a non-empty list of values.');
+            }
+        }
+
+        if (in_array($operator, ['gt', 'gte', 'lt', 'lte'], true)) {
+            if (!is_numeric($value)) {
+                throw new InvalidArgumentException('Comparison duplicate conditions require numeric values.');
+            }
+            $value = (float) $value;
+        }
+
+        if ($operator === 'contains' && !is_string($value)) {
+            throw new InvalidArgumentException('Contains duplicate conditions require a string value.');
+        }
+
+        return [
+            'column'   => $column,
+            'operator' => $operator,
+            'value'    => $value,
+        ];
+    }
+
+    private function isDuplicateAllowedForRow(array $row): bool
+    {
+        if (empty($this->config['table_meta']['duplicate'])) {
+            return false;
+        }
+
+        $condition = $this->config['table_meta']['duplicate_condition'] ?? null;
+        if ($condition === null || !is_array($condition)) {
+            return true;
+        }
+
+        $rowForEvaluation = $row;
+        $column = $condition['column'] ?? null;
+        if (is_string($column) && $column !== '') {
+            $rawValues = $row['__fastcrud_raw'] ?? null;
+            if (is_array($rawValues) && array_key_exists($column, $rawValues)) {
+                $rowForEvaluation[$column] = $rawValues[$column];
+            }
+        }
+
+        return $this->evaluateCondition($condition, $rowForEvaluation);
+    }
+
     private function evaluateCondition(array $condition, array $row): bool
     {
         $column = $condition['column'];
@@ -1012,6 +1126,10 @@ class Crud
         $linkButton = $this->buildLinkButtonMetaForRow($sourceRow);
         if ($linkButton !== null) {
             $meta['link_button'] = $linkButton;
+        }
+
+        if (!empty($this->config['table_meta']['duplicate']) && is_array($this->config['table_meta']['duplicate_condition'])) {
+            $meta['duplicate_allowed'] = $this->isDuplicateAllowedForRow($sourceRow);
         }
 
         return $meta;
@@ -2073,9 +2191,19 @@ class Crud
         return $this;
     }
 
-    public function enable_duplicate(bool $enabled = true): self
+    public function enable_duplicate(bool $enabled = true, string|false $field = false, string|false $operand = false, mixed $value = false): self
     {
         $this->config['table_meta']['duplicate'] = (bool) $enabled;
+
+        if ($enabled && func_num_args() >= 4) {
+            if ($field === false || $operand === false || $value === false) {
+                throw new InvalidArgumentException('Duplicate condition requires field, operator, and value.');
+            }
+
+            $this->config['table_meta']['duplicate_condition'] = $this->normalizeDuplicateCondition((string) $field, (string) $operand, $value);
+        } else {
+            $this->config['table_meta']['duplicate_condition'] = null;
+        }
 
         return $this;
     }
@@ -4954,6 +5082,9 @@ HTML;
                 'tooltip'   => $tableMeta['tooltip'] ?? null,
                 'icon'      => $tableMeta['icon'] ?? null,
                 'duplicate' => isset($tableMeta['duplicate']) ? (bool) $tableMeta['duplicate'] : false,
+                'duplicate_condition' => isset($tableMeta['duplicate_condition']) && is_array($tableMeta['duplicate_condition'])
+                    ? $tableMeta['duplicate_condition']
+                    : null,
             ],
             'link_button'    => $this->buildLinkButtonConfig(),
             'primary_key'    => $this->getPrimaryKeyColumn(),
@@ -5638,6 +5769,9 @@ HTML;
                 'tooltip' => isset($meta['tooltip']) && is_string($meta['tooltip']) ? $meta['tooltip'] : null,
                 'icon'    => isset($meta['icon']) && is_string($meta['icon']) ? $meta['icon'] : null,
                 'duplicate' => isset($meta['duplicate']) ? (bool) $meta['duplicate'] : false,
+                'duplicate_condition' => isset($meta['duplicate_condition']) && is_array($meta['duplicate_condition'])
+                    ? $meta['duplicate_condition']
+                    : null,
             ];
         }
 
@@ -6521,10 +6655,18 @@ HTML;
             throw new InvalidArgumentException(sprintf('Unknown primary key column "%s".', $primaryKeyColumn));
         }
 
+        if (empty($this->config['table_meta']['duplicate'])) {
+            throw new RuntimeException('Duplicate action is not enabled for this table.');
+        }
+
         // 2) Load source row
         $source = $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
         if ($source === null) {
             throw new InvalidArgumentException('Record not found for duplication.');
+        }
+
+        if (is_array($this->config['table_meta']['duplicate_condition']) && !$this->isDuplicateAllowedForRow($source)) {
+            throw new RuntimeException('Duplicate action is not permitted for this record.');
         }
 
         // 3) Copy all base-table columns except the PK (exactly as requested)
@@ -8715,8 +8857,15 @@ HTML;
             }
 
             if (duplicateEnabled) {
-                // Place duplicate button to the left of other action buttons
-                fragments.push('<button type="button" class="btn btn-sm btn-info fastcrud-action-button fastcrud-duplicate-btn" title="Duplicate" aria-label="Duplicate record">' + actionIcons.duplicate + '</button>');
+                var allowDuplicate = true;
+                if (Object.prototype.hasOwnProperty.call(rowMeta, 'duplicate_allowed')) {
+                    allowDuplicate = !!rowMeta.duplicate_allowed;
+                }
+
+                if (allowDuplicate) {
+                    // Place duplicate button to the left of other action buttons
+                    fragments.push('<button type="button" class="btn btn-sm btn-info fastcrud-action-button fastcrud-duplicate-btn" title="Duplicate" aria-label="Duplicate record">' + actionIcons.duplicate + '</button>');
+                }
             }
             fragments.push('<button type="button" class="btn btn-sm btn-secondary fastcrud-action-button fastcrud-view-btn" title="View" aria-label="View record">' + actionIcons.view + '</button>');
             fragments.push('<button type="button" class="btn btn-sm btn-primary fastcrud-action-button fastcrud-edit-btn" title="Edit" aria-label="Edit record">' + actionIcons.edit + '</button>');
