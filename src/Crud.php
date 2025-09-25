@@ -28,6 +28,10 @@ class Crud
      * @var array<string, array<string, string>>
      */
     private array $relationOptionsCache = [];
+    /**
+     * @var array<string, array<string, string>>
+     */
+    private array $enumOptionsCache = [];
     private string $primaryKeyColumn = 'id';
     private const SUPPORTED_CONDITION_OPERATORS = [
         'equals',
@@ -3605,13 +3609,19 @@ class Crud
                 continue;
             }
 
-            $type = isset($row['Type']) ? strtolower((string) $row['Type']) : null;
+            $rawType = isset($row['Type']) ? (string) $row['Type'] : null;
+            $type = $rawType !== null ? strtolower($rawType) : null;
+            $enumValues = $rawType !== null ? $this->parseEnumDefinition($rawType) : [];
 
             $schema[$field] = [
                 'type' => $type,
                 'raw_type' => $row['Type'] ?? null,
                 'meta' => $row,
             ];
+
+            if ($enumValues !== []) {
+                $schema[$field]['enum_values'] = $enumValues;
+            }
         }
 
         return $schema;
@@ -3625,7 +3635,7 @@ class Crud
         $schema = [];
 
         $sql = <<<'SQL'
-SELECT column_name, data_type, udt_name, is_nullable, column_default
+SELECT column_name, data_type, udt_name, udt_schema, is_nullable, column_default
 FROM information_schema.columns
 WHERE table_schema = current_schema()
   AND table_name = :table
@@ -3650,6 +3660,12 @@ SQL;
 
             $dataType = isset($row['data_type']) ? strtolower((string) $row['data_type']) : null;
             $udtName  = isset($row['udt_name']) ? strtolower((string) $row['udt_name']) : null;
+            $udtSchema = isset($row['udt_schema']) ? (string) $row['udt_schema'] : null;
+
+            $enumValues = [];
+            if ($dataType === 'user-defined' && $udtName !== null && $udtName !== '') {
+                $enumValues = $this->fetchPgsqlEnumOptions($udtName, $udtSchema);
+            }
 
             $schema[$field] = [
                 'type' => $dataType ?: $udtName,
@@ -3657,9 +3673,78 @@ SQL;
                 'udt_name' => $udtName,
                 'meta' => $row,
             ];
+
+            if ($enumValues !== []) {
+                $schema[$field]['enum_values'] = $enumValues;
+            }
         }
 
         return $schema;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function fetchPgsqlEnumOptions(string $typeName, ?string $schema): array
+    {
+        $typeName = trim($typeName);
+        if ($typeName === '') {
+            return [];
+        }
+
+        $cacheKey = $schema === null || $schema === ''
+            ? sprintf('pgsql:%s', $typeName)
+            : sprintf('pgsql:%s.%s', $schema, $typeName);
+
+        if (isset($this->enumOptionsCache[$cacheKey])) {
+            return $this->enumOptionsCache[$cacheKey];
+        }
+
+        $sql = <<<'SQL'
+SELECT e.enumlabel
+FROM pg_type t
+JOIN pg_enum e ON t.oid = e.enumtypid
+JOIN pg_namespace n ON n.oid = t.typnamespace
+WHERE t.typname = :type
+SQL;
+
+        $params = [':type' => $typeName];
+
+        if ($schema !== null && $schema !== '') {
+            $sql .= ' AND n.nspname = :schema';
+            $params[':schema'] = $schema;
+        }
+
+        $sql .= ' ORDER BY e.enumsortorder';
+
+        $statement = $this->connection->prepare($sql);
+        if ($statement === false) {
+            $this->enumOptionsCache[$cacheKey] = [];
+            return [];
+        }
+
+        try {
+            $statement->execute($params);
+        } catch (PDOException) {
+            $this->enumOptionsCache[$cacheKey] = [];
+            return [];
+        }
+
+        $options = [];
+        while (($value = $statement->fetchColumn()) !== false) {
+            if (!is_string($value)) {
+                continue;
+            }
+            $trimmed = trim($value);
+            if ($trimmed === '') {
+                continue;
+            }
+            $options[$trimmed] = $trimmed;
+        }
+
+        $this->enumOptionsCache[$cacheKey] = $options;
+
+        return $options;
     }
 
     /**
@@ -3950,10 +4035,189 @@ SQL;
 
     /**
      * @param array<string, mixed> $columnMeta
+     * @return array<string, string>
+     */
+    private function extractEnumValues(array $columnMeta): array
+    {
+        $enumValues = [];
+
+        if (isset($columnMeta['enum_values']) && is_array($columnMeta['enum_values'])) {
+            foreach ($columnMeta['enum_values'] as $key => $value) {
+                if (is_string($key) && is_string($value)) {
+                    $enumValues[(string) $key] = $value;
+                    continue;
+                }
+
+                if (is_string($value)) {
+                    $enumValues[$value] = $value;
+                    continue;
+                }
+
+                if (is_string($key)) {
+                    $enumValues[(string) $key] = (string) $key;
+                }
+            }
+        }
+
+        if ($enumValues !== []) {
+            return $enumValues;
+        }
+
+        foreach (['raw_type', 'type'] as $key) {
+            if (!isset($columnMeta[$key]) || !is_string($columnMeta[$key])) {
+                continue;
+            }
+
+            $parsed = $this->parseEnumDefinition((string) $columnMeta[$key]);
+            if ($parsed !== []) {
+                return $parsed;
+            }
+        }
+
+        $meta = $columnMeta['meta'] ?? null;
+        if (is_array($meta)) {
+            foreach (['Type', 'type', 'native_type'] as $metaKey) {
+                if (!isset($meta[$metaKey]) || !is_string($meta[$metaKey])) {
+                    continue;
+                }
+
+                $parsed = $this->parseEnumDefinition((string) $meta[$metaKey]);
+                if ($parsed !== []) {
+                    return $parsed;
+                }
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function parseEnumDefinition(string $typeDefinition): array
+    {
+        $trimmed = trim($typeDefinition);
+        if ($trimmed === '') {
+            return [];
+        }
+
+        if (stripos($trimmed, 'enum') !== 0) {
+            return [];
+        }
+
+        $open = strpos($trimmed, '(');
+        $close = strrpos($trimmed, ')');
+        if ($open === false || $close === false || $close <= $open) {
+            return [];
+        }
+
+        $body = substr($trimmed, $open + 1, $close - $open - 1);
+        if ($body === false || $body === '') {
+            return [];
+        }
+
+        $values = $this->parseEnumValueList($body);
+        if ($values === []) {
+            return [];
+        }
+
+        return $this->normalizeEnumValueMap($values);
+    }
+
+    /**
+     * @param array<int, string> $values
+     * @return array<string, string>
+     */
+    private function normalizeEnumValueMap(array $values): array
+    {
+        $options = [];
+        foreach ($values as $value) {
+            if (!is_string($value)) {
+                continue;
+            }
+
+            $key = (string) $value;
+            if (!array_key_exists($key, $options)) {
+                $options[$key] = $value;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function parseEnumValueList(string $body): array
+    {
+        $values = [];
+        $length = strlen($body);
+        $buffer = '';
+        $inValue = false;
+        $escapeNext = false;
+
+        for ($index = 0; $index < $length; $index++) {
+            $char = $body[$index];
+
+            if ($escapeNext) {
+                $buffer .= $char;
+                $escapeNext = false;
+                continue;
+            }
+
+            if ($char === '\\') {
+                $escapeNext = true;
+                continue;
+            }
+
+            if ($char === "'") {
+                if ($inValue) {
+                    if ($index + 1 < $length && $body[$index + 1] === "'") {
+                        $buffer .= "'";
+                        $index++;
+                        continue;
+                    }
+
+                    $values[] = $buffer;
+                    $buffer = '';
+                    $inValue = false;
+                } else {
+                    $inValue = true;
+                }
+
+                continue;
+            }
+
+            if ($inValue) {
+                $buffer .= $char;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string, mixed> $columnMeta
      * @return array<string, mixed>|null
      */
     private function mapDatabaseTypeToChangeType(array $columnMeta): ?array
     {
+        $enumValues = $this->extractEnumValues($columnMeta);
+        if ($enumValues !== []) {
+            $default = array_key_first($enumValues);
+            if ($default !== null) {
+                $default = (string) $default;
+            } else {
+                $default = '';
+            }
+
+            return [
+                'type' => 'select',
+                'default' => $default,
+                'params' => ['values' => $enumValues],
+            ];
+        }
+
         $typeInfo = $this->detectSqlTypeInfo($columnMeta);
         $rawType = $typeInfo['raw'];
         $normalizedType = $typeInfo['normalized'];
