@@ -8952,6 +8952,12 @@ HTML;
                 }
 
                 input.addClass('is-invalid');
+                var attachedControls = input.data && typeof input.data === 'function'
+                    ? input.data('fastcrudControls')
+                    : null;
+                if (attachedControls && attachedControls.length) {
+                    attachedControls.addClass('is-invalid');
+                }
                 var feedback = $('<div class="invalid-feedback fastcrud-field-feedback"></div>').text(message);
                 var group = input.closest('.mb-3');
                 if (group.length) {
@@ -9831,6 +9837,127 @@ HTML;
                         input.append($('<option></option>').attr('value', option.value).text(option.label));
                     });
                     input.val(String(normalizedValue));
+                } else if (changeType === 'radio') {
+                    dataType = 'radio';
+                    var radioOptionMap = params.values || params.options || {};
+                    var radioOptions = [];
+                    if ($.isArray(radioOptionMap)) {
+                        radioOptionMap.forEach(function(optionValue) {
+                            radioOptions.push({ value: optionValue, label: optionValue });
+                        });
+                    } else if (typeof radioOptionMap === 'object') {
+                        Object.keys(radioOptionMap).forEach(function(key) {
+                            radioOptions.push({ value: key, label: radioOptionMap[key] });
+                        });
+                    }
+                    var selectedRadioValue = '';
+                    if ($.isArray(normalizedValue) && normalizedValue.length) {
+                        selectedRadioValue = String(normalizedValue[0]);
+                    } else if (normalizedValue !== null && typeof normalizedValue !== 'undefined') {
+                        selectedRadioValue = String(normalizedValue);
+                    }
+                    var radioValueInput = $('<input type="hidden" />')
+                        .attr('id', fieldId)
+                        .val(selectedRadioValue);
+                    input = radioValueInput;
+                    var radioGroup = $('<div class="fastcrud-radio-group"></div>');
+                    var radioControls = $();
+                    var radioName = fieldId + '-choice';
+                    radioOptions.forEach(function(option, index) {
+                        var radioId = fieldId + '-radio-' + index;
+                        var radioWrapper = $('<div class="form-check"></div>');
+                        if (params.inline) {
+                            radioWrapper.addClass('form-check-inline');
+                        }
+                        var radio = $('<input type="radio" class="form-check-input" />')
+                            .attr('name', radioName)
+                            .attr('id', radioId)
+                            .attr('value', option.value);
+                        if (selectedRadioValue !== '' && String(option.value) === selectedRadioValue) {
+                            radio.prop('checked', true);
+                        }
+                        var radioLabel = $('<label class="form-check-label"></label>')
+                            .attr('for', radioId)
+                            .text(option.label);
+                        radioWrapper.append(radio).append(radioLabel);
+                        radioGroup.append(radioWrapper);
+                        radioControls = radioControls.add(radio);
+                    });
+                    var syncRadioValue = function() {
+                        var checked = radioControls.filter(':checked');
+                        if (checked.length) {
+                            radioValueInput.val(String(checked.first().val() || '')).trigger('change');
+                        } else {
+                            radioValueInput.val('').trigger('change');
+                        }
+                    };
+                    radioControls.on('change', syncRadioValue);
+                    syncRadioValue();
+                    input.data('fastcrudExtraElements', radioGroup);
+                    input.data('fastcrudControls', radioControls);
+                } else if (changeType === 'multicheckbox' || changeType === 'multi_checkbox') {
+                    dataType = 'multicheckbox';
+                    var checkboxOptionMap = params.values || params.options || {};
+                    var checkboxOptions = [];
+                    if ($.isArray(checkboxOptionMap)) {
+                        checkboxOptionMap.forEach(function(optionValue) {
+                            checkboxOptions.push({ value: optionValue, label: optionValue });
+                        });
+                    } else if (typeof checkboxOptionMap === 'object') {
+                        Object.keys(checkboxOptionMap).forEach(function(key) {
+                            checkboxOptions.push({ value: key, label: checkboxOptionMap[key] });
+                        });
+                    }
+                    var selectedCheckboxValues = [];
+                    if ($.isArray(normalizedValue)) {
+                        selectedCheckboxValues = normalizedValue.map(function(item) { return String(item); });
+                    } else if (typeof normalizedValue === 'string') {
+                        selectedCheckboxValues = normalizedValue.split(',').map(function(item) {
+                            return String(item).trim();
+                        }).filter(function(item) { return item.length > 0; });
+                    } else if (normalizedValue !== null && typeof normalizedValue !== 'undefined') {
+                        selectedCheckboxValues = [String(normalizedValue)];
+                    }
+                    var checkboxValueInput = $('<input type="hidden" />')
+                        .attr('id', fieldId)
+                        .val(selectedCheckboxValues.join(','));
+                    input = checkboxValueInput;
+                    var checkboxGroup = $('<div class="fastcrud-multicheckbox-group"></div>');
+                    var checkboxControls = $();
+                    checkboxOptions.forEach(function(option, index) {
+                        var checkboxId = fieldId + '-checkbox-' + index;
+                        var checkboxWrapper = $('<div class="form-check"></div>');
+                        if (params.inline) {
+                            checkboxWrapper.addClass('form-check-inline');
+                        }
+                        var checkbox = $('<input type="checkbox" class="form-check-input" />')
+                            .attr('id', checkboxId)
+                            .attr('value', option.value)
+                            .attr('name', fieldId + '[]');
+                        if (selectedCheckboxValues.indexOf(String(option.value)) !== -1) {
+                            checkbox.prop('checked', true);
+                        }
+                        var checkboxLabel = $('<label class="form-check-label"></label>')
+                            .attr('for', checkboxId)
+                            .text(option.label);
+                        checkboxWrapper.append(checkbox).append(checkboxLabel);
+                        checkboxGroup.append(checkboxWrapper);
+                        checkboxControls = checkboxControls.add(checkbox);
+                    });
+                    var syncCheckboxValues = function() {
+                        var values = [];
+                        checkboxControls.each(function() {
+                            var el = $(this);
+                            if (el.is(':checked')) {
+                                values.push(String(el.val() || ''));
+                            }
+                        });
+                        checkboxValueInput.val(values.join(',')).trigger('change');
+                    };
+                    checkboxControls.on('change', syncCheckboxValues);
+                    syncCheckboxValues();
+                    input.data('fastcrudExtraElements', checkboxGroup);
+                    input.data('fastcrudControls', checkboxControls);
                 } else if (changeType === 'image' || changeType === 'images') {
                     var isMultipleImages = changeType === 'images';
                     // Always use the declared column; no mapping via params.save_to or base column checks
@@ -10014,6 +10141,28 @@ HTML;
                         // Append the hidden value holder so it gets included on submit
                         group.append(hiddenInput);
                     }
+
+                    var extraElements = input.data && typeof input.data === 'function'
+                        ? input.data('fastcrudExtraElements')
+                        : null;
+                    if (extraElements) {
+                        if ($.isArray(extraElements)) {
+                            extraElements.forEach(function(element) {
+                                if (!element) {
+                                    return;
+                                }
+                                if (element.jquery) {
+                                    group.append(element);
+                                } else {
+                                    group.append($(element));
+                                }
+                            });
+                        } else if (extraElements.jquery) {
+                            group.append(extraElements);
+                        } else {
+                            group.append($(extraElements));
+                        }
+                    }
                 }
 
                 if (params.placeholder && input.is('input, textarea')) {
@@ -10079,6 +10228,21 @@ HTML;
                     }
                     if (changeType === 'image' || changeType === 'images' || changeType === 'file' || changeType === 'files') {
                         try { hiddenInput.prop('disabled', true); } catch (e) {}
+                    }
+                }
+
+                var attachedControls = input.data && typeof input.data === 'function'
+                    ? input.data('fastcrudControls')
+                    : null;
+                if (attachedControls && attachedControls.length) {
+                    if (behaviours.validation_required) {
+                        attachedControls.attr('required', 'required');
+                    }
+                    if (behaviours.readonly || behaviours.disabled) {
+                        attachedControls.prop('disabled', true);
+                    }
+                    if (params.class) {
+                        attachedControls.addClass(params.class);
                     }
                 }
 
@@ -10998,6 +11162,9 @@ HTML;
                     var rawValue;
                     var valueForField = null;
                     var lengthForValidation = 0;
+                    var attachedControls = input.data && typeof input.data === 'function'
+                        ? input.data('fastcrudControls')
+                        : null;
 
                     if (type === 'checkbox') {
                         rawValue = input.is(':checked');
@@ -11014,6 +11181,18 @@ HTML;
                         });
                         lengthForValidation = trimmedValues.length;
                         valueForField = trimmedValues.length ? trimmedValues.join(',') : null;
+                    } else if (type === 'multicheckbox') {
+                        rawValue = input.val();
+                        if (rawValue === null || typeof rawValue === 'undefined' || rawValue === '') {
+                            valueForField = null;
+                            lengthForValidation = 0;
+                        } else {
+                            var checkboxValues = String(rawValue).split(',').map(function(item) {
+                                return String(item).trim();
+                            }).filter(function(item) { return item.length > 0; });
+                            lengthForValidation = checkboxValues.length;
+                            valueForField = checkboxValues.length ? checkboxValues.join(',') : null;
+                        }
                     } else if (type === 'json') {
                         rawValue = input.val();
                         if (rawValue === null || typeof rawValue === 'undefined') {
@@ -11065,6 +11244,9 @@ HTML;
                             validationPassed = false;
                             fieldErrors[column] = 'This field is required.';
                             input.addClass('is-invalid');
+                            if (attachedControls && attachedControls.length) {
+                                attachedControls.addClass('is-invalid');
+                            }
                         }
                     }
 
@@ -11075,6 +11257,9 @@ HTML;
                             validationPassed = false;
                             fieldErrors[column] = 'Value does not match the expected format.';
                             input.addClass('is-invalid');
+                            if (attachedControls && attachedControls.length) {
+                                attachedControls.addClass('is-invalid');
+                            }
                         }
                     }
 
@@ -11250,8 +11435,15 @@ HTML;
                 input = $('<input type="time" class="form-control form-control-sm fastcrud-inline-input" />');
             } else if (changeType === 'color') {
                 input = $('<input type="color" class="form-control form-control-color form-control-sm fastcrud-inline-input" />');
-            } else if (changeType === 'select' || changeType === 'multiselect') {
-                input = $('<select class="form-select form-select-sm fastcrud-inline-input" ' + (changeType === 'multiselect' ? 'multiple' : '') + '></select>');
+            } else if (
+                changeType === 'select' ||
+                changeType === 'multiselect' ||
+                changeType === 'radio' ||
+                changeType === 'multicheckbox' ||
+                changeType === 'multi_checkbox'
+            ) {
+                var inlineIsMulti = (changeType === 'multiselect' || changeType === 'multicheckbox' || changeType === 'multi_checkbox');
+                input = $('<select class="form-select form-select-sm fastcrud-inline-input" ' + (inlineIsMulti ? 'multiple' : '') + '></select>');
                 var optionMap = params.values || params.options || {};
                 var optionsList = [];
                 if ($.isArray(optionMap)) {
@@ -11263,7 +11455,7 @@ HTML;
                         optionsList.push({ value: key, label: optionMap[key] });
                     });
                 }
-                if (params.placeholder && changeType !== 'multiselect') {
+                if (params.placeholder && !inlineIsMulti) {
                     input.append($('<option value=""></option>').text(String(params.placeholder)));
                 }
                 optionsList.forEach(function(option) {

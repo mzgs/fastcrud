@@ -88,6 +88,31 @@ Crud::init([
 
 The sections below show how to enable each data-layer feature introduced in the latest release.
 
+### Form Input Types
+
+`change_type()` lets you swap the default editor for one or more columns. Common options include `select`, `multiselect`, `checkbox`, `switch`, `file`, `image`, and `rich_editor`. FastCRUD also supports `radio` and `multicheckbox` groups:
+
+```php
+$crud
+    ->change_type('status', 'radio', null, [
+        'values' => [
+            'draft'     => 'Draft',
+            'published' => 'Published',
+            'archived'  => 'Archived',
+        ],
+        'inline' => true, // optional bootstrap inline layout
+    ])
+    ->change_type('categories', 'multicheckbox', '', [
+        'values' => [
+            'tech'    => 'Technology',
+            'design'  => 'Design',
+            'culture' => 'Culture',
+        ],
+    ]);
+```
+
+Both `multiselect` and `multicheckbox` inputs serialize the checked values into a comma-separated string when the form is submitted (e.g. `"tech,design"`). Use FastCRUD callbacks such as `before_save` or `after_fetch` if you need to convert that representation to another format (JSON, pivot tables, etc.).
+
 ### Pagination Controls with `limit_list`
 
 ```php
