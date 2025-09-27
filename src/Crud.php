@@ -32,6 +32,10 @@ class Crud
      * @var array<string, array<string, string>>
      */
     private array $enumOptionsCache = [];
+    /**
+     * @var array<string, array{name: string, parent_column: string, parent_column_raw: string, foreign_column: string, crud: self}>
+     */
+    private array $nestedTables = [];
     private string $primaryKeyColumn = 'id';
     private const SUPPORTED_CONDITION_OPERATORS = [
         'equals',
@@ -164,6 +168,21 @@ class Crud
         $this->table      = $table;
         $this->connection = $connection ?? DB::connection();
         $this->id         = $this->generateId();
+    }
+
+    public function getTable(): string
+    {
+        return $this->table;
+    }
+
+    private function getConfiguredTableName(): string
+    {
+        $tableMeta = $this->config['table_meta'] ?? [];
+        if (isset($tableMeta['name']) && is_string($tableMeta['name']) && $tableMeta['name'] !== '') {
+            return $tableMeta['name'];
+        }
+
+        return $this->makeTitle($this->table);
     }
 
     public function primary_key(string $column): self
@@ -3160,6 +3179,54 @@ class Crud
     }
 
     /**
+     * Define a nested table instance that can be expanded per row.
+     *
+     * @param callable|null $configurator Optional callback to configure the nested Crud instance.
+     */
+    public function nested_table(
+        string $instanceName,
+        string $parentColumn,
+        string $innerTable,
+        string $innerTableField,
+        ?callable $configurator = null
+    ): self {
+        $name = trim($instanceName);
+        if ($name === '') {
+            throw new InvalidArgumentException('Nested table instance name cannot be empty.');
+        }
+
+        if (isset($this->nestedTables[$name])) {
+            throw new InvalidArgumentException(sprintf('Nested table "%s" is already defined.', $name));
+        }
+
+        $normalizedParentColumn = $this->normalizeColumnReference($parentColumn);
+        if ($normalizedParentColumn === '') {
+            throw new InvalidArgumentException('Nested table parent column must reference a valid column.');
+        }
+
+        $foreignColumn = trim($innerTableField);
+        if ($foreignColumn === '') {
+            throw new InvalidArgumentException('Nested table foreign column cannot be empty.');
+        }
+
+        $child = new self($innerTable, $this->connection);
+
+        if ($configurator !== null) {
+            $configurator($child);
+        }
+
+        $this->nestedTables[$name] = [
+            'name'               => $name,
+            'parent_column'      => $normalizedParentColumn,
+            'parent_column_raw'  => trim($parentColumn),
+            'foreign_column'     => $foreignColumn,
+            'crud'               => $child,
+        ];
+
+        return $child;
+    }
+
+    /**
      * @param string|array<int, string>|array<string, mixed> $fields
      */
     private function addWhereCondition(string|array $fields, mixed $whereValue, string $glue): void
@@ -4856,6 +4923,11 @@ SQL;
         return str_replace('__', '.', $column);
     }
 
+    private function hasNestedTables(): bool
+    {
+        return $this->nestedTables !== [];
+    }
+
     /**
      * @return array<int, string>
      */
@@ -4884,7 +4956,7 @@ SQL;
         $headerHtml = $this->buildHeader($columns);
         $script     = $this->generateAjaxScript();
         $styles     = $this->buildActionColumnStyles($this->id);
-        $colspan    = $this->escapeHtml((string) (count($columns) + 1 + ($batchDeleteEnabled ? 1 : 0)));
+        $colspan    = $this->escapeHtml((string) (count($columns) + 1 + ($batchDeleteEnabled ? 1 : 0) + ($this->hasNestedTables() ? 1 : 0)));
         $offcanvas  = $this->buildEditOffcanvas($id) . $this->buildViewOffcanvas($id);
 
         $configJson = '{}';
@@ -4985,6 +5057,10 @@ HTML;
     private function buildHeader(array $columns): string
     {
         $cells = [];
+
+        if ($this->hasNestedTables()) {
+            $cells[] = '            <th scope="col" class="text-center fastcrud-nested fastcrud-nested-header" aria-label="Toggle nested rows"></th>';
+        }
 
         if ($this->isBatchDeleteEnabled()) {
             $cells[] = '            <th scope="col" class="text-center fastcrud-select fastcrud-select-header"><input type="checkbox" class="form-check-input fastcrud-select-all" aria-label="Select all rows"></th>';
@@ -5173,6 +5249,45 @@ HTML;
     opacity: 0.7;
     margin-left: 0.25rem;
     font-size: 0.9em;
+}
+
+#{$containerId} table thead th.fastcrud-nested,
+#{$containerId} table tbody td.fastcrud-nested-cell,
+#{$containerId} table tfoot td.fastcrud-nested-cell {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    text-align: center;
+}
+
+#{$containerId} table tbody td.fastcrud-nested-cell {
+    vertical-align: middle;
+}
+
+#{$containerId} .fastcrud-nested-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    background-color: var(--bs-body-bg, #ffffff);
+    color: inherit;
+    text-decoration: none;
+}
+
+#{$containerId} .fastcrud-nested-toggle:hover {
+    background-color: var(--bs-gray-100, rgba(0,0,0,0.05));
+}
+
+#{$containerId} .fastcrud-nested-row td {
+    background-color: var(--bs-tertiary-bg, rgba(0,0,0,0.02));
+}
+
+#{$containerId} .fastcrud-nested-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
 }
 
 #{$containerId} table thead th.fastcrud-actions,
@@ -5491,6 +5606,7 @@ HTML;
             'sort_disabled'  => $sortDisabled,
             'form' => $this->buildFormMeta($columns),
             'inline_edit' => $inline,
+            'nested_tables' => $this->buildNestedTablesClientConfigPayload(),
         ];
     }
 
@@ -5930,6 +6046,38 @@ HTML;
     /**
      * @return array<string, mixed>
      */
+    private function buildNestedTablesClientConfigPayload(): array
+    {
+        if ($this->nestedTables === []) {
+            return [];
+        }
+
+        $payload = [];
+
+        foreach ($this->nestedTables as $entry) {
+            if (!is_array($entry) || !isset($entry['crud']) || !$entry['crud'] instanceof self) {
+                continue;
+            }
+
+            /** @var self $child */
+            $child = $entry['crud'];
+            $payload[] = [
+                'name'              => $entry['name'],
+                'parent_column'     => $entry['parent_column'],
+                'parent_column_raw' => $entry['parent_column_raw'],
+                'foreign_column'    => $entry['foreign_column'],
+                'table'             => $child->getTable(),
+                'label'             => $child->getConfiguredTableName(),
+                'config'            => $child->buildClientConfigPayload(),
+            ];
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function buildClientConfigPayload(): array
     {
         $this->ensureFormLayoutBuckets();
@@ -6053,6 +6201,7 @@ HTML;
             'primary_key'       => $this->primaryKeyColumn,
             'form'              => $formConfig,
             'inline_edit'       => $inline,
+            'nested_tables'     => $this->buildNestedTablesClientConfigPayload(),
             'rich_editor'       => [
                 'upload_path' => CrudConfig::getUploadPath(),
             ],
@@ -6533,6 +6682,68 @@ HTML;
                 ];
             }
             $this->config['column_summaries'] = $summaries;
+        }
+
+        $this->nestedTables = [];
+        if (isset($payload['nested_tables']) && is_array($payload['nested_tables'])) {
+            foreach ($payload['nested_tables'] as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $name = isset($entry['name']) ? trim((string) $entry['name']) : '';
+                if ($name === '') {
+                    continue;
+                }
+
+                $parentRaw = isset($entry['parent_column']) ? trim((string) $entry['parent_column']) : '';
+                $normalizedParent = $this->normalizeColumnReference($parentRaw);
+                if ($normalizedParent === '') {
+                    continue;
+                }
+
+                $tableName = isset($entry['table']) ? trim((string) $entry['table']) : '';
+                if ($tableName === '') {
+                    continue;
+                }
+
+                $foreignColumn = isset($entry['foreign_column']) ? trim((string) $entry['foreign_column']) : '';
+                if ($foreignColumn === '') {
+                    continue;
+                }
+
+                $child = new self($tableName, $this->connection);
+
+                $childConfig = null;
+                if (isset($entry['config'])) {
+                    if (is_array($entry['config'])) {
+                        $childConfig = $entry['config'];
+                    } elseif (is_string($entry['config']) && $entry['config'] !== '') {
+                        try {
+                            $decoded = json_decode($entry['config'], true, 512, JSON_THROW_ON_ERROR);
+                            if (is_array($decoded)) {
+                                $childConfig = $decoded;
+                            }
+                        } catch (JsonException) {
+                            $childConfig = null;
+                        }
+                    }
+                }
+
+                if (is_array($childConfig)) {
+                    $child->applyClientConfig($childConfig);
+                }
+
+                $this->nestedTables[$name] = [
+                    'name'               => $name,
+                    'parent_column'      => $normalizedParent,
+                    'parent_column_raw'  => isset($entry['parent_column_raw']) && is_string($entry['parent_column_raw'])
+                        ? trim($entry['parent_column_raw'])
+                        : $parentRaw,
+                    'foreign_column'     => $foreignColumn,
+                    'crud'               => $child,
+                ];
+            }
         }
 
         if (isset($payload['form']) && is_array($payload['form'])) {
@@ -7725,6 +7936,8 @@ HTML;
         var columnLabels = {};
         var columnClasses = {};
         var columnWidths = {};
+        var nestedTablesConfig = Array.isArray(clientConfig.nested_tables) ? clientConfig.nested_tables : [];
+        var nestedRowStates = {};
         var orderBy = [];
         var addEnabled = true;
         var viewEnabled = true;
@@ -8561,6 +8774,12 @@ HTML;
                 ensureSearchControls();
             }
 
+            var nestedMeta = Array.isArray(meta.nested_tables)
+                ? meta.nested_tables
+                : (Array.isArray(clientConfig.nested_tables) ? clientConfig.nested_tables : []);
+            nestedTablesConfig = Array.isArray(nestedMeta) ? deepClone(nestedMeta) : [];
+            clientConfig.nested_tables = deepClone(nestedTablesConfig);
+
             renderSummaries(meta.summaries || []);
             refreshTooltips();
 
@@ -9129,7 +9348,9 @@ HTML;
             view: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12Z"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
             edit: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 21h4l11-11a2.828 2.828 0 1 0-4-4L4 17v4Z"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.5 6.5 17.5 9.5"/></svg>',
             delete: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 6h18"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h5A1.5 1.5 0 0 1 16 4.5V6"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.5 6 17.6 19.25a1.75 1.75 0 0 1-1.74 1.6H8.14a1.75 1.75 0 0 1-1.74-1.6L5.5 6"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 11v6"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14 11v6"/></svg>',
-            duplicate: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect width="11" height="11" x="9.5" y="9.5" rx="2" ry="2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>'
+            duplicate: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect width="11" height="11" x="9.5" y="9.5" rx="2" ry="2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>',
+            expand: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 9l6 6 6-6"/></svg>',
+            collapse: '<svg xmlns="http://www.w3.org/2000/svg" class="fastcrud-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 15l6-6 6 6"/></svg>'
         };
 
         // Note: previously had a jQuery-based builder for the action cell here.
@@ -9718,6 +9939,18 @@ HTML;
             return { style: '', className: escapeHtml(w) };
         }
 
+        function deepClone(value) {
+            try {
+                return JSON.parse(JSON.stringify(value));
+            } catch (e) {
+                return value;
+            }
+        }
+
+        function hasNestedTablesConfigured() {
+            return Array.isArray(nestedTablesConfig) && nestedTablesConfig.length > 0;
+        }
+
         function buildActionCellHtml(rowMeta) {
             var fragments = [];
 
@@ -9877,6 +10110,9 @@ HTML;
             }
 
             var html = '';
+            var expandQueue = [];
+            var hasNested = hasNestedTablesConfigured();
+
             $.each(rows, function(_, row) {
                 var rowMeta = row.__fastcrud || {};
                 var cellsMeta = rowMeta.cells || {};
@@ -9890,46 +10126,89 @@ HTML;
                 } else {
                     primaryValue = null;
                 }
+
                 var rowData = $.extend({}, row);
                 delete rowData.__fastcrud;
                 if (rowData.__fastcrud_raw) { delete rowData.__fastcrud_raw; }
                 if (rawValues && typeof rawValues === 'object') {
                     Object.keys(rawValues).forEach(function(key) {
                         var rawValue = rawValues[key];
-                        if (typeof rawValue !== 'undefined') { rowData[key] = rawValue; }
+                        if (typeof rawValue !== 'undefined') {
+                            rowData[key] = rawValue;
+                        }
                     });
                 }
 
-                var rowClass = rowMeta.row_class ? ' class="' + escapeHtml(rowMeta.row_class) + '"' : '';
-                var cells = '';
+                var rowKey = null;
+                var primaryValueString = (typeof primaryValue === 'undefined' || primaryValue === null)
+                    ? ''
+                    : String(primaryValue);
+                if (rowPrimaryKeyColumn && primaryValueString !== '') {
+                    try {
+                        rowKey = rowCacheKey(rowPrimaryKeyColumn, primaryValueString);
+                        rowCache[rowKey] = rowData;
+                    } catch (e) {}
+                }
 
+                var cells = '';
                 var rowDeleteAllowed = deleteEnabled;
                 if (rowDeleteAllowed && Object.prototype.hasOwnProperty.call(rowMeta, 'delete_allowed')) {
                     rowDeleteAllowed = !!rowMeta.delete_allowed;
                 }
 
-                if (batchDeleteEnabled && deleteEnabled) {
-                    var attrs = ['type="checkbox"', 'class="form-check-input fastcrud-select-row"'];
-                    var selectable = rowDeleteAllowed
-                        && rowPrimaryKeyColumn
-                        && typeof primaryValue !== 'undefined'
-                        && primaryValue !== null
-                        && String(primaryValue).length > 0;
-
-                    if (selectable) {
-                        var selectKey = selectionKey(rowPrimaryKeyColumn, primaryValue);
-                        attrs.push('data-fastcrud-key="' + escapeHtml(selectKey) + '"');
-                        attrs.push('data-fastcrud-pk="' + escapeHtml(String(rowPrimaryKeyColumn)) + '"');
-                        attrs.push('data-fastcrud-pk-value="' + escapeHtml(String(primaryValue)) + '"');
-                        if (isSelected(rowPrimaryKeyColumn, primaryValue)) {
-                            attrs.push('checked');
-                        }
-                    } else {
-                        attrs.push('disabled');
-                        setSelection(rowPrimaryKeyColumn, primaryValue, false);
+                if (hasNested) {
+                    var isExpanded = rowKey && nestedRowStates[rowKey];
+                    if (isExpanded && rowKey) {
+                        expandQueue.push({
+                            key: rowKey,
+                            pk: {
+                                column: rowPrimaryKeyColumn,
+                                value: primaryValueString
+                            }
+                        });
                     }
 
-                    cells += '<td class="text-center fastcrud-select-cell"><input ' + attrs.join(' ') + '></td>';
+                    var ariaLabel = isExpanded ? 'Collapse nested content' : 'Expand nested content';
+                    var toggleAttrs = [
+                        'type="button"',
+                        'class="fastcrud-nested-toggle btn btn-link p-0"',
+                        'aria-expanded="' + (isExpanded ? 'true' : 'false') + '"',
+                        'aria-label="' + escapeHtml(ariaLabel) + '"',
+                        'data-fastcrud-expanded="' + (isExpanded ? 'true' : 'false') + '"'
+                    ];
+                    if (rowKey) {
+                        toggleAttrs.push('data-fastcrud-row-key="' + escapeHtml(rowKey) + '"');
+                    }
+                    if (rowPrimaryKeyColumn) {
+                        toggleAttrs.push('data-fastcrud-pk="' + escapeHtml(String(rowPrimaryKeyColumn)) + '"');
+                    }
+                    if (primaryValueString !== '') {
+                        toggleAttrs.push('data-fastcrud-pk-value="' + escapeHtml(primaryValueString) + '"');
+                    }
+                    var iconHtml = isExpanded ? actionIcons.collapse : actionIcons.expand;
+                    cells += '<td class="fastcrud-nested-cell"><button ' + toggleAttrs.join(' ') + '>' + iconHtml + '</button></td>';
+                }
+
+                if (batchDeleteEnabled && deleteEnabled) {
+                    var checkboxAttrs = ['type="checkbox"', 'class="form-check-input fastcrud-select-row"'];
+                    var selectable = rowDeleteAllowed
+                        && rowPrimaryKeyColumn
+                        && primaryValueString !== '';
+
+                    if (selectable) {
+                        var selectKey = selectionKey(rowPrimaryKeyColumn, primaryValueString);
+                        checkboxAttrs.push('data-fastcrud-key="' + escapeHtml(selectKey) + '"');
+                        checkboxAttrs.push('data-fastcrud-pk="' + escapeHtml(String(rowPrimaryKeyColumn)) + '"');
+                        checkboxAttrs.push('data-fastcrud-pk-value="' + escapeHtml(primaryValueString) + '"');
+                        if (isSelected(rowPrimaryKeyColumn, primaryValueString)) {
+                            checkboxAttrs.push('checked');
+                        }
+                    } else {
+                        checkboxAttrs.push('disabled');
+                        setSelection(rowPrimaryKeyColumn, primaryValueString, false);
+                    }
+
+                    cells += '<td class="text-center fastcrud-select-cell"><input ' + checkboxAttrs.join(' ') + '></td>';
                 }
 
                 $.each(columnsCache, function(colIndex, column) {
@@ -9948,7 +10227,6 @@ HTML;
                     var classParts = [];
                     if (cls) { classParts.push(escapeHtml(cls)); }
                     if (widthAttr.className) { classParts.push(widthAttr.className); }
-                    // Hint inline-editable cells for UX and easier debugging
                     try {
                         var baseKey = String(column).indexOf('__') !== -1 ? String(column).split('__').pop() : String(column);
                         if (inlineEditFields[String(column)] || inlineEditFields[String(baseKey)]) {
@@ -9988,20 +10266,21 @@ HTML;
                 });
 
                 cells += buildActionCellHtml(rowMeta);
+
                 var trAttrList = [];
                 if (rowMeta.row_class) {
                     trAttrList.push('class="' + escapeHtml(String(rowMeta.row_class)) + '"');
-                } else if (rowClass) {
-                    // In case rowClass already built, parse its value
-                    var m = rowClass.match(/class=\"([^\"]*)\"/);
-                    if (m && m[1]) { trAttrList.push('class="' + m[1] + '"'); }
                 }
                 if (rowPrimaryKeyColumn) {
                     trAttrList.push('data-fastcrud-pk="' + escapeHtml(String(rowPrimaryKeyColumn)) + '"');
                 }
-                if (typeof primaryValue !== 'undefined') {
-                    trAttrList.push('data-fastcrud-pk-value="' + escapeHtml(String(primaryValue)) + '"');
+                if (primaryValueString !== '') {
+                    trAttrList.push('data-fastcrud-pk-value="' + escapeHtml(primaryValueString) + '"');
                 }
+                if (rowKey) {
+                    trAttrList.push('data-fastcrud-row-key="' + escapeHtml(rowKey) + '"');
+                }
+
                 var trAttrString = trAttrList.length ? (' ' + trAttrList.join(' ')) : '';
                 html += '<tr' + trAttrString + '>' + cells + '</tr>';
             });
@@ -10009,6 +10288,258 @@ HTML;
             tbody.html(html);
             refreshSelectAllState();
             updateBatchDeleteButtonState();
+
+            if (hasNested && expandQueue.length) {
+                expandQueue.forEach(function(entry) {
+                    if (!entry || !entry.key) {
+                        return;
+                    }
+
+                    var targetRow = tbody.find('tr').filter(function() {
+                        return $(this).attr('data-fastcrud-row-key') === entry.key;
+                    }).first();
+
+                    if (!targetRow.length) {
+                        return;
+                    }
+
+                    var toggleButton = targetRow.find('.fastcrud-nested-toggle').first();
+                    if (!toggleButton.length) {
+                        return;
+                    }
+
+                    toggleNested(toggleButton, true, entry.pk);
+                });
+            }
+        }
+
+        function resolveNestedParentValue(config, rowData, pkInfo) {
+            if (!config) {
+                return null;
+            }
+
+            var candidates = [];
+            if (config.parent_column && typeof config.parent_column === 'string') {
+                candidates.push(String(config.parent_column));
+            }
+            if (config.parent_column_raw && typeof config.parent_column_raw === 'string') {
+                candidates.push(String(config.parent_column_raw));
+            }
+
+            var value = null;
+            for (var index = 0; index < candidates.length; index++) {
+                var key = candidates[index];
+                if (!key) {
+                    continue;
+                }
+
+                if (Object.prototype.hasOwnProperty.call(rowData, key)) {
+                    value = rowData[key];
+                    break;
+                }
+
+                if (key.indexOf('.') !== -1) {
+                    var tail = key.split('.').pop();
+                    if (tail && Object.prototype.hasOwnProperty.call(rowData, tail)) {
+                        value = rowData[tail];
+                        break;
+                    }
+                }
+
+                if (key.indexOf('__') !== -1) {
+                    var denormalized = key.split('__').join('.');
+                    if (Object.prototype.hasOwnProperty.call(rowData, denormalized)) {
+                        value = rowData[denormalized];
+                        break;
+                    }
+                }
+            }
+
+            if ((value === null || typeof value === 'undefined') && pkInfo && pkInfo.column) {
+                if (candidates.indexOf(pkInfo.column) !== -1) {
+                    value = pkInfo.value;
+                }
+            }
+
+            return typeof value === 'undefined' ? null : value;
+        }
+
+        function requestNestedTable(target, config, rowData, pkInfo) {
+            var container = target;
+            var parentValue = resolveNestedParentValue(config, rowData, pkInfo);
+
+            var payload = {
+                fastcrud_ajax: '1',
+                action: 'nested_fetch',
+                table: config.table,
+                parent_column: config.parent_column_raw || config.parent_column || '',
+                foreign_column: config.foreign_column,
+                config: JSON.stringify(config.config || {})
+            };
+
+            if (tableId) {
+                payload.id = tableId + '--nested--' + (config.name || config.table || 'nested');
+            }
+
+            if (!payload.parent_column) {
+                container.html('<div class="text-muted">Nested table is missing a parent column definition.</div>');
+                return;
+            }
+
+            if (parentValue === null || typeof parentValue === 'undefined') {
+                payload.parent_value = '__FASTCRUD_NULL__';
+            } else {
+                payload.parent_value = parentValue;
+            }
+
+            $.ajax({
+                url: window.location.pathname,
+                type: 'POST',
+                dataType: 'json',
+                data: payload,
+                success: function(response) {
+                    if (response && response.success && response.html) {
+                        container.html(response.html);
+                    } else {
+                        var message = response && response.error ? response.error : 'No records found.';
+                        container.html('<div class="text-muted">' + escapeHtml(String(message)) + '</div>');
+                    }
+                },
+                error: function(_, __, error) {
+                    container.html('<div class="alert alert-danger mb-0">' + escapeHtml(error || 'Failed to load nested records.') + '</div>');
+                }
+            });
+        }
+
+        function renderNestedSections(wrapper, configs, rowData, pkInfo, rowKey) {
+            if (!Array.isArray(configs) || !configs.length) {
+                wrapper.append('<div class="text-muted">No nested tables configured.</div>');
+                return;
+            }
+
+            configs.forEach(function(config) {
+                if (!config || typeof config !== 'object') {
+                    return;
+                }
+
+                var title = (config.label && String(config.label).trim())
+                    ? String(config.label).trim()
+                    : makeLabel(config.table || 'Nested');
+
+                var section = $('<div class="fastcrud-nested-section"></div>');
+                var heading = $('<div class="d-flex justify-content-between align-items-center mb-2"></div>');
+                heading.append($('<h6 class="mb-0"></h6>').text(title));
+                section.append(heading);
+
+                var body = $('<div class="fastcrud-nested-body border rounded p-3 bg-body"></div>');
+                var placeholder = $('<div class="d-flex align-items-center gap-2 text-muted"></div>');
+                placeholder.append('<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div>');
+                placeholder.append($('<span></span>').text('Loading ' + title + '...'));
+                body.append(placeholder);
+                section.append(body);
+                wrapper.append(section);
+
+                requestNestedTable(body, config, rowData, pkInfo);
+            });
+        }
+
+        function collapseNestedRow(button, rowKey) {
+            var buttonEl = button && button.jquery ? button : $(button);
+            var parentRow = buttonEl.closest('tr');
+            var nestedRow = parentRow.next('.fastcrud-nested-row');
+            if (nestedRow.length) {
+                nestedRow.remove();
+            }
+
+            buttonEl.attr('data-fastcrud-expanded', 'false').attr('aria-expanded', 'false').html(actionIcons.expand);
+            if (rowKey && Object.prototype.hasOwnProperty.call(nestedRowStates, rowKey)) {
+                delete nestedRowStates[rowKey];
+            }
+        }
+
+        function expandNestedRow(button, rowKey, pkInfo) {
+            var buttonEl = button && button.jquery ? button : $(button);
+            var parentRow = buttonEl.closest('tr');
+            if (!parentRow.length) {
+                return;
+            }
+
+            var nestedRow = parentRow.next('.fastcrud-nested-row');
+            var wrapper;
+            if (!nestedRow.length) {
+                var colspan = table.find('thead th').length || 1;
+                nestedRow = $('<tr class="fastcrud-nested-row"></tr>');
+                var nestedCell = $('<td class="fastcrud-nested-cell-container"></td>').attr('colspan', colspan);
+                wrapper = $('<div class="fastcrud-nested-wrapper"></div>');
+                nestedCell.append(wrapper);
+                nestedRow.append(nestedCell);
+                parentRow.after(nestedRow);
+            } else {
+                wrapper = nestedRow.find('.fastcrud-nested-wrapper').first();
+                wrapper.empty();
+            }
+
+            if (rowKey) {
+                nestedRowStates[rowKey] = true;
+            }
+
+            buttonEl.attr('data-fastcrud-expanded', 'true').attr('aria-expanded', 'true').html(actionIcons.collapse);
+
+            var loadingNotice = $('<div class="d-flex align-items-center gap-2 text-muted"></div>');
+            loadingNotice.append('<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div>');
+            loadingNotice.append($('<span></span>').text('Fetching nested records...'));
+            wrapper.append(loadingNotice);
+
+            fetchRowByPk(pkInfo.column, pkInfo.value).then(function(rowData) {
+                wrapper.empty();
+                renderNestedSections(wrapper, nestedTablesConfig, rowData, pkInfo, rowKey);
+            }).catch(function(error) {
+                wrapper.empty().append(
+                    $('<div class="alert alert-danger mb-0"></div>').text((error && error.message) ? error.message : 'Failed to load nested records.')
+                );
+            });
+        }
+
+        function toggleNested(button, forceOpen, pkOverride) {
+            if (!hasNestedTablesConfigured()) {
+                return;
+            }
+
+            var buttonEl = button && button.jquery ? button : $(button);
+            if (!buttonEl.length) {
+                return;
+            }
+
+            var expanded = buttonEl.attr('data-fastcrud-expanded') === 'true';
+            var pkInfo = pkOverride || getPkInfoFromElement(buttonEl);
+            if (!pkInfo) {
+                return;
+            }
+
+            if (typeof pkInfo.value !== 'undefined' && pkInfo.value !== null) {
+                pkInfo.value = String(pkInfo.value);
+            }
+
+            var rowKey = buttonEl.attr('data-fastcrud-row-key') || null;
+            if (!rowKey && typeof pkInfo.value !== 'undefined' && pkInfo.value !== null) {
+                try {
+                    rowKey = rowCacheKey(pkInfo.column, pkInfo.value);
+                    buttonEl.attr('data-fastcrud-row-key', rowKey);
+                } catch (e) {
+                    rowKey = null;
+                }
+            }
+
+            if (forceOpen) {
+                expandNestedRow(buttonEl, rowKey, pkInfo);
+                return;
+            }
+
+            if (expanded) {
+                collapseNestedRow(buttonEl, rowKey);
+            } else {
+                expandNestedRow(buttonEl, rowKey, pkInfo);
+            }
         }
 
         function loadTableData(page) {
@@ -12536,6 +13067,13 @@ HTML;
             setSelection(pkCol, pkVal, checked);
             refreshSelectAllState();
             updateBatchDeleteButtonState();
+        });
+
+        table.on('click', '.fastcrud-nested-toggle', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            toggleNested($(this));
+            return false;
         });
 
         metaContainer.on('click', '.fastcrud-batch-delete-btn', function(event) {

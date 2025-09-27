@@ -48,6 +48,9 @@ class CrudAjax
                     // Reuse the same secure image upload flow used by TinyMCE
                     self::handleUploadImage($request);
                     break;
+                case 'nested_fetch':
+                    self::handleNestedFetch($request);
+                    break;
                 default:
                     throw new InvalidArgumentException('Invalid action: ' . $action);
             }
@@ -105,6 +108,47 @@ class CrudAjax
             'pagination' => $data['pagination'],
             'meta' => $data['meta'] ?? [],
             'id' => $request['id'] ?? null,
+        ]);
+    }
+
+    /**
+     * Handle rendering of nested tables for a given parent row.
+     */
+    private static function handleNestedFetch(array $request): void
+    {
+        foreach (['table', 'parent_column', 'foreign_column'] as $key) {
+            if (!isset($request[$key]) || !is_string($request[$key]) || trim($request[$key]) === '') {
+                throw new InvalidArgumentException(sprintf('%s parameter is required.', ucfirst(str_replace('_', ' ', $key))));
+            }
+        }
+
+        if (!array_key_exists('parent_value', $request)) {
+            throw new InvalidArgumentException('Parent value parameter is required.');
+        }
+
+        $table = trim((string) $request['table']);
+        $parentColumn = trim((string) $request['parent_column']);
+        $foreignColumn = trim((string) $request['foreign_column']);
+        $parentValue = $request['parent_value'];
+
+        $crud = Crud::fromAjax(
+            $table,
+            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
+            $request['config'] ?? null
+        );
+
+        $isNull = is_string($parentValue) && $parentValue === '__FASTCRUD_NULL__';
+        if ($isNull) {
+            $crud->where(sprintf('%s IS NULL', $foreignColumn));
+        } else {
+            $crud->where([$foreignColumn => $parentValue]);
+        }
+
+        $html = $crud->render();
+
+        self::respond([
+            'success' => true,
+            'html' => $html,
         ]);
     }
 

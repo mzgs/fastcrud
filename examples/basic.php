@@ -129,6 +129,7 @@ Crud::init([
                     ->fields('slug,status_note,cats,radio_field', false, 'Post Summary' )
                     // ->fields('slug,content',false,'Content' )
                     ->change_type('file', 'files')
+                    
                    
                     // ->enable_delete_confirm(false)
                     ->change_type('image', 'image')
@@ -193,12 +194,36 @@ Crud::init([
                     // ->highlight_row(['column' => 'id', 'operator' => 'equals', 'value' => 23], 'table-info')
                     ->table_name('Posts Overview')
                     // ->table_tooltip('FastCRUD live preview of posts')
-                    ->table_icon('bi bi-newspaper')
+                    ->table_icon('bi bi-newspaper');
                     // ->column_summary('id', 'count', 'Total');
+
+                $postsCrud->nested_table(
+                    'post_comments',
+                    'id',
+                    'comments',
+                    'post_id',
+                    static function (Crud $nested): void {
+                        $nested
+                            ->table_name('Recent Comments')
+                            ->columns('author,content,created_at')
+                            ->column_cut('content', 60)
+                            ->order_by('created_at', 'desc')
+                            ->setPerPage(5)
+                            ->enable_add(false)
+                            ->enable_edit(false)
+                            ->enable_delete(false);
+                    }
+                );
                 ?>
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-primary text-white">
-                        Posts Table Preview
+                        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                            <div>
+                                <h2 class="h5 mb-1">Posts Table Preview</h2>
+                                <p class="card-text mb-0">Inline editing (title &amp; color), custom callbacks, FilePond uploads, and column patterns are showcased here.</p>
+                                <p class="card-text text-muted small mb-0">Use the chevron in the first column to expand nested comment tables for each post.</p>
+                            </div>
+                        </div>
                     </div>
                     <div class="card-body">
                         <?= $postsCrud->render(); ?>
@@ -208,6 +233,56 @@ Crud::init([
             </div>
 
             
+            <div class="card">
+
+                <?php
+
+                $usersCrud = new Crud('users');
+                $usersCrud
+                    ->nested_table('posts', 'id', 'posts', 'user_id', static function (Crud $nested): void {
+                        $nested
+                            ->table_name('Posts')
+                            ->columns('title,content,created_at')
+                            ->setPerPage(5)
+                            ->enable_add(true)
+                            ->enable_edit(true)
+                            ->enable_delete(true);
+                            
+                            
+                    })
+                    ->limit_list('5,10,25,all');
+
+                echo $usersCrud->render();
+                ?>
+
+            </div>
+
+
+        </div>
+    </div>
+    <script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        crossorigin="anonymous"
+    ></script>
+</body>
+</html>
+
+                            ->setPerPage(5)
+                            ->enable_add(true)
+                            ->enable_edit(true)
+                            ->enable_delete(true)
+                            ->validation_required('role')
+                            ->order_by('role', 'asc');
+                    })
+                    ->limit_list('5,10,25,all');
+
+                
+
+                    
+                echo $usersCrud->render();
+                    ?>
+
+            </div>
              
 
            
