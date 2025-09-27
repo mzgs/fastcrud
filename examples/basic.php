@@ -265,29 +265,7 @@ Crud::init([
         crossorigin="anonymous"
     ></script>
 </body>
-</html>
-
-                            ->setPerPage(5)
-                            ->enable_add(true)
-                            ->enable_edit(true)
-                            ->enable_delete(true)
-                            ->validation_required('role')
-                            ->order_by('role', 'asc');
-                    })
-                    ->limit_list('5,10,25,all');
-
-                
-
-                    
-                echo $usersCrud->render();
-                    ?>
-
-            </div>
-             
-
-           
-        </div>
-    </div>
+ 
     <script
         src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         crossorigin="anonymous"
