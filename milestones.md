@@ -17,6 +17,6 @@
 - Integrate validation helpers: `validation_required`, `validation_pattern`, `unique`
 
 ## 4. Lifecycle & Hooks
-- Add CRUD lifecycle callbacks: before/after insert, update, delete, replace/delete actions
+- Add CRUD lifecycle callbacks: before/after insert, update, delete (including duplicate flows)
 - Implement creation/duplication flows, custom actions, nested tables, FK relations
 - Wire advanced features: alerts, mass alerts, interactive callbacks, file uploads, custom actions

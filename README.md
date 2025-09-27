@@ -168,6 +168,25 @@ Pass `true` as the second argument (`columns('content,slug', true)`) to hide spe
 
 Joined columns can be referenced with dot notation, which FastCRUD converts to its internal alias format. For example, `columns('authors.username,authors.email')` keeps only the `username` and `email` fields from a join declared as `->join('user_id', 'users', 'id', 'authors')`.
 
+### Lifecycle Callbacks
+
+FastCRUD exposes lifecycle hooks so you can massage data or trigger side-effects around insert, update, and delete operations.
+
+```php
+$crud = new Crud('users');
+
+$crud->before_insert([AuditHooks::class, 'setCreator']);
+$crud->after_insert([AuditHooks::class, 'logCreate']);
+$crud->before_update([AuditHooks::class, 'stampUpdater']);
+$crud->after_update([AuditHooks::class, 'logUpdate']);
+$crud->before_delete([AuditHooks::class, 'guardDelete']);
+$crud->after_delete([AuditHooks::class, 'logDelete']);
+```
+
+Each callback receives three arguments: the current payload (the data being inserted or updated, or the row slated for deletion), a context array (with keys such as `operation`, `stage`, `table`, `mode`, `primary_key`, and `primary_value`), and the active `Crud` instance. For `before_*` hooks, return an updated array to mutate the payload or `false` to cancel the operation. `after_*` hooks can return a modified row array, which FastCRUD forwards back to the client. Duplicate flows trigger the insert callbacks as well, and `before_delete` runs before both single and batch deletions.
+
+Because FastCRUD serializes callbacks across AJAX requests, register them using string callables or `[ClassName::class, 'method']` pairs—anonymous functions are not supported.
+
 ### Joining Related Tables
 
 `join()` augments the auto-generated SQL so the primary table can pull data from a related table without writing custom queries. The method signature is:

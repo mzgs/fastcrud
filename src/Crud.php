@@ -50,6 +50,14 @@ class Crud
     private const SUPPORTED_SUMMARY_TYPES = ['sum', 'avg', 'min', 'max', 'count'];
     private const SUPPORTED_FORM_MODES = ['all', 'create', 'edit', 'view'];
     private const DEFAULT_FORM_MODE = 'all';
+    private const LIFECYCLE_EVENTS = [
+        'before_insert',
+        'after_insert',
+        'before_update',
+        'after_update',
+        'before_delete',
+        'after_delete',
+    ];
 
     /**
      * @var array<string, mixed>
@@ -75,6 +83,14 @@ class Crud
         'custom_columns' => [],
         'field_callbacks' => [],
         'custom_fields' => [],
+        'lifecycle_callbacks' => [
+            'before_insert' => [],
+            'after_insert' => [],
+            'before_update' => [],
+            'after_update' => [],
+            'before_delete' => [],
+            'after_delete' => [],
+        ],
         'column_classes' => [],
         'column_widths' => [],
         'column_cuts' => [],
@@ -353,6 +369,43 @@ class Crud
         }
 
         throw new InvalidArgumentException('Unsupported callback type. Provide a string callable or [ClassName, method] pair.');
+    }
+
+    /**
+     * @param mixed $payload
+     * @param array<string, mixed> $context
+     * @return array{payload: mixed, cancelled: bool}
+     */
+    private function dispatchLifecycleEvent(string $event, mixed $payload, array $context, bool $expectArray = false): array
+    {
+        if (!in_array($event, self::LIFECYCLE_EVENTS, true)) {
+            throw new InvalidArgumentException('Unsupported lifecycle event: ' . $event);
+        }
+
+        $callbacks = $this->config['lifecycle_callbacks'][$event] ?? [];
+        if ($callbacks === []) {
+            return ['payload' => $payload, 'cancelled' => false];
+        }
+
+        foreach ($callbacks as $callable) {
+            $result = call_user_func($callable, $payload, $context, $this);
+
+            if ($result === false) {
+                return ['payload' => $payload, 'cancelled' => true];
+            }
+
+            if ($result === null) {
+                continue;
+            }
+
+            if ($expectArray && !is_array($result)) {
+                throw new RuntimeException(sprintf('Lifecycle callback for %s must return an array or null/false.', $event));
+            }
+
+            $payload = $result;
+        }
+
+        return ['payload' => $payload, 'cancelled' => false];
     }
 
     /**
@@ -2043,6 +2096,66 @@ class Crud
         }
 
         return $this;
+    }
+
+    /**
+     * Register a lifecycle callback for CRUD mutations.
+     */
+    private function registerLifecycleCallback(string $event, callable|string|array $callback): self
+    {
+        if (!in_array($event, self::LIFECYCLE_EVENTS, true)) {
+            throw new InvalidArgumentException('Unsupported lifecycle event: ' . $event);
+        }
+
+        $serialized = $this->normalizeCallable($callback);
+
+        if (!is_callable($serialized)) {
+            throw new InvalidArgumentException('Provided callback is not callable: ' . $serialized);
+        }
+
+        $this->config['lifecycle_callbacks'][$event][] = $serialized;
+
+        return $this;
+    }
+
+    public function before_insert(callable|string|array $callback): self
+    {
+        return $this->registerLifecycleCallback('before_insert', $callback);
+    }
+
+    public function after_insert(callable|string|array $callback): self
+    {
+        return $this->registerLifecycleCallback('after_insert', $callback);
+    }
+
+    public function before_create(callable|string|array $callback): self
+    {
+        return $this->before_insert($callback);
+    }
+
+    public function after_create(callable|string|array $callback): self
+    {
+        return $this->after_insert($callback);
+    }
+
+    public function before_update(callable|string|array $callback): self
+    {
+        return $this->registerLifecycleCallback('before_update', $callback);
+    }
+
+    public function after_update(callable|string|array $callback): self
+    {
+        return $this->registerLifecycleCallback('after_update', $callback);
+    }
+
+    public function before_delete(callable|string|array $callback): self
+    {
+        return $this->registerLifecycleCallback('before_delete', $callback);
+    }
+
+    public function after_delete(callable|string|array $callback): self
+    {
+        return $this->registerLifecycleCallback('after_delete', $callback);
     }
 
     /**
@@ -5784,6 +5897,7 @@ HTML;
             'column_callbacks' => $this->config['column_callbacks'],
             'custom_columns'   => $this->config['custom_columns'],
             'field_callbacks'  => $this->config['field_callbacks'],
+            'lifecycle_callbacks' => $this->config['lifecycle_callbacks'],
             'custom_fields'    => $this->config['custom_fields'],
             'sort_disabled'    => $sortDisabled,
             'column_classes'  => $this->config['column_classes'],
@@ -5987,6 +6101,35 @@ HTML;
 
             if ($normalized !== []) {
                 $this->config['field_callbacks'] = $normalized;
+            }
+        }
+
+        if (isset($payload['lifecycle_callbacks']) && is_array($payload['lifecycle_callbacks'])) {
+            $normalized = [];
+            foreach (self::LIFECYCLE_EVENTS as $event) {
+                $entries = $payload['lifecycle_callbacks'][$event] ?? null;
+                if (!is_array($entries)) {
+                    continue;
+                }
+
+                foreach ($entries as $entry) {
+                    $callable = null;
+                    if (is_string($entry)) {
+                        $callable = $entry;
+                    } elseif (is_array($entry) && isset($entry['callable'])) {
+                        $callable = (string) $entry['callable'];
+                    }
+
+                    if ($callable === null || $callable === '' || !is_callable($callable)) {
+                        continue;
+                    }
+
+                    $normalized[$event][] = $callable;
+                }
+            }
+
+            foreach (self::LIFECYCLE_EVENTS as $event) {
+                $this->config['lifecycle_callbacks'][$event] = $normalized[$event] ?? [];
             }
         }
 
@@ -6380,6 +6523,25 @@ HTML;
             throw new RuntimeException('Add action is not permitted for this data.');
         }
 
+        $beforeContext = [
+            'operation'     => 'insert',
+            'stage'         => 'before',
+            'table'         => $this->table,
+            'mode'          => 'create',
+            'primary_key'   => $primaryKeyColumn,
+            'fields'        => $fields,
+            'current_state' => $context,
+        ];
+
+        $beforeInsert = $this->dispatchLifecycleEvent('before_insert', $filtered, $beforeContext, true);
+        if ($beforeInsert['cancelled']) {
+            return null;
+        }
+
+        /** @var array<string, mixed> $filtered */
+        $filtered = $beforeInsert['payload'];
+        $context = array_merge($context, $filtered);
+
         $errors = [];
 
         $required = $this->gatherBehaviourForMode('validation_required', 'create');
@@ -6468,10 +6630,13 @@ HTML;
             throw new ValidationException('Validation failed.', $errors);
         }
 
+        $primaryValue = null;
         if (array_key_exists($primaryKeyColumn, $filtered)) {
             $pkValue = $filtered[$primaryKeyColumn];
             if ($pkValue === null || $pkValue === '') {
                 unset($filtered[$primaryKeyColumn]);
+            } else {
+                $primaryValue = $pkValue;
             }
         }
 
@@ -6506,32 +6671,61 @@ HTML;
             throw new RuntimeException('Failed to insert record.', 0, $exception);
         }
 
-        if (array_key_exists($primaryKeyColumn, $filtered)) {
-            $pkValue = $filtered[$primaryKeyColumn];
-            if ($pkValue !== null && $pkValue !== '') {
-                return $this->findRowByPrimaryKey($primaryKeyColumn, $pkValue);
+        $row = null;
+
+        if ($primaryValue !== null) {
+            $row = $this->findRowByPrimaryKey($primaryKeyColumn, $primaryValue);
+        }
+
+        if ($row === null) {
+            try {
+                $newPk = $this->connection->lastInsertId();
+                if (is_string($newPk) && $newPk !== '' && $newPk !== '0') {
+                    $primaryValue = $newPk;
+                    $row = $this->findRowByPrimaryKey($primaryKeyColumn, $newPk);
+                }
+            } catch (PDOException) {
+                // ignore and fall back below
             }
         }
 
-        try {
-            $newPk = $this->connection->lastInsertId();
-            if (is_string($newPk) && $newPk !== '' && $newPk !== '0') {
-                return $this->findRowByPrimaryKey($primaryKeyColumn, $newPk);
+        if ($row === null) {
+            try {
+                $sql = sprintf('SELECT * FROM %s ORDER BY %s DESC LIMIT 1', $this->table, $primaryKeyColumn);
+                $fallbackStmt = $this->connection->query($sql);
+                if ($fallbackStmt !== false) {
+                    $candidate = $fallbackStmt->fetch(PDO::FETCH_ASSOC);
+                    if (is_array($candidate)) {
+                        $row = $candidate;
+                        if ($primaryValue === null && array_key_exists($primaryKeyColumn, $candidate)) {
+                            $primaryValue = $candidate[$primaryKeyColumn];
+                        }
+                    }
+                }
+            } catch (PDOException) {
+                // ignore
             }
-        } catch (PDOException) {
-            // ignore and fall back below
         }
 
-        try {
-            $sql = sprintf('SELECT * FROM %s ORDER BY %s DESC LIMIT 1', $this->table, $primaryKeyColumn);
-            $fallbackStmt = $this->connection->query($sql);
-            if ($fallbackStmt !== false) {
-                $row = $fallbackStmt->fetch(PDO::FETCH_ASSOC);
-                return is_array($row) ? $row : null;
-            }
-        } catch (PDOException) {
-            // ignore
+        $afterContext = [
+            'operation'     => 'insert',
+            'stage'         => 'after',
+            'table'         => $this->table,
+            'mode'          => 'create',
+            'primary_key'   => $primaryKeyColumn,
+            'primary_value' => $primaryValue,
+            'fields'        => $filtered,
+        ];
+
+        if ($row !== null) {
+            $afterContext['row'] = $row;
+            $after = $this->dispatchLifecycleEvent('after_insert', $row, $afterContext, true);
+            /** @var array<string, mixed> $resultRow */
+            $resultRow = $after['payload'];
+            return $resultRow;
         }
+
+        $this->dispatchLifecycleEvent('after_insert', $filtered, $afterContext, true);
 
         return null;
     }
@@ -6621,6 +6815,27 @@ HTML;
 
             $filtered[$column] = $this->renderTemplateValue($value, $context);
         }
+
+        $context = array_merge($currentRow, $fields, $filtered);
+
+        $beforeContext = [
+            'operation'     => 'update',
+            'stage'         => 'before',
+            'table'         => $this->table,
+            'primary_key'   => $primaryKeyColumn,
+            'primary_value' => $primaryKeyValue,
+            'mode'          => $mode,
+            'current_row'   => $currentRow,
+            'fields'        => $fields,
+        ];
+
+        $beforeUpdate = $this->dispatchLifecycleEvent('before_update', $filtered, $beforeContext, true);
+        if ($beforeUpdate['cancelled']) {
+            return $currentRow;
+        }
+
+        /** @var array<string, mixed> $filtered */
+        $filtered = $beforeUpdate['payload'];
 
         if ($filtered === []) {
             return $currentRow;
@@ -6758,6 +6973,28 @@ HTML;
             throw new RuntimeException('View action is not permitted for this record.');
         }
 
+        $afterContext = [
+            'operation'     => 'update',
+            'stage'         => 'after',
+            'table'         => $this->table,
+            'primary_key'   => $primaryKeyColumn,
+            'primary_value' => $primaryKeyValue,
+            'mode'          => $mode,
+            'changes'       => $filtered,
+            'previous_row'  => $currentRow,
+        ];
+
+        if ($row !== null) {
+            $afterContext['row'] = $row;
+            $after = $this->dispatchLifecycleEvent('after_update', $row, $afterContext, true);
+            /** @var array<string, mixed> $updatedRow */
+            $updatedRow = $after['payload'];
+
+            return $updatedRow;
+        }
+
+        $this->dispatchLifecycleEvent('after_update', $filtered, $afterContext, true);
+
         return $row;
     }
 
@@ -6788,6 +7025,22 @@ HTML;
             throw new RuntimeException('Delete action is not permitted for this record.');
         }
 
+        $beforeContext = [
+            'operation'     => 'delete',
+            'stage'         => 'before',
+            'table'         => $this->table,
+            'primary_key'   => $primaryKeyColumn,
+            'primary_value' => $primaryKeyValue,
+        ];
+
+        $beforeDelete = $this->dispatchLifecycleEvent('before_delete', $currentRow, $beforeContext, true);
+        if ($beforeDelete['cancelled']) {
+            return false;
+        }
+
+        /** @var array<string, mixed> $rowForDeletion */
+        $rowForDeletion = $beforeDelete['payload'];
+
         $sql       = sprintf('DELETE FROM %s WHERE %s = :pk', $this->table, $primaryKeyColumn);
         $statement = $this->connection->prepare($sql);
 
@@ -6801,7 +7054,22 @@ HTML;
             throw new RuntimeException('Failed to delete record.', 0, $exception);
         }
 
-        return $statement->rowCount() > 0;
+        $deleted = $statement->rowCount() > 0;
+
+        $afterContext = [
+            'operation'     => 'delete',
+            'stage'         => 'after',
+            'table'         => $this->table,
+            'primary_key'   => $primaryKeyColumn,
+            'primary_value' => $primaryKeyValue,
+            'deleted'       => $deleted,
+        ];
+
+        $afterContext['row'] = $rowForDeletion;
+
+        $this->dispatchLifecycleEvent('after_delete', $rowForDeletion, $afterContext, true);
+
+        return $deleted;
     }
 
     /**
@@ -6921,6 +7189,28 @@ HTML;
             throw new RuntimeException('Nothing to duplicate.');
         }
 
+        $beforeContext = [
+            'operation'     => 'insert',
+            'stage'         => 'before',
+            'table'         => $this->table,
+            'mode'          => 'duplicate',
+            'primary_key'   => $primaryKeyColumn,
+            'primary_value' => $primaryKeyValue,
+            'source_row'    => $source,
+        ];
+
+        $beforeDuplicate = $this->dispatchLifecycleEvent('before_insert', $fields, $beforeContext, true);
+        if ($beforeDuplicate['cancelled']) {
+            return null;
+        }
+
+        /** @var array<string, mixed> $fields */
+        $fields = $beforeDuplicate['payload'];
+
+        if ($fields === []) {
+            throw new RuntimeException('Nothing to duplicate.');
+        }
+
         // 4) Insert new row
         $placeholders = [];
         $parameters = [];
@@ -6994,27 +7284,57 @@ HTML;
             }
         }
 
-        // 5) Return new row (try lastInsertId first)
+        $primaryValue = null;
+        $row = null;
+
         try {
             $newPk = $this->connection->lastInsertId();
             if (is_string($newPk) && $newPk !== '' && $newPk !== '0') {
-                return $this->findRowByPrimaryKey($primaryKeyColumn, $newPk);
+                $primaryValue = $newPk;
+                $row = $this->findRowByPrimaryKey($primaryKeyColumn, $newPk);
             }
         } catch (PDOException) {
             // ignore, fallback below
         }
 
-        // Fallback: last by PK desc
-        try {
-            $sql = sprintf('SELECT * FROM %s ORDER BY %s DESC LIMIT 1', $this->table, $primaryKeyColumn);
-            $fallbackStmt = $this->connection->query($sql);
-            if ($fallbackStmt !== false) {
-                $row = $fallbackStmt->fetch(PDO::FETCH_ASSOC);
-                return is_array($row) ? $row : null;
+        if ($row === null) {
+            try {
+                $sql = sprintf('SELECT * FROM %s ORDER BY %s DESC LIMIT 1', $this->table, $primaryKeyColumn);
+                $fallbackStmt = $this->connection->query($sql);
+                if ($fallbackStmt !== false) {
+                    $candidate = $fallbackStmt->fetch(PDO::FETCH_ASSOC);
+                    if (is_array($candidate)) {
+                        $row = $candidate;
+                        if ($primaryValue === null && array_key_exists($primaryKeyColumn, $candidate)) {
+                            $primaryValue = $candidate[$primaryKeyColumn];
+                        }
+                    }
+                }
+            } catch (PDOException) {
+                // ignore
             }
-        } catch (PDOException) {
-            // ignore
         }
+
+        $afterContext = [
+            'operation'     => 'insert',
+            'stage'         => 'after',
+            'table'         => $this->table,
+            'mode'          => 'duplicate',
+            'primary_key'   => $primaryKeyColumn,
+            'primary_value' => $primaryValue,
+            'fields'        => $fields,
+            'source_row'    => $source,
+        ];
+
+        if ($row !== null) {
+            $afterContext['row'] = $row;
+            $after = $this->dispatchLifecycleEvent('after_insert', $row, $afterContext, true);
+            /** @var array<string, mixed> $duplicated */
+            $duplicated = $after['payload'];
+            return $duplicated;
+        }
+
+        $this->dispatchLifecycleEvent('after_insert', $fields, $afterContext, true);
 
         return null;
     }

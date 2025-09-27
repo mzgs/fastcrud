@@ -7,6 +7,22 @@ require __DIR__ . '/../vendor/autoload.php';
 use FastCrud\Crud;
 use FastCrud\CrudConfig;
 
+function fc_before_create_defaults(array $fields, array $context, Crud $crud): array
+{
+    $fields['created_at'] = $fields['created_at'] ?? date('Y-m-d H:i:s');
+    $fields['status'] = $fields['status'] ?? 'draft';
+    $fields['slug'] =  'new-post-' . time();
+
+    return $fields;
+}
+
+function fc_before_edit(array $fields, array $context, Crud $crud): array
+{
+    
+
+    return $fields;
+}
+
 function content_callback(?string $value, array $row, string $column, string $formatted): string
 {
     return '<strong class="text-primary">' .  $formatted . $row['id'] . ' ...</strong>';
@@ -95,6 +111,7 @@ Crud::init([
                 <?php
                 $postsCrud = new Crud('posts');
                 $postsCrud
+                    ->before_create('fc_before_create_defaults')
                     ->limit_list('5,10,25,all')
                     // ->enable_add(true)
                     // ->enable_view(true, 'user_id', '=', '1')
