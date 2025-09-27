@@ -470,7 +470,42 @@ class CrudAjax
             }
         }
 
-        $uploadDirectory = self::resolveTinymceUploadDirectory();
+        $table = isset($request['table']) && is_string($request['table']) ? trim($request['table']) : null;
+        $column = isset($request['column']) && is_string($request['column']) ? trim($request['column']) : null;
+        $changeTypeParams = [];
+
+        if ($table !== null && $table !== '') {
+            try {
+                $crud = Crud::fromAjax(
+                    $table,
+                    isset($request['id']) && is_string($request['id']) ? (string) $request['id'] : null,
+                    $request['config'] ?? null
+                );
+
+                if ($column !== null && $column !== '') {
+                    $definition = $crud->getChangeTypeDefinition($column);
+                    if (is_array($definition)) {
+                        $params = $definition['params'] ?? [];
+                        if (is_array($params)) {
+                            $changeTypeParams = $params;
+                        }
+                    }
+                }
+            } catch (\Throwable) {
+                $changeTypeParams = [];
+            }
+        }
+
+        $pathOverride = null;
+        if (isset($changeTypeParams['path'])) {
+            $pathOverride = is_scalar($changeTypeParams['path']) ? (string) $changeTypeParams['path'] : null;
+        }
+
+        $destination = self::resolveUploadDestination($pathOverride);
+        $uploadDirectory = $destination['directory'];
+        $relativePrefix = $destination['relative'];
+        $publicBase = $destination['public_base'];
+
         if (!is_dir($uploadDirectory)) {
             if (!mkdir($uploadDirectory, 0775, true) && !is_dir($uploadDirectory)) {
                 throw new RuntimeException('Failed to create upload directory.');
@@ -486,13 +521,21 @@ class CrudAjax
 
         @chmod($targetPath, 0664);
 
-        $publicBase = CrudConfig::getUploadPath();
-        $location = self::buildPublicUploadLocation($publicBase, $filename);
+        if ($isImage) {
+            self::processImageTransforms($targetPath, $filename, $extension, $changeTypeParams);
+        }
+
+        $storedName = $filename;
+        if ($relativePrefix !== '') {
+            $storedName = $relativePrefix . '/' . $storedName;
+        }
+
+        $location = self::buildPublicUploadLocation($publicBase, $storedName);
 
         self::respond([
             'success' => true,
             'location' => $location,
-            'name' => $filename,
+            'name' => $storedName,
             'size' => $size,
         ], 201);
     }
@@ -549,21 +592,59 @@ class CrudAjax
         return $mime === false ? null : $mime;
     }
 
-    private static function resolveTinymceUploadDirectory(): string
+    /**
+     * @return array{directory: string, public_base: string, relative: string}
+     */
+    private static function resolveUploadDestination(?string $pathOption): array
     {
-        $configuredPath = CrudConfig::getUploadPath();
+        $basePublic = CrudConfig::getUploadPath();
+        $relative = '';
 
-        if (self::isUrl($configuredPath)) {
-            $parsedPath = parse_url($configuredPath, PHP_URL_PATH) ?: '';
-            $configuredPath = $parsedPath !== '' ? $parsedPath : 'public/uploads';
+        if ($pathOption !== null) {
+            $candidate = trim($pathOption);
+            if ($candidate !== '') {
+                if (self::isUrl($candidate)) {
+                    $parsedPath = parse_url($candidate, PHP_URL_PATH) ?: '';
+                    $candidate = $parsedPath !== '' ? $parsedPath : $candidate;
+                }
+
+                try {
+                    $relative = self::normalizeUploadSubPath($candidate);
+                } catch (InvalidArgumentException) {
+                    $relative = '';
+                }
+            }
         }
 
-        if (self::isAbsolutePath($configuredPath)) {
-            return rtrim($configuredPath, DIRECTORY_SEPARATOR);
+        $baseDirectory = self::resolveUploadDirectoryFromBase($basePublic);
+        $targetDirectory = $baseDirectory;
+
+        if ($relative !== '') {
+            $targetDirectory .= DIRECTORY_SEPARATOR . strtr($relative, ['/' => DIRECTORY_SEPARATOR]);
+        }
+
+        return [
+            'directory' => $targetDirectory,
+            'public_base' => $basePublic,
+            'relative' => $relative,
+        ];
+    }
+
+    private static function resolveUploadDirectoryFromBase(string $configuredPath): string
+    {
+        $path = $configuredPath;
+
+        if (self::isUrl($path)) {
+            $parsedPath = parse_url($path, PHP_URL_PATH) ?: '';
+            $path = $parsedPath !== '' ? $parsedPath : 'public/uploads';
+        }
+
+        if (self::isAbsolutePath($path)) {
+            return rtrim($path, DIRECTORY_SEPARATOR);
         }
 
         $root = dirname(__DIR__);
-        $relative = trim($configuredPath, '\/');
+        $relative = trim($path, '\/');
         if ($relative === '') {
             $relative = 'public/uploads';
         }
@@ -571,6 +652,366 @@ class CrudAjax
         $normalizedRelative = strtr($relative, ['/' => DIRECTORY_SEPARATOR, chr(92) => DIRECTORY_SEPARATOR]);
 
         return rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $normalizedRelative;
+    }
+
+    private static function normalizeUploadSubPath(string $path): string
+    {
+        $normalized = strtr($path, [chr(92) => '/', '\\' => '/', '../' => '../']);
+        $normalized = preg_replace('#/+#', '/', $normalized) ?? $normalized;
+        $normalized = trim($normalized, '/');
+        if ($normalized === '') {
+            return '';
+        }
+
+        if (str_contains($normalized, '..')) {
+            throw new InvalidArgumentException('Relative upload path cannot contain parent traversal segments.');
+        }
+
+        $segments = array_values(array_filter(
+            explode('/', $normalized),
+            static fn(string $segment): bool => $segment !== '' && $segment !== '.'
+        ));
+        if ($segments === []) {
+            return '';
+        }
+
+        if ($segments[0] === 'public') {
+            array_shift($segments);
+        }
+
+        $baseSegments = array_values(array_filter(
+            explode('/', trim(strtr(CrudConfig::getUploadPath(), [chr(92) => '/']), '/')),
+            static fn(string $segment): bool => $segment !== ''
+        ));
+
+        if ($segments !== [] && $baseSegments !== []) {
+            $lastBase = $baseSegments[count($baseSegments) - 1];
+            if ($segments[0] === $lastBase) {
+                array_shift($segments);
+            }
+        }
+
+        return implode('/', $segments);
+    }
+
+    private static function sanitizePathSegment(string $value): string
+    {
+        $sanitized = preg_replace('/[^A-Za-z0-9._-]+/', '-', trim($value)) ?? '';
+        $sanitized = trim($sanitized, '-_');
+        if ($sanitized === '') {
+            return '';
+        }
+
+        if (str_contains($sanitized, '..')) {
+            return '';
+        }
+
+        return $sanitized;
+    }
+
+    private static function processImageTransforms(string $absolutePath, string $filename, string $extension, array $options): void
+    {
+        $normalizedExtension = strtolower($extension);
+
+        if (!self::supportsImageManipulation($normalizedExtension)) {
+            return;
+        }
+
+        if (!extension_loaded('gd')) {
+            return;
+        }
+
+        $width = isset($options['width']) ? (int) $options['width'] : 0;
+        $height = isset($options['height']) ? (int) $options['height'] : 0;
+        $crop = !empty($options['crop']);
+
+        if ($width > 0 || $height > 0) {
+            self::transformImage($absolutePath, $absolutePath, $normalizedExtension, $width, $height, $crop);
+        }
+
+        if (isset($options['thumbs']) && is_array($options['thumbs'])) {
+            self::generateThumbnails($absolutePath, $filename, $normalizedExtension, $options['thumbs']);
+        }
+    }
+
+    /**
+     * @param array<int, mixed> $thumbConfigs
+     */
+    private static function generateThumbnails(string $absolutePath, string $filename, string $extension, array $thumbConfigs): void
+    {
+        $baseDirectory = dirname($absolutePath);
+
+        foreach ($thumbConfigs as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $thumbWidth = isset($entry['width']) ? (int) $entry['width'] : 0;
+            $thumbHeight = isset($entry['height']) ? (int) $entry['height'] : 0;
+
+            if ($thumbWidth <= 0 && $thumbHeight <= 0) {
+                continue;
+            }
+
+            $thumbCrop = !empty($entry['crop']);
+            $marker = isset($entry['marker']) ? trim((string) $entry['marker']) : '';
+            if ($marker !== '') {
+                $marker = preg_replace('/[^A-Za-z0-9._-]+/', '-', $marker) ?? '';
+            }
+            $folder = isset($entry['folder']) ? self::sanitizePathSegment((string) $entry['folder']) : '';
+
+            $thumbDirectory = $baseDirectory . DIRECTORY_SEPARATOR . 'thumbs';
+            if ($folder !== '') {
+                $thumbDirectory .= DIRECTORY_SEPARATOR . $folder;
+            }
+
+            if (!is_dir($thumbDirectory) && !mkdir($thumbDirectory, 0775, true) && !is_dir($thumbDirectory)) {
+                continue;
+            }
+
+            $thumbFilename = self::buildThumbnailFilename($filename, $marker);
+            $thumbPath = $thumbDirectory . DIRECTORY_SEPARATOR . $thumbFilename;
+
+            self::transformImage($absolutePath, $thumbPath, $extension, $thumbWidth, $thumbHeight, $thumbCrop, true);
+        }
+    }
+
+    private static function buildThumbnailFilename(string $filename, string $marker): string
+    {
+        if ($marker === '') {
+            return $filename;
+        }
+
+        $dot = strrpos($filename, '.');
+        if ($dot === false) {
+            return $filename . $marker;
+        }
+
+        $name = substr($filename, 0, $dot) ?: $filename;
+        $extension = substr($filename, $dot);
+
+        return $name . $marker . $extension;
+    }
+
+    private static function supportsImageManipulation(string $extension): bool
+    {
+        return in_array($extension, ['jpg', 'jpeg', 'jpe', 'jfi', 'jfif', 'png', 'gif', 'bmp', 'webp'], true);
+    }
+
+    private static function transformImage(
+        string $sourcePath,
+        string $destinationPath,
+        string $extension,
+        int $targetWidth,
+        int $targetHeight,
+        bool $crop,
+        bool $allowReusingSource = false
+    ): void {
+        if ($targetWidth <= 0 && $targetHeight <= 0) {
+            return;
+        }
+
+        $imageInfo = @getimagesize($sourcePath);
+        if ($imageInfo === false) {
+            return;
+        }
+
+        [$originalWidth, $originalHeight] = $imageInfo;
+        if ($originalWidth <= 0 || $originalHeight <= 0) {
+            return;
+        }
+
+        $source = self::createImageResource($sourcePath, $extension);
+        if ($source === false) {
+            return;
+        }
+
+        $preserveAspect = !(!$crop && $targetWidth > 0 && $targetHeight > 0);
+        $dimensions = $crop && $targetWidth > 0 && $targetHeight > 0
+            ? self::calculateCropDimensions($originalWidth, $originalHeight, $targetWidth, $targetHeight)
+            : self::calculateFitDimensions($originalWidth, $originalHeight, $targetWidth, $targetHeight, $preserveAspect);
+
+        if ($dimensions === null) {
+            imagedestroy($source);
+            return;
+        }
+
+        if (!$crop && !$allowReusingSource && $dimensions['dest_width'] === $originalWidth && $dimensions['dest_height'] === $originalHeight) {
+            imagedestroy($source);
+            return;
+        }
+
+        $destination = imagecreatetruecolor($dimensions['dest_width'], $dimensions['dest_height']);
+        if ($destination === false) {
+            imagedestroy($source);
+            return;
+        }
+
+        self::prepareDestinationCanvas($destination, $extension);
+
+        $resampled = imagecopyresampled(
+            $destination,
+            $source,
+            0,
+            0,
+            $dimensions['src_x'],
+            $dimensions['src_y'],
+            $dimensions['dest_width'],
+            $dimensions['dest_height'],
+            $dimensions['src_width'],
+            $dimensions['src_height']
+        );
+
+        if ($resampled) {
+            self::saveImageResource($destination, $destinationPath, $extension);
+            @chmod($destinationPath, 0664);
+        }
+
+        imagedestroy($destination);
+        imagedestroy($source);
+    }
+
+    /**
+     * @return array{dest_width:int,dest_height:int,src_x:int,src_y:int,src_width:int,src_height:int}|null
+     */
+    private static function calculateFitDimensions(int $originalWidth, int $originalHeight, int $targetWidth, int $targetHeight, bool $preserveAspect): ?array
+    {
+        if (!$preserveAspect && $targetWidth > 0 && $targetHeight > 0) {
+            $destWidth = max(1, $targetWidth);
+            $destHeight = max(1, $targetHeight);
+
+            return [
+                'dest_width' => $destWidth,
+                'dest_height' => $destHeight,
+                'src_x' => 0,
+                'src_y' => 0,
+                'src_width' => $originalWidth,
+                'src_height' => $originalHeight,
+            ];
+        }
+
+        $scale = 1.0;
+
+        if ($targetWidth > 0 && $targetHeight > 0) {
+            $scale = min($targetWidth / $originalWidth, $targetHeight / $originalHeight);
+        } elseif ($targetWidth > 0) {
+            $scale = $targetWidth / $originalWidth;
+        } elseif ($targetHeight > 0) {
+            $scale = $targetHeight / $originalHeight;
+        }
+
+        if ($scale <= 0) {
+            return null;
+        }
+
+        $destWidth = max(1, (int) round($originalWidth * $scale));
+        $destHeight = max(1, (int) round($originalHeight * $scale));
+
+        return [
+            'dest_width' => $destWidth,
+            'dest_height' => $destHeight,
+            'src_x' => 0,
+            'src_y' => 0,
+            'src_width' => $originalWidth,
+            'src_height' => $originalHeight,
+        ];
+    }
+
+    /**
+     * @return array{dest_width:int,dest_height:int,src_x:int,src_y:int,src_width:int,src_height:int}
+     */
+    private static function calculateCropDimensions(int $originalWidth, int $originalHeight, int $targetWidth, int $targetHeight): array
+    {
+        $targetRatio = $targetWidth / $targetHeight;
+        $sourceRatio = $originalWidth / $originalHeight;
+
+        if ($sourceRatio > $targetRatio) {
+            $cropHeight = $originalHeight;
+            $cropWidth = (int) round($targetRatio * $cropHeight);
+            $srcX = (int) floor(($originalWidth - $cropWidth) / 2);
+            $srcY = 0;
+        } else {
+            $cropWidth = $originalWidth;
+            $cropHeight = (int) round($cropWidth / $targetRatio);
+            $srcX = 0;
+            $srcY = (int) floor(($originalHeight - $cropHeight) / 2);
+        }
+
+        return [
+            'dest_width' => max(1, $targetWidth),
+            'dest_height' => max(1, $targetHeight),
+            'src_x' => max(0, $srcX),
+            'src_y' => max(0, $srcY),
+            'src_width' => max(1, $cropWidth),
+            'src_height' => max(1, $cropHeight),
+        ];
+    }
+
+    /**
+     * @return resource|false
+     */
+    private static function createImageResource(string $path, string $extension)
+    {
+        return match ($extension) {
+            'jpg', 'jpeg', 'jpe', 'jfi', 'jfif' => function_exists('imagecreatefromjpeg') ? @imagecreatefromjpeg($path) : false,
+            'png' => function_exists('imagecreatefrompng') ? @imagecreatefrompng($path) : false,
+            'gif' => function_exists('imagecreatefromgif') ? @imagecreatefromgif($path) : false,
+            'bmp' => function_exists('imagecreatefrombmp') ? @imagecreatefrombmp($path) : false,
+            'webp' => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($path) : false,
+            default => false,
+        };
+    }
+
+    private static function prepareDestinationCanvas($canvas, string $extension): void
+    {
+        $extension = strtolower($extension);
+
+        if (in_array($extension, ['png', 'gif', 'webp'], true)) {
+            imagealphablending($canvas, false);
+            imagesavealpha($canvas, true);
+            $transparent = imagecolorallocatealpha($canvas, 0, 0, 0, 127);
+            imagefilledrectangle($canvas, 0, 0, imagesx($canvas), imagesy($canvas), $transparent);
+        }
+    }
+
+    private static function saveImageResource($image, string $path, string $extension): void
+    {
+        switch ($extension) {
+            case 'jpg':
+            case 'jpeg':
+            case 'jpe':
+            case 'jfi':
+            case 'jfif':
+                if (function_exists('imagejpeg')) {
+                    imagejpeg($image, $path, 90);
+                }
+                break;
+            case 'png':
+                if (function_exists('imagepng')) {
+                    imagepng($image, $path, 6);
+                }
+                break;
+            case 'gif':
+                if (function_exists('imagegif')) {
+                    imagegif($image, $path);
+                }
+                break;
+            case 'bmp':
+                if (function_exists('imagebmp')) {
+                    imagebmp($image, $path);
+                }
+                break;
+            case 'webp':
+                if (function_exists('imagewebp')) {
+                    imagewebp($image, $path, 90);
+                }
+                break;
+        }
+    }
+
+    private static function resolveTinymceUploadDirectory(): string
+    {
+        return self::resolveUploadDestination(null)['directory'];
     }
 
     private static function buildPublicUploadLocation(string $basePath, string $filename): string

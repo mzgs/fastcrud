@@ -1486,6 +1486,7 @@ class Crud
         if ($html === null && isset($this->config['form']['behaviours']['change_type'][$column])) {
             $change = $this->config['form']['behaviours']['change_type'][$column];
             $type = is_array($change) && isset($change['type']) ? strtolower((string) $change['type']) : '';
+            $changeParams = is_array($change) && isset($change['params']) && is_array($change['params']) ? $change['params'] : null;
             if ($type === 'file') {
                 $raw = $rawOriginal;
                 if ($raw === null || $raw === '') {
@@ -1494,7 +1495,9 @@ class Crud
                 $fileName = $this->stringifyValue($raw);
                 $fileName = trim($fileName);
                 if ($fileName !== '') {
-                    $href = $this->buildPublicUploadUrl($fileName);
+                    $resolved = self::resolveStoredFileName($fileName, $changeParams);
+                    $target = $resolved !== '' ? $resolved : $fileName;
+                    $href = $this->buildPublicUploadUrl($target);
                     $linkText = $display;
                     $html = '<a href="' . $this->escapeHtml($href) . '" target="_blank" rel="noopener noreferrer">' . $this->escapeHtml($linkText) . '</a>';
                 }
@@ -1504,11 +1507,17 @@ class Crud
                     $raw = $value;
                 }
                 $names = $this->parseImageNameList($raw);
+                if ($changeParams !== null) {
+                    $names = array_values(array_filter(array_map(
+                        static fn(string $name): string => self::resolveStoredFileName($name, $changeParams),
+                        $names
+                    ), static fn(string $name): bool => $name !== ''));
+                }
                 if ($names !== []) {
                     $first = $names[0];
                     $href = $this->buildPublicUploadUrl($first);
                     $extra = count($names) > 1 ? ' (+' . (count($names) - 1) . ')' : '';
-                    $text = $first . $extra;
+                    $text = $this->extractFileName($first) . $extra;
                     $html = '<a href="' . $this->escapeHtml($href) . '" target="_blank" rel="noopener noreferrer">' . $this->escapeHtml($text) . '</a>';
                 }
             } elseif (($type === 'image' || $type === 'images') && CrudConfig::$images_in_grid) {
@@ -1520,7 +1529,9 @@ class Crud
                     }
                     $fileName = trim($this->stringifyValue($raw));
                     if ($fileName !== '') {
-                        $src = $this->buildPublicUploadUrl($fileName);
+                        $resolved = self::resolveStoredFileName($fileName, $changeParams);
+                        $target = $resolved !== '' ? $resolved : $fileName;
+                        $src = $this->buildPublicUploadUrl($target);
                         $style = $height > 0 ? (' style="height: ' . $height . 'px; width: auto;"') : '';
                         $html = '<img src="' . $this->escapeHtml($src) . '" alt="" class="img-thumbnail"' . $style . ' />';
                     }
@@ -1530,6 +1541,12 @@ class Crud
                         $raw = $value;
                     }
                     $names = $this->parseImageNameList($raw);
+                    if ($changeParams !== null) {
+                        $names = array_values(array_filter(array_map(
+                            static fn(string $name): string => self::resolveStoredFileName($name, $changeParams),
+                            $names
+                        ), static fn(string $name): bool => $name !== ''));
+                    }
                     if ($names !== []) {
                         $first = $names[0];
                         $src = $this->buildPublicUploadUrl($first);
@@ -1738,15 +1755,19 @@ class Crud
     {
         $result = [];
 
+        $append = static function(array &$list, string $candidate): void {
+            $normalized = self::normalizeStoredImageName($candidate);
+            if ($normalized !== '' && !in_array($normalized, $list, true)) {
+                $list[] = $normalized;
+            }
+        };
+
         if (is_array($value)) {
             foreach ($value as $item) {
                 if ($item === null) {
                     continue;
                 }
-                $name = $this->extractFileName((string) $item);
-                if ($name !== '' && !in_array($name, $result, true)) {
-                    $result[] = $name;
-                }
+                $append($result, (string) $item);
             }
             return $result;
         }
@@ -1762,10 +1783,10 @@ class Crud
                 $decoded = json_decode($text, true, 512, JSON_THROW_ON_ERROR);
                 if (is_array($decoded)) {
                     foreach ($decoded as $item) {
-                        $name = $this->extractFileName((string) $item);
-                        if ($name !== '' && !in_array($name, $result, true)) {
-                            $result[] = $name;
+                        if ($item === null) {
+                            continue;
                         }
+                        $append($result, (string) $item);
                     }
                     return $result;
                 }
@@ -1775,13 +1796,113 @@ class Crud
         }
 
         foreach (explode(',', $text) as $item) {
-            $name = trim($this->extractFileName($item));
-            if ($name !== '' && !in_array($name, $result, true)) {
-                $result[] = $name;
-            }
+            $append($result, (string) $item);
         }
 
         return $result;
+    }
+
+    private static function normalizeStoredImageName(string $value): string
+    {
+        $str = trim($value);
+        if ($str === '') {
+            return '';
+        }
+
+        $hashPos = strpos($str, '#');
+        if ($hashPos !== false) {
+            $str = substr($str, 0, $hashPos);
+        }
+
+        $queryPos = strpos($str, '?');
+        if ($queryPos !== false) {
+            $str = substr($str, 0, $queryPos);
+        }
+
+        $str = str_replace('\\', '/', $str);
+        $str = preg_replace('#/+#', '/', $str) ?? $str;
+
+        while (strncmp($str, './', 2) === 0) {
+            $str = substr($str, 2) ?: '';
+        }
+
+        if ($str === '.' || $str === '') {
+            return '';
+        }
+
+        return $str;
+    }
+
+    private static function normalizeUploadSubPathOption(?string $path): string
+    {
+        if ($path === null) {
+            return '';
+        }
+
+        $candidate = trim($path);
+        if ($candidate === '') {
+            return '';
+        }
+
+        if (preg_match('#^https?://#i', $candidate) === 1) {
+            $parsed = parse_url($candidate, PHP_URL_PATH) ?: '';
+            $candidate = $parsed !== '' ? $parsed : '';
+        }
+
+        $candidate = strtr($candidate, ['\\' => '/']);
+        $candidate = preg_replace('#/+#', '/', $candidate) ?? $candidate;
+        $candidate = trim($candidate, '/');
+        if ($candidate === '') {
+            return '';
+        }
+
+        $segments = array_values(array_filter(explode('/', $candidate), static fn(string $segment): bool => $segment !== ''));
+        if ($segments === []) {
+            return '';
+        }
+
+        if (strcasecmp($segments[0], 'public') === 0) {
+            array_shift($segments);
+        }
+
+        $base = CrudConfig::getUploadPath();
+        $base = strtr(trim($base), ['\\' => '/']);
+        $base = preg_replace('#/+#', '/', $base) ?? $base;
+        $baseSegments = array_values(array_filter(explode('/', trim($base, '/')), static fn(string $segment): bool => $segment !== ''));
+
+        if ($segments !== [] && $baseSegments !== []) {
+            $lastBase = $baseSegments[count($baseSegments) - 1];
+            if ($lastBase !== '' && strcasecmp($segments[0], $lastBase) === 0) {
+                array_shift($segments);
+            }
+        }
+
+        return implode('/', $segments);
+    }
+
+    /**
+     * @param array<string, mixed>|null $changeParams
+     */
+    private static function resolveStoredFileName(string $name, ?array $changeParams): string
+    {
+        $normalized = self::normalizeStoredImageName($name);
+        if ($normalized === '') {
+            return '';
+        }
+
+        $path = null;
+        if (isset($changeParams['path'])) {
+            $pathCandidate = is_scalar($changeParams['path']) ? (string) $changeParams['path'] : null;
+            if ($pathCandidate !== null && $pathCandidate !== '') {
+                $path = self::normalizeUploadSubPathOption($pathCandidate);
+            }
+        }
+
+        if ($path !== '' && $path !== null && !str_contains($normalized, '/') && !str_contains($normalized, '\\')) {
+            $normalized = $path . '/' . $normalized;
+        }
+
+        return $normalized;
     }
 
     public function limit(int $limit): self
@@ -2595,6 +2716,26 @@ class Crud
         }
 
         return $this;
+    }
+
+    /**
+     * Retrieve the stored change_type definition for a field.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getChangeTypeDefinition(string $field): ?array
+    {
+        $field = trim($field);
+        if ($field === '') {
+            return null;
+        }
+
+        $normalized = $this->normalizeColumnReference($field);
+        $definitions = $this->config['form']['behaviours']['change_type'] ?? [];
+
+        $candidate = $definitions[$normalized] ?? $definitions[$field] ?? null;
+
+        return is_array($candidate) ? $candidate : null;
     }
 
     /**
@@ -7743,32 +7884,114 @@ HTML;
             return segment;
         }
 
+        function collapseRepeatedSlashes(input) {
+            var result = input;
+            while (result.indexOf('//') !== -1) {
+                result = result.replace('//', '/');
+            }
+            return result;
+        }
+
+        function normalizeStoredImageName(value) {
+            if (value === null || typeof value === 'undefined') {
+                return '';
+            }
+            var str = String(value).trim();
+            if (!str.length) {
+                return '';
+            }
+            var hashIndex = str.indexOf('#');
+            if (hashIndex !== -1) {
+                str = str.slice(0, hashIndex);
+            }
+            var queryIndex = str.indexOf('?');
+            if (queryIndex !== -1) {
+                str = str.slice(0, queryIndex);
+            }
+            str = str.split('\\\\').join('/');
+            str = collapseRepeatedSlashes(str);
+            while (str.indexOf('./') === 0) {
+                str = str.slice(2);
+            }
+            if (str === '.' || !str.length) {
+                return '';
+            }
+            return str;
+        }
+
+        function normalizeUploadSubPath(pathOption) {
+            if (!pathOption) {
+                return '';
+            }
+            var candidate = String(pathOption).trim();
+            if (!candidate.length) {
+                return '';
+            }
+            if (/^https?:\/\//i.test(candidate)) {
+                try {
+                    var parsed = new URL(candidate, window.location.origin);
+                    candidate = parsed.pathname || '';
+                } catch (e) {
+                    candidate = '';
+                }
+            }
+            candidate = candidate.split('\\\\').join('/');
+            candidate = collapseRepeatedSlashes(candidate);
+            while (candidate.charAt(0) === '/') {
+                candidate = candidate.slice(1);
+            }
+            while (candidate.charAt(candidate.length - 1) === '/') {
+                candidate = candidate.slice(0, -1);
+            }
+            if (!candidate.length) {
+                return '';
+            }
+            var segments = candidate.split('/').filter(function(item) { return item.length > 0; });
+            if (!segments.length) {
+                return '';
+            }
+            if (segments[0].toLowerCase() === 'public') {
+                segments.shift();
+            }
+            var basePath = getUploadPublicBase();
+            while (basePath.charAt(0) === '/') {
+                basePath = basePath.slice(1);
+            }
+            while (basePath.charAt(basePath.length - 1) === '/') {
+                basePath = basePath.slice(0, -1);
+            }
+            var baseSegments = basePath.split('/').filter(function(item) {
+                return item.length > 0;
+            });
+            if (segments.length && baseSegments.length) {
+                var lastBase = baseSegments[baseSegments.length - 1];
+                if (lastBase && segments[0].toLowerCase() === lastBase.toLowerCase()) {
+                    segments.shift();
+                }
+            }
+            return segments.join('/');
+        }
+
         function parseImageNameList(value) {
             var result = [];
+            var push = function(candidate) {
+                var normalized = normalizeStoredImageName(candidate);
+                if (normalized && result.indexOf(normalized) === -1) {
+                    result.push(normalized);
+                }
+            };
+
             if (Array.isArray(value)) {
-                value.forEach(function(item) {
-                    if (item === null || typeof item === 'undefined') {
-                        return;
-                    }
-                    var name = extractFileName(item);
-                    if (name && result.indexOf(name) === -1) {
-                        result.push(name);
-                    }
-                });
+                value.forEach(push);
                 return result;
             }
 
-            var text = String(value || '');
+            var text = String(value || '').trim();
             if (!text.length) {
                 return result;
             }
 
-            text.split(',').forEach(function(item) {
-                var name = extractFileName(item);
-                if (name && result.indexOf(name) === -1) {
-                    result.push(name);
-                }
-            });
+            text.split(',').forEach(push);
 
             return result;
         }
@@ -7777,21 +8000,28 @@ HTML;
             if (!Array.isArray(list) || !list.length) {
                 return '';
             }
-            return list.join(',');
+            var normalized = [];
+            list.forEach(function(item) {
+                var name = normalizeStoredImageName(item);
+                if (name && normalized.indexOf(name) === -1) {
+                    normalized.push(name);
+                }
+            });
+            return normalized.join(',');
         }
 
         function setImageNamesOnInput(input, list) {
             if (!input || !input.length) {
                 return;
             }
-            input.val(imageNamesToString(parseImageNameList(list)));
+            input.val(imageNamesToString(Array.isArray(list) ? list : parseImageNameList(list)));
         }
 
         function addImageNameToInput(input, candidate) {
             if (!input || !input.length) {
                 return;
             }
-            var name = extractFileName(candidate);
+            var name = normalizeStoredImageName(candidate);
             if (!name) {
                 return;
             }
@@ -7806,7 +8036,7 @@ HTML;
             if (!input || !input.length) {
                 return;
             }
-            var name = extractFileName(candidate);
+            var name = normalizeStoredImageName(candidate);
             if (!name) {
                 return;
             }
@@ -7845,8 +8075,9 @@ HTML;
                 return;
             }
             var map = ensureImageNameMap(input);
-            if (name) {
-                map[key] = name;
+            var normalized = normalizeStoredImageName(name);
+            if (normalized) {
+                map[key] = normalized;
             }
             input.data('fastcrudNameMap', map);
         }
@@ -10283,6 +10514,18 @@ HTML;
                     // Always use the declared column; no mapping via params.save_to or base column checks
 
                     var normalizedList = parseImageNameList(currentValue);
+                    var uploadSubPath = normalizeUploadSubPath(params.path);
+                    if (uploadSubPath) {
+                        normalizedList = normalizedList.map(function(name) {
+                            if (!name) {
+                                return '';
+                            }
+                            if (name.indexOf('/') === -1 && name.indexOf('\\\\') === -1) {
+                                return normalizeStoredImageName(uploadSubPath + '/' + name);
+                            }
+                            return normalizeStoredImageName(name);
+                        }).filter(function(name) { return !!name; });
+                    }
                     var initialValueString = isMultipleImages
                         ? imageNamesToString(normalizedList)
                         : (normalizedList.length ? normalizedList[0] : '');
@@ -10307,6 +10550,18 @@ HTML;
                 } else if (changeType === 'file' || changeType === 'files') {
                     var isMultipleFiles = (changeType === 'files');
                     var normalizedListFiles = parseImageNameList(currentValue);
+                    var uploadSubPathFiles = normalizeUploadSubPath(params.path);
+                    if (uploadSubPathFiles) {
+                        normalizedListFiles = normalizedListFiles.map(function(name) {
+                            if (!name) {
+                                return '';
+                            }
+                            if (name.indexOf('/') === -1 && name.indexOf('\\\\') === -1) {
+                                return normalizeStoredImageName(uploadSubPathFiles + '/' + name);
+                            }
+                            return normalizeStoredImageName(name);
+                        }).filter(function(name) { return !!name; });
+                    }
                     var initialFilesValue = isMultipleFiles
                         ? imageNamesToString(normalizedListFiles)
                         : (normalizedListFiles.length ? normalizedListFiles[0] : '');
@@ -10673,12 +10928,12 @@ HTML;
                                                 storedName = extractFileName(file.name);
                                             }
 
-                                            if (storedName) {
-                                                if (isMultipleImages) {
-                                                    addImageNameToInput(valueInput, storedName);
-                                                } else {
-                                                    valueInput.val(storedName);
-                                                }
+                                                if (storedName) {
+                                                    if (isMultipleImages) {
+                                                        addImageNameToInput(valueInput, storedName);
+                                                    } else {
+                                                        valueInput.val(normalizeStoredImageName(storedName));
+                                                    }
                                                 valueInput.trigger('change');
                                             }
 
@@ -10698,6 +10953,11 @@ HTML;
                                         if (tableName) { formData.append('table', tableName); }
                                         if (tableId) { formData.append('id', tableId); }
                                         formData.append('column', saveColumn);
+                                        try {
+                                            if (clientConfig) {
+                                                formData.append('config', JSON.stringify(clientConfig));
+                                            }
+                                        } catch (e) {}
                                         xhr.send(formData);
                                         return { abort: function() { xhr.abort(); abort(); } };
                                     },
@@ -10952,7 +11212,7 @@ HTML;
 
                                             if (storedName) {
                                                 if (isMultipleFiles) { addImageNameToInput(valueInput, storedName); }
-                                                else { valueInput.val(storedName); }
+                                                else { valueInput.val(normalizeStoredImageName(storedName)); }
                                                 valueInput.trigger('change');
                                             }
                                             var serverKey = response.location ? String(response.location) : storedName;
@@ -10968,6 +11228,11 @@ HTML;
                                         if (tableName) { formData.append('table', tableName); }
                                         if (tableId) { formData.append('id', tableId); }
                                         formData.append('column', saveColumn);
+                                        try {
+                                            if (clientConfig) {
+                                                formData.append('config', JSON.stringify(clientConfig));
+                                            }
+                                        } catch (e) {}
                                         xhr.send(formData);
                                         return { abort: function() { xhr.abort(); abort(); } };
                                     },
@@ -11036,7 +11301,7 @@ HTML;
                                 if (isMultipleFiles && key && storedName) { mapImageNameToKey(valueInput, key, storedName); }
                                 if (storedName) {
                                     if (isMultipleFiles) { addImageNameToInput(valueInput, storedName); }
-                                    else { valueInput.val(storedName); }
+                                    else { valueInput.val(normalizeStoredImageName(storedName)); }
                                     valueInput.trigger('change');
                                 }
                             });

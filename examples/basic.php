@@ -129,8 +129,9 @@ Crud::init([
                     ->fields('slug,status_note,cats,radio_field', false, 'Post Summary' )
                     // ->fields('slug,content',false,'Content' )
                     ->change_type('file', 'files')
-                    ->change_type('image', 'image')
+                   
                     // ->enable_delete_confirm(false)
+                    ->change_type('image', 'image')
                    
                         ->change_type('cats', 'multicheckbox', '', [
         'values' => [
