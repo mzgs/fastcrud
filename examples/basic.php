@@ -245,12 +245,13 @@ Crud::init([
                             ->table_name('Posts')
                             ->columns('title,content,created_at')
                             ->setPerPage(5)
-                            ->enable_add(true)
-                            ->enable_edit(true)
-                            ->enable_delete(true);
+                            ->change_type('content', 'rich_editor', '', ['rows' => 4])
+                            ->change_type('color', 'color', '#ff0000')
+                            ->change_type('image', 'image')
+                             
                             
-                            
-                    })
+                           
+                    ;})
                     ->limit_list('5,10,25,all');
 
                 echo $usersCrud->render();
@@ -267,9 +268,5 @@ Crud::init([
     ></script>
 </body>
  
-    <script
-        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-        crossorigin="anonymous"
-    ></script>
-</body>
+   
 </html>
