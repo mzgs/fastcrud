@@ -239,6 +239,7 @@ Crud::init([
 
                 $usersCrud = new Crud('users');
                 $usersCrud
+                ->columns('username,email')
                     ->nested_table('posts', 'id', 'posts', 'user_id', static function (Crud $nested): void {
                         $nested
                             ->table_name('Posts')

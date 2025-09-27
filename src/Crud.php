@@ -8921,7 +8921,7 @@ HTML;
         }
 
         function applyHeaderMetadata() {
-            var headerCells = table.find('thead th').not('.fastcrud-actions, .fastcrud-select-header');
+            var headerCells = table.find('thead th').not('.fastcrud-actions, .fastcrud-select-header, .fastcrud-nested');
             headerCells.each(function(index) {
                 var column = columnsCache[index];
                 if (!column) {
@@ -8989,7 +8989,7 @@ HTML;
         }
 
         function updateSortIndicators() {
-            var headerCells = table.find('thead th').not('.fastcrud-actions');
+            var headerCells = table.find('thead th').not('.fastcrud-actions, .fastcrud-select-header, .fastcrud-nested');
             headerCells.each(function(index) {
                 var cell = $(this);
                 var column = columnsCache[index];
