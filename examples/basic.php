@@ -234,12 +234,14 @@ Crud::init([
 
             
             <div class="card">
+               
 
                 <?php
 
                 $usersCrud = new Crud('users');
                 $usersCrud
                 ->columns('username,email')
+                ->table_icon('bi bi-people')
                     ->nested_table('posts', 'id', 'posts', 'user_id', static function (Crud $nested): void {
                         $nested
                             ->table_name('Posts')
