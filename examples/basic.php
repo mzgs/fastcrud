@@ -74,8 +74,7 @@ Crud::init([
 ]);
 
 CrudStyle::$bools_in_grid_color = 'success';
-CrudStyle::$edit_view_row_highlight_class='primary'
-
+ 
 
   
 
