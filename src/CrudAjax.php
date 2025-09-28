@@ -38,6 +38,18 @@ class CrudAjax
                 case 'batch_delete':
                     self::handleBatchDelete($request);
                     break;
+                case 'bulk_update':
+                    self::handleBulkUpdate($request);
+                    break;
+                case 'bulk_action':
+                    self::handleBulkAction($request);
+                    break;
+                case 'export_csv':
+                    self::handleExportCsv($request);
+                    break;
+                case 'export_excel':
+                    self::handleExportExcel($request);
+                    break;
                 case 'duplicate':
                     self::handleDuplicate($request);
                     break;
@@ -402,6 +414,374 @@ class CrudAjax
         }
 
         self::respond($response, $success ? 200 : 404);
+    }
+
+    /**
+     * Handle bulk updates (mass assignment) via AJAX.
+     *
+     * @param array<string, mixed> $request
+     */
+    private static function handleBulkUpdate(array $request): void
+    {
+        if (!isset($request['table'])) {
+            throw new InvalidArgumentException('Table parameter is required');
+        }
+
+        if (!isset($request['primary_key_column']) || !is_string($request['primary_key_column'])) {
+            throw new InvalidArgumentException('Primary key column is required.');
+        }
+
+        if (!array_key_exists('primary_key_values', $request)) {
+            throw new InvalidArgumentException('Primary key values are required.');
+        }
+
+        $rawValues = $request['primary_key_values'];
+        if (is_string($rawValues)) {
+            $rawValues = [$rawValues];
+        }
+
+        if (!is_array($rawValues)) {
+            throw new InvalidArgumentException('Primary key values must be provided as an array.');
+        }
+
+        $values = array_values($rawValues);
+        if ($values === []) {
+            throw new InvalidArgumentException('At least one primary key value is required.');
+        }
+
+        if (!array_key_exists('fields', $request)) {
+            throw new InvalidArgumentException('Bulk update requires a fields payload.');
+        }
+
+        $fieldsInput = $request['fields'];
+        if (is_string($fieldsInput) && $fieldsInput !== '') {
+            try {
+                $decoded = json_decode($fieldsInput, true, 512, JSON_THROW_ON_ERROR);
+                if (is_array($decoded)) {
+                    $fieldsInput = $decoded;
+                }
+            } catch (JsonException) {
+                // Ignore decoding failure and treat as raw input
+            }
+        }
+
+        $fields = self::normalizeBulkUpdateFields($fieldsInput);
+        if ($fields === []) {
+            throw new InvalidArgumentException('Bulk update requires at least one column/value pair.');
+        }
+
+        $modeRaw = $request['mode'] ?? 'edit';
+        $mode = is_string($modeRaw) ? $modeRaw : 'edit';
+
+        $crud = Crud::fromAjax(
+            (string) $request['table'],
+            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
+            $request['config'] ?? null
+        );
+
+        $result = $crud->updateRecords((string) $request['primary_key_column'], $values, $fields, $mode);
+        $updatedCount = $result['updated'];
+        $failures = $result['failures'];
+
+        $success = $updatedCount > 0;
+
+        $response = [
+            'success'  => $success,
+            'updated'  => $updatedCount,
+            'failures' => $failures,
+            'id'       => $request['id'] ?? null,
+        ];
+
+        if (!$success) {
+            $response['error'] = 'No records were updated.';
+        } elseif ($failures !== []) {
+            $response['warning'] = 'Some records could not be updated.';
+        }
+
+        self::respond($response, $success ? 200 : 400);
+    }
+
+    /**
+     * Route generic bulk actions based on the requested operation.
+     *
+     * @param array<string, mixed> $request
+     */
+    private static function handleBulkAction(array $request): void
+    {
+        $operationRaw = $request['operation'] ?? 'update';
+        $operation = is_string($operationRaw) ? strtolower(trim($operationRaw)) : 'update';
+
+        switch ($operation) {
+            case 'delete':
+                self::handleBatchDelete($request);
+                return;
+            case 'update':
+                self::handleBulkUpdate($request);
+                return;
+            default:
+                throw new InvalidArgumentException('Unsupported bulk action operation: ' . $operation);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     */
+    private static function handleExportCsv(array $request): void
+    {
+        $dataset = self::buildExportDataset($request);
+        $content = self::generateCsvContent($dataset['columns'], $dataset['rows'], $dataset['labels']);
+        $filename = self::buildExportFilename($dataset['table'], 'csv');
+
+        self::respondFile($filename, 'text/csv; charset=utf-8', $content);
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     */
+    private static function handleExportExcel(array $request): void
+    {
+        $dataset = self::buildExportDataset($request);
+        $content = self::generateCsvContent($dataset['columns'], $dataset['rows'], $dataset['labels']);
+        $filename = self::buildExportFilename($dataset['table'], 'xls');
+
+        self::respondFile($filename, 'application/vnd.ms-excel; charset=utf-8', $content);
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     * @return array{table: string, columns: array<int, string>, rows: array<int, array<string, mixed>>, labels: array<string, string>}
+     */
+    private static function buildExportDataset(array $request): array
+    {
+        if (!isset($request['table']) || !is_string($request['table']) || trim($request['table']) === '') {
+            throw new InvalidArgumentException('Table parameter is required.');
+        }
+
+        $table = trim($request['table']);
+
+        $crud = Crud::fromAjax(
+            $table,
+            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
+            $request['config'] ?? null
+        );
+
+        $searchTerm = isset($request['search_term']) ? (string) $request['search_term'] : null;
+        if ($searchTerm !== null) {
+            $searchTerm = trim($searchTerm);
+            if ($searchTerm === '') {
+                $searchTerm = null;
+            }
+        }
+
+        $searchColumn = isset($request['search_column']) ? (string) $request['search_column'] : null;
+        if ($searchColumn !== null) {
+            $searchColumn = trim($searchColumn);
+            if ($searchColumn === '') {
+                $searchColumn = null;
+            }
+        }
+
+        $data = $crud->getTableData(1, 0, $searchTerm, $searchColumn);
+        $columns = isset($data['columns']) && is_array($data['columns']) ? array_values($data['columns']) : [];
+        $rows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
+
+        $meta = isset($data['meta']) && is_array($data['meta']) ? $data['meta'] : [];
+        $labels = isset($meta['labels']) && is_array($meta['labels']) ? $meta['labels'] : [];
+        $primaryKeyColumn = isset($meta['primary_key']) ? (string) $meta['primary_key'] : null;
+        if ($primaryKeyColumn === null || $primaryKeyColumn === '') {
+            $primaryKeyColumn = isset($request['primary_key_column']) && is_string($request['primary_key_column'])
+                ? trim($request['primary_key_column'])
+                : null;
+        }
+
+        $selectedValues = null;
+        if (array_key_exists('primary_key_values', $request)) {
+            $rawValues = $request['primary_key_values'];
+            if (is_string($rawValues)) {
+                $rawValues = [$rawValues];
+            }
+
+            if (is_array($rawValues)) {
+                $selectedValues = array_values($rawValues);
+            }
+        }
+
+        if ($selectedValues !== null && $selectedValues !== []) {
+            $map = [];
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $value = null;
+                if (isset($row['__fastcrud_primary_value'])) {
+                    $value = $row['__fastcrud_primary_value'];
+                } elseif ($primaryKeyColumn !== null && isset($row[$primaryKeyColumn])) {
+                    $value = $row[$primaryKeyColumn];
+                }
+
+                if ($value === null) {
+                    continue;
+                }
+
+                $key = (string) $value;
+                if (!isset($map[$key])) {
+                    $map[$key] = $row;
+                }
+            }
+
+            $filtered = [];
+            foreach ($selectedValues as $value) {
+                $key = (string) $value;
+                if (isset($map[$key])) {
+                    $filtered[] = $map[$key];
+                }
+            }
+
+            $rows = $filtered;
+        }
+
+        return [
+            'table'   => $table,
+            'columns' => $columns,
+            'rows'    => $rows,
+            'labels'  => $labels,
+        ];
+    }
+
+    /**
+     * @param array<int, string> $columns
+     * @param array<int, array<string, mixed>> $rows
+     * @param array<string, string> $labels
+     */
+    private static function generateCsvContent(array $columns, array $rows, array $labels, string $delimiter = ',', string $enclosure = '"'): string
+    {
+        $stream = fopen('php://temp', 'w+');
+        if ($stream === false) {
+            throw new RuntimeException('Unable to generate export content.');
+        }
+
+        fwrite($stream, "\xEF\xBB\xBF");
+
+        $header = [];
+        foreach ($columns as $column) {
+            if (!is_string($column) || $column === '') {
+                continue;
+            }
+            $header[] = isset($labels[$column]) ? (string) $labels[$column] : $column;
+        }
+        if ($header !== []) {
+            fputcsv($stream, $header, $delimiter, $enclosure);
+        }
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $line = [];
+            foreach ($columns as $column) {
+                if (!is_string($column) || $column === '') {
+                    $line[] = '';
+                    continue;
+                }
+
+                $value = $row[$column] ?? '';
+                if ($value === null) {
+                    $value = '';
+                } elseif (is_array($value)) {
+                    try {
+                        $value = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                    } catch (JsonException) {
+                        $value = '[object]';
+                    }
+                }
+
+                $line[] = is_scalar($value) ? (string) $value : '';
+            }
+
+            fputcsv($stream, $line, $delimiter, $enclosure);
+        }
+
+        rewind($stream);
+        $content = stream_get_contents($stream);
+        fclose($stream);
+
+        return $content === false ? '' : $content;
+    }
+
+    private static function buildExportFilename(string $table, string $extension): string
+    {
+        $safeTable = preg_replace('/[^A-Za-z0-9_-]+/', '_', $table);
+        if ($safeTable === '') {
+            $safeTable = 'export';
+        }
+
+        $timestamp = date('Ymd_His');
+        return $safeTable . '_' . $timestamp . '.' . $extension;
+    }
+
+    /**
+     * @param mixed $fieldsInput
+     * @return array<string, mixed>
+     */
+    private static function normalizeBulkUpdateFields(mixed $fieldsInput): array
+    {
+        if (!is_array($fieldsInput)) {
+            return [];
+        }
+
+        if (!self::isList($fieldsInput)) {
+            $fields = [];
+            foreach ($fieldsInput as $column => $value) {
+                if (!is_string($column)) {
+                    continue;
+                }
+
+                $normalized = trim($column);
+                if ($normalized === '') {
+                    continue;
+                }
+
+                $fields[$normalized] = $value;
+            }
+
+            return $fields;
+        }
+
+        $fields = [];
+        foreach ($fieldsInput as $entry) {
+            if (!is_array($entry) || !isset($entry['column'])) {
+                continue;
+            }
+
+            $column = trim((string) $entry['column']);
+            if ($column === '') {
+                continue;
+            }
+
+            $value = $entry['value'] ?? null;
+            $fields[$column] = $value;
+        }
+
+        return $fields;
+    }
+
+    private static function isList(array $array): bool
+    {
+        if (function_exists('array_is_list')) {
+            return array_is_list($array);
+        }
+
+        $expected = 0;
+        foreach (array_keys($array) as $key) {
+            if ($key !== $expected) {
+                return false;
+            }
+            $expected++;
+        }
+
+        return true;
     }
 
     /**
@@ -1168,6 +1548,23 @@ class CrudAjax
         }
 
         echo $json;
+        exit;
+    }
+
+    private static function respondFile(string $filename, string $mimeType, string $content): void
+    {
+        if (ob_get_level() > 0) {
+            @ob_clean();
+        }
+
+        if (!headers_sent()) {
+            header('Content-Type: ' . $mimeType);
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Content-Length: ' . (string) strlen($content));
+            header('Cache-Control: no-store, no-cache, must-revalidate');
+        }
+
+        echo $content;
         exit;
     }
 }

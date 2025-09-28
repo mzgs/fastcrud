@@ -9,6 +9,7 @@ use PDO;
 use PDOException;
 use PDOStatement;
 use RuntimeException;
+use Throwable;
 
 class Crud
 {
@@ -54,6 +55,7 @@ class Crud
     private const SUPPORTED_SUMMARY_TYPES = ['sum', 'avg', 'min', 'max', 'count'];
     private const SUPPORTED_FORM_MODES = ['all', 'create', 'edit', 'view'];
     private const DEFAULT_FORM_MODE = 'all';
+    private const SUPPORTED_SOFT_DELETE_MODES = ['timestamp', 'literal', 'expression'];
     private const LIFECYCLE_EVENTS = [
         'before_insert',
         'after_insert',
@@ -61,6 +63,10 @@ class Crud
         'after_update',
         'before_delete',
         'after_delete',
+        'before_fetch',
+        'after_fetch',
+        'before_read',
+        'after_read',
     ];
 
     /**
@@ -87,6 +93,7 @@ class Crud
         'custom_columns' => [],
         'field_callbacks' => [],
         'custom_fields' => [],
+        'soft_delete' => null,
         'lifecycle_callbacks' => [
             'before_insert' => [],
             'after_insert' => [],
@@ -94,6 +101,10 @@ class Crud
             'after_update' => [],
             'before_delete' => [],
             'after_delete' => [],
+            'before_fetch' => [],
+            'after_fetch' => [],
+            'before_read' => [],
+            'after_read' => [],
         ],
         'column_classes' => [],
         'column_widths' => [],
@@ -116,7 +127,10 @@ class Crud
             'duplicate' => false,
             'duplicate_condition' => null,
             'batch_delete' => false,
+            'bulk_actions' => [],
             'delete_confirm' => true,
+            'export_csv' => false,
+            'export_excel' => false,
         ],
         'column_summaries' => [],
         'field_labels' => [],
@@ -1006,12 +1020,18 @@ class Crud
     {
         $meta = $this->config['table_meta'] ?? [];
 
-        $batchDeleteEnabled = isset($meta['batch_delete']) ? (bool) $meta['batch_delete'] : false;
-        if (!$batchDeleteEnabled) {
+        $batchDeleteConfigured = isset($meta['batch_delete']) ? (bool) $meta['batch_delete'] : false;
+        $hasBulkActions = isset($meta['bulk_actions']) && is_array($meta['bulk_actions']) && $meta['bulk_actions'] !== [];
+
+        if (!$batchDeleteConfigured && !$hasBulkActions) {
             return false;
         }
 
-        return isset($meta['delete']) ? (bool) $meta['delete'] : true;
+        if ($batchDeleteConfigured) {
+            return isset($meta['delete']) ? (bool) $meta['delete'] : true;
+        }
+
+        return true;
     }
 
     private function getActionCondition(string $action): ?array
@@ -2298,6 +2318,26 @@ class Crud
         return $this->registerLifecycleCallback('after_delete', $callback);
     }
 
+    public function before_fetch(callable|string|array $callback): self
+    {
+        return $this->registerLifecycleCallback('before_fetch', $callback);
+    }
+
+    public function after_fetch(callable|string|array $callback): self
+    {
+        return $this->registerLifecycleCallback('after_fetch', $callback);
+    }
+
+    public function before_read(callable|string|array $callback): self
+    {
+        return $this->registerLifecycleCallback('before_read', $callback);
+    }
+
+    public function after_read(callable|string|array $callback): self
+    {
+        return $this->registerLifecycleCallback('after_read', $callback);
+    }
+
     /**
      * @param string|array<int, string> $columns
      * @param string|array<int, string> $classes
@@ -2569,9 +2609,429 @@ class Crud
         return $this;
     }
 
+    public function add_bulk_action(string $name, string $label, array $options = []): self
+    {
+        $action = $this->normalizeBulkActionDefinition($name, $label, $options);
+
+        if (!isset($this->config['table_meta']['bulk_actions']) || !is_array($this->config['table_meta']['bulk_actions'])) {
+            $this->config['table_meta']['bulk_actions'] = [];
+        }
+
+        $this->config['table_meta']['bulk_actions'][] = $action;
+
+        return $this;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $actions
+     */
+    public function set_bulk_actions(array $actions): self
+    {
+        $normalized = [];
+
+        foreach ($actions as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $name = isset($entry['name']) ? (string) $entry['name'] : '';
+            $label = isset($entry['label']) ? (string) $entry['label'] : $name;
+
+            $options = $entry;
+            unset($options['name'], $options['label']);
+
+            $normalized[] = $this->normalizeBulkActionDefinition($name, $label, $options);
+        }
+
+        $this->config['table_meta']['bulk_actions'] = $normalized;
+
+        return $this;
+    }
+
+    /**
+     * Enable soft delete mode by updating one or more columns instead of hard deleting rows.
+     *
+     * Supported option keys:
+     * - mode: 'timestamp', 'literal', or 'expression' (defaults to 'timestamp')
+     * - value: scalar value or expression string (required for literal/expression modes)
+     * - additional: array<string, mixed> of extra column assignments (scalars or option arrays)
+     * - assignments: array mapping columns to assignment definitions (overrides other options)
+     */
+    public function enable_soft_delete(string $column, array $options = []): self
+    {
+        $column = trim($column);
+        if ($column === '') {
+            throw new InvalidArgumentException('Soft delete column name is required.');
+        }
+
+        if (isset($options['assignments']) && is_array($options['assignments'])) {
+            return $this->set_soft_delete_assignments($options['assignments']);
+        }
+
+        $mode = isset($options['mode']) ? strtolower((string) $options['mode']) : 'timestamp';
+        if (!in_array($mode, self::SUPPORTED_SOFT_DELETE_MODES, true)) {
+            $message = sprintf(
+                'Invalid soft delete mode "%s". Allowed modes: %s.',
+                $mode,
+                implode(', ', self::SUPPORTED_SOFT_DELETE_MODES)
+            );
+            throw new InvalidArgumentException($message);
+        }
+
+        $assignments = [
+            $column => [
+                'mode'  => $mode,
+                'value' => $options['value'] ?? null,
+            ],
+        ];
+
+        if (isset($options['additional']) && is_array($options['additional'])) {
+            foreach ($options['additional'] as $extraColumn => $definition) {
+                $assignments[$extraColumn] = $definition;
+            }
+        }
+
+        return $this->set_soft_delete_assignments($assignments);
+    }
+
+    /**
+     * Replace soft delete assignments wholesale. Keys may be column names or indexed arrays containing
+     * a 'column' key along with optional 'mode' and 'value' keys.
+     *
+     * @param array<int|string, mixed> $assignments
+     */
+    public function set_soft_delete_assignments(array $assignments): self
+    {
+        $normalized = $this->normalizeSoftDeleteAssignmentsForConfig($assignments);
+
+        if ($normalized === []) {
+            throw new InvalidArgumentException('Soft delete configuration requires at least one assignment.');
+        }
+
+        $this->config['soft_delete'] = ['assignments' => $normalized];
+
+        return $this;
+    }
+
+    public function disable_soft_delete(): self
+    {
+        $this->config['soft_delete'] = null;
+
+        return $this;
+    }
+
+    /**
+     * @param array<int|string, mixed> $assignments
+     * @return array<int, array{column: string, mode: string, value: mixed}>
+     */
+    private function normalizeSoftDeleteAssignmentsForConfig(array $assignments): array
+    {
+        $normalized = [];
+
+        foreach ($assignments as $key => $definition) {
+            if (is_int($key) && is_array($definition) && isset($definition['column'])) {
+                $column = (string) $definition['column'];
+                $normalized[] = $this->normalizeSoftDeleteAssignment($column, $definition, 'literal');
+                continue;
+            }
+
+            $column = null;
+            if (is_string($key) && $key !== '') {
+                $column = $key;
+            } elseif (is_array($definition) && isset($definition['column'])) {
+                $candidate = trim((string) $definition['column']);
+                if ($candidate !== '') {
+                    $column = $candidate;
+                }
+            }
+
+            if ($column === null) {
+                throw new InvalidArgumentException('Soft delete assignments must specify a column name.');
+            }
+
+            $normalized[] = $this->normalizeSoftDeleteAssignment($column, $definition, 'literal');
+        }
+
+        return $normalized;
+    }
+
+    private function normalizeSoftDeleteAssignment(string $column, mixed $definition, string $defaultMode): array
+    {
+        $column = trim($column);
+        if ($column === '') {
+            throw new InvalidArgumentException('Soft delete column name cannot be empty.');
+        }
+
+        $mode = $defaultMode;
+        $value = null;
+
+        if (is_array($definition)) {
+            if (isset($definition['column'])) {
+                $candidate = trim((string) $definition['column']);
+                if ($candidate !== '') {
+                    $column = $candidate;
+                }
+            }
+
+            if (isset($definition['mode'])) {
+                $mode = strtolower((string) $definition['mode']);
+            }
+
+            if (array_key_exists('value', $definition)) {
+                $value = $definition['value'];
+            }
+        } elseif ($definition !== null) {
+            $mode = 'literal';
+            $value = $definition;
+        } else {
+            if ($defaultMode !== 'timestamp') {
+                $mode = 'literal';
+            }
+        }
+
+        if (!in_array($mode, self::SUPPORTED_SOFT_DELETE_MODES, true)) {
+            $message = sprintf(
+                'Invalid soft delete mode "%s" for column "%s". Allowed modes: %s.',
+                $mode,
+                $column,
+                implode(', ', self::SUPPORTED_SOFT_DELETE_MODES)
+            );
+            throw new InvalidArgumentException($message);
+        }
+
+        if ($mode === 'expression') {
+            if (!is_string($value) || trim($value) === '') {
+                throw new InvalidArgumentException(sprintf('Soft delete expression for column "%s" must be a non-empty string.', $column));
+            }
+            $value = trim((string) $value);
+        }
+
+        return [
+            'column' => $column,
+            'mode'   => $mode,
+            'value'  => $mode === 'timestamp' ? null : ($value ?? null),
+        ];
+    }
+
+    private function normalizeBulkActionDefinition(string $name, string $label, array $options): array
+    {
+        $name = trim($name);
+        if ($name === '') {
+            throw new InvalidArgumentException('Bulk action name is required.');
+        }
+
+        $label = trim($label);
+        if ($label === '') {
+            $label = ucfirst($name);
+        }
+
+        $type = isset($options['type']) ? strtolower((string) $options['type']) : 'update';
+        if (!in_array($type, ['update', 'delete'], true)) {
+            throw new InvalidArgumentException('Bulk action type must be either "update" or "delete".');
+        }
+
+        $action = isset($options['action']) ? trim((string) $options['action']) : '';
+        if ($action === '') {
+            $action = $type === 'update' ? 'bulk_update' : 'batch_delete';
+        }
+
+        $mode = isset($options['mode']) ? trim((string) $options['mode']) : null;
+        if ($mode === '') {
+            $mode = null;
+        }
+
+        $confirm = isset($options['confirm']) ? trim((string) $options['confirm']) : null;
+        if ($confirm === '') {
+            $confirm = null;
+        }
+
+        $operation = isset($options['operation']) ? trim((string) $options['operation']) : null;
+        if ($operation === '') {
+            $operation = null;
+        }
+
+        $payload = isset($options['payload']) && is_array($options['payload']) ? $options['payload'] : null;
+
+        $result = [
+            'name'   => $name,
+            'label'  => $label,
+            'type'   => $type,
+            'action' => $action,
+        ];
+
+        if ($type === 'update') {
+            $fieldsOption = $options['fields'] ?? [];
+            if (!is_array($fieldsOption)) {
+                throw new InvalidArgumentException('Bulk update action requires a fields array.');
+            }
+
+            $fields = [];
+            foreach ($fieldsOption as $column => $value) {
+                if (!is_string($column)) {
+                    continue;
+                }
+
+                $normalizedColumn = trim($column);
+                if ($normalizedColumn === '') {
+                    continue;
+                }
+
+                $fields[$normalizedColumn] = $value;
+            }
+
+            if ($fields === []) {
+                throw new InvalidArgumentException('Bulk update action requires at least one column assignment.');
+            }
+
+            $result['fields'] = $fields;
+        }
+
+        if ($mode !== null) {
+            $result['mode'] = $mode;
+        }
+
+        if ($confirm !== null) {
+            $result['confirm'] = $confirm;
+        }
+
+        if ($operation !== null) {
+            $result['operation'] = $operation;
+        }
+
+        if ($payload !== null) {
+            $result['payload'] = $payload;
+        }
+
+        return $result;
+    }
+
+    private function isSoftDeleteEnabled(): bool
+    {
+        $config = $this->config['soft_delete'] ?? null;
+        if (!is_array($config)) {
+            return false;
+        }
+
+        $assignments = $config['assignments'] ?? [];
+        return is_array($assignments) && $assignments !== [];
+    }
+
+    /**
+     * @return array<int, array{column: string, mode: string, value: mixed}>
+     */
+    private function getSoftDeleteAssignments(): array
+    {
+        if (!$this->isSoftDeleteEnabled()) {
+            return [];
+        }
+
+        /** @var array<int, array{column: string, mode: string, value: mixed}> $assignments */
+        $assignments = $this->config['soft_delete']['assignments'];
+        return $assignments;
+    }
+
+    private function generateSoftDeleteTimestamp(): string
+    {
+        return date('Y-m-d H:i:s');
+    }
+
+    /**
+     * @param array<int, array{column: string, mode: string, value: mixed}> $assignments
+     * @param array<string, mixed> $parameters
+     * @param array<string, mixed> $resolvedValues
+     */
+    private function buildSoftDeleteUpdateClause(array $assignments, array &$parameters, string $parameterPrefix, array &$resolvedValues): string
+    {
+        if ($assignments === []) {
+            throw new RuntimeException('Soft delete configuration produced no assignments.');
+        }
+
+        $clauses = [];
+        $index = 0;
+
+        foreach ($assignments as $assignment) {
+            $column = $assignment['column'];
+            $mode = $assignment['mode'];
+            $columnSql = $this->quoteIdentifierPart($column);
+
+            if ($mode === 'expression') {
+                $expression = (string) $assignment['value'];
+                $clauses[] = sprintf('%s = %s', $columnSql, $expression);
+                $resolvedValues[$column] = null;
+                continue;
+            }
+
+            $value = $mode === 'timestamp'
+                ? $this->generateSoftDeleteTimestamp()
+                : ($assignment['value'] ?? null);
+
+            $placeholder = sprintf(':%s_%d', $parameterPrefix, $index++);
+            $clauses[] = sprintf('%s = %s', $columnSql, $placeholder);
+            $parameters[$placeholder] = $value;
+            $resolvedValues[$column] = $value;
+        }
+
+        return implode(', ', $clauses);
+    }
+
+    /**
+     * @param array<string, mixed>|null $row
+     * @param array<int, array{column: string, mode: string, value: mixed}> $assignments
+     * @param array<string, mixed> $resolvedValues
+     */
+    private function softDeleteAssignmentsSatisfied(?array $row, array $assignments, array $resolvedValues): bool
+    {
+        if ($row === null) {
+            return false;
+        }
+
+        foreach ($assignments as $assignment) {
+            if ($assignment['mode'] === 'expression') {
+                continue;
+            }
+
+            $column = $assignment['column'];
+            if (!array_key_exists($column, $row)) {
+                return false;
+            }
+
+            $expected = $resolvedValues[$column] ?? null;
+            $actual = $row[$column];
+
+            if ($expected === null) {
+                if ($actual !== null) {
+                    return false;
+                }
+                continue;
+            }
+
+            if ($actual == $expected) { // phpcs:ignore
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
     public function enable_delete_confirm(bool $enabled = true): self
     {
         $this->config['table_meta']['delete_confirm'] = (bool) $enabled;
+
+        return $this;
+    }
+
+    public function enable_export_csv(bool $enabled = true): self
+    {
+        $this->config['table_meta']['export_csv'] = (bool) $enabled;
+
+        return $this;
+    }
+
+    public function enable_export_excel(bool $enabled = true): self
+    {
+        $this->config['table_meta']['export_excel'] = (bool) $enabled;
 
         return $this;
     }
@@ -5049,7 +5509,84 @@ HTML;
         return [$rows, $columns];
     }
 
-    
+    private function normalizePrimaryKeyLookupKey(mixed $value): string
+    {
+        if ($value === null) {
+            return '__FASTCRUD_NULL__';
+        }
+
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+
+        return 'hash:' . md5(serialize($value));
+    }
+
+    /**
+     * @param array<int, mixed> $primaryKeyValues
+     * @return array<string, array<string, mixed>>
+     */
+    private function fetchRowsByPrimaryKeys(string $primaryKeyColumn, array $primaryKeyValues): array
+    {
+        if ($primaryKeyValues === []) {
+            return [];
+        }
+
+        $placeholders = [];
+        $parameters = [];
+        foreach (array_values($primaryKeyValues) as $index => $value) {
+            $placeholder = ':pk_list_' . $index;
+            $placeholders[] = $placeholder;
+            $parameters[$placeholder] = $value;
+        }
+
+        $sql = sprintf(
+            'SELECT * FROM %s WHERE %s IN (%s)',
+            $this->table,
+            $primaryKeyColumn,
+            implode(', ', $placeholders)
+        );
+
+        $statement = $this->connection->prepare($sql);
+        if ($statement === false) {
+            throw new RuntimeException('Failed to prepare batch record lookup.');
+        }
+
+        try {
+            $statement->execute($parameters);
+        } catch (PDOException $exception) {
+            throw new RuntimeException('Failed to fetch records for deletion.', 0, $exception);
+        }
+
+        $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+        if (!is_array($rows)) {
+            $rows = [];
+        }
+
+        $primaryKey = $this->getPrimaryKeyColumn();
+        $results = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $row['__fastcrud_primary_key'] = $primaryKey;
+            $row['__fastcrud_primary_value'] = $row[$primaryKey] ?? null;
+
+            /** @var array<string, mixed> $normalizedRow */
+            $normalizedRow = $this->applyFieldCallbacksToRow($row, 'edit');
+            $lookupValue = $normalizedRow[$primaryKeyColumn] ?? ($row[$primaryKeyColumn] ?? null);
+            $results[$this->normalizePrimaryKeyLookupKey($lookupValue)] = $normalizedRow;
+        }
+
+        return $results;
+    }
+
+
 
     /**
      * @param array<int, string> $columns
@@ -5416,6 +5953,77 @@ HTML;
         $perPage        = $perPage ?? $defaultPerPage;
         $page           = max(1, $page);
 
+        $beforePayload = [
+            'page'          => $page,
+            'per_page'      => $perPage,
+            'search_term'   => $searchTerm,
+            'search_column' => $searchColumn,
+        ];
+
+        $beforeContext = [
+            'operation' => 'fetch',
+            'stage'     => 'before',
+            'table'     => $this->table,
+            'id'        => $this->id,
+        ];
+
+        $beforeFetch = $this->dispatchLifecycleEvent('before_fetch', $beforePayload, $beforeContext, true);
+
+        if ($beforeFetch['cancelled']) {
+            return [
+                'rows'       => [],
+                'columns'    => [],
+                'pagination' => [
+                    'current_page' => $page,
+                    'total_pages'  => 0,
+                    'total_rows'   => 0,
+                    'per_page'     => $perPage ?? ($defaultPerPage ?? 0),
+                ],
+                'meta'       => [],
+            ];
+        }
+
+        $modifiedPayload = $beforeFetch['payload'];
+        if (is_array($modifiedPayload)) {
+            if (array_key_exists('page', $modifiedPayload)) {
+                $candidatePage = $modifiedPayload['page'];
+                if (is_numeric($candidatePage)) {
+                    $page = max(1, (int) $candidatePage);
+                }
+            }
+
+            if (array_key_exists('per_page', $modifiedPayload)) {
+                $candidatePerPage = $modifiedPayload['per_page'];
+                if ($candidatePerPage === null || $candidatePerPage === 'all') {
+                    $perPage = null;
+                } elseif (is_numeric($candidatePerPage)) {
+                    $perPage = (int) $candidatePerPage;
+                }
+            }
+
+            if (array_key_exists('search_term', $modifiedPayload)) {
+                $searchTermCandidate = $modifiedPayload['search_term'];
+                $searchTerm = $searchTermCandidate === null ? null : (string) $searchTermCandidate;
+            }
+
+            if (array_key_exists('search_column', $modifiedPayload)) {
+                $searchColumnCandidate = $modifiedPayload['search_column'];
+                if ($searchColumnCandidate === null) {
+                    $searchColumn = null;
+                } elseif (is_string($searchColumnCandidate)) {
+                    $searchColumnCandidate = trim($searchColumnCandidate);
+                    $searchColumn = $searchColumnCandidate === '' ? null : $searchColumnCandidate;
+                }
+            }
+        }
+
+        $beforeContext['resolved'] = [
+            'page'          => $page,
+            'per_page'      => $perPage,
+            'search_term'   => $searchTerm,
+            'search_column' => $searchColumn,
+        ];
+
         $countQuery = $this->buildCountQuery($searchTerm, $searchColumn);
         $countStatement = $this->connection->prepare($countQuery['sql']);
         if ($countStatement === false) {
@@ -5447,7 +6055,7 @@ HTML;
 
         $effectivePerPage = $limitValue ?? ($totalRows > 0 ? $totalRows : max(count($rows), 1));
 
-        return [
+        $result = [
             'rows'       => $rows,
             'columns'    => $columns,
             'pagination' => [
@@ -5458,6 +6066,21 @@ HTML;
             ],
             'meta'       => $this->buildMetaWithSummaries($columns, $searchTerm, $searchColumn),
         ];
+
+        $afterContext = [
+            'operation' => 'fetch',
+            'stage'     => 'after',
+            'table'     => $this->table,
+            'id'        => $this->id,
+            'resolved'  => $beforeContext['resolved'] ?? [],
+        ];
+
+        $afterFetch = $this->dispatchLifecycleEvent('after_fetch', $result, $afterContext, true);
+        if (!$afterFetch['cancelled'] && is_array($afterFetch['payload'])) {
+            $result = array_merge($result, $afterFetch['payload']);
+        }
+
+        return $result;
     }
 
     private function buildMetaWithSummaries(array $columns, ?string $searchTerm, ?string $searchColumn): array
@@ -5581,7 +6204,12 @@ HTML;
                     ? $tableMeta['duplicate_condition']
                     : null,
                 'batch_delete' => $this->isBatchDeleteEnabled(),
+                'bulk_actions' => isset($tableMeta['bulk_actions']) && is_array($tableMeta['bulk_actions'])
+                    ? array_values($tableMeta['bulk_actions'])
+                    : [],
                 'delete_confirm' => isset($tableMeta['delete_confirm']) ? (bool) $tableMeta['delete_confirm'] : true,
+                'export_csv' => isset($tableMeta['export_csv']) ? (bool) $tableMeta['export_csv'] : false,
+                'export_excel' => isset($tableMeta['export_excel']) ? (bool) $tableMeta['export_excel'] : false,
             ],
             'link_button'    => $this->buildLinkButtonConfig(),
             'primary_key'    => $this->getPrimaryKeyColumn(),
@@ -6319,7 +6947,29 @@ HTML;
                     : null,
                 'batch_delete' => isset($meta['batch_delete']) ? (bool) $meta['batch_delete'] : false,
                 'delete_confirm' => isset($meta['delete_confirm']) ? (bool) $meta['delete_confirm'] : true,
+                'export_csv' => isset($meta['export_csv']) ? (bool) $meta['export_csv'] : false,
+                'export_excel' => isset($meta['export_excel']) ? (bool) $meta['export_excel'] : false,
+                'bulk_actions' => [],
             ];
+
+            if (isset($meta['bulk_actions']) && is_array($meta['bulk_actions'])) {
+                $bulkActions = [];
+                foreach ($meta['bulk_actions'] as $entry) {
+                    if (!is_array($entry)) {
+                        continue;
+                    }
+
+                    $name = isset($entry['name']) ? (string) $entry['name'] : '';
+                    $label = isset($entry['label']) ? (string) $entry['label'] : $name;
+
+                    $options = $entry;
+                    unset($options['name'], $options['label']);
+
+                    $bulkActions[] = $this->normalizeBulkActionDefinition($name, $label, $options);
+                }
+
+                $this->config['table_meta']['bulk_actions'] = $bulkActions;
+            }
         }
 
         if (array_key_exists('link_button', $payload)) {
@@ -6391,6 +7041,27 @@ HTML;
 
             if ($normalized !== []) {
                 $this->config['field_callbacks'] = $normalized;
+            }
+        }
+
+        if (array_key_exists('soft_delete', $payload)) {
+            $softDeleteConfig = $payload['soft_delete'];
+            if ($softDeleteConfig === null || $softDeleteConfig === false) {
+                $this->config['soft_delete'] = null;
+            } elseif (is_array($softDeleteConfig)) {
+                $assignmentsPayload = $softDeleteConfig['assignments'] ?? $softDeleteConfig;
+                if (!is_array($assignmentsPayload)) {
+                    throw new InvalidArgumentException('soft_delete configuration must provide an assignments array.');
+                }
+
+                $normalizedAssignments = $this->normalizeSoftDeleteAssignmentsForConfig($assignmentsPayload);
+                if ($normalizedAssignments === []) {
+                    throw new InvalidArgumentException('soft_delete configuration requires at least one assignment.');
+                }
+
+                $this->config['soft_delete'] = ['assignments' => $normalizedAssignments];
+            } else {
+                throw new InvalidArgumentException('soft_delete configuration must be an array or null.');
             }
         }
 
@@ -7377,12 +8048,16 @@ HTML;
             throw new RuntimeException('Delete action is not permitted for this record.');
         }
 
+        $softDeleteAssignments = $this->getSoftDeleteAssignments();
+        $useSoftDelete = $softDeleteAssignments !== [];
+
         $beforeContext = [
             'operation'     => 'delete',
             'stage'         => 'before',
             'table'         => $this->table,
             'primary_key'   => $primaryKeyColumn,
             'primary_value' => $primaryKeyValue,
+            'mode'          => $useSoftDelete ? 'soft' : 'hard',
         ];
 
         $beforeDelete = $this->dispatchLifecycleEvent('before_delete', $currentRow, $beforeContext, true);
@@ -7393,20 +8068,40 @@ HTML;
         /** @var array<string, mixed> $rowForDeletion */
         $rowForDeletion = $beforeDelete['payload'];
 
-        $sql       = sprintf('DELETE FROM %s WHERE %s = :pk', $this->table, $primaryKeyColumn);
+        $parameters = [':pk' => $primaryKeyValue];
+        $resolvedValues = [];
+
+        if ($useSoftDelete) {
+            $updateClause = $this->buildSoftDeleteUpdateClause($softDeleteAssignments, $parameters, 'sd_single', $resolvedValues);
+            $sql = sprintf('UPDATE %s SET %s WHERE %s = :pk', $this->table, $updateClause, $primaryKeyColumn);
+        } else {
+            $sql = sprintf('DELETE FROM %s WHERE %s = :pk', $this->table, $primaryKeyColumn);
+        }
+
         $statement = $this->connection->prepare($sql);
 
         if ($statement === false) {
-            throw new RuntimeException('Failed to prepare delete statement.');
+            $message = $useSoftDelete
+                ? 'Failed to prepare soft delete statement.'
+                : 'Failed to prepare delete statement.';
+            throw new RuntimeException($message);
         }
 
         try {
-            $statement->execute([':pk' => $primaryKeyValue]);
+            $statement->execute($parameters);
         } catch (PDOException $exception) {
-            throw new RuntimeException('Failed to delete record.', 0, $exception);
+            $message = $useSoftDelete ? 'Failed to soft delete record.' : 'Failed to delete record.';
+            throw new RuntimeException($message, 0, $exception);
         }
 
         $deleted = $statement->rowCount() > 0;
+
+        if ($useSoftDelete && !$deleted) {
+            $postRow = $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
+            if ($this->softDeleteAssignmentsSatisfied($postRow, $softDeleteAssignments, $resolvedValues)) {
+                $deleted = true;
+            }
+        }
 
         $afterContext = [
             'operation'     => 'delete',
@@ -7415,6 +8110,7 @@ HTML;
             'primary_key'   => $primaryKeyColumn,
             'primary_value' => $primaryKeyValue,
             'deleted'       => $deleted,
+            'mode'          => $useSoftDelete ? 'soft' : 'hard',
         ];
 
         $afterContext['row'] = $rowForDeletion;
@@ -7464,31 +8160,295 @@ HTML;
             return ['deleted' => 0, 'failures' => []];
         }
 
-        $deletedCount = 0;
+        $softDeleteAssignments = $this->getSoftDeleteAssignments();
+        $useSoftDelete = $softDeleteAssignments !== [];
+
+        $initialRows = $this->fetchRowsByPrimaryKeys($primaryKeyColumn, $normalizedValues);
+
+        $targets = [];
         $failures = [];
+        $seenKeys = [];
 
         foreach ($normalizedValues as $value) {
-            try {
-                $deleted = $this->deleteRecord($primaryKeyColumn, $value);
-            } catch (RuntimeException $exception) {
-                $failures[] = [
-                    'value' => $value,
-                    'error' => $exception->getMessage(),
-                ];
-                continue;
-            }
+            $lookupKey = $this->normalizePrimaryKeyLookupKey($value);
 
-            if ($deleted) {
-                $deletedCount++;
-            } else {
+            if (isset($seenKeys[$lookupKey])) {
                 $failures[] = [
                     'value' => $value,
                     'error' => 'Record not found or already deleted.',
                 ];
+                continue;
+            }
+
+            $currentRow = $initialRows[$lookupKey] ?? null;
+            if ($currentRow === null) {
+                $failures[] = [
+                    'value' => $value,
+                    'error' => 'Record not found or already deleted.',
+                ];
+                continue;
+            }
+
+            if (!$this->isActionAllowedForRow('delete', $currentRow)) {
+                $failures[] = [
+                    'value' => $value,
+                    'error' => 'Delete action is not permitted for this record.',
+                ];
+                continue;
+            }
+
+            $beforeContext = [
+                'operation'     => 'delete',
+                'stage'         => 'before',
+                'table'         => $this->table,
+                'primary_key'   => $primaryKeyColumn,
+                'primary_value' => $value,
+                'mode'          => $useSoftDelete ? 'soft' : 'hard',
+            ];
+
+            $beforeDelete = $this->dispatchLifecycleEvent('before_delete', $currentRow, $beforeContext, true);
+            if ($beforeDelete['cancelled']) {
+                $failures[] = [
+                    'value' => $value,
+                    'error' => 'Record not found or already deleted.',
+                ];
+                continue;
+            }
+
+            /** @var array<string, mixed> $rowForDeletion */
+            $rowForDeletion = $beforeDelete['payload'];
+
+            $targets[] = [
+                'lookup_key' => $lookupKey,
+                'value'      => $value,
+                'row'        => $rowForDeletion,
+            ];
+
+            $seenKeys[$lookupKey] = true;
+        }
+
+        if ($targets === []) {
+            return ['deleted' => 0, 'failures' => $failures];
+        }
+
+        $placeholders = [];
+        $parameters = [];
+        foreach ($targets as $index => $target) {
+            $placeholder = ':pk_' . $index;
+            $placeholders[$index] = $placeholder;
+            $parameters[$placeholder] = $target['value'];
+        }
+
+        $resolvedValues = [];
+        $statement = null;
+        $manageTransaction = !$this->connection->inTransaction();
+
+        if ($manageTransaction) {
+            $this->connection->beginTransaction();
+        }
+
+        try {
+            if ($useSoftDelete) {
+                $updateClause = $this->buildSoftDeleteUpdateClause($softDeleteAssignments, $parameters, 'sd_batch', $resolvedValues);
+                $sql = sprintf(
+                    'UPDATE %s SET %s WHERE %s IN (%s)',
+                    $this->table,
+                    $updateClause,
+                    $primaryKeyColumn,
+                    implode(', ', $placeholders)
+                );
+            } else {
+                $sql = sprintf(
+                    'DELETE FROM %s WHERE %s IN (%s)',
+                    $this->table,
+                    $primaryKeyColumn,
+                    implode(', ', $placeholders)
+                );
+            }
+
+            $statement = $this->connection->prepare($sql);
+            if ($statement === false) {
+                $message = $useSoftDelete
+                    ? 'Failed to prepare soft delete statement.'
+                    : 'Failed to prepare delete statement.';
+                throw new RuntimeException($message);
+            }
+
+            $statement->execute($parameters);
+
+            if ($manageTransaction) {
+                $this->connection->commit();
+            }
+        } catch (PDOException $exception) {
+            if ($manageTransaction && $this->connection->inTransaction()) {
+                $this->connection->rollBack();
+            }
+            $message = $useSoftDelete ? 'Failed to soft delete records.' : 'Failed to delete records.';
+            throw new RuntimeException($message, 0, $exception);
+        } catch (RuntimeException $exception) {
+            if ($manageTransaction && $this->connection->inTransaction()) {
+                $this->connection->rollBack();
+            }
+            throw $exception;
+        }
+
+        $expected = count($targets);
+        $affected = $statement !== null ? $statement->rowCount() : 0;
+
+        $perRowStatus = array_fill(0, $expected, !$useSoftDelete ? true : ($affected === $expected));
+
+        $targetValues = array_map(static fn(array $entry) => $entry['value'], $targets);
+
+        if ($useSoftDelete && $affected !== $expected) {
+            $refetched = $this->fetchRowsByPrimaryKeys($primaryKeyColumn, $targetValues);
+            foreach ($targets as $index => $target) {
+                $lookupKey = $this->normalizePrimaryKeyLookupKey($target['value']);
+                $row = $refetched[$lookupKey] ?? null;
+                $perRowStatus[$index] = $this->softDeleteAssignmentsSatisfied($row, $softDeleteAssignments, $resolvedValues);
+
+                if (!$perRowStatus[$index]) {
+                    $failures[] = [
+                        'value' => $target['value'],
+                        'error' => 'Record not found or already deleted.',
+                    ];
+                }
             }
         }
 
+        if (!$useSoftDelete && $affected !== $expected) {
+            $remaining = $this->fetchRowsByPrimaryKeys($primaryKeyColumn, $targetValues);
+            foreach ($targets as $index => $target) {
+                $lookupKey = $this->normalizePrimaryKeyLookupKey($target['value']);
+                $stillExists = isset($remaining[$lookupKey]);
+                $perRowStatus[$index] = !$stillExists;
+
+                if ($stillExists) {
+                    $failures[] = [
+                        'value' => $target['value'],
+                        'error' => 'Record not found or already deleted.',
+                    ];
+                }
+            }
+        }
+
+        $deletedCount = 0;
+
+        foreach ($targets as $index => $target) {
+            $deleted = $perRowStatus[$index] ?? false;
+            if ($deleted) {
+                $deletedCount++;
+            }
+
+            $afterContext = [
+                'operation'     => 'delete',
+                'stage'         => 'after',
+                'table'         => $this->table,
+                'primary_key'   => $primaryKeyColumn,
+                'primary_value' => $target['value'],
+                'deleted'       => $deleted,
+                'mode'          => $useSoftDelete ? 'soft' : 'hard',
+            ];
+
+            $afterContext['row'] = $target['row'];
+
+            $this->dispatchLifecycleEvent('after_delete', $target['row'], $afterContext, true);
+        }
+
         return ['deleted' => $deletedCount, 'failures' => $failures];
+    }
+
+    /**
+     * Bulk update multiple records using the same field assignments.
+     *
+     * @param array<int, mixed> $primaryKeyValues
+     * @param array<string, mixed> $fields
+     * @return array{updated: int, failures: array<int, array{value: mixed, error: string}>}
+     */
+    public function updateRecords(string $primaryKeyColumn, array $primaryKeyValues, array $fields, string $mode = 'edit'): array
+    {
+        $primaryKeyColumn = trim($primaryKeyColumn);
+        if ($primaryKeyColumn === '') {
+            throw new InvalidArgumentException('Primary key column is required.');
+        }
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['create', 'edit', 'view'], true)) {
+            $mode = 'edit';
+        }
+
+        $columns = $this->getTableColumnsFor($this->table);
+        if (!in_array($primaryKeyColumn, $columns, true)) {
+            $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
+            throw new InvalidArgumentException($message);
+        }
+
+        $filteredFields = [];
+        foreach ($fields as $column => $value) {
+            if (!is_string($column)) {
+                continue;
+            }
+
+            $normalizedColumn = trim($column);
+            if ($normalizedColumn === '' || $normalizedColumn === $primaryKeyColumn) {
+                continue;
+            }
+
+            if (!in_array($normalizedColumn, $columns, true)) {
+                continue;
+            }
+
+            $filteredFields[$normalizedColumn] = $value;
+        }
+
+        if ($filteredFields === []) {
+            throw new InvalidArgumentException('At least one column value is required for bulk update.');
+        }
+
+        $normalizedValues = [];
+        foreach ($primaryKeyValues as $value) {
+            if ($value === null) {
+                continue;
+            }
+
+            if (is_string($value)) {
+                $candidate = trim($value);
+                if ($candidate === '') {
+                    continue;
+                }
+                $normalizedValues[] = $candidate;
+                continue;
+            }
+
+            $normalizedValues[] = $value;
+        }
+
+        if ($normalizedValues === []) {
+            return ['updated' => 0, 'failures' => []];
+        }
+
+        $updatedCount = 0;
+        $failures = [];
+
+        foreach ($normalizedValues as $value) {
+            try {
+                $result = $this->updateRecord($primaryKeyColumn, $value, $filteredFields, $mode);
+                if ($result === null) {
+                    $failures[] = [
+                        'value' => $value,
+                        'error' => 'Record not found or could not be updated.',
+                    ];
+                } else {
+                    $updatedCount++;
+                }
+            } catch (Throwable $exception) {
+                $failures[] = [
+                    'value' => $value,
+                    'error' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        return ['updated' => $updatedCount, 'failures' => $failures];
     }
 
     /**
@@ -7881,7 +8841,69 @@ HTML;
             throw new InvalidArgumentException($message);
         }
 
-        return $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
+        $beforePayload = [
+            'primary_key_column' => $primaryKeyColumn,
+            'primary_key_value'  => $primaryKeyValue,
+        ];
+
+        $beforeContext = [
+            'operation' => 'read',
+            'stage'     => 'before',
+            'table'     => $this->table,
+            'id'        => $this->id,
+        ];
+
+        $beforeRead = $this->dispatchLifecycleEvent('before_read', $beforePayload, $beforeContext, true);
+        if ($beforeRead['cancelled']) {
+            return null;
+        }
+
+        $resolvedBeforePayload = $beforePayload;
+        if (is_array($beforeRead['payload'])) {
+            $resolvedBeforePayload = array_merge($resolvedBeforePayload, $beforeRead['payload']);
+        }
+
+        if (isset($resolvedBeforePayload['primary_key_column'])) {
+            $candidateColumn = trim((string) $resolvedBeforePayload['primary_key_column']);
+            if ($candidateColumn !== '') {
+                $primaryKeyColumn = $candidateColumn;
+            }
+        }
+
+        if (!in_array($primaryKeyColumn, $columns, true)) {
+            $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
+            throw new InvalidArgumentException($message);
+        }
+
+        if (array_key_exists('primary_key_value', $resolvedBeforePayload)) {
+            $primaryKeyValue = $resolvedBeforePayload['primary_key_value'];
+        }
+
+        $row = $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
+
+        $afterPayload = [
+            'row'                => $row,
+            'primary_key_column' => $primaryKeyColumn,
+            'primary_key_value'  => $primaryKeyValue,
+        ];
+
+        $afterContext = [
+            'operation' => 'read',
+            'stage'     => 'after',
+            'table'     => $this->table,
+            'id'        => $this->id,
+            'found'     => $row !== null,
+        ];
+
+        $afterRead = $this->dispatchLifecycleEvent('after_read', $afterPayload, $afterContext, true);
+        if (!$afterRead['cancelled'] && is_array($afterRead['payload'])) {
+            $resolvedAfterPayload = array_merge($afterPayload, $afterRead['payload']);
+            if (array_key_exists('row', $resolvedAfterPayload)) {
+                $row = $resolvedAfterPayload['row'];
+            }
+        }
+
+        return is_array($row) ? $row : null;
     }
 
     /**
@@ -7952,6 +8974,8 @@ HTML;
         var batchDeleteButton = null;
         var selectAllCheckbox = null;
         var selectedRows = {};
+        var bulkActions = [];
+        var allowBatchDeleteButton = false;
         var formConfig = {
             layouts: {},
             default_tabs: {},
@@ -8550,18 +9574,37 @@ HTML;
         function updateBatchDeleteButtonState() {
             if (batchDeleteButton && batchDeleteButton.length) {
                 var selectedCount = getSelectedCount();
-                var enabled = batchDeleteEnabled && deleteEnabled && selectedCount > 0;
+                var enabled = allowBatchDeleteButton && selectedCount > 0;
                 batchDeleteButton.prop('disabled', !enabled);
                 batchDeleteButton.toggleClass('d-none', selectedCount === 0);
             }
 
             if (selectAllCheckbox && selectAllCheckbox.length) {
-                var allowSelection = batchDeleteEnabled && deleteEnabled;
+                var allowSelection = batchDeleteEnabled;
                 selectAllCheckbox.prop('disabled', !allowSelection);
                 if (!allowSelection) {
                     selectAllCheckbox.prop('checked', false).prop('indeterminate', false);
                 }
             }
+
+            updateBulkActionState();
+        }
+
+        function updateBulkActionState() {
+            var wrapper = metaContainer.find('.fastcrud-bulk-actions');
+            if (!wrapper.length) {
+                return;
+            }
+
+            var select = wrapper.find('.fastcrud-bulk-action-select');
+            var applyBtn = wrapper.find('.fastcrud-bulk-apply-btn');
+            if (!applyBtn.length) {
+                return;
+            }
+
+            var hasSelection = getSelectedCount() > 0;
+            var selectedAction = select.length ? select.val() : '';
+            applyBtn.prop('disabled', !(hasSelection && selectedAction));
         }
 
         function refreshSelectAllState() {
@@ -8586,7 +9629,7 @@ HTML;
         }
 
         function toggleSelectAll(shouldSelect) {
-            if (!batchDeleteEnabled || !deleteEnabled) {
+            if (!batchDeleteEnabled) {
                 return;
             }
 
@@ -8666,6 +9709,7 @@ HTML;
 
             var tableMeta = meta.table && typeof meta.table === 'object' ? meta.table : {};
             clientConfig.table_meta = tableMeta;
+            bulkActions = Array.isArray(tableMeta.bulk_actions) ? tableMeta.bulk_actions : [];
 
             addEnabled = tableMeta.hasOwnProperty('add') ? !!tableMeta.add : true;
             viewEnabled = tableMeta.hasOwnProperty('view') ? !!tableMeta.view : true;
@@ -8675,7 +9719,9 @@ HTML;
             if (tableMeta.hasOwnProperty('delete_confirm')) {
                 deleteConfirm = !!tableMeta.delete_confirm;
             }
-            batchDeleteEnabled = !!tableMeta.batch_delete && deleteEnabled;
+            allowBatchDeleteButton = !!tableMeta.batch_delete && deleteEnabled;
+            var hasBulkActions = Array.isArray(bulkActions) && bulkActions.length > 0;
+            batchDeleteEnabled = allowBatchDeleteButton || hasBulkActions;
             if (!batchDeleteEnabled) {
                 clearSelection();
             }
@@ -8885,12 +9931,62 @@ HTML;
             var actionsWrapper = $('<div class="d-flex align-items-center gap-2 ms-auto"></div>');
             var hasActions = false;
 
-            if (batchDeleteEnabled && deleteEnabled) {
+            if (allowBatchDeleteButton) {
                 actionsWrapper.append(
                     $('<button type="button" class="btn btn-sm btn-danger fastcrud-batch-delete-btn d-none" disabled></button>')
                         .attr('title', 'Delete selected records')
                         .attr('aria-label', 'Delete selected records')
                         .text('Delete Selected')
+                );
+                hasActions = true;
+            }
+
+            if (Array.isArray(bulkActions) && bulkActions.length) {
+                var bulkWrapper = $('<div class="d-flex align-items-center gap-2 fastcrud-bulk-actions"></div>');
+                var bulkSelect = $('<select class="form-select form-select-sm fastcrud-bulk-action-select"></select>');
+                bulkSelect.append('<option value="">Bulk actions</option>');
+
+                bulkActions.forEach(function(action, index) {
+                    if (!action || typeof action !== 'object') {
+                        return;
+                    }
+
+                    var label = '';
+                    if (typeof action.label === 'string' && action.label.trim() !== '') {
+                        label = action.label.trim();
+                    } else if (typeof action.name === 'string' && action.name.trim() !== '') {
+                        label = action.name.trim();
+                    } else {
+                        label = 'Action ' + (index + 1);
+                    }
+
+                    bulkSelect.append(
+                        $('<option></option>').attr('value', String(index)).text(label)
+                    );
+                });
+
+                bulkWrapper.append(bulkSelect);
+                bulkWrapper.append($('<button type="button" class="btn btn-sm btn-outline-primary fastcrud-bulk-apply-btn" disabled>Apply</button>'));
+                actionsWrapper.append(bulkWrapper);
+                hasActions = true;
+            }
+
+            if (tableMeta.export_csv) {
+                actionsWrapper.append(
+                    $('<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-export-csv-btn"></button>')
+                        .attr('title', 'Export as CSV')
+                        .attr('aria-label', 'Export as CSV')
+                        .text('Export CSV')
+                );
+                hasActions = true;
+            }
+
+            if (tableMeta.export_excel) {
+                actionsWrapper.append(
+                    $('<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-export-excel-btn"></button>')
+                        .attr('title', 'Export for Excel')
+                        .attr('aria-label', 'Export for Excel')
+                        .text('Export Excel')
                 );
                 hasActions = true;
             }
@@ -8918,6 +10014,8 @@ HTML;
             } else {
                 metaContainer.addClass('d-none');
             }
+
+            updateBulkActionState();
         }
 
         function applyHeaderMetadata() {
@@ -10156,6 +11254,11 @@ HTML;
                     rowDeleteAllowed = !!rowMeta.delete_allowed;
                 }
 
+                var rowEditAllowed = editEnabled;
+                if (rowEditAllowed && Object.prototype.hasOwnProperty.call(rowMeta, 'edit_allowed')) {
+                    rowEditAllowed = !!rowMeta.edit_allowed;
+                }
+
                 if (hasNested) {
                     var isExpanded = rowKey && nestedRowStates[rowKey];
                     if (isExpanded && rowKey) {
@@ -10189,11 +11292,22 @@ HTML;
                     cells += '<td class="fastcrud-nested-cell"><button ' + toggleAttrs.join(' ') + '>' + iconHtml + '</button></td>';
                 }
 
-                if (batchDeleteEnabled && deleteEnabled) {
+                if (batchDeleteEnabled) {
                     var checkboxAttrs = ['type="checkbox"', 'class="form-check-input fastcrud-select-row"'];
-                    var selectable = rowDeleteAllowed
-                        && rowPrimaryKeyColumn
-                        && primaryValueString !== '';
+                    var selectable = rowPrimaryKeyColumn && primaryValueString !== '';
+
+                    if (selectable) {
+                        var selectionAllowed = false;
+                        if (allowBatchDeleteButton) {
+                            selectionAllowed = rowDeleteAllowed;
+                        }
+
+                        if (!selectionAllowed && Array.isArray(bulkActions) && bulkActions.length) {
+                            selectionAllowed = rowEditAllowed || rowDeleteAllowed;
+                        }
+
+                        selectable = selectionAllowed;
+                    }
 
                     if (selectable) {
                         var selectKey = selectionKey(rowPrimaryKeyColumn, primaryValueString);
@@ -12971,14 +14085,13 @@ HTML;
             });
         }
 
-        function requestBatchDelete() {
-            if (!batchDeleteEnabled || !deleteEnabled) {
-                return;
-            }
-
+        function collectSelectionForBulk(showFeedback) {
             var keys = Object.keys(selectedRows);
             if (!keys.length) {
-                return;
+                if (showFeedback) {
+                    showError('Select at least one row before applying a bulk action.');
+                }
+                return null;
             }
 
             var grouped = {};
@@ -12998,20 +14111,44 @@ HTML;
 
             var columns = Object.keys(grouped);
             if (!columns.length) {
-                showError('No valid selections available for batch delete.');
-                return;
+                if (showFeedback) {
+                    showError('No valid selections available for this bulk action.');
+                }
+                return null;
             }
 
             if (columns.length > 1) {
-                showError('Batch delete requires all selections to share the same primary key column.');
-                return;
+                if (showFeedback) {
+                    showError('Bulk actions require all selections to share the same primary key column.');
+                }
+                return null;
             }
 
             var pkColumn = columns[0];
             var values = grouped[pkColumn];
             if (!values.length) {
+                if (showFeedback) {
+                    showError('No values available for the selected rows.');
+                }
+                return null;
+            }
+
+            return { column: pkColumn, values: values };
+        }
+
+        function requestBatchDelete() {
+            if (!allowBatchDeleteButton) {
+                showError('Bulk delete is not enabled for this table.');
                 return;
             }
+
+            var selection = collectSelectionForBulk(true);
+            if (!selection) {
+                return;
+            }
+
+            var pkColumn = selection.column;
+            var values = selection.values;
 
             var confirmationMessage = values.length === 1
                 ? 'Are you sure you want to delete the selected record?'
@@ -13021,36 +14158,158 @@ HTML;
                 return;
             }
 
+            sendBulkAjax({
+                fastcrud_ajax: '1',
+                action: 'batch_delete',
+                table: tableName,
+                id: tableId,
+                primary_key_column: pkColumn,
+                primary_key_values: values,
+                config: JSON.stringify(clientConfig)
+            }, 'Failed to delete selected records.');
+        }
+
+        function sendBulkAjax(payload, defaultMessage) {
             $.ajax({
                 url: window.location.pathname,
                 type: 'POST',
                 dataType: 'json',
-                data: {
-                    fastcrud_ajax: '1',
-                    action: 'batch_delete',
-                    table: tableName,
-                    id: tableId,
-                    primary_key_column: pkColumn,
-                    primary_key_values: values,
-                    config: JSON.stringify(clientConfig)
-                },
+                data: payload,
                 success: function(response) {
                     if (response && response.success) {
                         clearSelection();
                         loadTableData(currentPage);
+                        metaContainer.find('.fastcrud-bulk-action-select').val('');
+                        updateBulkActionState();
                     } else {
-                        var message = response && response.error ? response.error : 'Failed to delete selected records.';
+                        var message = response && response.error ? response.error : defaultMessage;
                         showError(message);
                     }
                 },
                 error: function(_, __, error) {
-                    showError('Failed to delete selected records: ' + error);
+                    showError(defaultMessage + ' ' + error);
                 }
             });
         }
 
+        function requestBulkAction(actionKey) {
+            if (!Array.isArray(bulkActions) || !bulkActions.length) {
+                showError('No bulk actions are configured.');
+                return;
+            }
+
+            var index = parseInt(actionKey, 10);
+            if (isNaN(index) || index < 0 || index >= bulkActions.length) {
+                showError('Invalid bulk action selected.');
+                return;
+            }
+
+            var action = bulkActions[index] || {};
+            var type = typeof action.type === 'string' ? action.type.toLowerCase() : 'update';
+
+            if (type === 'delete') {
+                requestBatchDelete();
+                return;
+            }
+
+            var selection = collectSelectionForBulk(true);
+            if (!selection) {
+                return;
+            }
+
+            if (action.confirm && !window.confirm(String(action.confirm))) {
+                return;
+            }
+
+            if (type !== 'update') {
+                var fallbackAction = typeof action.action === 'string' && action.action !== '' ? action.action : 'bulk_action';
+                var payload = {
+                    fastcrud_ajax: '1',
+                    action: fallbackAction,
+                    table: tableName,
+                    id: tableId,
+                    primary_key_column: selection.column,
+                    primary_key_values: selection.values,
+                    config: JSON.stringify(clientConfig)
+                };
+
+                if (action.mode) {
+                    payload.mode = action.mode;
+                }
+
+                if (action.operation) {
+                    payload.operation = action.operation;
+                }
+
+                if (action.payload && typeof action.payload === 'object') {
+                    payload.payload = JSON.stringify(action.payload);
+                }
+
+                sendBulkAjax(payload, 'Bulk action failed.');
+                return;
+            }
+
+            if (!action.fields || typeof action.fields !== 'object') {
+                showError('Bulk update action is missing field assignments.');
+                return;
+            }
+
+            var payload = {
+                fastcrud_ajax: '1',
+                action: typeof action.action === 'string' && action.action !== '' ? action.action : 'bulk_update',
+                table: tableName,
+                id: tableId,
+                primary_key_column: selection.column,
+                primary_key_values: selection.values,
+                fields: JSON.stringify(action.fields),
+                config: JSON.stringify(clientConfig)
+            };
+
+            if (action.mode) {
+                payload.mode = action.mode;
+            }
+
+            if (action.operation) {
+                payload.operation = action.operation;
+            }
+
+            sendBulkAjax(payload, 'Failed to apply bulk update.');
+        }
+
+        function startExport(format) {
+            var action = format === 'excel' ? 'export_excel' : 'export_csv';
+            var params = new URLSearchParams();
+            params.set('fastcrud_ajax', '1');
+            params.set('action', action);
+            params.set('table', tableName);
+            params.set('id', tableId);
+            params.set('config', JSON.stringify(clientConfig));
+
+            if (primaryKeyColumn) {
+                params.set('primary_key_column', primaryKeyColumn);
+            }
+
+            if (currentSearchTerm) {
+                params.set('search_term', currentSearchTerm);
+            }
+
+            if (currentSearchColumn) {
+                params.set('search_column', currentSearchColumn);
+            }
+
+            var selection = collectSelectionForBulk(false);
+            if (selection && selection.values && selection.values.length) {
+                selection.values.forEach(function(value) {
+                    params.append('primary_key_values[]', value);
+                });
+            }
+
+            var url = window.location.pathname + '?' + params.toString();
+            window.open(url, '_blank');
+        }
+
         table.on('change', '.fastcrud-select-row', function() {
-            if (!batchDeleteEnabled || !deleteEnabled) {
+            if (!batchDeleteEnabled) {
                 $(this).prop('checked', false);
                 return;
             }
@@ -13080,6 +14339,43 @@ HTML;
             event.preventDefault();
             event.stopPropagation();
             requestBatchDelete();
+            return false;
+        });
+
+        metaContainer.on('change', '.fastcrud-bulk-action-select', function() {
+            updateBulkActionState();
+        });
+
+        metaContainer.on('click', '.fastcrud-bulk-apply-btn', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            var select = $(this).closest('.fastcrud-bulk-actions').find('.fastcrud-bulk-action-select');
+            if (!select.length) {
+                showError('Select a bulk action to apply.');
+                return false;
+            }
+
+            var actionIndex = select.val();
+            if (!actionIndex) {
+                showError('Select a bulk action to apply.');
+                return false;
+            }
+
+            requestBulkAction(actionIndex);
+            return false;
+        });
+
+        metaContainer.on('click', '.fastcrud-export-csv-btn', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            startExport('csv');
+            return false;
+        });
+
+        metaContainer.on('click', '.fastcrud-export-excel-btn', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            startExport('excel');
             return false;
         });
 

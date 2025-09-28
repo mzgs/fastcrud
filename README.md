@@ -80,11 +80,14 @@ Crud::init([
 - Query helpers: flexible limits, ordering, and `where` filters
 - Relation helpers for lookup columns and joins
 - Built-in search toolbar powered by `search_columns`
-- Inline editing, deletion, and metadata-backed JavaScript hooks
+- Inline editing, deletion (hard or soft), and metadata-backed JavaScript hooks
 - Column presentation controls (labels, patterns, callbacks, classes, widths, highlights)
 - Table metadata, summary rows, custom column buttons, and duplicate toggles
 - Form engine with tabbed layouts, hidden field orchestration, and behaviour flags
 - Validation helpers, unique checks, and templated defaults directly in edit workflows
+- Lifecycle audit hooks across create/update/delete plus read/fetch phases
+- Bulk actions for batched updates/deletes with UI helpers and AJAX endpoints
+- One-click CSV / Excel exports that respect current filters and selections
 
 The sections below show how to enable each data-layer feature introduced in the latest release.
 
@@ -170,7 +173,7 @@ Joined columns can be referenced with dot notation, which FastCRUD converts to i
 
 ### Lifecycle Callbacks
 
-FastCRUD exposes lifecycle hooks so you can massage data or trigger side-effects around insert, update, and delete operations.
+FastCRUD exposes lifecycle hooks so you can massage data or trigger side-effects around insert, update, delete, read, and fetch operations.
 
 ```php
 $crud = new Crud('users');
@@ -181,11 +184,125 @@ $crud->before_update([AuditHooks::class, 'stampUpdater']);
 $crud->after_update([AuditHooks::class, 'logUpdate']);
 $crud->before_delete([AuditHooks::class, 'guardDelete']);
 $crud->after_delete([AuditHooks::class, 'logDelete']);
+$crud->before_read([AuditHooks::class, 'authorize']);
+$crud->after_read([AuditHooks::class, 'maskSensitiveColumns']);
+$crud->before_fetch([AuditHooks::class, 'injectDefaultFilters']);
+$crud->after_fetch([AuditHooks::class, 'attachAuditMeta']);
 ```
 
-Each callback receives three arguments: the current payload (the data being inserted or updated, or the row slated for deletion), a context array (with keys such as `operation`, `stage`, `table`, `mode`, `primary_key`, and `primary_value`), and the active `Crud` instance. For `before_*` hooks, return an updated array to mutate the payload or `false` to cancel the operation. `after_*` hooks can return a modified row array, which FastCRUD forwards back to the client. Duplicate flows trigger the insert callbacks as well, and `before_delete` runs before both single and batch deletions.
+Each callback receives three arguments: the current payload (the data being inserted/updated, the row fetched, or the row slated for deletion), a context array (with keys such as `operation`, `stage`, `table`, `mode`, `primary_key`, and `primary_value`), and the active `Crud` instance. For `before_*` hooks, return an updated array to mutate the payload or `false` to cancel the operation. `after_*` hooks can return a modified row array, which FastCRUD forwards back to the client. Duplicate flows trigger the insert callbacks as well, `before_delete` runs before both single and batch deletions, and the new fetch/read hooks let you enforce per-request filters or log reads without altering query builders manually.
 
 Because FastCRUD serializes callbacks across AJAX requests, register them using string callables or `[ClassName::class, 'method']` pairs—anonymous functions are not supported.
+
+### Soft Delete Mode
+
+Swap hard deletes for timestamp (or custom) updates by enabling soft delete assignments. Each assignment can stamp a literal value, run an expression, or default to the current timestamp.
+
+```php
+$crud
+    ->enable_soft_delete('deleted_at')               // defaults to current timestamp
+    ->add_bulk_action('archive', 'Archive Selected', [
+        'type'   => 'update',
+        'fields' => ['status' => 'archived'],
+        'confirm' => 'Archive the selected records?',
+    ]);
+
+// More advanced example
+$crud->set_soft_delete_assignments([
+    'deleted_at' => ['mode' => 'timestamp'],
+    'deleted_by' => ['mode' => 'literal', 'value' => $currentUserId],
+    'deleted_flag' => ['mode' => 'literal', 'value' => 1],
+]);
+```
+
+Soft deletes work for both single `deleteRecord()` calls and batch deletions triggered from the UI or AJAX endpoints. Lifecycle events still receive the original row data and a `mode => 'soft'` context flag so you can tailor audit logic.
+
+### Bulk Actions & Exports
+
+Expose custom batched operations (status changes, price adjustments, etc.) via `add_bulk_action()` or `set_bulk_actions()`. Each action becomes selectable in the toolbar with matching AJAX handling built-in.
+
+```php
+$crud
+    ->enable_batch_delete() // optional, keeps the delete button
+    ->add_bulk_action('publish', 'Publish Selected', [
+        'type'   => 'update',
+        'fields' => ['status' => 'published'],
+        'mode'   => 'edit',
+    ])
+    ->add_bulk_action('trash', 'Move to Trash', [
+        'type'    => 'delete',
+        'confirm' => 'Move the selected rows to trash?'
+    ])
+    ->enable_export_csv()
+    ->enable_export_excel();
+```
+
+Users can now apply the configured action to any selection, and export the current table (respecting search filters and selections) as CSV or Excel with a single click. Server-side endpoints are wired through `CrudAjax` (`bulk_update`, `bulk_action`, `export_csv`, and `export_excel`) so you can call them from other clients if required.
+
+#### Example: Mass Price Adjustment
+
+```php
+<?php
+
+use FastCrud\Crud;
+
+$products = new Crud('products');
+
+$products
+    ->add_bulk_action('price_increase', 'Increase Prices 5%', [
+        'type'    => 'update',
+        'fields'  => ['price' => '__INCREASE_5__'], // hook below computes the new value
+        'mode'    => 'edit',
+        'confirm' => 'Increase selected prices by 5%?'
+    ]);
+
+$products->before_update([ProductBulkActions::class, 'applyPriceIncrease']);
+
+final class ProductBulkActions
+{
+    public static function applyPriceIncrease(array $fields, array $context, Crud $crud): array
+    {
+        if (($fields['price'] ?? null) === '__INCREASE_5__') {
+            $current = $context['current_row']['price'] ?? null;
+            if ($current !== null) {
+                $fields['price'] = round((float) $current * 1.05, 2);
+            } else {
+                unset($fields['price']);
+            }
+        }
+
+        return $fields;
+    }
+}
+```
+
+#### Example: Assign Owners
+
+```php
+$tickets
+    ->add_bulk_action('assign_owner', 'Assign To...', [
+        'type'   => 'update',
+        'fields' => ['owner_id' => $currentUserId],
+        'mode'   => 'edit',
+        'confirm' => 'Assign the selected tickets to yourself?'
+    ]);
+```
+
+#### Example: Custom Endpoint
+
+If you need bespoke behaviour (API calls, notifications, etc.), point the action at a custom operation and handle it in your application:
+
+```php
+$crud->add_bulk_action('notify', 'Send Notification', [
+    'action'    => 'bulk_action',
+    'operation' => 'notify',
+    'payload'   => ['channel' => 'email'],
+    'confirm'   => 'Email everyone in this selection?'
+]);
+
+// In your controller layer, intercept action=bulk_action&operation=notify
+// and process the primary_key_values however you need.
+```
 
 ### Joining Related Tables
 

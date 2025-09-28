@@ -121,6 +121,13 @@ Crud::init([
                     ->order_by('id', 'desc')
                     ->relation('user_id', 'users', 'id', 'username')
                     ->enable_batch_delete(true)
+                    ->add_bulk_action('publish', 'Publish Selected', [
+                        'type'   => 'update',
+                        'fields' => ['is_featured' => 1],
+                        'mode'   => 'edit',
+                    ])
+                     ->enable_export_csv()
+                    ->enable_export_excel()
                     
                     // ->join('user_id', 'users', 'id','user')
                     // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
