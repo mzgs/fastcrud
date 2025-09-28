@@ -6,6 +6,7 @@ require __DIR__ . '/../vendor/autoload.php';
 
 use FastCrud\Crud;
 use FastCrud\CrudConfig;
+use FastCrud\CrudStyle;
 
 function fc_before_create_defaults(array $fields, array $context, Crud $crud): array
 {
@@ -71,6 +72,9 @@ Crud::init([
     'username' => 'root',
     'password' => '1',
 ]);
+
+CrudStyle::$bools_in_grid_color = 'success';
+
 
   
 

@@ -18,12 +18,8 @@ class CrudConfig
 
     // show boolean fields as switches in grid cells
     public static bool $bools_in_grid = true;
-    // default color for boolean switches in grid (bootstrap theme key or CSS color)
-    // Examples: 'primary', 'success', '#0d6efd', 'rgb(13,110,253)', 'var(--bs-primary)'
-    public static string $bools_in_grid_color = 'primary';
 
-    // Example values: 'table-warning', 'table-active', 'table-info text-dark'
-    public static string $edit_row_highlight_class = 'table-active';
+    // For default CSS classes and colours refer to CrudStyle::$* properties.
 
     /**
      * Store database configuration values for later use.

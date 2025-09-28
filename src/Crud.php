@@ -369,11 +369,14 @@ class Crud
             }
         }
 
+        $styles = $this->getStyleDefaults();
+        $defaultButtonClass = $styles['link_button_class'] ?? 'btn btn-sm btn-outline-secondary';
+
         return [
             'url'          => $url,
             'icon'         => $iconClass,
             'label'        => $label,
-            'button_class' => $buttonClass ?? 'btn btn-sm btn-outline-secondary',
+            'button_class' => $buttonClass ?? $defaultButtonClass,
             'options'      => $options,
         ];
     }
@@ -1435,7 +1438,8 @@ class Crud
 
         $buttonClass = isset($config['button_class']) ? trim((string) $config['button_class']) : '';
         if ($buttonClass === '') {
-            $buttonClass = 'btn btn-sm btn-outline-secondary';
+            $styles      = $this->getStyleDefaults();
+            $buttonClass = $styles['link_button_class'] ?? 'btn btn-sm btn-outline-secondary';
         }
 
         $options = [];
@@ -5681,6 +5685,71 @@ HTML;
         return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
+    /**
+     * Merge CrudStyle overrides with library defaults.
+     *
+     * @return array<string, string>
+     */
+    private function getStyleDefaults(): array
+    {
+        $defaults = [
+            'link_button_class'             => 'btn btn-sm btn-outline-secondary',
+            'panel_cancel_button_class'     => 'btn btn-outline-secondary',
+            'panel_save_button_class'       => 'btn btn-primary',
+            'search_button_class'           => 'btn btn-outline-primary',
+            'search_clear_button_class'     => 'btn btn-outline-secondary',
+            'batch_delete_button_class'     => 'btn btn-sm btn-danger',
+            'bulk_apply_button_class'       => 'btn btn-sm btn-outline-primary',
+            'export_csv_button_class'       => 'btn btn-sm btn-outline-secondary',
+            'export_excel_button_class'     => 'btn btn-sm btn-outline-secondary',
+            'add_button_class'              => 'btn btn-sm btn-success',
+            'duplicate_action_button_class' => 'btn btn-sm btn-info',
+            'view_action_button_class'      => 'btn btn-sm btn-secondary',
+            'edit_action_button_class'      => 'btn btn-sm btn-primary',
+            'delete_action_button_class'    => 'btn btn-sm btn-danger',
+            'nested_toggle_button_classes'  => 'btn btn-link p-0',
+            'edit_row_highlight_class'      => 'table-active',
+            'bools_in_grid_color'           => 'primary',
+        ];
+
+        $overrides = [
+            'link_button_class'             => CrudStyle::$link_button_class ?? '',
+            'panel_cancel_button_class'     => CrudStyle::$panel_cancel_button_class ?? '',
+            'panel_save_button_class'       => CrudStyle::$panel_save_button_class ?? '',
+            'search_button_class'           => CrudStyle::$search_button_class ?? '',
+            'search_clear_button_class'     => CrudStyle::$search_clear_button_class ?? '',
+            'batch_delete_button_class'     => CrudStyle::$batch_delete_button_class ?? '',
+            'bulk_apply_button_class'       => CrudStyle::$bulk_apply_button_class ?? '',
+            'export_csv_button_class'       => CrudStyle::$export_csv_button_class ?? '',
+            'export_excel_button_class'     => CrudStyle::$export_excel_button_class ?? '',
+            'add_button_class'              => CrudStyle::$add_button_class ?? '',
+            'duplicate_action_button_class' => CrudStyle::$duplicate_action_button_class ?? '',
+            'view_action_button_class'      => CrudStyle::$view_action_button_class ?? '',
+            'edit_action_button_class'      => CrudStyle::$edit_action_button_class ?? '',
+            'delete_action_button_class'    => CrudStyle::$delete_action_button_class ?? '',
+            'nested_toggle_button_classes'  => CrudStyle::$nested_toggle_button_classes ?? '',
+            'edit_row_highlight_class'      => CrudStyle::$edit_row_highlight_class ?? '',
+            'bools_in_grid_color'           => CrudStyle::$bools_in_grid_color ?? '',
+        ];
+
+        foreach ($overrides as $key => $value) {
+            if (!array_key_exists($key, $defaults)) {
+                continue;
+            }
+
+            if (!is_string($value)) {
+                continue;
+            }
+
+            $trimmed = trim($value);
+            if ($trimmed !== '') {
+                $defaults[$key] = $trimmed;
+            }
+        }
+
+        return $defaults;
+    }
+
     
 
     private function generateId(): string
@@ -5710,6 +5779,10 @@ HTML;
             $widthStyle = " style=\"width: {$width};\"";
         }
 
+        $styles = $this->getStyleDefaults();
+        $cancelClass = $this->escapeHtml($styles['panel_cancel_button_class']);
+        $saveClass   = $this->escapeHtml($styles['panel_save_button_class']);
+
         return <<<HTML
 <div class="offcanvas offcanvas-start" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}"{$widthStyle}>
     <div class="offcanvas-header border-bottom">
@@ -5722,8 +5795,8 @@ HTML;
             <div class="alert alert-success d-none" id="{$successId}" role="alert">Changes saved successfully.</div>
             <div id="{$fieldsId}" class="flex-grow-1 overflow-auto"></div>
             <div class="d-flex justify-content-end gap-2 mt-auto pt-3 border-top sticky-bottom">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <button type="button" class="{$cancelClass}" data-bs-dismiss="offcanvas">Cancel</button>
+                <button type="submit" class="{$saveClass}">Save Changes</button>
             </div>
         </form>
     </div>
@@ -5763,7 +5836,8 @@ HTML;
     {
         $containerId = $this->escapeHtml($id . '-container');
         $fieldsId    = $this->escapeHtml($id . '-edit-fields');
-        $switchColor = $this->resolveAccentColor(CrudConfig::$bools_in_grid_color ?? 'primary');
+        $styles      = $this->getStyleDefaults();
+        $switchColor = $this->resolveAccentColor($styles['bools_in_grid_color'] ?? 'primary');
 
         return <<<HTML
 <style>
@@ -8927,11 +9001,21 @@ HTML;
     private function generateAjaxScript(): string
     {
         $id = $this->escapeHtml($this->id);
-        $editRowClass = trim(CrudConfig::$edit_row_highlight_class ?? '');
+
+        $styles = $this->getStyleDefaults();
+        $editRowClass = trim($styles['edit_row_highlight_class'] ?? '');
         if ($editRowClass === '') {
             $editRowClass = 'table-warning';
         }
-        $editRowClass = $this->escapeHtml($editRowClass);
+        $styles['edit_row_highlight_class'] = $editRowClass;
+
+        $styleJson = json_encode(
+            $styles,
+            JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP
+        );
+        if (!is_string($styleJson)) {
+            $styleJson = '{}';
+        }
 
         return <<<SCRIPT
 <script>
@@ -8940,7 +9024,8 @@ HTML;
     function FastCrudInit($) {
         $(document).ready(function() {
         var tableId = '$id';
-        var editHighlightClass = '$editRowClass';
+        var styleDefaults = {$styleJson};
+        var editHighlightClass = getStyleClass('edit_row_highlight_class', 'table-warning');
         var table = $('#' + tableId);
         try { if (window.console && console.log) console.log('FastCrud init for table', tableId); } catch (e) {}
         var tableName = table.data('table');
@@ -9001,6 +9086,15 @@ HTML;
         var currentFieldErrors = {};
         // Cache for on-demand row fetches (keyed by tableId + '::' + pkCol + '::' + pkVal)
         var rowCache = {};
+
+        function getStyleClass(key, fallback) {
+            var value = '';
+            if (styleDefaults && Object.prototype.hasOwnProperty.call(styleDefaults, key)) {
+                value = String(styleDefaults[key] || '');
+            }
+            value = value.trim();
+            return value || fallback;
+        }
 
         var toolbar = $('#' + tableId + '-toolbar');
         var rangeDisplay = $('#' + tableId + '-range');
@@ -9798,8 +9892,9 @@ HTML;
                 }
 
                 if (iconValue) {
+                    buttonClassValue = String(buttonClassValue || '').trim();
                     if (!buttonClassValue) {
-                        buttonClassValue = 'btn btn-sm btn-outline-secondary';
+                        buttonClassValue = getStyleClass('link_button_class', 'btn btn-sm btn-outline-secondary');
                     }
                     linkButtonConfig = {
                         icon: iconValue,
@@ -9930,12 +10025,14 @@ HTML;
 
             searchGroup.append(searchInput);
 
-            searchButton = $('<button class="btn btn-outline-primary" type="button">Search</button>');
+            var searchButtonClass = getStyleClass('search_button_class', 'btn btn-outline-primary');
+            searchButton = $('<button type="button">Search</button>').addClass(searchButtonClass);
             searchButton.on('click', function() {
                 triggerSearch();
             });
 
-            clearButton = $('<button class="btn btn-outline-secondary" type="button">Clear</button>');
+            var clearButtonClass = getStyleClass('search_clear_button_class', 'btn btn-outline-secondary');
+            clearButton = $('<button type="button">Clear</button>').addClass(clearButtonClass);
             clearButton.on('click', function() {
                 currentSearchTerm = '';
                 if (searchInput) {
@@ -9981,12 +10078,14 @@ HTML;
             var hasActions = false;
 
             if (allowBatchDeleteButton) {
-                actionsWrapper.append(
-                    $('<button type="button" class="btn btn-sm btn-danger fastcrud-batch-delete-btn d-none" disabled></button>')
-                        .attr('title', 'Delete selected records')
-                        .attr('aria-label', 'Delete selected records')
-                        .text('Delete Selected')
-                );
+                var batchDeleteButtonClass = getStyleClass('batch_delete_button_class', 'btn btn-sm btn-danger');
+                var batchDeleteEl = $('<button type="button" disabled></button>')
+                    .addClass(batchDeleteButtonClass)
+                    .addClass('fastcrud-batch-delete-btn d-none')
+                    .attr('title', 'Delete selected records')
+                    .attr('aria-label', 'Delete selected records')
+                    .text('Delete Selected');
+                actionsWrapper.append(batchDeleteEl);
                 hasActions = true;
             }
 
@@ -10015,33 +10114,44 @@ HTML;
                 });
 
                 bulkWrapper.append(bulkSelect);
-                bulkWrapper.append($('<button type="button" class="btn btn-sm btn-outline-primary fastcrud-bulk-apply-btn" disabled>Apply</button>'));
+                var bulkApplyButtonClass = getStyleClass('bulk_apply_button_class', 'btn btn-sm btn-outline-primary');
+                var bulkApplyBtn = $('<button type="button" disabled>Apply</button>')
+                    .addClass(bulkApplyButtonClass)
+                    .addClass('fastcrud-bulk-apply-btn');
+                bulkWrapper.append(bulkApplyBtn);
                 actionsWrapper.append(bulkWrapper);
                 hasActions = true;
             }
 
             if (tableMeta.export_csv) {
-                actionsWrapper.append(
-                    $('<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-export-csv-btn"></button>')
-                        .attr('title', 'Export as CSV')
-                        .attr('aria-label', 'Export as CSV')
-                        .text('Export CSV')
-                );
+                var exportCsvClass = getStyleClass('export_csv_button_class', 'btn btn-sm btn-outline-secondary');
+                var exportCsvBtn = $('<button type="button"></button>')
+                    .addClass(exportCsvClass)
+                    .addClass('fastcrud-export-csv-btn')
+                    .attr('title', 'Export as CSV')
+                    .attr('aria-label', 'Export as CSV')
+                    .text('Export CSV');
+                actionsWrapper.append(exportCsvBtn);
                 hasActions = true;
             }
 
             if (tableMeta.export_excel) {
-                actionsWrapper.append(
-                    $('<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-export-excel-btn"></button>')
-                        .attr('title', 'Export for Excel')
-                        .attr('aria-label', 'Export for Excel')
-                        .text('Export Excel')
-                );
+                var exportExcelClass = getStyleClass('export_excel_button_class', 'btn btn-sm btn-outline-secondary');
+                var exportExcelBtn = $('<button type="button"></button>')
+                    .addClass(exportExcelClass)
+                    .addClass('fastcrud-export-excel-btn')
+                    .attr('title', 'Export for Excel')
+                    .attr('aria-label', 'Export for Excel')
+                    .text('Export Excel');
+                actionsWrapper.append(exportExcelBtn);
                 hasActions = true;
             }
 
             if (addEnabled) {
-                var addButton = $('<button type="button" class="btn btn-sm btn-success fastcrud-add-btn"></button>')
+                var addButtonClass = getStyleClass('add_button_class', 'btn btn-sm btn-success');
+                var addButton = $('<button type="button"></button>')
+                    .addClass(addButtonClass)
+                    .addClass('fastcrud-add-btn')
                     .attr('title', 'Add new record')
                     .attr('aria-label', 'Add new record')
                     .append('<span class="me-1">+</span>')
@@ -11100,6 +11210,10 @@ HTML;
 
         function buildActionCellHtml(rowMeta) {
             var fragments = [];
+            var duplicateActionClass = getStyleClass('duplicate_action_button_class', 'btn btn-sm btn-info');
+            var viewActionClass = getStyleClass('view_action_button_class', 'btn btn-sm btn-secondary');
+            var editActionClass = getStyleClass('edit_action_button_class', 'btn btn-sm btn-primary');
+            var deleteActionClass = getStyleClass('delete_action_button_class', 'btn btn-sm btn-danger');
 
             if (linkButtonConfig && rowMeta && rowMeta.link_button && rowMeta.link_button.url) {
                 var linkMeta = rowMeta.link_button;
@@ -11206,7 +11320,8 @@ HTML;
 
                 if (allowDuplicate) {
                     // Place duplicate button to the left of other action buttons
-                    fragments.push('<button type="button" class="btn btn-sm btn-info fastcrud-action-button fastcrud-duplicate-btn" title="Duplicate" aria-label="Duplicate record">' + actionIcons.duplicate + '</button>');
+                    var duplicateClassAttr = (duplicateActionClass + ' fastcrud-action-button fastcrud-duplicate-btn').trim();
+                    fragments.push('<button type="button" class="' + escapeHtml(duplicateClassAttr) + '" title="Duplicate" aria-label="Duplicate record">' + actionIcons.duplicate + '</button>');
                 }
             }
 
@@ -11216,7 +11331,8 @@ HTML;
                     : true;
 
                 if (allowView) {
-                    fragments.push('<button type="button" class="btn btn-sm btn-secondary fastcrud-action-button fastcrud-view-btn" title="View" aria-label="View record">' + actionIcons.view + '</button>');
+                    var viewClassAttr = (viewActionClass + ' fastcrud-action-button fastcrud-view-btn').trim();
+                    fragments.push('<button type="button" class="' + escapeHtml(viewClassAttr) + '" title="View" aria-label="View record">' + actionIcons.view + '</button>');
                 }
             }
 
@@ -11226,7 +11342,8 @@ HTML;
                     : true;
 
                 if (allowEdit) {
-                    fragments.push('<button type="button" class="btn btn-sm btn-primary fastcrud-action-button fastcrud-edit-btn" title="Edit" aria-label="Edit record">' + actionIcons.edit + '</button>');
+                    var editClassAttr = (editActionClass + ' fastcrud-action-button fastcrud-edit-btn').trim();
+                    fragments.push('<button type="button" class="' + escapeHtml(editClassAttr) + '" title="Edit" aria-label="Edit record">' + actionIcons.edit + '</button>');
                 }
             }
 
@@ -11236,7 +11353,8 @@ HTML;
                     : true;
 
                 if (allowDelete) {
-                    fragments.push('<button type="button" class="btn btn-sm btn-danger fastcrud-action-button fastcrud-delete-btn" title="Delete" aria-label="Delete record">' + actionIcons.delete + '</button>');
+                    var deleteClassAttr = (deleteActionClass + ' fastcrud-action-button fastcrud-delete-btn').trim();
+                    fragments.push('<button type="button" class="' + escapeHtml(deleteClassAttr) + '" title="Delete" aria-label="Delete record">' + actionIcons.delete + '</button>');
                 }
             }
 
@@ -11321,9 +11439,14 @@ HTML;
                     }
 
                     var ariaLabel = isExpanded ? 'Collapse nested content' : 'Expand nested content';
+                    var nestedToggleBaseClass = getStyleClass('nested_toggle_button_classes', 'btn btn-link p-0');
+                    var toggleClassValue = 'fastcrud-nested-toggle';
+                    if (nestedToggleBaseClass) {
+                        toggleClassValue += ' ' + nestedToggleBaseClass;
+                    }
                     var toggleAttrs = [
                         'type="button"',
-                        'class="fastcrud-nested-toggle btn btn-link p-0"',
+                        'class="' + escapeHtml(toggleClassValue) + '"',
                         'aria-expanded="' + (isExpanded ? 'true' : 'false') + '"',
                         'aria-label="' + escapeHtml(ariaLabel) + '"',
                         'data-fastcrud-expanded="' + (isExpanded ? 'true' : 'false') + '"'
