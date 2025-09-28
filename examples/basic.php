@@ -123,7 +123,7 @@ Crud::init([
                     ->order_by('id', 'desc')
                     ->relation('user_id', 'users', 'id', 'username')
                     ->enable_batch_delete(true)
-                    ->enable_soft_delete('deleted_at') // stamp deleted_at instead of hard delete
+                    ->enable_soft_delete('deleted_at') 
                     ->add_bulk_action('publish', 'Publish Selected', [
                         'type'   => 'update',
                         'fields' => ['is_featured' => 1],
