@@ -5708,7 +5708,7 @@ HTML;
             'edit_action_button_class'      => 'btn btn-sm btn-primary',
             'delete_action_button_class'    => 'btn btn-sm btn-danger',
             'nested_toggle_button_classes'  => 'btn btn-link p-0',
-            'edit_row_highlight_class'      => 'table-active',
+            'edit_view_row_highlight_class' => 'table-active',
             'bools_in_grid_color'           => 'primary',
         ];
 
@@ -5728,7 +5728,7 @@ HTML;
             'edit_action_button_class'      => CrudStyle::$edit_action_button_class ?? '',
             'delete_action_button_class'    => CrudStyle::$delete_action_button_class ?? '',
             'nested_toggle_button_classes'  => CrudStyle::$nested_toggle_button_classes ?? '',
-            'edit_row_highlight_class'      => CrudStyle::$edit_row_highlight_class ?? '',
+            'edit_view_row_highlight_class' => CrudStyle::$edit_view_row_highlight_class ?? '',
             'bools_in_grid_color'           => CrudStyle::$bools_in_grid_color ?? '',
         ];
 
@@ -9003,11 +9003,11 @@ HTML;
         $id = $this->escapeHtml($this->id);
 
         $styles = $this->getStyleDefaults();
-        $editRowClass = trim($styles['edit_row_highlight_class'] ?? '');
-        if ($editRowClass === '') {
-            $editRowClass = 'table-warning';
+        $editViewRowClass = trim($styles['edit_view_row_highlight_class'] ?? '');
+        if ($editViewRowClass === '') {
+            $editViewRowClass = 'table-warning';
         }
-        $styles['edit_row_highlight_class'] = $editRowClass;
+        $styles['edit_view_row_highlight_class'] = $editViewRowClass;
 
         $styleJson = json_encode(
             $styles,
@@ -9025,7 +9025,7 @@ HTML;
         $(document).ready(function() {
         var tableId = '$id';
         var styleDefaults = {$styleJson};
-        var editHighlightClass = getStyleClass('edit_row_highlight_class', 'table-warning');
+        var editViewHighlightClass = getStyleClass('edit_view_row_highlight_class', 'table-warning');
         var table = $('#' + tableId);
         try { if (window.console && console.log) console.log('FastCrud init for table', tableId); } catch (e) {}
         var tableName = table.data('table');
@@ -9096,6 +9096,37 @@ HTML;
             return value || fallback;
         }
 
+        function clearRowHighlight() {
+            try {
+                table.find('tbody tr.fastcrud-editing').each(function() {
+                    var trEl = $(this);
+                    var had = trEl.data('fastcrudHadClass');
+                    if (had !== 1 && had !== '1') { trEl.removeClass(editViewHighlightClass); }
+                    trEl.removeClass('fastcrud-editing').removeData('fastcrudHadClass');
+                });
+            } catch (e) {}
+        }
+
+        function highlightRow(tr) {
+            if (!tr || !tr.length) {
+                clearRowHighlight();
+                return;
+            }
+
+            try {
+                clearRowHighlight();
+                var parts = String(editViewHighlightClass || '').split(/\s+/).filter(function(s){ return s.length > 0; });
+                var hasAll = true;
+                for (var i = 0; i < parts.length; i++) {
+                    if (!tr.hasClass(parts[i])) { hasAll = false; break; }
+                }
+                var alreadyHas = hasAll ? 1 : 0;
+                tr.data('fastcrudHadClass', alreadyHas);
+                tr.addClass('fastcrud-editing');
+                if (!alreadyHas) { tr.addClass(editViewHighlightClass); }
+            } catch (e) {}
+        }
+
         var toolbar = $('#' + tableId + '-toolbar');
         var rangeDisplay = $('#' + tableId + '-range');
         var metaContainer = $('#' + tableId + '-meta');
@@ -9130,14 +9161,7 @@ HTML;
         if (editOffcanvasElement.length) {
             // Clear highlight as soon as the panel starts closing (no wait for animation)
             editOffcanvasElement.on('hide.bs.offcanvas', function() {
-                try {
-                    table.find('tbody tr.fastcrud-editing').each(function() {
-                        var trEl = $(this);
-                        var had = trEl.data('fastcrudHadClass');
-                        if (had !== 1 && had !== '1') { trEl.removeClass(editHighlightClass); }
-                        trEl.removeClass('fastcrud-editing').removeData('fastcrudHadClass');
-                    });
-                } catch (e) {}
+                clearRowHighlight();
             });
             // Cleanup heavy widgets after the panel is fully hidden
             editOffcanvasElement.on('hidden.bs.offcanvas', function() {
@@ -9151,6 +9175,11 @@ HTML;
         var viewEmptyNotice = $('#' + tableId + '-view-empty');
         var viewHeading = $('#' + tableId + '-view-label');
         var viewOffcanvasInstance = null;
+        if (viewOffcanvasElement.length) {
+            viewOffcanvasElement.on('hide.bs.offcanvas', function() {
+                clearRowHighlight();
+            });
+        }
         var summaryFooter = $('#' + tableId + '-summary');
 
         // FilePond state and asset loader for image fields
@@ -14000,15 +14029,7 @@ HTML;
             }
 
             editForm.data('mode', 'create');
-
-            try {
-                table.find('tbody tr.fastcrud-editing').each(function() {
-                    var trEl = $(this);
-                    var had = trEl.data('fastcrudHadClass');
-                    if (had !== 1 && had !== '1') { trEl.removeClass(editHighlightClass); }
-                    trEl.removeClass('fastcrud-editing').removeData('fastcrudHadClass');
-                });
-            } catch (e) {}
+            clearRowHighlight();
 
             var templateRow = {
                 __fastcrud_primary_key: primaryKeyColumn,
@@ -14030,17 +14051,13 @@ HTML;
             event.stopPropagation();
             var pk = getPkInfoFromElement(this);
             if (!pk) { showError('Unable to determine primary key for viewing.'); return false; }
-            // If any row is highlighted for editing, clear it when switching to view
-            try {
-                table.find('tbody tr.fastcrud-editing').each(function() {
-                    var trEl = $(this);
-                    var had = trEl.data('fastcrudHadClass');
-                    if (had !== 1 && had !== '1') { trEl.removeClass(editHighlightClass); }
-                    trEl.removeClass('fastcrud-editing').removeData('fastcrudHadClass');
-                });
-            } catch (e) {}
+            var tr = $(this).closest('tr');
+            highlightRow(tr);
             fetchRowByPk(pk.column, pk.value)
-                .then(function(row){ showViewPanel(row || {}); })
+                .then(function(row){
+                    showViewPanel(row || {});
+                    highlightRow(tr);
+                })
                 .catch(function(err){ showError('Failed to load record: ' + (err && err.message ? err.message : err)); });
             return false;
         });
@@ -14049,28 +14066,15 @@ HTML;
             event.preventDefault();
             event.stopPropagation();
             editForm.data('mode', 'edit');
-            // Highlight the row being edited
-            try {
-                var tr = $(this).closest('tr');
-                // Clear previous edit highlight, but only remove the configured class if we added it
-                table.find('tbody tr.fastcrud-editing').each(function() {
-                    var trEl = $(this);
-                    var had = trEl.data('fastcrudHadClass');
-                    if (had !== 1 && had !== '1') { trEl.removeClass(editHighlightClass); }
-                    trEl.removeClass('fastcrud-editing').removeData('fastcrudHadClass');
-                });
-                var parts = String(editHighlightClass || '').split(/\s+/).filter(function(s){ return s.length > 0; });
-                var hasAll = true;
-                for (var i = 0; i < parts.length; i++) { if (!tr.hasClass(parts[i])) { hasAll = false; break; } }
-                var alreadyHas = hasAll ? 1 : 0;
-                tr.data('fastcrudHadClass', alreadyHas);
-                tr.addClass('fastcrud-editing');
-                if (!alreadyHas) { tr.addClass(editHighlightClass); }
-            } catch (e) {}
+            var tr = $(this).closest('tr');
+            highlightRow(tr);
             var pk = getPkInfoFromElement(this);
             if (!pk) { showError('Unable to determine primary key for editing.'); return false; }
             fetchRowByPk(pk.column, pk.value)
-                .then(function(row){ showEditForm(row || {}); })
+                .then(function(row){
+                    showEditForm(row || {});
+                    highlightRow(tr);
+                })
                 .catch(function(err){ showError('Failed to load record: ' + (err && err.message ? err.message : err)); });
             return false;
         });

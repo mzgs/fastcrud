@@ -57,8 +57,8 @@ class CrudStyle
     /** @var string Extra classes appended to the nested toggle buttons. */
     public static string $nested_toggle_button_classes = 'btn btn-link p-0';
 
-    /** @var string Table row highlight class applied while editing. */
-    public static string $edit_row_highlight_class = 'table-active';
+    /** @var string Table row highlight class applied while editing or viewing. */
+    public static string $edit_view_row_highlight_class = 'table-active';
 
     /** @var string Accent color for boolean switches rendered in the grid. */
     public static string $bools_in_grid_color = 'primary';
