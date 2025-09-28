@@ -6235,6 +6235,7 @@ HTML;
             'form' => $this->buildFormMeta($columns),
             'inline_edit' => $inline,
             'nested_tables' => $this->buildNestedTablesClientConfigPayload(),
+            'soft_delete'   => $this->config['soft_delete'],
         ];
     }
 
@@ -6827,6 +6828,7 @@ HTML;
             'column_summaries'  => $this->config['column_summaries'],
             'field_labels'      => $this->config['field_labels'],
             'primary_key'       => $this->primaryKeyColumn,
+            'soft_delete'       => $this->config['soft_delete'],
             'form'              => $formConfig,
             'inline_edit'       => $inline,
             'nested_tables'     => $this->buildNestedTablesClientConfigPayload(),
@@ -9656,6 +9658,10 @@ HTML;
             }
 
             metaConfig = meta;
+
+            if (Object.prototype.hasOwnProperty.call(meta, 'soft_delete')) {
+                clientConfig.soft_delete = meta.soft_delete;
+            }
 
             if (Array.isArray(meta.columns)) {
                 columnsCache = meta.columns;
