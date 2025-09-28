@@ -127,6 +127,7 @@ class Crud
             'duplicate' => false,
             'duplicate_condition' => null,
             'batch_delete' => false,
+            'batch_delete_button' => false,
             'bulk_actions' => [],
             'delete_confirm' => true,
             'export_csv' => false,
@@ -2604,7 +2605,10 @@ class Crud
 
     public function enable_batch_delete(bool $enabled = true): self
     {
-        $this->config['table_meta']['batch_delete'] = (bool) $enabled;
+        $enabled = (bool) $enabled;
+
+        $this->config['table_meta']['batch_delete'] = $enabled;
+        $this->config['table_meta']['batch_delete_button'] = $enabled;
 
         return $this;
     }
@@ -6152,6 +6156,8 @@ HTML;
         };
 
         $tableMeta = $this->config['table_meta'];
+        $batchDeleteConfigured = isset($tableMeta['batch_delete']) ? (bool) $tableMeta['batch_delete'] : false;
+        $tableMeta['batch_delete_button'] = $batchDeleteConfigured;
         $tableName = isset($tableMeta['name']) && is_string($tableMeta['name']) && $tableMeta['name'] !== ''
             ? $tableMeta['name']
             : $this->makeTitle($this->table);
@@ -6204,6 +6210,7 @@ HTML;
                     ? $tableMeta['duplicate_condition']
                     : null,
                 'batch_delete' => $this->isBatchDeleteEnabled(),
+                'batch_delete_button' => $batchDeleteConfigured,
                 'bulk_actions' => isset($tableMeta['bulk_actions']) && is_array($tableMeta['bulk_actions'])
                     ? array_values($tableMeta['bulk_actions'])
                     : [],
@@ -6795,6 +6802,11 @@ HTML;
             }
         }
 
+        $batchDeleteConfigured = isset($this->config['table_meta']['batch_delete'])
+            ? (bool) $this->config['table_meta']['batch_delete']
+            : false;
+        $this->config['table_meta']['batch_delete_button'] = $batchDeleteConfigured;
+
         return [
             'per_page'       => $this->perPage,
             'where'          => $this->config['where'],
@@ -6948,6 +6960,7 @@ HTML;
                     ? $meta['duplicate_condition']
                     : null,
                 'batch_delete' => isset($meta['batch_delete']) ? (bool) $meta['batch_delete'] : false,
+                'batch_delete_button' => isset($meta['batch_delete']) ? (bool) $meta['batch_delete'] : false,
                 'delete_confirm' => isset($meta['delete_confirm']) ? (bool) $meta['delete_confirm'] : true,
                 'export_csv' => isset($meta['export_csv']) ? (bool) $meta['export_csv'] : false,
                 'export_excel' => isset($meta['export_excel']) ? (bool) $meta['export_excel'] : false,
@@ -9578,7 +9591,8 @@ HTML;
                 var selectedCount = getSelectedCount();
                 var enabled = allowBatchDeleteButton && selectedCount > 0;
                 batchDeleteButton.prop('disabled', !enabled);
-                batchDeleteButton.toggleClass('d-none', selectedCount === 0);
+                var shouldHideButton = !allowBatchDeleteButton || selectedCount === 0;
+                batchDeleteButton.toggleClass('d-none', shouldHideButton);
             }
 
             if (selectAllCheckbox && selectAllCheckbox.length) {
@@ -9725,7 +9739,11 @@ HTML;
             if (tableMeta.hasOwnProperty('delete_confirm')) {
                 deleteConfirm = !!tableMeta.delete_confirm;
             }
-            allowBatchDeleteButton = !!tableMeta.batch_delete && deleteEnabled;
+            var batchDeleteButtonEnabled = tableMeta.hasOwnProperty('batch_delete_button')
+                ? !!tableMeta.batch_delete_button
+                : !!tableMeta.batch_delete;
+
+            allowBatchDeleteButton = batchDeleteButtonEnabled && deleteEnabled;
             var hasBulkActions = Array.isArray(bulkActions) && bulkActions.length > 0;
             batchDeleteEnabled = allowBatchDeleteButton || hasBulkActions;
             if (!batchDeleteEnabled) {
