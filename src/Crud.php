@@ -6949,6 +6949,7 @@ HTML;
         $this->ensureFormBehaviourBuckets();
         $this->ensureDefaultTabBuckets();
 
+        $columns = $this->getColumnNames();
         $allColumns = $this->getBaseTableColumns();
         $formConfig = $this->config['form'];
 
@@ -7036,6 +7037,11 @@ HTML;
             : false;
         $this->config['table_meta']['batch_delete_button'] = $batchDeleteConfigured;
 
+        $formMeta = $this->buildFormMeta($columns);
+        if (!isset($formMeta['all_columns']) || !is_array($formMeta['all_columns'])) {
+            $formMeta['all_columns'] = $allColumns;
+        }
+
         return [
             'per_page'       => $this->perPage,
             'where'          => $this->config['where'],
@@ -7070,7 +7076,7 @@ HTML;
             'field_labels'      => $this->config['field_labels'],
             'primary_key'       => $this->primaryKeyColumn,
             'soft_delete'       => $this->config['soft_delete'],
-            'form'              => $formConfig,
+            'form'              => $formMeta,
             'inline_edit'       => $inline,
             'nested_tables'     => $this->buildNestedTablesClientConfigPayload(),
             'rich_editor'       => [

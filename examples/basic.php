@@ -213,23 +213,7 @@ CrudStyle::$bools_in_grid_color = 'success';
                     ->table_icon('bi bi-newspaper');
                     // ->column_summary('id', 'count', 'Total');
 
-                $postsCrud->nested_table(
-                    'post_comments',
-                    'id',
-                    'comments',
-                    'post_id',
-                    static function (Crud $nested): void {
-                        $nested
-                            ->table_name('Recent Comments')
-                            ->columns('author,content,created_at')
-                            ->column_cut('content', 60)
-                            ->order_by('created_at', 'desc')
-                            ->setPerPage(5)
-                            ->enable_add(false)
-                            ->enable_edit(false)
-                            ->enable_delete(false);
-                    }
-                );
+                 
                 ?>
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-primary text-white">
@@ -242,7 +226,7 @@ CrudStyle::$bools_in_grid_color = 'success';
                         </div>
                     </div>
                     <div class="card-body">
-                        <?= $postsCrud->render('edit',1); ?>
+                        <?= $postsCrud->render('edit',2); ?>
                     </div>
                 </div>
 
