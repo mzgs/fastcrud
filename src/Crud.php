@@ -381,6 +381,21 @@ class Crud
         ];
     }
 
+    private function getNormalizedLinkButtonConfig(): ?array
+    {
+        $config = $this->config['link_button'] ?? null;
+        if (!is_array($config)) {
+            return null;
+        }
+
+        $normalized = $this->normalizeLinkButtonConfigPayload($config);
+        if ($normalized !== null) {
+            $this->config['link_button'] = $normalized;
+        }
+
+        return $normalized;
+    }
+
     private function normalizeCallable(callable|string|array $callback): string
     {
         if (is_string($callback)) {
@@ -829,6 +844,100 @@ class Crud
     }
 
     /**
+     * @param array{empty?: string, unsupported?: string} $messages
+     */
+    private function normalizeConditionOperatorString(string $operator, array $messages): string
+    {
+        $original = $operator;
+        $normalized = strtolower(trim($operator));
+
+        if ($normalized === '') {
+            if (isset($messages['empty'])) {
+                throw new InvalidArgumentException($messages['empty']);
+            }
+
+            return 'equals';
+        }
+
+        $normalized = str_replace(' ', '_', $normalized);
+
+        $synonyms = [
+            '='   => 'equals',
+            '=='  => 'equals',
+            '===' => 'equals',
+            'eq'  => 'equals',
+            '!='  => 'not_equals',
+            '!==' => 'not_equals',
+            '<>'  => 'not_equals',
+            'ne'  => 'not_equals',
+            'not_equals' => 'not_equals',
+            '>'   => 'gt',
+            'gt'  => 'gt',
+            '>='  => 'gte',
+            'gte' => 'gte',
+            '<'   => 'lt',
+            'lt'  => 'lt',
+            '<='  => 'lte',
+            'lte' => 'lte',
+            'notin' => 'not_in',
+            'not_in' => 'not_in',
+            'contains' => 'contains',
+            '!value' => 'empty',
+            'empty' => 'empty',
+            '!empty' => 'not_empty',
+            'not_empty' => 'not_empty',
+            'has_value' => 'not_empty',
+        ];
+
+        $normalized = $synonyms[$normalized] ?? $normalized;
+
+        if (!in_array($normalized, self::SUPPORTED_CONDITION_OPERATORS, true)) {
+            $message = $messages['unsupported'] ?? 'Unsupported condition operator: %s';
+            throw new InvalidArgumentException(sprintf($message, $original));
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array{in_not_in?: string, comparison?: string, contains?: string} $messages
+     */
+    private function normalizeConditionValueForOperator(string $operator, mixed $value, array $messages): mixed
+    {
+        $messages = array_replace([
+            'in_not_in' => 'IN/NOT IN conditions require a non-empty array of values.',
+            'comparison' => 'Comparison operators require numeric values.',
+            'contains' => 'Contains operator requires a string value.',
+        ], $messages);
+
+        if (in_array($operator, ['in', 'not_in'], true)) {
+            if (is_string($value)) {
+                $value = $this->normalizeList($value);
+            }
+
+            if (!is_array($value) || $value === []) {
+                throw new InvalidArgumentException($messages['in_not_in']);
+            }
+
+            return $value;
+        }
+
+        if (in_array($operator, ['gt', 'gte', 'lt', 'lte'], true)) {
+            if (!is_numeric($value)) {
+                throw new InvalidArgumentException($messages['comparison']);
+            }
+
+            return (float) $value;
+        }
+
+        if ($operator === 'contains' && !is_string($value)) {
+            throw new InvalidArgumentException($messages['contains']);
+        }
+
+        return $value;
+    }
+
+    /**
      * @param array<string, mixed>|string $condition
      *
      * @return array{column: string, operator: string, value: mixed}
@@ -881,33 +990,24 @@ class Crud
             throw new InvalidArgumentException('Highlight conditions must reference a column.');
         }
 
-        $operator = isset($normalized['operator']) ? strtolower((string) $normalized['operator']) : 'equals';
-        if (!in_array($operator, self::SUPPORTED_CONDITION_OPERATORS, true)) {
-            throw new InvalidArgumentException('Unsupported condition operator: ' . $operator);
+        $operatorRaw = isset($normalized['operator']) ? (string) $normalized['operator'] : 'equals';
+        if (trim($operatorRaw) === '') {
+            $operatorRaw = 'equals';
         }
 
-        $value = $normalized['value'] ?? null;
+        $operator = $this->normalizeConditionOperatorString($operatorRaw, [
+            'unsupported' => 'Unsupported condition operator: %s',
+        ]);
 
-        if (in_array($operator, ['in', 'not_in'], true)) {
-            if (is_string($value)) {
-                $value = $this->normalizeList($value);
-            }
-
-            if (!is_array($value) || $value === []) {
-                throw new InvalidArgumentException('IN/NOT IN conditions require a non-empty array of values.');
-            }
-        }
-
-        if (in_array($operator, ['gt', 'gte', 'lt', 'lte'], true)) {
-            if (!is_numeric($value)) {
-                throw new InvalidArgumentException('Comparison operators require numeric values.');
-            }
-            $value = (float) $value;
-        }
-
-        if ($operator === 'contains' && !is_string($value)) {
-            throw new InvalidArgumentException('Contains operator requires a string value.');
-        }
+        $value = $this->normalizeConditionValueForOperator(
+            $operator,
+            $normalized['value'] ?? null,
+            [
+                'in_not_in' => 'IN/NOT IN conditions require a non-empty array of values.',
+                'comparison' => 'Comparison operators require numeric values.',
+                'contains' => 'Contains operator requires a string value.',
+            ]
+        );
 
         return [
             'column'   => $column,
@@ -926,78 +1026,20 @@ class Crud
             throw new InvalidArgumentException('Duplicate condition requires a valid column name.');
         }
 
-        $normalizedOperand = strtolower(trim($operand));
-        if ($normalizedOperand === '') {
-            throw new InvalidArgumentException('Duplicate condition operator cannot be empty.');
-        }
+        $operator = $this->normalizeConditionOperatorString($operand, [
+            'empty' => 'Duplicate condition operator cannot be empty.',
+            'unsupported' => 'Unsupported duplicate condition operator: %s',
+        ]);
 
-        $normalizedOperand = str_replace(' ', '_', $normalizedOperand);
-
-        switch ($normalizedOperand) {
-            case '=':
-            case '==':
-            case '===':
-            case 'eq':
-            case 'equals':
-                $operator = 'equals';
-                break;
-            case '!=':
-            case '!==':
-            case '<>':
-            case 'ne':
-            case 'not_equals':
-                $operator = 'not_equals';
-                break;
-            case '>':
-            case 'gt':
-                $operator = 'gt';
-                break;
-            case '>=':
-            case 'gte':
-                $operator = 'gte';
-                break;
-            case '<':
-            case 'lt':
-                $operator = 'lt';
-                break;
-            case '<=':
-            case 'lte':
-                $operator = 'lte';
-                break;
-            case 'in':
-                $operator = 'in';
-                break;
-            case 'not_in':
-            case 'notin':
-                $operator = 'not_in';
-                break;
-            case 'contains':
-                $operator = 'contains';
-                break;
-            default:
-                throw new InvalidArgumentException('Unsupported duplicate condition operator: ' . $operand);
-        }
-
-        if (in_array($operator, ['in', 'not_in'], true)) {
-            if (is_string($value)) {
-                $value = $this->normalizeList($value);
-            }
-
-            if (!is_array($value) || $value === []) {
-                throw new InvalidArgumentException('IN/NOT IN duplicate conditions require a non-empty list of values.');
-            }
-        }
-
-        if (in_array($operator, ['gt', 'gte', 'lt', 'lte'], true)) {
-            if (!is_numeric($value)) {
-                throw new InvalidArgumentException('Comparison duplicate conditions require numeric values.');
-            }
-            $value = (float) $value;
-        }
-
-        if ($operator === 'contains' && !is_string($value)) {
-            throw new InvalidArgumentException('Contains duplicate conditions require a string value.');
-        }
+        $value = $this->normalizeConditionValueForOperator(
+            $operator,
+            $value,
+            [
+                'in_not_in' => 'IN/NOT IN duplicate conditions require a non-empty list of values.',
+                'comparison' => 'Comparison duplicate conditions require numeric values.',
+                'contains' => 'Contains duplicate conditions require a string value.',
+            ]
+        );
 
         return [
             'column'   => $column,
@@ -1393,25 +1435,19 @@ class Crud
      */
     private function buildLinkButtonMetaForRow(array $row): ?array
     {
-        $config = $this->config['link_button'];
-        if (!is_array($config)) {
+        $config = $this->getNormalizedLinkButtonConfig();
+        if ($config === null) {
             return null;
         }
 
-        $urlPattern = isset($config['url']) ? trim((string) $config['url']) : '';
-        if ($urlPattern === '') {
-            return null;
-        }
-
-        $resolvedUrl = trim($this->applyPattern($urlPattern, '', null, 'link_button', $row));
+        $resolvedUrl = trim($this->applyPattern($config['url'], '', null, 'link_button', $row));
         if ($resolvedUrl === '') {
             return null;
         }
 
-        $labelPattern = $config['label'] ?? null;
         $resolvedLabel = null;
-        if (is_string($labelPattern) && $labelPattern !== '') {
-            $labelResult = trim($this->applyPattern($labelPattern, '', null, 'link_button', $row));
+        if (isset($config['label']) && is_string($config['label']) && $config['label'] !== '') {
+            $labelResult = trim($this->applyPattern($config['label'], '', null, 'link_button', $row));
             if ($labelResult !== '') {
                 $resolvedLabel = $labelResult;
             }
@@ -1425,43 +1461,15 @@ class Crud
 
     private function buildLinkButtonConfig(): ?array
     {
-        $config = $this->config['link_button'];
-        if (!is_array($config)) {
+        $config = $this->getNormalizedLinkButtonConfig();
+        if ($config === null) {
             return null;
-        }
-
-        $urlPattern = isset($config['url']) ? trim((string) $config['url']) : '';
-        $iconClass = isset($config['icon']) ? trim((string) $config['icon']) : '';
-        if ($urlPattern === '' || $iconClass === '') {
-            return null;
-        }
-
-        $buttonClass = isset($config['button_class']) ? trim((string) $config['button_class']) : '';
-        if ($buttonClass === '') {
-            $styles      = $this->getStyleDefaults();
-            $buttonClass = $styles['link_button_class'] ?? 'btn btn-sm btn-outline-secondary';
-        }
-
-        $options = [];
-        if (isset($config['options']) && is_array($config['options'])) {
-            foreach ($config['options'] as $key => $value) {
-                if (!is_string($key)) {
-                    continue;
-                }
-                $normalizedKey = trim($key);
-                if ($normalizedKey === '') {
-                    continue;
-                }
-                if (is_scalar($value)) {
-                    $options[$normalizedKey] = (string) $value;
-                }
-            }
         }
 
         return [
-            'icon'         => $iconClass,
-            'button_class' => $buttonClass,
-            'options'      => $options,
+            'icon'         => $config['icon'],
+            'button_class' => $config['button_class'],
+            'options'      => $config['options'],
         ];
     }
 
@@ -3986,6 +3994,11 @@ class Crud
         return implode('.', $quoted);
     }
 
+    private function quotePrimaryKeyColumnName(string $column): string
+    {
+        return $this->quoteQualifiedIdentifier($column);
+    }
+
     private function normalizeWhereField(string $column): string
     {
         $raw = trim((string) $column);
@@ -5613,10 +5626,12 @@ HTML;
             $parameters[$placeholder] = $value;
         }
 
+        $primaryKeySql = $this->quotePrimaryKeyColumnName($primaryKeyColumn);
+
         $sql = sprintf(
             'SELECT * FROM %s WHERE %s IN (%s)',
             $this->table,
-            $primaryKeyColumn,
+            $primaryKeySql,
             implode(', ', $placeholders)
         );
 
@@ -7743,6 +7758,7 @@ HTML;
         }
 
         $primaryKeyColumn = $this->getPrimaryKeyColumn();
+        $primaryKeySql = $this->quotePrimaryKeyColumnName($primaryKeyColumn);
 
         $readonly = $this->gatherBehaviourForMode('readonly', 'create');
         $disabled = $this->gatherBehaviourForMode('disabled', 'create');
@@ -7968,7 +7984,7 @@ HTML;
 
         if ($row === null) {
             try {
-                $sql = sprintf('SELECT * FROM %s ORDER BY %s DESC LIMIT 1', $this->table, $primaryKeyColumn);
+                $sql = sprintf('SELECT * FROM %s ORDER BY %s DESC LIMIT 1', $this->table, $primaryKeySql);
                 $fallbackStmt = $this->connection->query($sql);
                 if ($fallbackStmt !== false) {
                     $candidate = $fallbackStmt->fetch(PDO::FETCH_ASSOC);
@@ -8028,6 +8044,8 @@ HTML;
             $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
             throw new InvalidArgumentException($message);
         }
+
+        $primaryKeySql = $this->quotePrimaryKeyColumnName($primaryKeyColumn);
 
         $mode = strtolower(trim($mode));
         if (!in_array($mode, ['create', 'edit', 'view'], true)) {
@@ -8189,7 +8207,7 @@ HTML;
                 'SELECT COUNT(*) FROM %s WHERE %s = :value AND %s <> :pk',
                 $this->table,
                 $column,
-                $primaryKeyColumn
+                $primaryKeySql
             );
 
             $statement = $this->connection->prepare($sql);
@@ -8230,7 +8248,7 @@ HTML;
             'UPDATE %s SET %s WHERE %s = :pk',
             $this->table,
             implode(', ', $placeholders),
-            $primaryKeyColumn
+            $primaryKeySql
         );
 
         $statement = $this->connection->prepare($sql);
@@ -8293,6 +8311,8 @@ HTML;
             throw new InvalidArgumentException($message);
         }
 
+        $primaryKeySql = $this->quotePrimaryKeyColumnName($primaryKeyColumn);
+
         $currentRow = $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
         if ($currentRow === null) {
             return false;
@@ -8327,9 +8347,9 @@ HTML;
 
         if ($useSoftDelete) {
             $updateClause = $this->buildSoftDeleteUpdateClause($softDeleteAssignments, $parameters, 'sd_single', $resolvedValues);
-            $sql = sprintf('UPDATE %s SET %s WHERE %s = :pk', $this->table, $updateClause, $primaryKeyColumn);
+            $sql = sprintf('UPDATE %s SET %s WHERE %s = :pk', $this->table, $updateClause, $primaryKeySql);
         } else {
-            $sql = sprintf('DELETE FROM %s WHERE %s = :pk', $this->table, $primaryKeyColumn);
+            $sql = sprintf('DELETE FROM %s WHERE %s = :pk', $this->table, $primaryKeySql);
         }
 
         $statement = $this->connection->prepare($sql);
@@ -8393,6 +8413,8 @@ HTML;
             $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
             throw new InvalidArgumentException($message);
         }
+
+        $primaryKeySql = $this->quotePrimaryKeyColumnName($primaryKeyColumn);
 
         $normalizedValues = [];
         foreach ($primaryKeyValues as $value) {
@@ -8508,14 +8530,14 @@ HTML;
                     'UPDATE %s SET %s WHERE %s IN (%s)',
                     $this->table,
                     $updateClause,
-                    $primaryKeyColumn,
+                    $primaryKeySql,
                     implode(', ', $placeholders)
                 );
             } else {
                 $sql = sprintf(
                     'DELETE FROM %s WHERE %s IN (%s)',
                     $this->table,
-                    $primaryKeyColumn,
+                    $primaryKeySql,
                     implode(', ', $placeholders)
                 );
             }
@@ -8726,6 +8748,8 @@ HTML;
             throw new InvalidArgumentException(sprintf('Unknown primary key column "%s".', $primaryKeyColumn));
         }
 
+        $primaryKeySql = $this->quotePrimaryKeyColumnName($primaryKeyColumn);
+
         if (!$this->isActionEnabled('duplicate')) {
             throw new RuntimeException('Duplicate action is not enabled for this table.');
         }
@@ -8865,7 +8889,7 @@ HTML;
 
         if ($row === null) {
             try {
-                $sql = sprintf('SELECT * FROM %s ORDER BY %s DESC LIMIT 1', $this->table, $primaryKeyColumn);
+                $sql = sprintf('SELECT * FROM %s ORDER BY %s DESC LIMIT 1', $this->table, $primaryKeySql);
                 $fallbackStmt = $this->connection->query($sql);
                 if ($fallbackStmt !== false) {
                     $candidate = $fallbackStmt->fetch(PDO::FETCH_ASSOC);
@@ -9050,7 +9074,8 @@ HTML;
      */
     private function findRowByPrimaryKey(string $primaryKeyColumn, mixed $primaryKeyValue): ?array
     {
-        $sql       = sprintf('SELECT * FROM %s WHERE %s = :pk LIMIT 1', $this->table, $primaryKeyColumn);
+        $primaryKeySql = $this->quotePrimaryKeyColumnName($primaryKeyColumn);
+        $sql       = sprintf('SELECT * FROM %s WHERE %s = :pk LIMIT 1', $this->table, $primaryKeySql);
         $statement = $this->connection->prepare($sql);
 
         if ($statement === false) {
