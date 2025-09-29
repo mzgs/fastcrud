@@ -5850,6 +5850,7 @@ HTML;
 <div class="{$panelClasses}" id="{$panelId}" data-fastcrud-inline="1">
     <div class="card-header border-bottom d-flex align-items-center justify-content-between">
         <h5 class="mb-0" id="{$labelId}">Edit Record</h5>
+        <button type="submit" form="{$formId}" class="{$saveClass}">Save Changes</button>
     </div>
     <div class="card-body">
         <form id="{$formId}" novalidate class="d-flex flex-column gap-3">
@@ -14118,7 +14119,11 @@ HTML;
                 }
 
                 var offcanvas = getEditOffcanvasInstance();
-                if (offcanvas) {
+                var shouldHideOffcanvas = true;
+                if (formOnlyMode && !isCreateMode) {
+                    shouldHideOffcanvas = false;
+                }
+                if (offcanvas && shouldHideOffcanvas) {
                     offcanvas.hide();
                 }
 
@@ -14147,7 +14152,11 @@ HTML;
                             } else {
                                 editSuccess.text('Changes saved successfully.');
                             }
-                            editSuccess.addClass('d-none');
+                            if (formOnlyMode && !isCreateMode) {
+                                editSuccess.removeClass('d-none');
+                            } else {
+                                editSuccess.addClass('d-none');
+                            }
                             currentFieldErrors = {};
                             if (!isCreateMode) {
                                 try {
