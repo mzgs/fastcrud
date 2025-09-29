@@ -5850,7 +5850,10 @@ HTML;
 <div class="{$panelClasses}" id="{$panelId}" data-fastcrud-inline="1">
     <div class="card-header border-bottom d-flex align-items-center justify-content-between">
         <h5 class="mb-0" id="{$labelId}">Edit Record</h5>
-        <button type="submit" form="{$formId}" class="{$saveClass}">Save Changes</button>
+        <div class="d-flex flex-wrap gap-2 justify-content-end">
+            <button type="submit" form="{$formId}" class="{$saveClass} fastcrud-submit-close" data-fastcrud-submit-action="close">Save Changes</button>
+            <button type="submit" form="{$formId}" class="{$saveClass} fastcrud-submit-new d-none" data-fastcrud-submit-action="new">Create Record &amp; New</button>
+        </div>
     </div>
     <div class="card-body">
         <form id="{$formId}" novalidate class="d-flex flex-column gap-3">
@@ -5858,7 +5861,8 @@ HTML;
             <div class="alert alert-success d-none" id="{$successId}" role="alert">Changes saved successfully.</div>
             <div id="{$fieldsId}" class="fastcrud-inline-fields"></div>
             <div class="d-flex justify-content-end gap-2 pt-2">
-                <button type="submit" class="{$saveClass}">Save Changes</button>
+                <button type="submit" class="{$saveClass} fastcrud-submit-close" data-fastcrud-submit-action="close">Save Changes</button>
+                <button type="submit" class="{$saveClass} fastcrud-submit-new d-none" data-fastcrud-submit-action="new">Create Record &amp; New</button>
             </div>
         </form>
     </div>
@@ -9245,6 +9249,7 @@ HTML;
             all_columns: []
         };
         var currentFieldErrors = {};
+        var lastSubmitAction = null;
         // Cache for on-demand row fetches (keyed by tableId + '::' + pkCol + '::' + pkVal)
         var rowCache = {};
         var formOnlyMode = container.attr('data-fastcrud-form-only') === '1';
@@ -12385,11 +12390,23 @@ HTML;
             }
 
             var submitButtons = editOffcanvasElement.find('button[type="submit"]');
-            if (submitButtons.length) {
-                var submitText = isCreateMode ? 'Create Record' : 'Save Changes';
-                submitButtons.each(function(_, button) {
-                    \$(button).text(submitText);
-                });
+            var submitButtonClose = editOffcanvasElement.find('.fastcrud-submit-close');
+            var submitButtonNew = editOffcanvasElement.find('.fastcrud-submit-new');
+
+            if (isCreateMode) {
+                if (submitButtonClose.length) {
+                    submitButtonClose.text('Create Record & Close');
+                }
+                if (submitButtonNew.length) {
+                    submitButtonNew.text('Create Record & New').removeClass('d-none');
+                }
+            } else {
+                if (submitButtonClose.length) {
+                    submitButtonClose.text('Save Changes');
+                }
+                if (submitButtonNew.length) {
+                    submitButtonNew.addClass('d-none');
+                }
             }
 
             destroyRichEditors(editFieldsContainer);
@@ -13965,17 +13982,33 @@ HTML;
             var originalTexts = [];
             var submitBusyText = isCreateMode ? 'Creating...' : 'Saving...';
             submitButtons.each(function(index, button) {
-                var \$button = \$(button);
-                originalTexts[index] = \$button.text();
-                \$button.prop('disabled', true).text(submitBusyText);
+                var buttonEl = jQuery(button);
+                originalTexts[index] = buttonEl.text();
+                buttonEl.prop('disabled', true).text(submitBusyText);
             });
+
+            var submitAction = lastSubmitAction || 'close';
+            if (!isCreateMode && submitAction === 'new') {
+                submitAction = 'close';
+            }
 
             function restoreSubmitButtons() {
                 submitButtons.each(function(index, button) {
+                    var buttonEl = jQuery(button);
+                    var action = buttonEl.data('fastcrudSubmitAction') || 'close';
+                    var fallbackText;
+                    if (action === 'new' && isCreateMode) {
+                        fallbackText = 'Create Record & New';
+                    } else if (isCreateMode) {
+                        fallbackText = 'Create Record & Close';
+                    } else {
+                        fallbackText = 'Save Changes';
+                    }
+
                     var originalText = typeof originalTexts[index] !== 'undefined'
                         ? originalTexts[index]
-                        : (isCreateMode ? 'Create Record' : 'Save Changes');
-                    \$(button).prop('disabled', false).text(originalText);
+                        : fallbackText;
+                    buttonEl.prop('disabled', false).text(originalText);
                 });
             }
 
@@ -14143,8 +14176,12 @@ HTML;
 
                 var offcanvas = getEditOffcanvasInstance();
                 var shouldHideOffcanvas = true;
-                if (formOnlyMode && !isCreateMode) {
-                    shouldHideOffcanvas = false;
+                if (formOnlyMode) {
+                    if (isCreateMode) {
+                        shouldHideOffcanvas = submitAction !== 'new';
+                    } else {
+                        shouldHideOffcanvas = false;
+                    }
                 }
                 if (offcanvas && shouldHideOffcanvas) {
                     offcanvas.hide();
@@ -14192,6 +14229,25 @@ HTML;
                                 } catch (e) {}
                             }
                             loadTableData(currentPage);
+                            if (isCreateMode && submitAction === 'new') {
+                                var resolvedPrimaryForNew = resolvePrimaryKeyColumn();
+                                if (!resolvedPrimaryForNew) {
+                                    showFormError('Unable to prepare a new form instance.');
+                                } else {
+                                    var freshRow = {
+                                        __fastcrud_primary_key: resolvedPrimaryForNew,
+                                        __fastcrud_primary_value: null
+                                    };
+                                    var sourceColumns = baseColumns.length ? baseColumns : columnsCache;
+                                    sourceColumns.forEach(function(column) {
+                                        if (!Object.prototype.hasOwnProperty.call(freshRow, column)) {
+                                            freshRow[column] = null;
+                                        }
+                                    });
+                                    showEditForm(freshRow);
+                                    editSuccess.text('Record created successfully.').removeClass('d-none');
+                                }
+                            }
                         } else {
                             var fallbackMessage = isCreateMode ? 'Failed to create record.' : 'Failed to update record.';
                             var message = response && response.error ? response.error : fallbackMessage;
@@ -14214,6 +14270,7 @@ HTML;
                     },
                     complete: function() {
                         restoreSubmitButtons();
+                        lastSubmitAction = null;
                     }
                 });
 
@@ -15017,6 +15074,10 @@ HTML;
             if (!pk) { showError('Unable to determine primary key for duplication.'); return false; }
             requestDuplicate({ __fastcrud_primary_key: pk.column, __fastcrud_primary_value: pk.value });
             return false;
+        });
+
+        editOffcanvasElement.on('click', 'button[type="submit"]', function() {
+            lastSubmitAction = jQuery(this).data('fastcrudSubmitAction') || 'close';
         });
 
         editForm.off('submit.fastcrud').on('submit.fastcrud', submitEditForm);
