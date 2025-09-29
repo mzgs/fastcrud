@@ -12384,9 +12384,12 @@ HTML;
                 }
             }
 
-            var submitButton = editForm.find('button[type="submit"]');
-            if (submitButton.length) {
-                submitButton.text(isCreateMode ? 'Create Record' : 'Save Changes');
+            var submitButtons = editOffcanvasElement.find('button[type="submit"]');
+            if (submitButtons.length) {
+                var submitText = isCreateMode ? 'Create Record' : 'Save Changes';
+                submitButtons.each(function(_, button) {
+                    \$(button).text(submitText);
+                });
             }
 
             destroyRichEditors(editFieldsContainer);
@@ -13958,9 +13961,23 @@ HTML;
                 window.tinymce.triggerSave();
             }
 
-            var submitButton = editForm.find('button[type="submit"]');
-            var originalText = submitButton.text();
-            submitButton.prop('disabled', true).text(isCreateMode ? 'Creating...' : 'Saving...');
+            var submitButtons = editOffcanvasElement.find('button[type="submit"]');
+            var originalTexts = [];
+            var submitBusyText = isCreateMode ? 'Creating...' : 'Saving...';
+            submitButtons.each(function(index, button) {
+                var \$button = \$(button);
+                originalTexts[index] = \$button.text();
+                \$button.prop('disabled', true).text(submitBusyText);
+            });
+
+            function restoreSubmitButtons() {
+                submitButtons.each(function(index, button) {
+                    var originalText = typeof originalTexts[index] !== 'undefined'
+                        ? originalTexts[index]
+                        : (isCreateMode ? 'Create Record' : 'Save Changes');
+                    \$(button).prop('disabled', false).text(originalText);
+                });
+            }
 
             // Ensure FilePond uploads (if any) finish before collecting values
             function waitForFilePondUploads() {
@@ -14120,7 +14137,7 @@ HTML;
                     currentFieldErrors = fieldErrors;
                     applyFieldErrors(fieldErrors);
                     showFormError('Please fix the highlighted fields.');
-                    submitButton.prop('disabled', false).text(originalText);
+                    restoreSubmitButtons();
                     return false;
                 }
 
@@ -14196,7 +14213,7 @@ HTML;
                         }
                     },
                     complete: function() {
-                        submitButton.prop('disabled', false).text(originalText);
+                        restoreSubmitButtons();
                     }
                 });
 

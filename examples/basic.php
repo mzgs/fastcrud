@@ -226,7 +226,8 @@ CrudStyle::$bools_in_grid_color = 'success';
                         </div>
                     </div>
                     <div class="card-body">
-                        <?= $postsCrud->render('edit',2); ?>
+                        
+                        <?= $postsCrud->render('create'); ?>
                     </div>
                 </div>
 
