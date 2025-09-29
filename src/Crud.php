@@ -5405,12 +5405,19 @@ SQL;
     }
 
     /**
-     * Render all records from the configured table as an HTML table.
+     * Render the CRUD interface.
+     *
+     * @param string|null $mode Optional render mode (`edit`, `create`, or `view`)
+     * @param mixed       $primaryKeyValue Optional primary key for targeted record modes
      */
-    public function render(): string
+    public function render(?string $mode = null, mixed $primaryKeyValue = null): string
     {
-        $id      = $this->escapeHtml($this->id);
-        $table   = $this->escapeHtml($this->table);
+        $normalizedMode = $this->normalizeRenderMode($mode);
+        $formOnly = $normalizedMode !== null;
+
+        $rawId  = $this->id;
+        $id     = $this->escapeHtml($rawId);
+        $table  = $this->escapeHtml($this->table);
         $perPage = $this->perPage;
 
         // Get column names for headers
@@ -5423,9 +5430,9 @@ SQL;
         $batchDeleteEnabled = $this->isBatchDeleteEnabled();
         $headerHtml = $this->buildHeader($columns);
         $script     = $this->generateAjaxScript();
-        $styles     = $this->buildActionColumnStyles($this->id);
+        $styles     = $this->buildActionColumnStyles($rawId, $formOnly);
         $colspan    = $this->escapeHtml((string) (count($columns) + 1 + ($batchDeleteEnabled ? 1 : 0) + ($this->hasNestedTables() ? 1 : 0)));
-        $offcanvas  = $this->buildEditOffcanvas($id) . $this->buildViewOffcanvas($id);
+        $offcanvas  = $this->buildEditOffcanvas($rawId, $formOnly) . $this->buildViewOffcanvas($rawId, $formOnly);
 
         $configJson = '{}';
         try {
@@ -5433,10 +5440,37 @@ SQL;
         } catch (JsonException) {
             $configJson = '{}';
         }
-        $configAttr = $this->escapeHtml($configJson);
+
+        $containerAttributes = [
+            'id'                              => $rawId . '-container',
+            'data-fastcrud-config'            => $configJson,
+            'data-fastcrud-initial-primary-column' => $this->getPrimaryKeyColumn(),
+        ];
+
+        if ($formOnly) {
+            $containerAttributes['class'] = 'fastcrud-form-only';
+            $containerAttributes['data-fastcrud-form-only'] = '1';
+            $containerAttributes['data-fastcrud-initial-mode'] = $normalizedMode;
+
+            if ($primaryKeyValue !== null && $normalizedMode !== 'create') {
+                $containerAttributes['data-fastcrud-initial-primary'] = is_scalar($primaryKeyValue)
+                    ? (string) $primaryKeyValue
+                    : json_encode($primaryKeyValue);
+            }
+        }
+
+        $attributePairs = [];
+        foreach ($containerAttributes as $name => $value) {
+            if ($value === null) {
+                continue;
+            }
+
+            $attributePairs[] = sprintf('%s="%s"', $name, $this->escapeHtml((string) $value));
+        }
+        $attributesHtml = implode(' ', $attributePairs);
 
         return <<<HTML
-<div id="{$id}-container" data-fastcrud-config="{$configAttr}">
+<div {$attributesHtml}>
     <div id="{$id}-meta" class="d-flex flex-wrap align-items-center gap-2 mb-2"></div>
     <div class="table-responsive">
         <table id="$id" class="table align-middle" data-table="$table" data-per-page="$perPage">
@@ -5470,6 +5504,33 @@ $styles
 $offcanvas
 $script
 HTML;
+    }
+
+    private function normalizeRenderMode(?string $mode): ?string
+    {
+        if ($mode === null) {
+            return null;
+        }
+
+        $normalized = strtolower(trim((string) $mode));
+        if ($normalized === '' || in_array($normalized, ['list', 'grid', 'table'], true)) {
+            return null;
+        }
+
+        switch ($normalized) {
+            case 'create':
+            case 'add':
+            case 'insert':
+                return 'create';
+            case 'edit':
+            case 'update':
+                return 'edit';
+            case 'view':
+            case 'read':
+                return 'view';
+            default:
+                return null;
+        }
     }
 
     public function getId(): string
@@ -5763,7 +5824,7 @@ HTML;
         return 'fastcrud-' . $suffix;
     }
 
-    private function buildEditOffcanvas(string $id): string
+    private function buildEditOffcanvas(string $id, bool $inline = false): string
     {
         $escapedId = $this->escapeHtml($id);
         $labelId   = $escapedId . '-edit-label';
@@ -5783,8 +5844,32 @@ HTML;
         $cancelClass = $this->escapeHtml($styles['panel_cancel_button_class']);
         $saveClass   = $this->escapeHtml($styles['panel_save_button_class']);
 
+        if ($inline) {
+            $panelClasses = 'fastcrud-inline-panel card shadow-sm border-0';
+            return <<<HTML
+<div class="{$panelClasses}" id="{$panelId}" data-fastcrud-inline="1">
+    <div class="card-header border-bottom d-flex align-items-center justify-content-between">
+        <h5 class="mb-0" id="{$labelId}">Edit Record</h5>
+    </div>
+    <div class="card-body">
+        <form id="{$formId}" novalidate class="d-flex flex-column gap-3">
+            <div class="alert alert-danger d-none" id="{$errorId}" role="alert"></div>
+            <div class="alert alert-success d-none" id="{$successId}" role="alert">Changes saved successfully.</div>
+            <div id="{$fieldsId}" class="fastcrud-inline-fields"></div>
+            <div class="d-flex justify-content-end gap-2 pt-2">
+                <button type="submit" class="{$saveClass}">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+HTML;
+        }
+
+        $panelClasses = 'offcanvas offcanvas-start';
+        $inlineAttr = '';
+
         return <<<HTML
-<div class="offcanvas offcanvas-start" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}"{$widthStyle}>
+<div class="{$panelClasses}" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}"{$widthStyle}{$inlineAttr}>
     <div class="offcanvas-header border-bottom">
         <h5 class="offcanvas-title" id="{$labelId}">Edit Record</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
@@ -5804,7 +5889,7 @@ HTML;
 HTML;
     }
 
-    private function buildViewOffcanvas(string $id): string
+    private function buildViewOffcanvas(string $id, bool $inline = false): string
     {
         $escapedId = $this->escapeHtml($id);
         $labelId   = $escapedId . '-view-label';
@@ -5818,8 +5903,26 @@ HTML;
             $widthStyle = " style=\"width: {$width};\"";
         }
 
+        if ($inline) {
+            $panelClasses = 'fastcrud-inline-panel card shadow-sm border-0';
+            return <<<HTML
+<div class="{$panelClasses}" id="{$panelId}" data-fastcrud-inline="1">
+    <div class="card-header border-bottom">
+        <h5 class="mb-0" id="{$labelId}">View Record</h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info d-none" id="{$emptyId}" role="alert">No record selected.</div>
+        <div id="{$contentId}" class="list-group list-group-flush"></div>
+    </div>
+</div>
+HTML;
+        }
+
+        $panelClasses = 'offcanvas offcanvas-start';
+        $inlineAttr = '';
+
         return <<<HTML
-<div class="offcanvas offcanvas-start" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}"{$widthStyle}>
+<div class="{$panelClasses}" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}"{$widthStyle}{$inlineAttr}>
     <div class="offcanvas-header border-bottom">
         <h5 class="offcanvas-title" id="{$labelId}">View Record</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
@@ -5832,12 +5935,62 @@ HTML;
 HTML;
     }
 
-    private function buildActionColumnStyles(string $id): string
+    private function buildActionColumnStyles(string $id, bool $formOnly = false): string
     {
         $containerId = $this->escapeHtml($id . '-container');
         $fieldsId    = $this->escapeHtml($id . '-edit-fields');
+        $editPanelId = $this->escapeHtml($id . '-edit-panel');
+        $viewPanelId = $this->escapeHtml($id . '-view-panel');
+        $metaId      = $this->escapeHtml($id . '-meta');
+        $summaryId   = $this->escapeHtml($id . '-summary');
         $styles      = $this->getStyleDefaults();
         $switchColor = $this->resolveAccentColor($styles['bools_in_grid_color'] ?? 'primary');
+
+        $additionalCss = '';
+        if ($formOnly) {
+            $additionalCss = <<<CSS
+#{$containerId}.fastcrud-form-only .table-responsive,
+#{$containerId}.fastcrud-form-only nav,
+#{$containerId}.fastcrud-form-only #{$summaryId} {
+    display: none !important;
+}
+#{$containerId}.fastcrud-form-only #{$metaId} {
+    display: none !important;
+}
+#{$editPanelId}.fastcrud-inline-panel,
+#{$viewPanelId}.fastcrud-inline-panel {
+    position: static;
+    visibility: hidden;
+    transform: none !important;
+    width: 100%;
+    max-width: 100%;
+    border-radius: 0.5rem;
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    box-shadow: none;
+    display: none;
+    margin: 0 auto 1.5rem;
+    background-color: var(--bs-body-bg, #ffffff);
+}
+#{$editPanelId}.fastcrud-inline-panel.fastcrud-inline-visible,
+#{$editPanelId}.fastcrud-inline-panel.show,
+#{$viewPanelId}.fastcrud-inline-panel.fastcrud-inline-visible,
+#{$viewPanelId}.fastcrud-inline-panel.show {
+    display: block;
+    visibility: visible;
+}
+#{$editPanelId}.fastcrud-inline-panel .card-header,
+#{$viewPanelId}.fastcrud-inline-panel .card-header {
+    background-color: transparent;
+}
+#{$editPanelId}.fastcrud-inline-panel .card-body,
+#{$viewPanelId}.fastcrud-inline-panel .card-body {
+    padding: 1.5rem;
+}
+#{$editPanelId}.fastcrud-inline-panel .fastcrud-inline-fields {
+    min-height: 10rem;
+}
+CSS;
+        }
 
         return <<<HTML
 <style>
@@ -5983,6 +6136,7 @@ HTML;
     border-color: {$switchColor};
 }
 
+{$additionalCss}
 </style>
 HTML;
     }
@@ -9086,6 +9240,120 @@ HTML;
         var currentFieldErrors = {};
         // Cache for on-demand row fetches (keyed by tableId + '::' + pkCol + '::' + pkVal)
         var rowCache = {};
+        var formOnlyMode = container.attr('data-fastcrud-form-only') === '1';
+        var initialMode = String(container.attr('data-fastcrud-initial-mode') || '').toLowerCase();
+        if (['create', 'edit', 'view'].indexOf(initialMode) === -1) {
+            initialMode = '';
+        }
+        var initialPrimaryKeyValue = container.attr('data-fastcrud-initial-primary');
+        var initialPrimaryKeyColumn = container.attr('data-fastcrud-initial-primary-column') || '';
+        if (!primaryKeyColumn && initialPrimaryKeyColumn) {
+            primaryKeyColumn = initialPrimaryKeyColumn;
+        }
+        if (typeof initialPrimaryKeyValue === 'string' && initialPrimaryKeyValue.length) {
+            var trimmedInitial = initialPrimaryKeyValue.trim();
+            var firstChar = trimmedInitial.charAt(0);
+            var lastChar = trimmedInitial.charAt(trimmedInitial.length - 1);
+            if ((firstChar === '{' && lastChar === '}') || (firstChar === '[' && lastChar === ']')) {
+                try {
+                    initialPrimaryKeyValue = JSON.parse(trimmedInitial);
+                } catch (error) {
+                    // Leave as-is if parsing fails
+                }
+            }
+        }
+        if (!primaryKeyColumn && typeof clientConfig.primary_key === 'string' && clientConfig.primary_key.length) {
+            primaryKeyColumn = clientConfig.primary_key;
+        }
+        if (formOnlyMode) {
+            container.addClass('fastcrud-form-only');
+
+            if (clientConfig && typeof clientConfig === 'object') {
+                var seedTableMeta = {};
+                if (clientConfig.table_meta && typeof clientConfig.table_meta === 'object') {
+                    try {
+                        seedTableMeta = JSON.parse(JSON.stringify(clientConfig.table_meta));
+                    } catch (error) {
+                        seedTableMeta = $.extend(true, {}, clientConfig.table_meta);
+                    }
+                }
+
+                if (!seedTableMeta || typeof seedTableMeta !== 'object') {
+                    seedTableMeta = {};
+                }
+
+                if (!Object.prototype.hasOwnProperty.call(seedTableMeta, 'bulk_actions') || !Array.isArray(seedTableMeta.bulk_actions)) {
+                    seedTableMeta.bulk_actions = [];
+                }
+                ['add','view','edit','delete'].forEach(function(flag){
+                    if (!Object.prototype.hasOwnProperty.call(seedTableMeta, flag)) {
+                        seedTableMeta[flag] = true;
+                    }
+                });
+                if (!Object.prototype.hasOwnProperty.call(seedTableMeta, 'duplicate')) {
+                    seedTableMeta.duplicate = false;
+                }
+                if (!Object.prototype.hasOwnProperty.call(seedTableMeta, 'delete_confirm')) {
+                    seedTableMeta.delete_confirm = true;
+                }
+                if (!Object.prototype.hasOwnProperty.call(seedTableMeta, 'batch_delete')) {
+                    seedTableMeta.batch_delete = false;
+                }
+                if (!Object.prototype.hasOwnProperty.call(seedTableMeta, 'batch_delete_button')) {
+                    seedTableMeta.batch_delete_button = false;
+                }
+                if (!Object.prototype.hasOwnProperty.call(seedTableMeta, 'export_csv')) {
+                    seedTableMeta.export_csv = false;
+                }
+                if (!Object.prototype.hasOwnProperty.call(seedTableMeta, 'export_excel')) {
+                    seedTableMeta.export_excel = false;
+                }
+
+                var seedMeta = {
+                    columns: Array.isArray(clientConfig.columns) ? clientConfig.columns.slice() : [],
+                    primary_key: clientConfig.primary_key || null,
+                    form: clientConfig.form || {},
+                    inline_edit: Array.isArray(clientConfig.inline_edit) ? clientConfig.inline_edit.slice() : (clientConfig.inline_edit || []),
+                    table: seedTableMeta,
+                    sort_disabled: Array.isArray(clientConfig.sort_disabled) ? clientConfig.sort_disabled.slice() : [],
+                    limit_options: Array.isArray(clientConfig.limit_options) ? clientConfig.limit_options.slice() : [],
+                    default_limit: typeof clientConfig.limit_default !== 'undefined' ? clientConfig.limit_default : null,
+                    search: {
+                        columns: Array.isArray(clientConfig.search_columns) ? clientConfig.search_columns.slice() : [],
+                        'default': clientConfig.search_default || null,
+                        available: Array.isArray(clientConfig.search_columns) ? clientConfig.search_columns.slice() : []
+                    },
+                    nested_tables: Array.isArray(clientConfig.nested_tables) ? clientConfig.nested_tables.slice() : [],
+                    link_button: clientConfig.link_button || null,
+                    soft_delete: clientConfig.soft_delete || null,
+                    labels: clientConfig.column_labels || {},
+                    column_classes: clientConfig.column_classes || {},
+                    column_widths: clientConfig.column_widths || {},
+                    order_by: Array.isArray(clientConfig.order_by) ? clientConfig.order_by.slice() : [],
+                    summaries: Array.isArray(clientConfig.column_summaries) ? clientConfig.column_summaries.slice() : []
+                };
+
+                if (seedMeta.form && typeof seedMeta.form === 'object') {
+                    try {
+                        seedMeta.form = JSON.parse(JSON.stringify(seedMeta.form));
+                    } catch (error) {
+                        seedMeta.form = $.extend(true, {}, seedMeta.form);
+                    }
+                } else {
+                    seedMeta.form = {};
+                }
+
+                if ((!seedMeta.columns || !seedMeta.columns.length) && seedMeta.form && Array.isArray(seedMeta.form.all_columns)) {
+                    seedMeta.columns = seedMeta.form.all_columns.slice();
+                }
+
+                if (!seedMeta.columns || !seedMeta.columns.length) {
+                    seedMeta.columns = [];
+                }
+
+                applyMeta(seedMeta);
+            }
+        }
 
         function getStyleClass(key, fallback) {
             var value = '';
@@ -9105,6 +9373,24 @@ HTML;
                     trEl.removeClass('fastcrud-editing').removeData('fastcrudHadClass');
                 });
             } catch (e) {}
+        }
+
+        function resolvePrimaryKeyColumn() {
+            if (primaryKeyColumn && String(primaryKeyColumn).length) {
+                return primaryKeyColumn;
+            }
+
+            if (initialPrimaryKeyColumn && String(initialPrimaryKeyColumn).length) {
+                primaryKeyColumn = initialPrimaryKeyColumn;
+                return primaryKeyColumn;
+            }
+
+            if (clientConfig && typeof clientConfig.primary_key === 'string' && clientConfig.primary_key.length) {
+                primaryKeyColumn = clientConfig.primary_key;
+                return primaryKeyColumn;
+            }
+
+            return null;
         }
 
         function highlightRow(tr) {
@@ -9662,6 +9948,26 @@ HTML;
         }
         window.FastCrudRichEditor = richEditorState;
 
+        function createInlinePanelController(element, callbacks) {
+            if (!element) {
+                return null;
+            }
+
+            var elementRef = $(element);
+            var hooks = callbacks && typeof callbacks === 'object' ? callbacks : {};
+            return {
+                show: function() {
+                    elementRef.addClass('fastcrud-inline-visible show');
+                },
+                hide: function() {
+                    elementRef.removeClass('fastcrud-inline-visible show');
+                    if (hooks.onHide && typeof hooks.onHide === 'function') {
+                        hooks.onHide();
+                    }
+                }
+            };
+        }
+
         function getEditOffcanvasInstance() {
             if (editOffcanvasInstance) {
                 return editOffcanvasInstance;
@@ -9672,8 +9978,23 @@ HTML;
                 return null;
             }
 
-            editOffcanvasInstance = bootstrap.Offcanvas.getOrCreateInstance(element);
-            return editOffcanvasInstance;
+            if (formOnlyMode) {
+                editOffcanvasInstance = createInlinePanelController(element, {
+                    onHide: function() {
+                        clearRowHighlight();
+                        destroyRichEditors(editFieldsContainer);
+                        destroyFilePonds(editFieldsContainer);
+                    }
+                });
+                return editOffcanvasInstance;
+            }
+
+            if (typeof bootstrap !== 'undefined' && bootstrap.Offcanvas) {
+                editOffcanvasInstance = bootstrap.Offcanvas.getOrCreateInstance(element);
+                return editOffcanvasInstance;
+            }
+
+            return null;
         }
 
         function getViewOffcanvasInstance() {
@@ -9686,8 +10007,21 @@ HTML;
                 return null;
             }
 
-            viewOffcanvasInstance = bootstrap.Offcanvas.getOrCreateInstance(element);
-            return viewOffcanvasInstance;
+            if (formOnlyMode) {
+                viewOffcanvasInstance = createInlinePanelController(element, {
+                    onHide: function() {
+                        clearRowHighlight();
+                    }
+                });
+                return viewOffcanvasInstance;
+            }
+
+            if (typeof bootstrap !== 'undefined' && bootstrap.Offcanvas) {
+                viewOffcanvasInstance = bootstrap.Offcanvas.getOrCreateInstance(element);
+                return viewOffcanvasInstance;
+            }
+
+            return null;
         }
 
         function selectionKey(pkCol, pkVal) {
@@ -9735,6 +10069,11 @@ HTML;
         }
 
         function updateBatchDeleteButtonState() {
+            if (formOnlyMode) {
+                batchDeleteButton = null;
+                return;
+            }
+
             if (batchDeleteButton && batchDeleteButton.length) {
                 var selectedCount = getSelectedCount();
                 var enabled = allowBatchDeleteButton && selectedCount > 0;
@@ -9755,6 +10094,10 @@ HTML;
         }
 
         function updateBulkActionState() {
+            if (formOnlyMode) {
+                return;
+            }
+
             var wrapper = metaContainer.find('.fastcrud-bulk-actions');
             if (!wrapper.length) {
                 return;
@@ -9820,6 +10163,61 @@ HTML;
             }
 
             metaConfig = meta;
+
+            if (formOnlyMode) {
+                if (Array.isArray(meta.columns) && meta.columns.length) {
+                    columnsCache = meta.columns.slice();
+                }
+
+                if (typeof meta.primary_key === 'string' && meta.primary_key.length) {
+                    primaryKeyColumn = meta.primary_key;
+                }
+
+                columnLabels = meta.labels && typeof meta.labels === 'object' ? meta.labels : {};
+                columnClasses = meta.column_classes && typeof meta.column_classes === 'object' ? meta.column_classes : {};
+                columnWidths = meta.column_widths && typeof meta.column_widths === 'object' ? meta.column_widths : {};
+
+                if (meta.form && typeof meta.form === 'object') {
+                    formConfig = {
+                        layouts: meta.form.layouts && typeof meta.form.layouts === 'object' ? meta.form.layouts : {},
+                        default_tabs: meta.form.default_tabs && typeof meta.form.default_tabs === 'object' ? meta.form.default_tabs : {},
+                        behaviours: meta.form.behaviours && typeof meta.form.behaviours === 'object' ? meta.form.behaviours : {},
+                        labels: meta.form.labels && typeof meta.form.labels === 'object' ? meta.form.labels : {},
+                        all_columns: Array.isArray(meta.form.all_columns) ? meta.form.all_columns.slice() : []
+                    };
+                    clientConfig.form = meta.form;
+                }
+
+                inlineEditFields = {};
+                var inlineFormOnly = Array.isArray(meta.inline_edit) ? meta.inline_edit : [];
+                if (!inlineFormOnly.length && Array.isArray(clientConfig.inline_edit)) {
+                    inlineFormOnly = clientConfig.inline_edit;
+                }
+                inlineFormOnly.forEach(function(field) {
+                    if (field) {
+                        inlineEditFields[String(field)] = true;
+                    }
+                });
+
+                if (!Array.isArray(clientConfig.inline_edit) || !clientConfig.inline_edit.length) {
+                    clientConfig.inline_edit = inlineFormOnly.slice();
+                }
+
+                if (Array.isArray(formConfig.all_columns) && formConfig.all_columns.length) {
+                    baseColumns = formConfig.all_columns.slice();
+                } else if (columnsCache.length) {
+                    baseColumns = columnsCache.slice();
+                }
+
+                if (meta.table && typeof meta.table === 'object') {
+                    clientConfig.table_meta = meta.table;
+                }
+
+                allowBatchDeleteButton = false;
+                batchDeleteEnabled = false;
+                metaInitialized = true;
+                return;
+            }
 
             if (Object.prototype.hasOwnProperty.call(meta, 'soft_delete')) {
                 clientConfig.soft_delete = meta.soft_delete;
@@ -10006,6 +10404,10 @@ HTML;
         }
 
         function ensureSearchControls() {
+            if (formOnlyMode) {
+                return;
+            }
+
             if (!toolbar.length) {
                 return;
             }
@@ -10076,7 +10478,16 @@ HTML;
         }
 
         function updateMetaContainer(tableMeta) {
-            if (!metaContainer.length) {
+            if (formOnlyMode) {
+                if (metaContainer && metaContainer.length) {
+                    metaContainer.empty().addClass('d-none');
+                }
+                batchDeleteButton = null;
+                return;
+            }
+
+            tableMeta = tableMeta && typeof tableMeta === 'object' ? tableMeta : {};
+            if (!metaContainer || typeof metaContainer.length === 'undefined' || !metaContainer.length) {
                 return;
             }
 
@@ -10118,12 +10529,13 @@ HTML;
                 hasActions = true;
             }
 
-            if (Array.isArray(bulkActions) && bulkActions.length) {
+            var localBulkActions = Array.isArray(bulkActions) ? bulkActions : [];
+            if (localBulkActions.length) {
                 var bulkWrapper = $('<div class="d-flex align-items-center gap-2 fastcrud-bulk-actions"></div>');
                 var bulkSelect = $('<select class="form-select form-select-sm fastcrud-bulk-action-select"></select>');
                 bulkSelect.append('<option value="">Bulk actions</option>');
 
-                bulkActions.forEach(function(action, index) {
+                localBulkActions.forEach(function(action, index) {
                     if (!action || typeof action !== 'object') {
                         return;
                     }
@@ -14577,6 +14989,71 @@ HTML;
 
         editForm.off('submit.fastcrud').on('submit.fastcrud', submitEditForm);
 
+        function bootstrapInitialMode() {
+            if (!initialMode || !formOnlyMode) {
+                return false;
+            }
+
+            var resolvedPrimary = resolvePrimaryKeyColumn();
+
+            if (initialMode === 'create') {
+                editForm.data('mode', 'create');
+                clearRowHighlight();
+
+                if (!resolvedPrimary) {
+                    showFormError('Unable to determine primary key for creating records.');
+                    return true;
+                }
+
+                var templateRow = {
+                    __fastcrud_primary_key: resolvedPrimary,
+                    __fastcrud_primary_value: null
+                };
+                var sourceColumns = baseColumns.length ? baseColumns : columnsCache;
+                sourceColumns.forEach(function(column) {
+                    if (!Object.prototype.hasOwnProperty.call(templateRow, column)) {
+                        templateRow[column] = null;
+                    }
+                });
+
+                showEditForm(templateRow);
+                return true;
+            }
+
+            if (!resolvedPrimary) {
+                showError('Primary key column missing for ' + initialMode + ' mode.');
+                return true;
+            }
+
+            if (typeof initialPrimaryKeyValue === 'undefined' || initialPrimaryKeyValue === null ||
+                (typeof initialPrimaryKeyValue === 'string' && initialPrimaryKeyValue === '')) {
+                showError('Primary key value missing for ' + initialMode + ' mode.');
+                return true;
+            }
+
+            if (initialMode === 'view') {
+                fetchRowByPk(resolvedPrimary, initialPrimaryKeyValue)
+                    .then(function(row) {
+                        showViewPanel(row || {});
+                    })
+                    .catch(function(error) {
+                        showError(error && error.message ? error.message : 'Failed to load record.');
+                    });
+                return true;
+            }
+
+            editForm.data('mode', 'edit');
+            fetchRowByPk(resolvedPrimary, initialPrimaryKeyValue)
+                .then(function(row) {
+                    showEditForm(row || {});
+                })
+                .catch(function(error) {
+                    showError(error && error.message ? error.message : 'Failed to load record.');
+                });
+
+            return true;
+        }
+
         window.FastCrudTables = window.FastCrudTables || {};
         window.FastCrudTables[tableId] = {
             reload: function() {
@@ -14620,7 +15097,14 @@ HTML;
             }
         };
 
-        loadTableData(1);
+        if (formOnlyMode) {
+            var handledInitialMode = bootstrapInitialMode();
+            if (!handledInitialMode) {
+                loadTableData(1);
+            }
+        } else {
+            loadTableData(1);
+        }
         });
     }
     (function __fastcrud_wait() {
