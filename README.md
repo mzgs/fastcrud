@@ -21,10 +21,6 @@
 - [📦 Installation](#installation)
 - [🚀 Quick Start](#quick-start)
 - [🔧 Configuration](#configuration)
-- [🎨 Customization](#customization)
-- [🔗 Relations & Nested Tables](#relations--nested-tables)
-- [🪝 Hooks & Callbacks](#hooks--callbacks)
-- [🎨 Styling & Assets](#styling--assets)
 - [📝 Requirements](#requirements)
 - [📜 API Reference](#api-reference)
 - [📝 License](#license)
@@ -78,8 +74,6 @@ echo new Crud('users')->render();
 > 🎉 **That's it!** FastCRUD automatically generates a complete CRUD interface with pagination, search, and AJAX functionality.
 
 ### 🖼️ What You Get Out of the Box
-
-![FastCRUD Demo](https://via.placeholder.com/800x400/007ACC/FFFFFF?text=FastCRUD+Demo+Table)
 
 *Example of a fully functional CRUD table generated with just 2 lines of code*
 
@@ -136,59 +130,12 @@ echo $users->render();
 echo $orders->render();
 ```
 
-## 🎨 Customization
-
-### 🖍 Customizing the Grid
-
-📊 **Columns**: Control display with `columns(['id', 'name'])`, customize labels with `set_column_labels(['created_at' => 'Created'])`, format with patterns `column_pattern('email', '<a href="mailto:{raw}">{value}</a>')`
-
-📋 **Forms**: Organize fields with `fields([...])`, change input types `change_type('avatar', 'upload_image')`, add validation `validation_required(['name'])`, create tabs `default_tab('Details')`
-
-⚙️ **Actions**: Control operations with `enable_add(false)`, set per-row conditions, enable soft-delete, add bulk actions via `add_bulk_action()`
-
-🎨 **Highlighting**: Conditional styling with `highlight('status', 'equals', 'pending', 'text-warning')` or `highlight_row('balance', 'lt', 0, 'table-danger')`
-
-✏️ **Inline Editing**: Enable quick edits with `inline_edit(['status', 'priority'])` for single-click updates
-
-## 🔗 Relations & Nested Tables
-
-🔗 **Join Data**: Automatically join related data with `relation()` or `join()` helpers
-
-📊 **Nested Tables**: Render expandable child tables with `nested_table()` - FastCRUD loads them via AJAX on demand
-
-## 🪝 Hooks & Callbacks
-
-🪝 **Lifecycle Events**: Hook into CRUD operations with `before_insert()`, `after_update()`, etc.
-
-📊 **Custom Data**: Add computed columns with `custom_column()` or transform values with `field_callback()`
-
-📦 **Runtime Data**: Inject dynamic data into forms using `pass_default()` and `pass_var()`
-
-## 🎨 Styling & Assets
-
-⚙️ **Styling**: Customize button classes and colors via `FastCrud\CrudStyle` statics
-
-💾 **Configuration**: Set upload paths and grid behavior through `FastCrud\CrudConfig`
 
 
 
-## 📝 License
+## 📜 API Reference & Customization
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
-
----
-
-<div align="center">
-
-**Made with ❤️ by the FastCRUD Team**
-
-🐛 Found a bug? [Report it here](https://github.com/mzgs/fastcrud/issues)  
-⭐ Like this project? Give it a star!  
-💬 Questions? [Start a discussion](https://github.com/mzgs/fastcrud/discussions)
-
-</div>
-
-## 📜 API Reference
+All customization options are available through the main `FastCrud\Crud` class methods:
 
 ### 🛠️ FastCrud\Crud - Main CRUD Class
 
@@ -798,3 +745,21 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $errors = $exception->getErrors();
   ```
+
+---
+
+## 📝 License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+
+**Made with ❤️ by the FastCRUD Team**
+
+🐛 Found a bug? [Report it here](https://github.com/mzgs/fastcrud/issues)  
+⭐ Like this project? Give it a star!  
+💬 Questions? [Start a discussion](https://github.com/mzgs/fastcrud/discussions)
+
+</div>
