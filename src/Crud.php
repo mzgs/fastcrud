@@ -396,31 +396,35 @@ class Crud
         return $normalized;
     }
 
-    private function normalizeCallable(callable|string|array $callback): string
+    private function normalizeCallable(string|array $callback): string
     {
         if (is_string($callback)) {
-            return $callback;
-        }
-
-        if ($callback instanceof \Closure) {
-            throw new InvalidArgumentException('Closures cannot be serialized for AJAX callbacks. Use a named function or static method instead.');
-        }
-
-        if (is_array($callback) && count($callback) === 2) {
-            [$target, $method] = $callback;
-            if (is_object($target)) {
-                $class = get_class($target);
-                if (is_string($method) && $method !== '') {
-                    return $class . '::' . $method;
-                }
+            $normalized = trim($callback);
+            if ($normalized === '') {
+                throw new InvalidArgumentException('Callback name cannot be empty.');
             }
 
-            if (is_string($target) && is_string($method) && $target !== '' && $method !== '') {
-                return $target . '::' . $method;
-            }
+            return $normalized;
         }
 
-        throw new InvalidArgumentException('Unsupported callback type. Provide a string callable or [ClassName, method] pair.');
+        if (!is_array($callback) || count($callback) !== 2) {
+            throw new InvalidArgumentException('Unsupported callback type. Provide a string callable or [ClassName, method] pair.');
+        }
+
+        [$class, $method] = array_values($callback);
+
+        if (!is_string($class) || !is_string($method)) {
+            throw new InvalidArgumentException('Callback array must contain two string entries: [ClassName, methodName].');
+        }
+
+        $class = trim($class);
+        $method = trim($method);
+
+        if ($class === '' || $method === '') {
+            throw new InvalidArgumentException('Callback array entries cannot be empty strings.');
+        }
+
+        return $class . '::' . $method;
     }
 
     /**
@@ -2138,7 +2142,7 @@ class Crud
     /**
      * @param string|array<int, string> $columns
      */
-    public function column_callback(string|array $columns, callable|string|array $callback): self
+    public function column_callback(string|array $columns, string|array $callback): self
     {
         $list = $this->normalizeList($columns);
         if ($list === []) {
@@ -2177,7 +2181,7 @@ class Crud
      * Returned strings are injected as raw HTML in the grid, so escape the output yourself
      * if it comes from an untrusted source.
      */
-    public function custom_column(string $column, callable|string|array $callback): self
+    public function custom_column(string $column, string|array $callback): self
     {
         $normalizedColumn = $this->normalizeColumnReference($column);
         if ($normalizedColumn === '') {
@@ -2206,7 +2210,7 @@ class Crud
      * your own inputs with `data-fastcrud-field="{field}"` so the Ajax submit logic can capture
      * the value.
      */
-    public function field_callback(string|array $fields, callable|string|array $callback): self
+    public function field_callback(string|array $fields, string|array $callback): self
     {
         $list = $this->normalizeList($fields);
         if ($list === []) {
@@ -2245,7 +2249,7 @@ class Crud
      * current form mode. Return a string of HTML or an array with `html`/`value` keys to inject
      * custom form controls. Escape the markup yourself if it contains untrusted data.
      */
-    public function custom_field(string $field, callable|string|array $callback): self
+    public function custom_field(string $field, string|array $callback): self
     {
         $normalizedField = $this->normalizeColumnReference($field);
         if ($normalizedField === '') {
@@ -2274,7 +2278,7 @@ class Crud
     /**
      * Register a lifecycle callback for CRUD mutations.
      */
-    private function registerLifecycleCallback(string $event, callable|string|array $callback): self
+    private function registerLifecycleCallback(string $event, string|array $callback): self
     {
         if (!in_array($event, self::LIFECYCLE_EVENTS, true)) {
             throw new InvalidArgumentException('Unsupported lifecycle event: ' . $event);
@@ -2291,62 +2295,62 @@ class Crud
         return $this;
     }
 
-    public function before_insert(callable|string|array $callback): self
+    public function before_insert(string|array $callback): self
     {
         return $this->registerLifecycleCallback('before_insert', $callback);
     }
 
-    public function after_insert(callable|string|array $callback): self
+    public function after_insert(string|array $callback): self
     {
         return $this->registerLifecycleCallback('after_insert', $callback);
     }
 
-    public function before_create(callable|string|array $callback): self
+    public function before_create(string|array $callback): self
     {
         return $this->before_insert($callback);
     }
 
-    public function after_create(callable|string|array $callback): self
+    public function after_create(string|array $callback): self
     {
         return $this->after_insert($callback);
     }
 
-    public function before_update(callable|string|array $callback): self
+    public function before_update(string|array $callback): self
     {
         return $this->registerLifecycleCallback('before_update', $callback);
     }
 
-    public function after_update(callable|string|array $callback): self
+    public function after_update(string|array $callback): self
     {
         return $this->registerLifecycleCallback('after_update', $callback);
     }
 
-    public function before_delete(callable|string|array $callback): self
+    public function before_delete(string|array $callback): self
     {
         return $this->registerLifecycleCallback('before_delete', $callback);
     }
 
-    public function after_delete(callable|string|array $callback): self
+    public function after_delete(string|array $callback): self
     {
         return $this->registerLifecycleCallback('after_delete', $callback);
     }
 
-    public function before_fetch(callable|string|array $callback): self
+    public function before_fetch(string|array $callback): self
     {
         return $this->registerLifecycleCallback('before_fetch', $callback);
     }
 
-    public function after_fetch(callable|string|array $callback): self
+    public function after_fetch(string|array $callback): self
     {
         return $this->registerLifecycleCallback('after_fetch', $callback);
     }
 
-    public function before_read(callable|string|array $callback): self
+    public function before_read(string|array $callback): self
     {
         return $this->registerLifecycleCallback('before_read', $callback);
     }
 
-    public function after_read(callable|string|array $callback): self
+    public function after_read(string|array $callback): self
     {
         return $this->registerLifecycleCallback('after_read', $callback);
     }

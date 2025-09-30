@@ -230,11 +230,11 @@ MIT
   ```php
   $crud->column_pattern('email', '<a href="mailto:{{raw}}">{{display}}</a>');
   ```
-- **`column_callback(string|array $columns, callable|string|array $callback): self`** – Pass values through a formatter callback (`callable`, `['Class', 'method']`, or `'Class::method'`).
+- **`column_callback(string|array $columns, string|array $callback): self`** – Pass values through a formatter callback (use a named function `'function_name'`, `'Class::method'`, or `[ClassName::class, 'method']`).
   ```php
   $crud->column_callback('balance', [Formatter::class, 'money']);
   ```
-- **`custom_column(string $column, callable|string|array $callback): self`** – Add computed virtual columns to the grid; callback forms mirror `column_callback()`.
+- **`custom_column(string $column, string|array $callback): self`** – Add computed virtual columns to the grid; callback forms mirror `column_callback()`.
   ```php
   $crud->custom_column('full_name', [UserPresenter::class, 'fullName']);
   ```
@@ -265,11 +265,11 @@ MIT
 
 #### Field & Form Customisation
 
-- **`custom_field(string $field, callable|string|array $callback): self`** – Inject additional, non-database fields into the form; callbacks accept the same shapes as other behaviour hooks.
+- **`custom_field(string $field, string|array $callback): self`** – Inject additional, non-database fields into the form; callbacks accept the same shapes as other behaviour hooks.
   ```php
   $crud->custom_field('invite_toggle', [FormExtras::class, 'toggle']);
   ```
-- **`field_callback(string|array $fields, callable|string|array $callback): self`** – Mutate input data before it is saved.
+- **`field_callback(string|array $fields, string|array $callback): self`** – Mutate input data before it is saved.
   ```php
   $crud->field_callback('slug', [Slugger::class, 'make']);
   ```
@@ -323,53 +323,53 @@ MIT
 
 #### Lifecycle Hooks
 
-All lifecycle hook methods accept PHP callables: closures, `['Class', 'method']` arrays, or `'Class::method'` strings.
+Lifecycle hook methods accept only serializable callbacks: named functions (`'function_name'`), static method strings (`'Class::method'`), or class/method arrays (`[ClassName::class, 'method']`). Closures are not supported because the configuration is serialized for AJAX.
 
-- **`before_insert(callable|string|array $callback): self`** – Run logic right before an insert occurs.
+- **`before_insert(string|array $callback): self`** – Run logic right before an insert occurs.
   ```php
   $crud->before_insert([Audit::class, 'stampBeforeInsert']);
   ```
-- **`after_insert(callable|string|array $callback): self`** – React immediately after a record is inserted.
+- **`after_insert(string|array $callback): self`** – React immediately after a record is inserted.
   ```php
   $crud->after_insert([Notifier::class, 'sendWelcome']);
   ```
-- **`before_create(callable|string|array $callback): self`** – Intercept create form submissions before validation.
+- **`before_create(string|array $callback): self`** – Intercept create form submissions before validation.
   ```php
-  $crud->before_create(fn(array $payload) => $payload);
+  $crud->before_create([FormGuards::class, 'preparePayload']);
   ```
-- **`after_create(callable|string|array $callback): self`** – React once the create form has finished.
+- **`after_create(string|array $callback): self`** – React once the create form has finished.
   ```php
-  $crud->after_create(fn(array $row) => $row);
+  $crud->after_create([FormGuards::class, 'cleanup']);
   ```
-- **`before_update(callable|string|array $callback): self`** – Run logic prior to updating a record.
+- **`before_update(string|array $callback): self`** – Run logic prior to updating a record.
   ```php
   $crud->before_update([Audit::class, 'stampBeforeUpdate']);
   ```
-- **`after_update(callable|string|array $callback): self`** – React to successful updates.
+- **`after_update(string|array $callback): self`** – React to successful updates.
   ```php
   $crud->after_update([Notifier::class, 'sendUpdate']);
   ```
-- **`before_delete(callable|string|array $callback): self`** – Perform checks before deletions execute.
+- **`before_delete(string|array $callback): self`** – Perform checks before deletions execute.
   ```php
   $crud->before_delete([Audit::class, 'logDeleteAttempt']);
   ```
-- **`after_delete(callable|string|array $callback): self`** – Handle clean-up after deletions.
+- **`after_delete(string|array $callback): self`** – Handle clean-up after deletions.
   ```php
   $crud->after_delete([Notifier::class, 'sendRemovalNotice']);
   ```
-- **`before_fetch(callable|string|array $callback): self`** – Adjust pagination payloads before data loads.
+- **`before_fetch(string|array $callback): self`** – Adjust pagination payloads before data loads.
   ```php
-  $crud->before_fetch(fn(array $payload) => $payload);
+  $crud->before_fetch([QueryFilters::class, 'apply']);
   ```
-- **`after_fetch(callable|string|array $callback): self`** – Transform row collections after loading.
+- **`after_fetch(string|array $callback): self`** – Transform row collections after loading.
   ```php
-  $crud->after_fetch(fn(array $result) => $result);
+  $crud->after_fetch([ResultFormatters::class, 'toApiPayload']);
   ```
-- **`before_read(callable|string|array $callback): self`** – Inspect requests before a single record load.
+- **`before_read(string|array $callback): self`** – Inspect requests before a single record load.
   ```php
   $crud->before_read([Audit::class, 'logBeforeRead']);
   ```
-- **`after_read(callable|string|array $callback): self`** – React after a single record is retrieved.
+- **`after_read(string|array $callback): self`** – React after a single record is retrieved.
   ```php
   $crud->after_read([Audit::class, 'logAfterRead']);
   ```
