@@ -266,14 +266,15 @@ All customization options are available through the main `FastCrud\Crud` class m
   }
   $crud->custom_field('confirmation', 'add_confirmation_checkbox');
   ```
-- **`field_callback(string|array $fields, string|array $callback): self`** – Mutate input data before it is saved.
+- **`field_callback(string|array $fields, string|array $callback): self`** – Create custom HTML input fields by returning raw HTML markup instead of the default input. **Required:** Include `data-fastcrud-field="{field}"` attribute for AJAX form submission.
   ```php
   // Using a named function (function must accept 4 params: $field, $value, $row, $mode)
   // $field: field name, $value: current value, $row: full row data, $mode: 'create'|'edit'|'view'
-  function slugify_title($field, $value, $row, $mode) {
-      return strtolower(preg_replace('/[^a-zA-Z0-9]+/', '-', trim($value)));
+  function create_color_picker($field, $value, $row, $mode) {
+      $value = htmlspecialchars($value ?? '#000000');
+      return '<input type="color" data-fastcrud-field="' . $field . '" value="' . $value . '" class="form-control">';
   }
-  $crud->field_callback('slug', 'slugify_title');
+  $crud->field_callback('color', 'create_color_picker');
   ```
 - **`fields(string|array $fields, bool $reverse = false, string|false $tab = false, string|array|false $mode = false): self`** – Arrange form fields into sections and tabs; target specific modes using `'create'`, `'edit'`, `'view'`, or `'all'` (or pass `false` to apply everywhere).
   ```php
