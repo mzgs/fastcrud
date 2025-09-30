@@ -233,7 +233,17 @@ MIT
   ```
 - **`column_callback(string|array $columns, string|array $callback): self`** – Pass values through a formatter callback (use a named function `'function_name'`, `'Class::method'`, or `[ClassName::class, 'method']`).
   ```php
+  // Using a class method
   $crud->column_callback('balance', [Formatter::class, 'money']);
+  
+  // Using a named function (function must accept 4 params: $value, $row, $column, $display)
+  // $value: current cell value, $row: full row data, $column: column name, $display: formatted value
+  function format_total_with_tax($value, $row, $column, $display) {
+      $tax_rate = $row['tax_rate'] ?? 0;
+      $total_with_tax = $value * (1 + $tax_rate / 100);
+      return '$' . number_format($total_with_tax, 2);
+  }
+  $crud->column_callback('total', 'format_total_with_tax');
   ```
 - **`custom_column(string $column, string|array $callback): self`** – Add computed virtual columns to the grid; callback forms mirror `column_callback()`.
   ```php
