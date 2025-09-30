@@ -17,13 +17,12 @@
 
 ## 📚 Table of Contents
 
-- [🎆 Features](#features)
-- [📦 Installation](#installation)
-- [🚀 Quick Start](#quick-start)
-- [🔧 Configuration](#configuration)
-- [📝 Requirements](#requirements)
-- [📜 API Reference](#api-reference)
-- [📝 License](#license)
+- [🎆 Features](#-features)
+- [📦 Installation](#-installation)
+- [🚀 Quick Start](#-quick-start)
+- [🔧 Configuration](#-configuration)
+- [📜 API Reference & Customization](#-api-reference--customization)
+- [📝 License](#-license)
 
 ## 🎆 Features
 
