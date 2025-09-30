@@ -233,9 +233,6 @@ MIT
   ```
 - **`column_callback(string|array $columns, string|array $callback): self`** – Pass values through a formatter callback (use a named function `'function_name'`, `'Class::method'`, or `[ClassName::class, 'method']`).
   ```php
-  // Using a class method
-  $crud->column_callback('balance', [Formatter::class, 'money']);
-  
   // Using a named function (function must accept 4 params: $value, $row, $column, $display)
   // $value: current cell value, $row: full row data, $column: column name, $display: formatted value
   function format_total_with_tax($value, $row, $column, $display) {
@@ -247,9 +244,6 @@ MIT
   ```
 - **`custom_column(string $column, string|array $callback): self`** – Add computed virtual columns to the grid; callback forms mirror `column_callback()`.
   ```php
-  // Using a class method
-  $crud->custom_column('full_name', [UserPresenter::class, 'fullName']);
-  
   // Using a named function (function must accept 1 param: $row)
   // $row: full row data array
   function compute_full_name($row) {
@@ -286,9 +280,6 @@ MIT
 
 - **`custom_field(string $field, string|array $callback): self`** – Inject additional, non-database fields into the form; callbacks accept the same shapes as other behaviour hooks.
   ```php
-  // Using a class method
-  $crud->custom_field('invite_toggle', [FormExtras::class, 'toggle']);
-  
   // Using a named function (function must accept 4 params: $field, $value, $row, $mode)
   // $field: field name, $value: current value, $row: full row data, $mode: 'create'|'edit'|'view'
   function add_confirmation_checkbox($field, $value, $row, $mode) {
@@ -298,9 +289,6 @@ MIT
   ```
 - **`field_callback(string|array $fields, string|array $callback): self`** – Mutate input data before it is saved.
   ```php
-  // Using a class method
-  $crud->field_callback('slug', [Slugger::class, 'make']);
-  
   // Using a named function (function must accept 4 params: $field, $value, $row, $mode)
   // $field: field name, $value: current value, $row: full row data, $mode: 'create'|'edit'|'view'
   function slugify_title($field, $value, $row, $mode) {
@@ -362,9 +350,6 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 - **`before_insert(string|array $callback): self`** – Run logic right before an insert occurs.
   ```php
-  // Using a class method
-  $crud->before_insert([Audit::class, 'stampBeforeInsert']);
-  
   // Using a named function (function must accept 3 params: $payload, $context, $crud)
   // $payload: array of field values to be inserted
   // $context: ['operation'=>'insert', 'stage'=>'before', 'table'=>'...', 'mode'=>'create', 'primary_key'=>'...', 'fields'=>[...], 'current_state'=>[...]]
@@ -378,9 +363,6 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```
 - **`after_insert(string|array $callback): self`** – React immediately after a record is inserted.
   ```php
-  // Using a class method
-  $crud->after_insert([Notifier::class, 'sendWelcome']);
-  
   // Using a named function (function must accept 3 params: $payload, $context, $crud)
   // $payload: the inserted record data array
   // $context: ['operation'=>'insert', 'stage'=>'after', 'table'=>'...', 'mode'=>'create', 'primary_key'=>'...', 'primary_value'=>123, 'fields'=>[...], 'row'=>[...]]
@@ -394,36 +376,33 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```
 - **`before_create(string|array $callback): self`** – Intercept create form submissions before validation.
   ```php
-  // Using a class method
-  $crud->before_create([FormGuards::class, 'preparePayload']);
-  
-  // Using a named function (function must accept 1 param: $formData)
-  // $formData: submitted form data array (modifiable by reference)
-  function prepare_form_data(&$formData) {
-      $formData['created_by'] = $_SESSION['user_id'] ?? null;
-      $formData['ip_address'] = $_SERVER['REMOTE_ADDR'] ?? null;
+  // Using a named function (function must accept 3 params: $payload, $context, $crud)
+  // $payload: array of field values to be inserted
+  // $context: ['operation'=>'insert', 'stage'=>'before', 'table'=>'...', 'mode'=>'create', 'primary_key'=>'...', 'fields'=>[...], 'current_state'=>[...]]
+  // $crud: Crud instance
+  function prepare_form_data($payload, $context, $crud) {
+      $payload['created_by'] = $_SESSION['user_id'] ?? null;
+      $payload['ip_address'] = $_SERVER['REMOTE_ADDR'] ?? null;
+      return $payload; // Return modified payload or false to cancel
   }
   $crud->before_create('prepare_form_data');
   ```
 - **`after_create(string|array $callback): self`** – React once the create form has finished.
   ```php
-  // Using a class method
-  $crud->after_create([FormGuards::class, 'cleanup']);
-  
-  // Using a named function (function must accept 2 params: $createdRow, $formData)
-  // $createdRow: the created record data, $formData: original form submission
-  function send_welcome_email($createdRow, $formData) {
-      if (!empty($createdRow['email'])) {
-          mail($createdRow['email'], 'Welcome!', 'Thank you for registering.');
+  // Using a named function (function must accept 3 params: $payload, $context, $crud)
+  // $payload: the inserted record data array
+  // $context: ['operation'=>'insert', 'stage'=>'after', 'table'=>'...', 'mode'=>'create', 'primary_key'=>'...', 'primary_value'=>123, 'fields'=>[...], 'row'=>[...]]
+  // $crud: Crud instance
+  function send_welcome_email($payload, $context, $crud) {
+      if (!empty($payload['email'])) {
+          mail($payload['email'], 'Welcome!', 'Thank you for registering.');
       }
+      return $payload; // Return payload (modifications allowed) or null
   }
   $crud->after_create('send_welcome_email');
   ```
 - **`before_update(string|array $callback): self`** – Run logic prior to updating a record.
   ```php
-  // Using a class method
-  $crud->before_update([Audit::class, 'stampBeforeUpdate']);
-  
   // Using a named function (function must accept 3 params: $payload, $context, $crud)
   // $payload: array of field values to be updated
   // $context: ['operation'=>'update', 'stage'=>'before', 'table'=>'...', 'primary_key'=>'...', 'primary_value'=>123, 'mode'=>'edit', 'current_row'=>[...], 'fields'=>[...]]
@@ -437,9 +416,6 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```
 - **`after_update(string|array $callback): self`** – React to successful updates.
   ```php
-  // Using a class method
-  $crud->after_update([Notifier::class, 'sendUpdate']);
-  
   // Using a named function (function must accept 3 params: $payload, $context, $crud)
   // $payload: the updated record data array
   // $context: ['operation'=>'update', 'stage'=>'after', 'table'=>'...', 'primary_key'=>'...', 'primary_value'=>123, 'mode'=>'edit', 'changes'=>[...], 'previous_row'=>[...], 'row'=>[...]]
@@ -456,9 +432,6 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```
 - **`before_delete(string|array $callback): self`** – Perform checks before deletions execute.
   ```php
-  // Using a class method
-  $crud->before_delete([Audit::class, 'logDeleteAttempt']);
-  
   // Using a named function (function must accept 3 params: $payload, $context, $crud)
   // $payload: current record data to be deleted
   // $context: ['operation'=>'delete', 'stage'=>'before', 'table'=>'...', 'primary_key'=>'...', 'primary_value'=>123, 'mode'=>'hard'|'soft']
@@ -473,9 +446,6 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```
 - **`after_delete(string|array $callback): self`** – Handle clean-up after deletions.
   ```php
-  // Using a class method
-  $crud->after_delete([Notifier::class, 'sendRemovalNotice']);
-  
   // Using a named function (function must accept 3 params: $payload, $context, $crud)
   // $payload: the deleted record data
   // $context: ['operation'=>'delete', 'stage'=>'after', 'table'=>'...', 'primary_key'=>'...', 'primary_value'=>123, 'deleted'=>true, 'mode'=>'hard'|'soft', 'row'=>[...]]
@@ -490,9 +460,6 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```
 - **`before_fetch(string|array $callback): self`** – Adjust pagination payloads before data loads.
   ```php
-  // Using a class method
-  $crud->before_fetch([QueryFilters::class, 'apply']);
-  
   // Using a named function (function must accept 3 params: $payload, $context, $crud)
   // $payload: ['page'=>1, 'per_page'=>20, 'search_term'=>'...', 'search_column'=>'...']
   // $context: ['operation'=>'fetch', 'stage'=>'before', 'table'=>'...', 'id'=>'...', 'resolved'=>[...]]
@@ -506,9 +473,6 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```
 - **`after_fetch(string|array $callback): self`** – Transform row collections after loading.
   ```php
-  // Using a class method
-  $crud->after_fetch([ResultFormatters::class, 'toApiPayload']);
-  
   // Using a named function (function must accept 3 params: $payload, $context, $crud)
   // $payload: ['rows'=>[...], 'columns'=>[...], 'pagination'=>[...], 'meta'=>[...]]
   // $context: ['operation'=>'fetch', 'stage'=>'after', 'table'=>'...', 'id'=>'...', 'resolved'=>[...]]
@@ -525,9 +489,6 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```
 - **`before_read(string|array $callback): self`** – Inspect requests before a single record load.
   ```php
-  // Using a class method
-  $crud->before_read([Audit::class, 'logBeforeRead']);
-  
   // Using a named function (function must accept 3 params: $payload, $context, $crud)
   // $payload: ['primary_key_column'=>'id', 'primary_key_value'=>123]
   // $context: ['operation'=>'read', 'stage'=>'before', 'table'=>'...', 'id'=>'...']
@@ -541,9 +502,6 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```
 - **`after_read(string|array $callback): self`** – React after a single record is retrieved.
   ```php
-  // Using a class method
-  $crud->after_read([Audit::class, 'logAfterRead']);
-  
   // Using a named function (function must accept 3 params: $payload, $context, $crud)
   // $payload: ['row'=>[...], 'primary_key_column'=>'id', 'primary_key_value'=>123]
   // $context: ['operation'=>'read', 'stage'=>'after', 'table'=>'...', 'id'=>'...', 'found'=>true]
