@@ -247,7 +247,15 @@ MIT
   ```
 - **`custom_column(string $column, string|array $callback): self`** – Add computed virtual columns to the grid; callback forms mirror `column_callback()`.
   ```php
+  // Using a class method
   $crud->custom_column('full_name', [UserPresenter::class, 'fullName']);
+  
+  // Using a named function (function must accept 1 param: $row)
+  // $row: full row data array
+  function compute_full_name($row) {
+      return trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''));
+  }
+  $crud->custom_column('full_name', 'compute_full_name');
   ```
 - **`column_class(string|array $columns, string|array $classes): self`** – Append custom CSS classes to specific cells (pass space-separated strings or arrays).
   ```php
@@ -278,11 +286,27 @@ MIT
 
 - **`custom_field(string $field, string|array $callback): self`** – Inject additional, non-database fields into the form; callbacks accept the same shapes as other behaviour hooks.
   ```php
+  // Using a class method
   $crud->custom_field('invite_toggle', [FormExtras::class, 'toggle']);
+  
+  // Using a named function (function must accept 4 params: $field, $value, $row, $mode)
+  // $field: field name, $value: current value, $row: full row data, $mode: 'create'|'edit'|'view'
+  function add_confirmation_checkbox($field, $value, $row, $mode) {
+      return '<label><input type="checkbox" data-fastcrud-field="' . $field . '" value="1"> I confirm this action</label>';
+  }
+  $crud->custom_field('confirmation', 'add_confirmation_checkbox');
   ```
 - **`field_callback(string|array $fields, string|array $callback): self`** – Mutate input data before it is saved.
   ```php
+  // Using a class method
   $crud->field_callback('slug', [Slugger::class, 'make']);
+  
+  // Using a named function (function must accept 4 params: $field, $value, $row, $mode)
+  // $field: field name, $value: current value, $row: full row data, $mode: 'create'|'edit'|'view'
+  function slugify_title($field, $value, $row, $mode) {
+      return strtolower(preg_replace('/[^a-zA-Z0-9]+/', '-', trim($value)));
+  }
+  $crud->field_callback('slug', 'slugify_title');
   ```
 - **`fields(string|array $fields, bool $reverse = false, string|false $tab = false, string|array|false $mode = false): self`** – Arrange form fields into sections and tabs; target specific modes using `'create'`, `'edit'`, `'view'`, or `'all'` (or pass `false` to apply everywhere).
   ```php
@@ -338,51 +362,199 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 - **`before_insert(string|array $callback): self`** – Run logic right before an insert occurs.
   ```php
+  // Using a class method
   $crud->before_insert([Audit::class, 'stampBeforeInsert']);
+  
+  // Using a named function (function must accept 3 params: $payload, $context, $crud)
+  // $payload: array of field values to be inserted
+  // $context: ['operation'=>'insert', 'stage'=>'before', 'table'=>'...', 'mode'=>'create', 'primary_key'=>'...', 'fields'=>[...], 'current_state'=>[...]]
+  // $crud: Crud instance
+  function add_timestamps($payload, $context, $crud) {
+      $payload['created_at'] = date('Y-m-d H:i:s');
+      $payload['created_by'] = $_SESSION['user_id'] ?? null;
+      return $payload; // Return modified payload or false to cancel
+  }
+  $crud->before_insert('add_timestamps');
   ```
 - **`after_insert(string|array $callback): self`** – React immediately after a record is inserted.
   ```php
+  // Using a class method
   $crud->after_insert([Notifier::class, 'sendWelcome']);
+  
+  // Using a named function (function must accept 3 params: $payload, $context, $crud)
+  // $payload: the inserted record data array
+  // $context: ['operation'=>'insert', 'stage'=>'after', 'table'=>'...', 'mode'=>'create', 'primary_key'=>'...', 'primary_value'=>123, 'fields'=>[...], 'row'=>[...]]
+  // $crud: Crud instance
+  function log_new_user($payload, $context, $crud) {
+      $primaryValue = $context['primary_value'] ?? 'unknown';
+      error_log("New user created: ID {$primaryValue}, Email: " . ($payload['email'] ?? 'N/A'));
+      return $payload; // Return payload (modifications allowed) or null
+  }
+  $crud->after_insert('log_new_user');
   ```
 - **`before_create(string|array $callback): self`** – Intercept create form submissions before validation.
   ```php
+  // Using a class method
   $crud->before_create([FormGuards::class, 'preparePayload']);
+  
+  // Using a named function (function must accept 1 param: $formData)
+  // $formData: submitted form data array (modifiable by reference)
+  function prepare_form_data(&$formData) {
+      $formData['created_by'] = $_SESSION['user_id'] ?? null;
+      $formData['ip_address'] = $_SERVER['REMOTE_ADDR'] ?? null;
+  }
+  $crud->before_create('prepare_form_data');
   ```
 - **`after_create(string|array $callback): self`** – React once the create form has finished.
   ```php
+  // Using a class method
   $crud->after_create([FormGuards::class, 'cleanup']);
+  
+  // Using a named function (function must accept 2 params: $createdRow, $formData)
+  // $createdRow: the created record data, $formData: original form submission
+  function send_welcome_email($createdRow, $formData) {
+      if (!empty($createdRow['email'])) {
+          mail($createdRow['email'], 'Welcome!', 'Thank you for registering.');
+      }
+  }
+  $crud->after_create('send_welcome_email');
   ```
 - **`before_update(string|array $callback): self`** – Run logic prior to updating a record.
   ```php
+  // Using a class method
   $crud->before_update([Audit::class, 'stampBeforeUpdate']);
+  
+  // Using a named function (function must accept 3 params: $payload, $context, $crud)
+  // $payload: array of field values to be updated
+  // $context: ['operation'=>'update', 'stage'=>'before', 'table'=>'...', 'primary_key'=>'...', 'primary_value'=>123, 'mode'=>'edit', 'current_row'=>[...], 'fields'=>[...]]
+  // $crud: Crud instance
+  function update_timestamp($payload, $context, $crud) {
+      $payload['updated_at'] = date('Y-m-d H:i:s');
+      $payload['updated_by'] = $_SESSION['user_id'] ?? null;
+      return $payload; // Return modified payload or false to cancel
+  }
+  $crud->before_update('update_timestamp');
   ```
 - **`after_update(string|array $callback): self`** – React to successful updates.
   ```php
+  // Using a class method
   $crud->after_update([Notifier::class, 'sendUpdate']);
+  
+  // Using a named function (function must accept 3 params: $payload, $context, $crud)
+  // $payload: the updated record data array
+  // $context: ['operation'=>'update', 'stage'=>'after', 'table'=>'...', 'primary_key'=>'...', 'primary_value'=>123, 'mode'=>'edit', 'changes'=>[...], 'previous_row'=>[...], 'row'=>[...]]
+  // $crud: Crud instance
+  function notify_status_change($payload, $context, $crud) {
+      $changes = $context['changes'] ?? [];
+      $primaryValue = $context['primary_value'] ?? 'unknown';
+      if (isset($changes['status'])) {
+          error_log("Status changed for record {$primaryValue}: " . ($payload['status'] ?? 'N/A'));
+      }
+      return $payload; // Return payload (modifications allowed) or null
+  }
+  $crud->after_update('notify_status_change');
   ```
 - **`before_delete(string|array $callback): self`** – Perform checks before deletions execute.
   ```php
+  // Using a class method
   $crud->before_delete([Audit::class, 'logDeleteAttempt']);
+  
+  // Using a named function (function must accept 3 params: $payload, $context, $crud)
+  // $payload: current record data to be deleted
+  // $context: ['operation'=>'delete', 'stage'=>'before', 'table'=>'...', 'primary_key'=>'...', 'primary_value'=>123, 'mode'=>'hard'|'soft']
+  // $crud: Crud instance
+  function check_delete_permission($payload, $context, $crud) {
+      if (($payload['created_by'] ?? null) !== ($_SESSION['user_id'] ?? null)) {
+          return false; // Return false to cancel deletion
+      }
+      return $payload; // Return payload to continue
+  }
+  $crud->before_delete('check_delete_permission');
   ```
 - **`after_delete(string|array $callback): self`** – Handle clean-up after deletions.
   ```php
+  // Using a class method
   $crud->after_delete([Notifier::class, 'sendRemovalNotice']);
+  
+  // Using a named function (function must accept 3 params: $payload, $context, $crud)
+  // $payload: the deleted record data
+  // $context: ['operation'=>'delete', 'stage'=>'after', 'table'=>'...', 'primary_key'=>'...', 'primary_value'=>123, 'deleted'=>true, 'mode'=>'hard'|'soft', 'row'=>[...]]
+  // $crud: Crud instance
+  function cleanup_files($payload, $context, $crud) {
+      if ($context['deleted'] && !empty($payload['avatar_path'])) {
+          @unlink($payload['avatar_path']); // Clean up associated files
+      }
+      return null; // Return value ignored for after_delete
+  }
+  $crud->after_delete('cleanup_files');
   ```
 - **`before_fetch(string|array $callback): self`** – Adjust pagination payloads before data loads.
   ```php
+  // Using a class method
   $crud->before_fetch([QueryFilters::class, 'apply']);
+  
+  // Using a named function (function must accept 3 params: $payload, $context, $crud)
+  // $payload: ['page'=>1, 'per_page'=>20, 'search_term'=>'...', 'search_column'=>'...']
+  // $context: ['operation'=>'fetch', 'stage'=>'before', 'table'=>'...', 'id'=>'...', 'resolved'=>[...]]
+  // $crud: Crud instance
+  function apply_user_filter($payload, $context, $crud) {
+      // Add user-specific filtering to the fetch operation
+      $payload['user_filter'] = $_SESSION['user_id'] ?? 0;
+      return $payload; // Return modified payload
+  }
+  $crud->before_fetch('apply_user_filter');
   ```
 - **`after_fetch(string|array $callback): self`** – Transform row collections after loading.
   ```php
+  // Using a class method
   $crud->after_fetch([ResultFormatters::class, 'toApiPayload']);
+  
+  // Using a named function (function must accept 3 params: $payload, $context, $crud)
+  // $payload: ['rows'=>[...], 'columns'=>[...], 'pagination'=>[...], 'meta'=>[...]]
+  // $context: ['operation'=>'fetch', 'stage'=>'after', 'table'=>'...', 'id'=>'...', 'resolved'=>[...]]
+  // $crud: Crud instance
+  function add_computed_fields($payload, $context, $crud) {
+      if (isset($payload['rows'])) {
+          foreach ($payload['rows'] as &$row) {
+              $row['full_name'] = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''));
+          }
+      }
+      return $payload; // Return modified payload
+  }
+  $crud->after_fetch('add_computed_fields');
   ```
 - **`before_read(string|array $callback): self`** – Inspect requests before a single record load.
   ```php
+  // Using a class method
   $crud->before_read([Audit::class, 'logBeforeRead']);
+  
+  // Using a named function (function must accept 3 params: $payload, $context, $crud)
+  // $payload: ['primary_key_column'=>'id', 'primary_key_value'=>123]
+  // $context: ['operation'=>'read', 'stage'=>'before', 'table'=>'...', 'id'=>'...']
+  // $crud: Crud instance
+  function log_record_access($payload, $context, $crud) {
+      $primaryValue = $payload['primary_key_value'] ?? 'unknown';
+      error_log("User " . ($_SESSION['user_id'] ?? 'anonymous') . " accessing record {$primaryValue}");
+      return $payload; // Return payload or false to cancel read
+  }
+  $crud->before_read('log_record_access');
   ```
 - **`after_read(string|array $callback): self`** – React after a single record is retrieved.
   ```php
+  // Using a class method
   $crud->after_read([Audit::class, 'logAfterRead']);
+  
+  // Using a named function (function must accept 3 params: $payload, $context, $crud)
+  // $payload: ['row'=>[...], 'primary_key_column'=>'id', 'primary_key_value'=>123]
+  // $context: ['operation'=>'read', 'stage'=>'after', 'table'=>'...', 'id'=>'...', 'found'=>true]
+  // $crud: Crud instance
+  function add_permissions($payload, $context, $crud) {
+      if (isset($payload['row']) && $context['found']) {
+          $payload['row']['can_edit'] = ($payload['row']['created_by'] ?? null) === ($_SESSION['user_id'] ?? null);
+      }
+      return $payload; // Return modified payload
+  }
+  $crud->after_read('add_permissions');
   ```
 
 #### Actions & Toolbar
