@@ -45,7 +45,13 @@
 composer require mzgs/fastcrud
 ```
 
-> 💡 **Tip**: Make sure you have PHP 7.4+ and PDO extension installed
+### 📋 Requirements
+
+✅ **PHP** 7.4 or higher  
+✅ **PDO** extension  
+✅ **Database** - MySQL, PostgreSQL, SQLite, etc.  
+✅ **Bootstrap** 5 for styling  
+✅ **jQuery** for AJAX functionality
 
 ## 🚀 Quick Start
 
@@ -57,6 +63,8 @@ use FastCrud\Crud;
 
 // 🔌 Initialize database connection
 Crud::init([
+    'driver' => 'mysql',        // mysql, pgsql, sqlite
+    'host' => '127.0.0.1',
     'database' => 'your_database',
     'username' => 'your_username',
     'password' => 'your_password',
@@ -82,18 +90,10 @@ echo new Crud('users')->render();
 
 ### 🌍 Complete HTML Example
 
-```php
-<?php
-require __DIR__ . '/vendor/autoload.php';
+<details>
+<summary><strong>Click to expand full HTML example</strong></summary>
 
-use FastCrud\Crud;
-
-Crud::init([
-    'database' => 'your_database',
-    'username' => 'root',
-    'password' => 'password',
-]);
-?>
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -105,17 +105,16 @@ Crud::init([
 </head>
 <body>
     <div class="container py-5">
-        <div class="row">
-            <div class="col">
-                <h1>FastCRUD Demo</h1>
-                <div class="card">
-                    <div class="card-header">
-                        Users Table
-                    </div>
-                    <div class="card-body">
-                        <?= new Crud('users')->render(); ?>
-                    </div>
-                </div>
+        <div class="card">
+            <div class="card-header"><h1>FastCRUD Demo</h1></div>
+            <div class="card-body">
+                <?php
+                require __DIR__ . '/vendor/autoload.php';
+                use FastCrud\Crud;
+                
+                Crud::init(['database' => 'your_db', 'username' => 'user', 'password' => 'pass']);
+                echo new Crud('users')->render();
+                ?>
             </div>
         </div>
     </div>
@@ -124,39 +123,39 @@ Crud::init([
 </html>
 ```
 
+</details>
+
 ---
 
 ## 🔧 Configuration
 
-### 💾 Database Connection
+### 💾 Advanced Configuration
 
 ```php
-use FastCrud\Crud;
 use FastCrud\CrudConfig;
 
+// Alternative: Set config separately (useful for frameworks)
 CrudConfig::setDbConfig([
     'driver' => 'mysql',
     'host' => '127.0.0.1',
+    'port' => 3306,
     'database' => 'your_database',
     'username' => 'your_username',
     'password' => 'your_password',
+    'options' => [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
 ]);
 
-Crud::init(); // automatically handles FastCRUD AJAX requests
+Crud::init(); // automatically handles AJAX requests
 ```
 
-- Call `Crud::init()` during your bootstrap so AJAX endpoints (`?fastcrud_ajax=1`) are dispatched automatically.
-- If you need full control of routing, call `FastCrud\CrudAjax::handle()` yourself when a request targets your FastCRUD endpoint.
+> 💡 **Note**: Call `Crud::init()` in your bootstrap to auto-handle AJAX endpoints (`?fastcrud_ajax=1`). For custom routing, use `FastCrud\CrudAjax::handle()` directly.
 
 ### 📋 Rendering Multiple Tables
 
-Each `Crud` instance is independent. Reuse the same bootstrap call and render additional tables as needed:
-
 ```php
+// Each Crud instance is independent - reuse the same connection
 $users = new Crud('users');
-$orders = (new Crud('orders'))
-    ->setPerPage(10)
-    ->order_by('created_at', 'desc');
+$orders = (new Crud('orders'))->setPerPage(10)->order_by('created_at', 'desc');
 
 echo $users->render();
 echo $orders->render();
@@ -192,21 +191,11 @@ echo $orders->render();
 
 ## 🎨 Styling & Assets
 
-🎨 **Dependencies**: Include Bootstrap 5 and jQuery (CDN links in examples above)
-
 ⚙️ **Styling**: Customize button classes and colors via `FastCrud\CrudStyle` statics
 
 💾 **Configuration**: Set upload paths and grid behavior through `FastCrud\CrudConfig`
 
 
-
-## 📝 Requirements
-
-✅ **PHP** 7.4 or higher  
-✅ **PDO** extension  
-✅ **Database** - MySQL, PostgreSQL, SQLite, etc.  
-✅ **Bootstrap** 5 for styling  
-✅ **jQuery** for AJAX functionality
 
 ## 📝 License
 
