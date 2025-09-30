@@ -1,25 +1,53 @@
-# FastCRUD
+<div align="center">
 
-A fast and simple CRUD operations library for PHP with built-in pagination and AJAX support.
+# 🚀 FastCRUD
 
-## Features
+**A fast and simple CRUD operations library for PHP with built-in pagination and AJAX support**
 
-- Zero-config CRUD with automatic pagination, search, and column sorting.
-- AJAX-powered forms, inline editing, bulk updates, and real-time validation feedback.
-- Nested tables, relations, and subselect support for modelling complex data.
-- Lifecycle callbacks, custom columns, and field modifiers for fine-grained control.
-- Built-in CSV/Excel export, soft-delete helpers, and configurable action buttons.
-- Global styling hooks and upload helpers so you can align the UI with your project.
+[![PHP Version](https://img.shields.io/badge/PHP-7.4%2B-blue?style=for-the-badge&logo=php)](https://php.net)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+[![Packagist](https://img.shields.io/badge/Packagist-fastcrud-orange?style=for-the-badge&logo=packagist)](https://packagist.org/packages/mzgs/fastcrud)
+[![Bootstrap](https://img.shields.io/badge/Bootstrap-5.x-purple?style=for-the-badge&logo=bootstrap)](https://getbootstrap.com)
 
-## Installation
+---
+
+*✨ Zero-config setup • 🔄 AJAX-powered • 📊 Built-in pagination • 🎨 Bootstrap 5 ready*
+
+</div>
+
+## 📚 Table of Contents
+
+- [🎆 Features](#features)
+- [📦 Installation](#installation)
+- [🚀 Quick Start](#quick-start)
+- [🔧 Configuration](#configuration)
+- [🎨 Customization](#customization)
+- [🔗 Relations & Nested Tables](#relations--nested-tables)
+- [🪝 Hooks & Callbacks](#hooks--callbacks)
+- [🎨 Styling & Assets](#styling--assets)
+- [📝 Requirements](#requirements)
+- [📜 API Reference](#api-reference)
+- [📝 License](#license)
+
+## 🎆 Features
+
+✨ **Zero-config CRUD** with automatic pagination, search, and column sorting  
+🔄 **AJAX-powered forms**, inline editing, bulk updates, and real-time validation feedback  
+🔗 **Nested tables, relations**, and subselect support for modelling complex data  
+🪝 **Lifecycle callbacks**, custom columns, and field modifiers for fine-grained control  
+📊 **Built-in CSV/Excel export**, soft-delete helpers, and configurable action buttons  
+🎨 **Global styling hooks** and upload helpers so you can align the UI with your project
+
+## 📦 Installation
 
 ```bash
+# Install via Composer
 composer require mzgs/fastcrud
 ```
 
-## Usage Example
+> 💡 **Tip**: Make sure you have PHP 7.4+ and PDO extension installed
 
-### Quick Start
+## 🚀 Quick Start
 
 ```php
 <?php
@@ -27,18 +55,32 @@ require __DIR__ . '/vendor/autoload.php';
 
 use FastCrud\Crud;
 
-// Initialize database connection
+// 🔌 Initialize database connection
 Crud::init([
     'database' => 'your_database',
     'username' => 'your_username',
     'password' => 'your_password',
 ]);
 
-// Create and render a CRUD table
+// ✨ Create and render a CRUD table - that's it!
 echo new Crud('users')->render();
 ```
 
-### Full HTML Example
+> 🎉 **That's it!** FastCRUD automatically generates a complete CRUD interface with pagination, search, and AJAX functionality.
+
+### 🖼️ What You Get Out of the Box
+
+![FastCRUD Demo](https://via.placeholder.com/800x400/007ACC/FFFFFF?text=FastCRUD+Demo+Table)
+
+*Example of a fully functional CRUD table generated with just 2 lines of code*
+
+📊 **Data Table** with sorting, searching, and pagination  
+✏️ **Inline Editing** for quick updates  
+📝 **Forms** for create/edit operations  
+📋 **Export** to CSV/Excel  
+🗑️ **Bulk Actions** for mass operations
+
+### 🌍 Complete HTML Example
 
 ```php
 <?php
@@ -82,9 +124,11 @@ Crud::init([
 </html>
 ```
 
-## Configuration
+---
 
-### Database connection
+## 🔧 Configuration
+
+### 💾 Database Connection
 
 ```php
 use FastCrud\Crud;
@@ -104,7 +148,7 @@ Crud::init(); // automatically handles FastCRUD AJAX requests
 - Call `Crud::init()` during your bootstrap so AJAX endpoints (`?fastcrud_ajax=1`) are dispatched automatically.
 - If you need full control of routing, call `FastCrud\CrudAjax::handle()` yourself when a request targets your FastCRUD endpoint.
 
-### Rendering multiple tables
+### 📋 Rendering Multiple Tables
 
 Each `Crud` instance is independent. Reuse the same bootstrap call and render additional tables as needed:
 
@@ -118,50 +162,74 @@ echo $users->render();
 echo $orders->render();
 ```
 
-## Customising the grid
+## 🎨 Customization
 
-- **Columns**: `columns(['id', 'name'])`, `set_column_labels(['created_at' => 'Created'])`, `column_pattern('email', '<a href="mailto:{raw}">{value}</a>')`.
-- **Forms**: `fields([...])`, `change_type('avatar', 'upload_image')`, `validation_required(['name'])`, `default_tab('Details')`.
-- **Actions**: Enable or restrict operations with `enable_add(false)`, per-row conditions, soft-delete helpers, and bulk actions via `add_bulk_action()`.
-- **Highlighting**: Use `highlight('status', 'equals', 'pending', 'text-warning')` or `highlight_row('balance', 'lt', 0, 'table-danger')` for conditional styling.
-- **Inline editing**: Call `inline_edit(['status', 'priority'])` to allow single-click updates for selected fields.
+### 🖍 Customizing the Grid
 
-## Relations and nested tables
+📊 **Columns**: Control display with `columns(['id', 'name'])`, customize labels with `set_column_labels(['created_at' => 'Created'])`, format with patterns `column_pattern('email', '<a href="mailto:{raw}">{value}</a>')`
 
-- Join related data automatically with `relation()` or `join()` helpers.
-- Render nested tables inside a row by registering `nested_table()` definitions; FastCRUD loads child tables over AJAX when toggled.
+📋 **Forms**: Organize fields with `fields([...])`, change input types `change_type('avatar', 'upload_image')`, add validation `validation_required(['name'])`, create tabs `default_tab('Details')`
 
-## Hooks and callbacks
+⚙️ **Actions**: Control operations with `enable_add(false)`, set per-row conditions, enable soft-delete, add bulk actions via `add_bulk_action()`
 
-- Run logic before/after CRUD events with lifecycle callbacks (for example `before_insert()`, `after_update()`).
-- Add derived data with `custom_column()` or mutate form values using `field_callback()`.
-- Use `pass_default()`/`pass_var()` to inject server-side data into forms at runtime.
+🎨 **Highlighting**: Conditional styling with `highlight('status', 'equals', 'pending', 'text-warning')` or `highlight_row('balance', 'lt', 0, 'table-danger')`
 
-## Styling and assets
+✏️ **Inline Editing**: Enable quick edits with `inline_edit(['status', 'priority'])` for single-click updates
 
-- Include Bootstrap 5 and jQuery on pages where you render a grid (CDN links shown in the full example above).
-- Override global button classes or colours by updating the public statics in `FastCrud\CrudStyle`.
-- Configure upload locations and grid behaviour via the statics in `FastCrud\CrudConfig` (for example `CrudConfig::$upload_path`).
+## 🔗 Relations & Nested Tables
+
+🔗 **Join Data**: Automatically join related data with `relation()` or `join()` helpers
+
+📊 **Nested Tables**: Render expandable child tables with `nested_table()` - FastCRUD loads them via AJAX on demand
+
+## 🪝 Hooks & Callbacks
+
+🪝 **Lifecycle Events**: Hook into CRUD operations with `before_insert()`, `after_update()`, etc.
+
+📊 **Custom Data**: Add computed columns with `custom_column()` or transform values with `field_callback()`
+
+📦 **Runtime Data**: Inject dynamic data into forms using `pass_default()` and `pass_var()`
+
+## 🎨 Styling & Assets
+
+🎨 **Dependencies**: Include Bootstrap 5 and jQuery (CDN links in examples above)
+
+⚙️ **Styling**: Customize button classes and colors via `FastCrud\CrudStyle` statics
+
+💾 **Configuration**: Set upload paths and grid behavior through `FastCrud\CrudConfig`
 
 
 
-## Requirements
+## 📝 Requirements
 
-- PHP 7.4 or higher
-- PDO extension
-- A supported database (MySQL, PostgreSQL, SQLite, etc.)
-- Bootstrap 5 for styling
-- jQuery for AJAX functionality
+✅ **PHP** 7.4 or higher  
+✅ **PDO** extension  
+✅ **Database** - MySQL, PostgreSQL, SQLite, etc.  
+✅ **Bootstrap** 5 for styling  
+✅ **jQuery** for AJAX functionality
 
-## License
+## 📝 License
 
-MIT
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
-## API Reference
+---
 
-### FastCrud\Crud
+<div align="center">
 
-#### Setup & Bootstrap
+**Made with ❤️ by the FastCRUD Team**
+
+🐛 Found a bug? [Report it here](https://github.com/mzgs/fastcrud/issues)  
+⭐ Like this project? Give it a star!  
+💬 Questions? [Start a discussion](https://github.com/mzgs/fastcrud/discussions)
+
+</div>
+
+## 📜 API Reference
+
+<details>
+<summary><strong>🛠️ FastCrud\Crud - Main CRUD Class</strong></summary>
+
+#### 🚀 Setup & Bootstrap
 
 - **`Crud::init(?array $dbConfig = null): void`** – Configure the connection defaults (keys like `driver`, `host`, `port`, `database`, `username`, `password`, `options`) and auto-handle AJAX requests.
   ```php
@@ -205,7 +273,7 @@ MIT
   $crud->setPanelWidth('30%');
   ```
 
-#### Table Display
+#### 📋 Table Display
 
 - **`inline_edit(string|array $fields): self`** – Enable inline edits for selected columns (pass an array or a comma-separated string).
   ```php
@@ -224,7 +292,7 @@ MIT
   $crud->set_field_labels('phone', 'Contact Number');
   ```
 
-#### Column Presentation
+#### 📊 Column Presentation
 
 - **`column_pattern(string|array $columns, string $pattern): self`** – Render column values with template tokens like `{value}`, `{raw}`, `{column}`, `{label}`, and any column name from the row.
   ```php
@@ -278,7 +346,7 @@ MIT
   $crud->column_summary('total', 'sum', 'Grand Total', 2);
   ```
 
-#### Field & Form Customisation
+#### 📋 Field & Form Customization
 
 - **`custom_field(string $field, string|array $callback): self`** – Inject additional, non-database fields into the form; callbacks accept the same shapes as other behaviour hooks.
   ```php
@@ -331,7 +399,7 @@ MIT
   $crud->disabled('type', 'create');
   ```
 
-#### Validation Helpers
+#### ✅ Validation Helpers
 
 - **`validation_required(string|array $fields, int $minLength = 1, string|array $mode = 'all'): self`** – Enforce required fields and minimum length (modes `'create'`, `'edit'`, `'view'`, `'all'`).
   ```php
@@ -346,7 +414,7 @@ MIT
   $crud->unique('email', ['create', 'edit']);
   ```
 
-#### Lifecycle Hooks
+#### 🪝 Lifecycle Hooks
 
 Lifecycle hook methods accept only serializable callbacks: named functions (`'function_name'`), static method strings (`'Class::method'`), or class/method arrays (`[ClassName::class, 'method']`). Closures are not supported because the configuration is serialized for AJAX.
 
@@ -517,7 +585,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $crud->after_read('add_permissions');
   ```
 
-#### Actions & Toolbar
+#### ⚙️ Actions & Toolbar
 
 - **`table_name(string $name): self`** – Set the headline shown above the table.
   ```php
@@ -601,7 +669,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $crud->link_button('/reports', 'bi-file-earmark', 'Reports', 'btn btn-sm btn-outline-info', ['target' => '_blank']);
   ```
 
-#### Sorting, Filtering & Relationships
+#### 🔍 Sorting, Filtering & Relationships
 
 - **`order_by(string|array $fields, string $direction = 'asc'): self`** – Define default ordering for query results; direction must be `'asc'` or `'desc'` (case-insensitive).
   ```php
@@ -636,7 +704,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $crud->relation('country_id', 'countries', 'id', 'name', ['active' => 1]);
   ```
 
-#### Query Extensions
+#### 📊 Query Extensions
 
 - **`query(string $query): self`** – Replace the default select statement with your own SQL (must select the base table columns required by FastCRUD).
   ```php
@@ -647,7 +715,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $crud->subselect('orders_count', 'SELECT COUNT(*) FROM orders o WHERE o.user_id = users.id');
   ```
 
-#### Nested Data
+#### 🔗 Nested Data
 
 - **`nested_table(string $instanceName, string $parentColumn, string $innerTable, string $innerTableField, ?callable $configurator = null): self`** – Attach expandable child tables to each row; the method returns the child `Crud` instance so you can continue configuring it.
   ```php
@@ -656,7 +724,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   });
   ```
 
-#### Rendering & Data Access
+#### 🎨 Rendering & Data Access
 
 - **`render(?string $mode = null, mixed $primaryKeyValue = null): string`** – Output the full FastCRUD widget; `$mode` can be `null`, `'create'`, `'edit'`, or `'view'` and `$primaryKeyValue` targets a specific row for non-create modes.
   ```php
@@ -671,7 +739,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $payload = $crud->getTableData(1, 10, 'sam', 'name');
   ```
 
-#### Record Operations
+#### 📄 Record Operations
 
 - **`createRecord(array $fields): ?array`** – Insert a new record with behaviour support; pass a column => value array and receive the inserted row or `null` if cancelled.
   ```php
@@ -702,6 +770,11 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $record = $crud->getRecord('id', 7);
   ```
 
+</details>
+
+<details>
+<summary><strong>🔄 FastCrud\CrudAjax - AJAX Request Handler</strong></summary>
+
 ### FastCrud\CrudAjax
 
 - **`CrudAjax::handle(): void`** – Process the current FastCRUD AJAX request (`fastcrud_ajax=1`) and emit JSON/CSV/Excel responses as needed.
@@ -720,6 +793,11 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   CrudAjax::autoHandle();
   ```
+
+</details>
+
+<details>
+<summary><strong>⚙️ FastCrud\CrudConfig - Configuration Manager</strong></summary>
 
 ### FastCrud\CrudConfig
 
@@ -742,6 +820,11 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $path = CrudConfig::getUploadPath();
   ```
 
+</details>
+
+<details>
+<summary><strong>💾 FastCrud\DB - Database Connection</strong></summary>
+
 ### FastCrud\DB
 
 - **`DB::connection(): PDO`** – Access the shared PDO instance used by FastCRUD; connection settings come from `CrudConfig::setDbConfig()`.
@@ -757,6 +840,11 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   DB::disconnect();
   ```
 
+</details>
+
+<details>
+<summary><strong>⚠️ FastCrud\ValidationException - Validation Errors</strong></summary>
+
 ### FastCrud\ValidationException
 
 - **`__construct(string $message, array $errors = [], int $code = 0, ?Throwable $previous = null)`** – Create a validation exception with field errors supplied as `['field' => 'message']`.
@@ -767,3 +855,5 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $errors = $exception->getErrors();
   ```
+
+</details>
