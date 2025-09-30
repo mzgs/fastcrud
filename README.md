@@ -91,9 +91,6 @@ echo new Crud('users')->render();
 
 ### 🌍 Complete HTML Example
 
-<details>
-<summary><strong>Click to expand full HTML example</strong></summary>
-
 ```html
 <!DOCTYPE html>
 <html lang="en">
@@ -123,8 +120,6 @@ echo new Crud('users')->render();
 </body>
 </html>
 ```
-
-</details>
 
 ---
 
@@ -195,8 +190,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ## 📜 API Reference
 
-<details>
-<summary><strong>🛠️ FastCrud\Crud - Main CRUD Class</strong></summary>
+### 🛠️ FastCrud\Crud - Main CRUD Class
 
 #### 🚀 Setup & Bootstrap
 
@@ -739,12 +733,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $record = $crud->getRecord('id', 7);
   ```
 
-</details>
-
-<details>
-<summary><strong>🔄 FastCrud\CrudAjax - AJAX Request Handler</strong></summary>
-
-### FastCrud\CrudAjax
+### 🔄 FastCrud\CrudAjax - AJAX Request Handler
 
 - **`CrudAjax::handle(): void`** – Process the current FastCRUD AJAX request (`fastcrud_ajax=1`) and emit JSON/CSV/Excel responses as needed.
   ```php
@@ -763,12 +752,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   CrudAjax::autoHandle();
   ```
 
-</details>
-
-<details>
-<summary><strong>⚙️ FastCrud\CrudConfig - Configuration Manager</strong></summary>
-
-### FastCrud\CrudConfig
+### ⚙️ FastCrud\CrudConfig - Configuration Manager
 
 - **`CrudConfig::setDbConfig(array $configuration): void`** – Store PDO connection settings (`driver` may be `'mysql'`, `'pgsql'`, or `'sqlite'`, with optional `'host'`, `'port'`, `'database'`, `'username'`, `'password'`, and PDO `'options'`).
   ```php
@@ -789,12 +773,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $path = CrudConfig::getUploadPath();
   ```
 
-</details>
-
-<details>
-<summary><strong>💾 FastCrud\DB - Database Connection</strong></summary>
-
-### FastCrud\DB
+### 💾 FastCrud\DB - Database Connection
 
 - **`DB::connection(): PDO`** – Access the shared PDO instance used by FastCRUD; connection settings come from `CrudConfig::setDbConfig()`.
   ```php
@@ -809,12 +788,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   DB::disconnect();
   ```
 
-</details>
-
-<details>
-<summary><strong>⚠️ FastCrud\ValidationException - Validation Errors</strong></summary>
-
-### FastCrud\ValidationException
+### ⚠️ FastCrud\ValidationException - Validation Errors
 
 - **`__construct(string $message, array $errors = [], int $code = 0, ?Throwable $previous = null)`** – Create a validation exception with field errors supplied as `['field' => 'message']`.
   ```php
@@ -824,5 +798,3 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $errors = $exception->getErrors();
   ```
-
-</details>
