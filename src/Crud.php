@@ -42,6 +42,7 @@ class Crud
         'equals',
         'not_equals',
         'contains',
+        'not_contains',
         'gt',
         'gte',
         'lt',
@@ -886,6 +887,13 @@ class Crud
             'notin' => 'not_in',
             'not_in' => 'not_in',
             'contains' => 'contains',
+            '!contains' => 'not_contains',
+            'notcontains' => 'not_contains',
+            'not_contains' => 'not_contains',
+            'does_not_contain' => 'not_contains',
+            'doesnt_contain' => 'not_contains',
+            'not_like' => 'not_contains',
+            '!~' => 'not_contains',
             '!value' => 'empty',
             'empty' => 'empty',
             '!empty' => 'not_empty',
@@ -934,7 +942,7 @@ class Crud
             return (float) $value;
         }
 
-        if ($operator === 'contains' && !is_string($value)) {
+        if (in_array($operator, ['contains', 'not_contains'], true) && !is_string($value)) {
             throw new InvalidArgumentException($messages['contains']);
         }
 
@@ -942,70 +950,23 @@ class Crud
     }
 
     /**
-     * @param array<string, mixed>|string $condition
-     *
      * @return array{column: string, operator: string, value: mixed}
      */
-    private function normalizeCondition(array|string $condition, ?string $defaultColumn): array
+    private function normalizeCondition(string $column, string $operator, mixed $value): array
     {
-        if (is_string($condition)) {
-            $condition = trim($condition);
-            if ($condition === '') {
-                throw new InvalidArgumentException('Highlight conditions cannot be empty.');
-            }
-
-            $normalized = strtolower($condition);
-            if ($normalized === 'empty' || $normalized === '!value') {
-                return [
-                    'column'   => $defaultColumn ?? '',
-                    'operator' => 'empty',
-                    'value'    => null,
-                ];
-            }
-
-            if ($normalized === 'not_empty' || $normalized === '!empty' || $normalized === 'has_value') {
-                return [
-                    'column'   => $defaultColumn ?? '',
-                    'operator' => 'not_empty',
-                    'value'    => null,
-                ];
-            }
-
-            return [
-                'column'   => $defaultColumn ?? '',
-                'operator' => 'equals',
-                'value'    => $condition,
-            ];
-        }
-
-        $normalized = [];
-        foreach ($condition as $key => $value) {
-            if (!is_string($key)) {
-                continue;
-            }
-            $normalized[strtolower($key)] = $value;
-        }
-
-        $column = isset($normalized['column']) && is_string($normalized['column'])
-            ? $this->normalizeColumnReference($normalized['column'])
-            : ($defaultColumn ?? '');
-
-        if ($column === '') {
+        $normalizedColumn = $this->normalizeColumnReference($column);
+        if ($normalizedColumn === '') {
             throw new InvalidArgumentException('Highlight conditions must reference a column.');
         }
 
-        $operatorRaw = isset($normalized['operator']) ? (string) $normalized['operator'] : 'equals';
-        if (trim($operatorRaw) === '') {
-            $operatorRaw = 'equals';
-        }
-
-        $operator = $this->normalizeConditionOperatorString($operatorRaw, [
+        $normalizedOperator = $this->normalizeConditionOperatorString($operator, [
+            'empty' => 'Highlight operator cannot be empty.',
             'unsupported' => 'Unsupported condition operator: %s',
         ]);
 
-        $value = $this->normalizeConditionValueForOperator(
-            $operator,
-            $normalized['value'] ?? null,
+        $normalizedValue = $this->normalizeConditionValueForOperator(
+            $normalizedOperator,
+            $value,
             [
                 'in_not_in' => 'IN/NOT IN conditions require a non-empty array of values.',
                 'comparison' => 'Comparison operators require numeric values.',
@@ -1013,10 +974,14 @@ class Crud
             ]
         );
 
+        if (in_array($normalizedOperator, ['empty', 'not_empty'], true)) {
+            $normalizedValue = null;
+        }
+
         return [
-            'column'   => $column,
-            'operator' => $operator,
-            'value'    => $value,
+            'column'   => $normalizedColumn,
+            'operator' => $normalizedOperator,
+            'value'    => $normalizedValue,
         ];
     }
 
@@ -1134,6 +1099,8 @@ class Crud
                 return $current != $value;
             case 'contains':
                 return is_string($current) && strpos($current, (string) $value) !== false;
+            case 'not_contains':
+                return !is_string($current) || strpos($current, (string) $value) === false;
             case 'gt':
                 return (float) $current > (float) $value;
             case 'gte':
@@ -2464,9 +2431,9 @@ class Crud
 
     /**
      * @param string|array<int, string> $columns
-     * @param array<string, mixed>|string $condition
+     * @param mixed $value
      */
-    public function highlight(string|array $columns, array|string $condition, string $class = 'text-warning'): self
+    public function highlight(string|array $columns, string $operator, mixed $value = null, string $class = 'text-warning'): self
     {
         $columnList = $this->normalizeList($columns);
         if ($columnList === []) {
@@ -2483,7 +2450,7 @@ class Crud
                 continue;
             }
 
-            $normalizedCondition = $this->normalizeCondition($condition, $normalizedColumn);
+            $normalizedCondition = $this->normalizeCondition($normalizedColumn, $operator, $value);
 
             $this->config['column_highlights'][$normalizedColumn][] = [
                 'condition' => $normalizedCondition,
@@ -2501,17 +2468,39 @@ class Crud
     }
 
     /**
-     * @param array<string, mixed>|string $condition
+     * @param string|array<int, string> $columns
+     * @param mixed $value
      */
-    public function highlight_row(array|string $condition, string $class = 'table-warning'): self
+    public function highlight_row(string|array $columns, string $operator, mixed $value = null, string $class = 'table-warning'): self
     {
-        $normalizedCondition = $this->normalizeCondition($condition, null);
+        $columnList = $this->normalizeList($columns);
+        if ($columnList === []) {
+            throw new InvalidArgumentException('highlight_row requires at least one column.');
+        }
+
         $class = $this->normalizeCssClassList($class);
 
-        $this->config['row_highlights'][] = [
-            'condition' => $normalizedCondition,
-            'class'     => $class,
-        ];
+        $applied = false;
+
+        foreach ($columnList as $column) {
+            $normalizedColumn = $this->normalizeColumnReference($column);
+            if ($normalizedColumn === '') {
+                continue;
+            }
+
+            $normalizedCondition = $this->normalizeCondition($normalizedColumn, $operator, $value);
+
+            $this->config['row_highlights'][] = [
+                'condition' => $normalizedCondition,
+                'class'     => $class,
+            ];
+
+            $applied = true;
+        }
+
+        if (!$applied) {
+            throw new InvalidArgumentException('highlight_row requires at least one valid column name.');
+        }
 
         return $this;
     }

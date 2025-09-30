@@ -206,9 +206,10 @@ CrudStyle::$bools_in_grid_color = 'success';
                     ->link_button('example.com?id={id}', 'bi bi-person', '', 'btn btn-success', ['target' => '_blank', 'class' => 'me-2'] )
                     // ->change_type('title', 'textarea','',['rows' => 12])
                   
-                    // ->highlight('id', ['operator' => 'equals', 'value' => 32], 'bg-info')
-                    // ->highlight_row(['column' => 'id', 'operator' => 'equals', 'value' => 23], 'table-info')
+                    // ->highlight('id', 'equals', 32, 'bg-info')
+                    // ->highlight_row('id', 'equals', 23, 'table-info')
                     ->table_name('Posts Overview')
+                    // ->highlight_row('title', 'contains', 'we', 'table-info')
                     // ->table_tooltip('FastCRUD live preview of posts')
                     ->table_icon('bi bi-newspaper');
                     // ->column_summary('id', 'count', 'Total');

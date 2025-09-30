@@ -123,7 +123,7 @@ echo $orders->render();
 - **Columns**: `columns(['id', 'name'])`, `set_column_labels(['created_at' => 'Created'])`, `column_pattern('email', '<a href="mailto:{raw}">{value}</a>')`.
 - **Forms**: `fields([...])`, `change_type('avatar', 'upload_image')`, `validation_required(['name'])`, `default_tab('Details')`.
 - **Actions**: Enable or restrict operations with `enable_add(false)`, per-row conditions, soft-delete helpers, and bulk actions via `add_bulk_action()`.
-- **Highlighting**: Use `highlight('status', ['equals' => 'pending'], 'text-warning')` or `highlight_row([...])` for conditional styling.
+- **Highlighting**: Use `highlight('status', 'equals', 'pending', 'text-warning')` or `highlight_row('balance', 'lt', 0, 'table-danger')` for conditional styling.
 - **Inline editing**: Call `inline_edit(['status', 'priority'])` to allow single-click updates for selected fields.
 
 ## Relations and nested tables
@@ -263,13 +263,15 @@ MIT
   ```php
   $crud->column_cut('description', 80);
   ```
-- **`highlight(string|array $columns, array|string $condition, string $class = 'text-warning'): self`** – Highlight cells that match conditions using operators such as `equals`, `not_equals`, `contains`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in`, `empty`, `not_empty`.
+- **`highlight(string|array $columns, string $operator, mixed $value = null, string $class = 'text-warning'): self`** – Highlight cells that match conditions using operators such as `equals`, `not_equals`, `contains`, `not_contains`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in`, `empty`, `not_empty` (symbol aliases like `=`, `!=`, `>=`, `<` are also accepted).
   ```php
-  $crud->highlight('status', ['equals' => 'pending'], 'text-danger');
+  $crud->highlight('status', '=', 'pending', 'text-danger');
+  $crud->highlight(['status', 'priority'], 'empty', null, 'text-muted');
+  $crud->highlight('notes', 'not_contains', 'internal', 'text-danger');
   ```
-- **`highlight_row(array|string $condition, string $class = 'table-warning'): self`** – Highlight entire rows based on the same operator options used by `highlight()`.
+- **`highlight_row(string|array $columns, string $operator, mixed $value = null, string $class = 'table-warning'): self`** – Highlight entire rows based on the same operator options used by `highlight()`.
   ```php
-  $crud->highlight_row(['field' => 'balance', 'operand' => 'lt', 'value' => 0], 'table-danger');
+  $crud->highlight_row('balance', 'lt', 0, 'table-danger');
   ```
 - **`column_summary(string|array $columns, string $type = 'sum', ?string $label = null, ?int $precision = null): self`** – Display aggregated totals in the footer with summary types `sum`, `avg`, `min`, `max`, or `count`.
   ```php
