@@ -62,6 +62,7 @@ require __DIR__ . '/vendor/autoload.php';
 use FastCrud\Crud;
 
 // 🔌 Initialize database connection
+// Supports: driver, host, port, database, username, password, options
 Crud::init([
     'driver' => 'mysql',        // mysql, pgsql, sqlite
     'host' => '127.0.0.1',
@@ -128,27 +129,6 @@ echo new Crud('users')->render();
 ---
 
 ## 🔧 Configuration
-
-### 💾 Advanced Configuration
-
-```php
-use FastCrud\CrudConfig;
-
-// Alternative: Set config separately (useful for frameworks)
-CrudConfig::setDbConfig([
-    'driver' => 'mysql',
-    'host' => '127.0.0.1',
-    'port' => 3306,
-    'database' => 'your_database',
-    'username' => 'your_username',
-    'password' => 'your_password',
-    'options' => [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-]);
-
-Crud::init(); // automatically handles AJAX requests
-```
-
-> 💡 **Note**: Call `Crud::init()` in your bootstrap to auto-handle AJAX endpoints (`?fastcrud_ajax=1`). For custom routing, use `FastCrud\CrudAjax::handle()` directly.
 
 ### 📋 Rendering Multiple Tables
 
