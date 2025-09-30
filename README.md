@@ -138,6 +138,8 @@ All customization options are available through the main `FastCrud\Crud` class m
 
 ### 🛠️ FastCrud\Crud - Main CRUD Class
 
+---
+
 #### 🚀 Setup & Bootstrap
 
 - **`Crud::init(?array $dbConfig = null): void`** – Configure the connection defaults (keys like `driver`, `host`, `port`, `database`, `username`, `password`, `options`) and auto-handle AJAX requests.
@@ -182,6 +184,8 @@ All customization options are available through the main `FastCrud\Crud` class m
   $crud->setPanelWidth('30%');
   ```
 
+---
+
 ### 📋 Table Display
 
 - **`inline_edit(string|array $fields): self`** – Enable inline edits for selected columns (pass an array or a comma-separated string).
@@ -200,6 +204,8 @@ All customization options are available through the main `FastCrud\Crud` class m
   ```php
   $crud->set_field_labels('phone', 'Contact Number');
   ```
+
+---
 
 ### 📊 Column Presentation
 
@@ -254,6 +260,8 @@ All customization options are available through the main `FastCrud\Crud` class m
   ```php
   $crud->column_summary('total', 'sum', 'Grand Total', 2);
   ```
+
+---
 
 ### 📋 Field & Form Customization
 
@@ -388,6 +396,8 @@ All customization options are available through the main `FastCrud\Crud` class m
   $crud->disabled('type', 'create');
   ```
 
+---
+
 ### ✅ Validation Helpers
 
 - **`validation_required(string|array $fields, int $minLength = 1, string|array $mode = 'all'): self`** – Enforce required fields and minimum length (modes `'create'`, `'edit'`, `'view'`, `'all'`).
@@ -402,6 +412,8 @@ All customization options are available through the main `FastCrud\Crud` class m
   ```php
   $crud->unique('email', ['create', 'edit']);
   ```
+
+---
 
 ### 🪝 Lifecycle Hooks
 
@@ -574,6 +586,8 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $crud->after_read('add_permissions');
   ```
 
+---
+
 ### ⚙️ Actions & Toolbar
 
 - **`table_name(string $name): self`** – Set the headline shown above the table.
@@ -658,6 +672,8 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $crud->link_button('/reports', 'bi-file-earmark', 'Reports', 'btn btn-sm btn-outline-info', ['target' => '_blank']);
   ```
 
+---
+
 ### 🔍 Sorting, Filtering & Relationships
 
 - **`order_by(string|array $fields, string $direction = 'asc'): self`** – Define default ordering for query results; direction must be `'asc'` or `'desc'` (case-insensitive).
@@ -693,6 +709,8 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $crud->relation('country_id', 'countries', 'id', 'name', ['active' => 1]);
   ```
 
+---
+
 ### 📊 Query Extensions
 
 - **`query(string $query): self`** – Replace the default select statement with your own SQL (must select the base table columns required by FastCRUD).
@@ -704,6 +722,8 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $crud->subselect('orders_count', 'SELECT COUNT(*) FROM orders o WHERE o.user_id = users.id');
   ```
 
+---
+
 ### 🔗 Nested Data
 
 - **`nested_table(string $instanceName, string $parentColumn, string $innerTable, string $innerTableField, ?callable $configurator = null): self`** – Attach expandable child tables to each row; the method returns the child `Crud` instance so you can continue configuring it.
@@ -712,6 +732,8 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
       $child->columns(['id', 'total'])->limit(5);
   });
   ```
+
+---
 
 ### 🎨 Rendering & Data Access
 
@@ -727,6 +749,8 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $payload = $crud->getTableData(1, 10, 'sam', 'name');
   ```
+
+---
 
 ### 📄 Record Operations
 
@@ -759,6 +783,8 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $record = $crud->getRecord('id', 7);
   ```
 
+---
+
 ### 🔄 FastCrud\CrudAjax - AJAX Request Handler
 
 - **`CrudAjax::handle(): void`** – Process the current FastCRUD AJAX request (`fastcrud_ajax=1`) and emit JSON/CSV/Excel responses as needed.
@@ -777,6 +803,8 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   CrudAjax::autoHandle();
   ```
+
+---
 
 ### ⚙️ FastCrud\CrudConfig - Configuration Manager
 
@@ -799,6 +827,8 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $path = CrudConfig::getUploadPath();
   ```
 
+---
+
 ### 💾 FastCrud\DB - Database Connection
 
 - **`DB::connection(): PDO`** – Access the shared PDO instance used by FastCRUD; connection settings come from `CrudConfig::setDbConfig()`.
@@ -813,6 +843,8 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   DB::disconnect();
   ```
+
+---
 
 ### ⚠️ FastCrud\ValidationException - Validation Errors
 
