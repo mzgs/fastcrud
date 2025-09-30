@@ -304,9 +304,68 @@ All customization options are available through the main `FastCrud\Crud` class m
   ```php
   $crud->default_tab('Details', ['create', 'edit']);
   ```
-- **`change_type(string|array $fields, string $type, mixed $default = '', array $params = []): self`** – Swap the input widget or field type (use built-ins like `'text'`, `'textarea'`, `'select'`, `'upload_image'`, `'switch'`, `'wysiwyg'`, etc., or any custom type your project registers).
+- **`change_type(string|array $fields, string $type, mixed $default = '', array $params = []): self`** – Swap the input widget or field type. Supported types include text-based (`'text'`, `'textarea'`, `'rich_editor'`, `'json'`, `'password'`), selection (`'select'`, `'multiselect'`, `'radio'`, `'multicheckbox'`), boolean (`'bool'`, `'checkbox'`, `'switch'`), date/time (`'date'`, `'datetime'`, `'time'`), numeric (`'number'`, `'int'`, `'float'`), file upload (`'file'`, `'files'`, `'image'`, `'images'`), and special (`'email'`, `'color'`, `'hidden'`).
   ```php
-  $crud->change_type('avatar', 'upload_image', '', ['path' => 'avatars']);
+  // Text input (default)
+  $crud->change_type('username', 'text');
+  
+  // Textarea for longer content
+  $crud->change_type('description', 'textarea', '', ['rows' => 5]);
+  
+  // Select dropdown with options
+  $crud->change_type('status', 'select', 'active', ['options' => ['active' => 'Active', 'inactive' => 'Inactive']]);
+  
+  // Rich text editor (WYSIWYG with TinyMCE)
+  $crud->change_type('content', 'rich_editor', '', ['height' => 400]);
+  
+  // Image upload (basic)
+  $crud->change_type('avatar', 'image', '', ['path' => 'avatars']);
+  
+  // Image upload with all options
+  $crud->change_type('product_image', 'image', '', [
+      'path' => 'products',
+      'width' => 1200,
+      'height' => 800,
+      'crop' => false,
+      'previewHeight' => 200,
+      'aspectRatio' => '3:2',
+      'thumbs' => [
+          [
+              'width' => 300,
+              'height' => 200,
+              'crop' => true,
+              'marker' => '_medium',
+              'folder' => 'medium'
+          ],
+          [
+              'width' => 150,
+              'height' => 150,
+              'crop' => true,
+              'marker' => '_thumb',
+              'folder' => 'thumbs'
+          ]
+      ],
+      'placeholder' => 'Upload product image',
+      'class' => 'product-image-uploader'
+  ]);
+  
+  // Switch/toggle button
+  $crud->change_type('is_featured', 'switch', false);
+  
+  // Number input with constraints
+  $crud->change_type('price', 'number', 0, ['step' => 'any', 'min' => 0, 'max' => 1000]);
+  
+  // Date picker
+  $crud->change_type('birth_date', 'date');
+  
+  // DateTime picker
+  $crud->change_type('created_at', 'datetime');
+  
+  // Color picker
+  $crud->change_type('theme_color', 'color', '#000000');
+  
+  // JSON editor with syntax highlighting
+  $crud->change_type('metadata', 'json', '{}');
   ```
 - **`getChangeTypeDefinition(string $field): ?array`** – Inspect previously configured type overrides.
   ```php
