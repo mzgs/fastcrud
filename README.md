@@ -120,7 +120,7 @@ echo $orders->render();
 
 ## Customising the grid
 
-- **Columns**: `columns(['id', 'name'])`, `set_column_labels(['created_at' => 'Created'])`, `column_pattern('email', '<a href="mailto:{{raw}}">{{display}}</a>')`.
+- **Columns**: `columns(['id', 'name'])`, `set_column_labels(['created_at' => 'Created'])`, `column_pattern('email', '<a href="mailto:{raw}">{value}</a>')`.
 - **Forms**: `fields([...])`, `change_type('avatar', 'upload_image')`, `validation_required(['name'])`, `default_tab('Details')`.
 - **Actions**: Enable or restrict operations with `enable_add(false)`, per-row conditions, soft-delete helpers, and bulk actions via `add_bulk_action()`.
 - **Highlighting**: Use `highlight('status', ['equals' => 'pending'], 'text-warning')` or `highlight_row([...])` for conditional styling.
@@ -226,9 +226,10 @@ MIT
 
 #### Column Presentation
 
-- **`column_pattern(string|array $columns, string $pattern): self`** – Render column values with template tokens like `{{display}}`, `{{raw}}`, and `{{column}}`.
+- **`column_pattern(string|array $columns, string $pattern): self`** – Render column values with template tokens like `{value}`, `{raw}`, `{column}`, `{label}`, and any column name from the row.
   ```php
-  $crud->column_pattern('email', '<a href="mailto:{{raw}}">{{display}}</a>');
+  $crud->column_pattern('email', '<a href="mailto:{raw}">{value}</a>');
+  $crud->column_pattern('name', '<strong>{first_name} {last_name}</strong> ({id})');
   ```
 - **`column_callback(string|array $columns, string|array $callback): self`** – Pass values through a formatter callback (use a named function `'function_name'`, `'Class::method'`, or `[ClassName::class, 'method']`).
   ```php
