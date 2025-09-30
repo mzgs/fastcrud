@@ -161,123 +161,422 @@ MIT
 
 ### FastCrud\Crud
 
-- `Crud::init(?array $dbConfig = null): void` – Set default DB config and auto-handle AJAX. Example:
+#### Setup & Bootstrap
+
+- **`Crud::init(?array $dbConfig = null): void`** – Configure the connection defaults and auto-handle AJAX requests.
   ```php
-  Crud::init(['database' => 'app', 'username' => 'root', 'password' => 'secret']);
+  Crud::init([
+      'database' => 'app',
+      'username' => 'root',
+      'password' => 'secret',
+  ]);
   ```
-- `Crud::fromAjax(string $table, ?string $id, array|string|null $configPayload, ?PDO $connection = null): self` – Recreate an instance from client payloads. Example:
+- **`Crud::fromAjax(string $table, ?string $id, array|string|null $configPayload, ?PDO $connection = null): self`** – Rehydrate an instance from data posted by the FastCRUD frontend.
   ```php
-  $crud = Crud::fromAjax('users', $_GET['id'] ?? null, $_POST['config'] ?? null);
+  $crud = Crud::fromAjax('users', $_GET['fastcrud_id'] ?? null, $_POST['config'] ?? null);
   ```
-- `__construct(string $table, ?PDO $connection = null)` – Build a CRUD wrapper for a table. Example: `$crud = new Crud('users', $pdo);`
-- `getTable(): string` – Fetch the configured table name. Example: `$table = $crud->getTable();`
-- `primary_key(string $column): self` – Override the primary key column. Example: `$crud->primary_key('user_id');`
-- `setPerPage(int $perPage): self` – Set default page size. Example: `$crud->setPerPage(25);`
-- `limit(int $limit): self` – Alias of `setPerPage`. Example: `$crud->limit(10);`
-- `limit_list(string|array $limits): self` – Control per-page options (supports `all`). Example: `$crud->limit_list([5, 10, 'all']);`
-- `setPanelWidth(string $width): self` – Control edit panel width. Example: `$crud->setPanelWidth('640px');`
-- `inline_edit(string|array $fields): self` – Toggle inline editing for fields. Example: `$crud->inline_edit(['status', 'priority']);`
-- `columns(string|array $columns, bool $reverse = false): self` – Restrict or reorder visible columns. Example: `$crud->columns(['id', 'email']);`
-- `set_column_labels(array|string $labels, ?string $label = null): self` – Override column headers. Example: `$crud->set_column_labels(['created_at' => 'Created']);`
-- `set_field_labels(array|string $labels, ?string $label = null): self` – Rename form fields. Example: `$crud->set_field_labels('phone', 'Contact Number');`
-- `column_pattern(string|array $columns, string $pattern): self` – Render column using template tokens. Example:
+- **`__construct(string $table, ?PDO $connection = null)`** – Build a CRUD controller for the given table.
+  ```php
+  $crud = new Crud('users', $customPdo);
+  ```
+- **`getTable(): string`** – Return the raw table identifier.
+  ```php
+  $tableName = $crud->getTable();
+  ```
+- **`primary_key(string $column): self`** – Override the primary key column that FastCRUD uses.
+  ```php
+  $crud->primary_key('user_id');
+  ```
+- **`setPerPage(int $perPage): self`** – Set the default rows per page.
+  ```php
+  $crud->setPerPage(25);
+  ```
+- **`limit(int $limit): self`** – Alias of `setPerPage()` for fluent configuration.
+  ```php
+  $crud->limit(10);
+  ```
+- **`limit_list(string|array $limits): self`** – Define the pagination dropdown values (supports `'all'`).
+  ```php
+  $crud->limit_list([5, 10, 25, 'all']);
+  ```
+- **`setPanelWidth(string $width): self`** – Adjust the width of the edit offcanvas panel.
+  ```php
+  $crud->setPanelWidth('640px');
+  ```
+
+#### Table Display
+
+- **`inline_edit(string|array $fields): self`** – Enable inline edits for selected columns.
+  ```php
+  $crud->inline_edit(['status', 'priority']);
+  ```
+- **`columns(string|array $columns, bool $reverse = false): self`** – Control which columns appear and in what order.
+  ```php
+  $crud->columns(['id', 'name', 'email']);
+  ```
+- **`set_column_labels(array|string $labels, ?string $label = null): self`** – Change table heading labels.
+  ```php
+  $crud->set_column_labels(['created_at' => 'Created']);
+  ```
+- **`set_field_labels(array|string $labels, ?string $label = null): self`** – Rename form fields without renaming columns.
+  ```php
+  $crud->set_field_labels('phone', 'Contact Number');
+  ```
+
+#### Column Presentation
+
+- **`column_pattern(string|array $columns, string $pattern): self`** – Render column values with template tokens like `{{display}}`.
   ```php
   $crud->column_pattern('email', '<a href="mailto:{{raw}}">{{display}}</a>');
   ```
-- `column_callback(string|array $columns, callable|string|array $callback): self` – Apply formatter callback. Example: `$crud->column_callback('balance', [Formatter::class, 'money']);`
-- `custom_column(string $column, callable|string|array $callback): self` – Add virtual column. Example: `$crud->custom_column('full_name', [UserPresenter::class, 'fullName']);`
-- `field_callback(string|array $fields, callable|string|array $callback): self` – Mutate input before persistence. Example: `$crud->field_callback('slug', [Slugger::class, 'make']);`
-- `custom_field(string $field, callable|string|array $callback): self` – Inject non-table field. Example: `$crud->custom_field('invite', [FormExtras::class, 'toggle']);`
-- Lifecycle hooks `before_*` / `after_*` – Attach callbacks around CRUD events. Example:
+- **`column_callback(string|array $columns, callable|string|array $callback): self`** – Pass values through a formatter callback.
   ```php
-  $crud->before_update([Audit::class, 'stamp']);
-  $crud->after_fetch(function(array $payload) {
-      // mutate $payload['rows']
-      return $payload;
-  });
+  $crud->column_callback('balance', [Formatter::class, 'money']);
   ```
-- `column_class(string|array $columns, string|array $classes): self` – Add CSS classes. Example: `$crud->column_class('status', 'text-uppercase');`
-- `column_width(string|array $columns, string $width): self` – Force column width. Example: `$crud->column_width('name', '220px');`
-- `column_cut(string|array $columns, int $length, string $suffix = '…'): self` – Truncate display. Example: `$crud->column_cut('description', 80);`
-- `highlight(string|array $columns, array|string $condition, string $class = 'text-warning'): self` – Highlight values. Example: `$crud->highlight('status', ['equals' => 'pending'], 'text-danger');`
-- `highlight_row(array|string $condition, string $class = 'table-warning'): self` – Highlight whole rows. Example: `$crud->highlight_row(['field' => 'balance', 'operand' => 'lt', 'value' => 0], 'table-danger');`
-- `table_name(string $name): self` – Override table caption. Example: `$crud->table_name('Customers');`
-- `table_tooltip(string $tooltip): self` – Add hover tooltip. Example: `$crud->table_tooltip('Live data');`
-- `table_icon(string $iconClass): self` – Prefix heading with icon. Example: `$crud->table_icon('bi-people');`
-- `enable_add(bool $enabled = true): self` – Toggle add button. Example: `$crud->enable_add(false);`
-- `enable_view/enable_edit/enable_delete/enable_duplicate(bool $enabled = true, string|false $field = false, string|false $operand = false, mixed $value = false): self` – Gate actions optionally per row. Example: `$crud->enable_delete(true, 'status', 'not_equals', 'archived');`
-- `enable_batch_delete(bool $enabled = true): self` – Toggle batch delete. Example: `$crud->enable_batch_delete();`
-- `add_bulk_action(string $name, string $label, array $options = []): self` – Register a single bulk action. Example:
+- **`custom_column(string $column, callable|string|array $callback): self`** – Add computed virtual columns to the grid.
   ```php
-  $crud->add_bulk_action('flag', 'Flag Selected', ['type' => 'update', 'fields' => ['flagged' => 1]]);
+  $crud->custom_column('full_name', [UserPresenter::class, 'fullName']);
   ```
-- `set_bulk_actions(array $actions): self` – Replace bulk actions wholesale. Example: `$crud->set_bulk_actions([['name' => 'close', 'label' => 'Close', 'type' => 'update', 'fields' => ['open' => 0]]]);`
-- `enable_soft_delete(string $column, array $options = []): self` – Configure soft delete. Example: `$crud->enable_soft_delete('deleted_at', ['mode' => 'timestamp']);`
-- `set_soft_delete_assignments(array $assignments): self` – Custom assignments for soft delete. Example:
+- **`column_class(string|array $columns, string|array $classes): self`** – Append custom CSS classes to specific cells.
+  ```php
+  $crud->column_class('status', 'text-uppercase text-success');
+  ```
+- **`column_width(string|array $columns, string $width): self`** – Set fixed widths for columns.
+  ```php
+  $crud->column_width('name', '220px');
+  ```
+- **`column_cut(string|array $columns, int $length, string $suffix = '…'): self`** – Truncate long text for clean tables.
+  ```php
+  $crud->column_cut('description', 80);
+  ```
+- **`highlight(string|array $columns, array|string $condition, string $class = 'text-warning'): self`** – Highlight cells that match conditions.
+  ```php
+  $crud->highlight('status', ['equals' => 'pending'], 'text-danger');
+  ```
+- **`highlight_row(array|string $condition, string $class = 'table-warning'): self`** – Highlight entire rows based on conditions.
+  ```php
+  $crud->highlight_row(['field' => 'balance', 'operand' => 'lt', 'value' => 0], 'table-danger');
+  ```
+- **`column_summary(string|array $columns, string $type = 'sum', ?string $label = null, ?int $precision = null): self`** – Display aggregated totals in the footer.
+  ```php
+  $crud->column_summary('total', 'sum', 'Grand Total', 2);
+  ```
+
+#### Field & Form Customisation
+
+- **`custom_field(string $field, callable|string|array $callback): self`** – Inject additional, non-database fields into the form.
+  ```php
+  $crud->custom_field('invite_toggle', [FormExtras::class, 'toggle']);
+  ```
+- **`field_callback(string|array $fields, callable|string|array $callback): self`** – Mutate input data before it is saved.
+  ```php
+  $crud->field_callback('slug', [Slugger::class, 'make']);
+  ```
+- **`fields(string|array $fields, bool $reverse = false, string|false $tab = false, string|array|false $mode = false): self`** – Arrange form fields into sections and tabs.
+  ```php
+  $crud->fields(['name', 'email', 'phone'], false, 'Details');
+  ```
+- **`default_tab(string $tabName, string|array|false $mode = false): self`** – Choose the default tab for each form mode.
+  ```php
+  $crud->default_tab('Details', ['create', 'edit']);
+  ```
+- **`change_type(string|array $fields, string $type, mixed $default = '', array $params = []): self`** – Swap the input widget or field type.
+  ```php
+  $crud->change_type('avatar', 'upload_image', '', ['path' => 'avatars']);
+  ```
+- **`getChangeTypeDefinition(string $field): ?array`** – Inspect previously configured type overrides.
+  ```php
+  $definition = $crud->getChangeTypeDefinition('avatar');
+  ```
+- **`pass_var(string|array $fields, mixed $value, string|array $mode = 'all'): self`** – Inject runtime values each time the form renders.
+  ```php
+  $crud->pass_var('updated_by', Auth::id());
+  ```
+- **`pass_default(string|array $fields, mixed $value, string|array $mode = 'all'): self`** – Supply fallback values when inputs are empty.
+  ```php
+  $crud->pass_default('status', 'pending', 'create');
+  ```
+- **`readonly(string|array $fields, string|array $mode = 'all'): self`** – Mark fields as read-only per mode.
+  ```php
+  $crud->readonly(['email'], ['edit', 'view']);
+  ```
+- **`disabled(string|array $fields, string|array $mode = 'all'): self`** – Disable inputs entirely for certain modes.
+  ```php
+  $crud->disabled('type', 'create');
+  ```
+
+#### Validation Helpers
+
+- **`validation_required(string|array $fields, int $minLength = 1, string|array $mode = 'all'): self`** – Enforce required fields and minimum length.
+  ```php
+  $crud->validation_required('name', 1);
+  ```
+- **`validation_pattern(string|array $fields, string $pattern, string|array $mode = 'all'): self`** – Apply regex-based validation rules.
+  ```php
+  $crud->validation_pattern('phone', '/^\+?[0-9]{7,15}$/');
+  ```
+- **`unique(string|array $fields, string|array $mode = 'all'): self`** – Ensure values remain unique when saving.
+  ```php
+  $crud->unique('email', ['create', 'edit']);
+  ```
+
+#### Lifecycle Hooks
+
+- **`before_insert(callable|string|array $callback): self`** – Run logic right before an insert occurs.
+  ```php
+  $crud->before_insert([Audit::class, 'stampBeforeInsert']);
+  ```
+- **`after_insert(callable|string|array $callback): self`** – React immediately after a record is inserted.
+  ```php
+  $crud->after_insert([Notifier::class, 'sendWelcome']);
+  ```
+- **`before_create(callable|string|array $callback): self`** – Intercept create form submissions before validation.
+  ```php
+  $crud->before_create(fn(array $payload) => $payload);
+  ```
+- **`after_create(callable|string|array $callback): self`** – React once the create form has finished.
+  ```php
+  $crud->after_create(fn(array $row) => $row);
+  ```
+- **`before_update(callable|string|array $callback): self`** – Run logic prior to updating a record.
+  ```php
+  $crud->before_update([Audit::class, 'stampBeforeUpdate']);
+  ```
+- **`after_update(callable|string|array $callback): self`** – React to successful updates.
+  ```php
+  $crud->after_update([Notifier::class, 'sendUpdate']);
+  ```
+- **`before_delete(callable|string|array $callback): self`** – Perform checks before deletions execute.
+  ```php
+  $crud->before_delete([Audit::class, 'logDeleteAttempt']);
+  ```
+- **`after_delete(callable|string|array $callback): self`** – Handle clean-up after deletions.
+  ```php
+  $crud->after_delete([Notifier::class, 'sendRemovalNotice']);
+  ```
+- **`before_fetch(callable|string|array $callback): self`** – Adjust pagination payloads before data loads.
+  ```php
+  $crud->before_fetch(fn(array $payload) => $payload);
+  ```
+- **`after_fetch(callable|string|array $callback): self`** – Transform row collections after loading.
+  ```php
+  $crud->after_fetch(fn(array $result) => $result);
+  ```
+- **`before_read(callable|string|array $callback): self`** – Inspect requests before a single record load.
+  ```php
+  $crud->before_read([Audit::class, 'logBeforeRead']);
+  ```
+- **`after_read(callable|string|array $callback): self`** – React after a single record is retrieved.
+  ```php
+  $crud->after_read([Audit::class, 'logAfterRead']);
+  ```
+
+#### Actions & Toolbar
+
+- **`table_name(string $name): self`** – Set the headline shown above the table.
+  ```php
+  $crud->table_name('Customer Accounts');
+  ```
+- **`table_tooltip(string $tooltip): self`** – Provide a tooltip for the table header.
+  ```php
+  $crud->table_tooltip('Live customer data');
+  ```
+- **`table_icon(string $iconClass): self`** – Add an icon before the table title.
+  ```php
+  $crud->table_icon('bi-people');
+  ```
+- **`enable_add(bool $enabled = true): self`** – Toggle the add-record button.
+  ```php
+  $crud->enable_add(false);
+  ```
+- **`enable_view(bool $enabled = true, string|false $field = false, string|false $operand = false, mixed $value = false): self`** – Control per-row view permissions.
+  ```php
+  $crud->enable_view(true, 'status', 'equals', 'active');
+  ```
+- **`enable_edit(bool $enabled = true, string|false $field = false, string|false $operand = false, mixed $value = false): self`** – Decide which rows are editable.
+  ```php
+  $crud->enable_edit(true, 'locked', 'equals', 0);
+  ```
+- **`enable_delete(bool $enabled = true, string|false $field = false, string|false $operand = false, mixed $value = false): self`** – Restrict delete access.
+  ```php
+  $crud->enable_delete(true, 'status', 'not_equals', 'archived');
+  ```
+- **`enable_duplicate(bool $enabled = true, string|false $field = false, string|false $operand = false, mixed $value = false): self`** – Enable duplication for qualifying rows.
+  ```php
+  $crud->enable_duplicate(true, 'type', 'equals', 'template');
+  ```
+- **`enable_batch_delete(bool $enabled = true): self`** – Show or hide batch deletion controls.
+  ```php
+  $crud->enable_batch_delete();
+  ```
+- **`add_bulk_action(string $name, string $label, array $options = []): self`** – Register a custom bulk action.
+  ```php
+  $crud->add_bulk_action('flag', 'Flag Selected', [
+      'type'   => 'update',
+      'fields' => ['flagged' => 1],
+  ]);
+  ```
+- **`set_bulk_actions(array $actions): self`** – Replace the entire bulk action list.
+  ```php
+  $crud->set_bulk_actions([
+      ['name' => 'close', 'label' => 'Close', 'type' => 'update', 'fields' => ['open' => 0]],
+  ]);
+  ```
+- **`enable_soft_delete(string $column, array $options = []): self`** – Configure soft-delete behaviour.
+  ```php
+  $crud->enable_soft_delete('deleted_at', ['mode' => 'timestamp']);
+  ```
+- **`set_soft_delete_assignments(array $assignments): self`** – Provide advanced soft-delete assignments.
   ```php
   $crud->set_soft_delete_assignments([
       ['column' => 'deleted_at', 'mode' => 'timestamp'],
       'deleted_by' => ['mode' => 'literal', 'value' => Auth::id()],
   ]);
   ```
-- `disable_soft_delete(): self` – Remove soft delete settings. Example: `$crud->disable_soft_delete();`
-- `enable_delete_confirm(bool $enabled = true): self` – Toggle delete confirmation. Example: `$crud->enable_delete_confirm(false);`
-- `enable_export_csv(bool $enabled = true): self` – Toggle CSV export. Example: `$crud->enable_export_csv();`
-- `enable_export_excel(bool $enabled = true): self` – Toggle Excel export. Example: `$crud->enable_export_excel();`
-- `link_button(string $url, string $iconClass, ?string $label = null, ?string $buttonClass = null, array $options = []): self` – Add toolbar link. Example: `$crud->link_button('/reports', 'bi-file-earmark', 'Reports');`
-- `column_summary(string|array $columns, string $type = 'sum', ?string $label = null, ?int $precision = null): self` – Add footer summaries. Example: `$crud->column_summary('total', 'sum', 'Grand Total', 2);`
-- `fields(string|array $fields, bool $reverse = false, string|false $tab = false, string|array|false $mode = false): self` – Control form layout and tabs. Example: `$crud->fields(['name', 'email'], false, 'Details');`
-- `default_tab(string $tabName, string|array|false $mode = false): self` – Define default tab per mode. Example: `$crud->default_tab('Details', ['create', 'edit']);`
-- `change_type(string|array $fields, string $type, mixed $default = '', array $params = []): self` – Override form field type. Example: `$crud->change_type('avatar', 'upload_image', '', ['path' => 'avatars']);`
-- `getChangeTypeDefinition(string $field): ?array` – Inspect stored type override. Example: `$definition = $crud->getChangeTypeDefinition('avatar');`
-- `pass_var(string|array $fields, mixed $value, string|array $mode = 'all'): self` – Inject runtime values. Example: `$crud->pass_var('updated_by', Auth::id());`
-- `pass_default(string|array $fields, mixed $value, string|array $mode = 'all'): self` – Provide fallbacks when empty. Example: `$crud->pass_default('status', 'pending', 'create');`
-- `readonly(string|array $fields, string|array $mode = 'all'): self` – Mark fields read-only. Example: `$crud->readonly(['email'], ['edit', 'view']);`
-- `disabled(string|array $fields, string|array $mode = 'all'): self` – Disable fields. Example: `$crud->disabled('type', 'create');`
-- `validation_required(string|array $fields, int $minLength = 1, string|array $mode = 'all'): self` – Require minimum length. Example: `$crud->validation_required('name', 1);`
-- `validation_pattern(string|array $fields, string $pattern, string|array $mode = 'all'): self` – Apply regex validation. Example: `$crud->validation_pattern('phone', '/^\\+?[0-9]{7,15}$/');`
-- `unique(string|array $fields, string|array $mode = 'all'): self` – Enforce uniqueness. Example: `$crud->unique('email', ['create', 'edit']);`
-- `order_by(string|array $fields, string $direction = 'asc'): self` – Set default ordering. Example: `$crud->order_by(['status' => 'asc', 'created_at' => 'desc']);`
-- `disable_sort(string|array $columns): self` – Disable column sorting. Example: `$crud->disable_sort(['notes']);`
-- `search_columns(string|array $columns, string|false $default = false): self` – Limit searchable columns. Example: `$crud->search_columns(['name', 'email'], 'name');`
-- `no_quotes(string|array $fields): self` – Skip quoting for raw expressions. Example: `$crud->no_quotes('JSON_EXTRACT(meta, "$.flag")');`
-- `where(string|array $fields, mixed $whereValue = false, string $glue = 'AND'): self` – Add filter conditions. Example: `$crud->where('status = ?', 'active');`
-- `or_where(string|array $fields, mixed $whereValue = false): self` – OR-scoped filters. Example: `$crud->or_where(['role' => 'admin']);`
-- `join(string|array $fields, string $joinTable, string $joinField, string|array|false $alias = false, bool $notInsert = false): self` – Add SQL join definitions. Example: `$crud->join('role_id', 'roles', 'id', 'r');`
-- `relation(string|array $fields, string $relatedTable, string $relatedField, string|array $relName, array $relWhere = [], string|false $orderBy = false, bool $multi = false): self` – Populate select options for foreign keys. Example: `$crud->relation('country_id', 'countries', 'id', 'name', ['active' => 1]);`
-- `query(string $query): self` – Provide custom SELECT SQL. Example: `$crud->query('SELECT * FROM view_users');`
-- `subselect(string $columnName, string $sql): self` – Add subquery column. Example: `$crud->subselect('orders_count', 'SELECT COUNT(*) FROM orders o WHERE o.user_id = users.id');`
-- `nested_table(string $instanceName, string $parentColumn, string $innerTable, string $innerTableField, ?callable $configurator = null): self` – Attach nested CRUDs. Example:
+- **`disable_soft_delete(): self`** – Remove soft-delete configuration.
+  ```php
+  $crud->disable_soft_delete();
+  ```
+- **`enable_delete_confirm(bool $enabled = true): self`** – Toggle confirmation prompts before deletion.
+  ```php
+  $crud->enable_delete_confirm(false);
+  ```
+- **`enable_export_csv(bool $enabled = true): self`** – Show or hide the CSV export button.
+  ```php
+  $crud->enable_export_csv();
+  ```
+- **`enable_export_excel(bool $enabled = true): self`** – Show or hide the Excel export button.
+  ```php
+  $crud->enable_export_excel();
+  ```
+- **`link_button(string $url, string $iconClass, ?string $label = null, ?string $buttonClass = null, array $options = []): self`** – Add a custom toolbar button.
+  ```php
+  $crud->link_button('/reports', 'bi-file-earmark', 'Reports', 'btn btn-sm btn-outline-info');
+  ```
+
+#### Sorting, Filtering & Relationships
+
+- **`order_by(string|array $fields, string $direction = 'asc'): self`** – Define default ordering for query results.
+  ```php
+  $crud->order_by(['status' => 'asc', 'created_at' => 'desc']);
+  ```
+- **`disable_sort(string|array $columns): self`** – Prevent UI sorting on columns.
+  ```php
+  $crud->disable_sort(['notes']);
+  ```
+- **`search_columns(string|array $columns, string|false $default = false): self`** – Control which columns participate in quick search.
+  ```php
+  $crud->search_columns(['name', 'email'], 'name');
+  ```
+- **`no_quotes(string|array $fields): self`** – Treat specified expressions as raw SQL.
+  ```php
+  $crud->no_quotes('JSON_EXTRACT(meta, "$.flag")');
+  ```
+- **`where(string|array $fields, mixed $whereValue = false, string $glue = 'AND'): self`** – Add `AND`-joined conditions to the query.
+  ```php
+  $crud->where('status = ?', 'active');
+  ```
+- **`or_where(string|array $fields, mixed $whereValue = false): self`** – Add `OR`-joined conditions.
+  ```php
+  $crud->or_where(['role' => 'admin']);
+  ```
+- **`join(string|array $fields, string $joinTable, string $joinField, string|array|false $alias = false, bool $notInsert = false): self`** – Join related tables for display.
+  ```php
+  $crud->join('role_id', 'roles', 'id', 'r');
+  ```
+- **`relation(string|array $fields, string $relatedTable, string $relatedField, string|array $relName, array $relWhere = [], string|false $orderBy = false, bool $multi = false): self`** – Populate select fields from related tables.
+  ```php
+  $crud->relation('country_id', 'countries', 'id', 'name', ['active' => 1]);
+  ```
+
+#### Query Extensions
+
+- **`query(string $query): self`** – Replace the default select statement.
+  ```php
+  $crud->query('SELECT * FROM view_users');
+  ```
+- **`subselect(string $columnName, string $sql): self`** – Add a derived column via subquery.
+  ```php
+  $crud->subselect('orders_count', 'SELECT COUNT(*) FROM orders o WHERE o.user_id = users.id');
+  ```
+
+#### Nested Data
+
+- **`nested_table(string $instanceName, string $parentColumn, string $innerTable, string $innerTableField, ?callable $configurator = null): self`** – Attach expandable child tables to each row.
   ```php
   $crud->nested_table('orders', 'id', 'orders', 'user_id', function (Crud $child) {
       $child->columns(['id', 'total'])->limit(5);
   });
   ```
-- `render(?string $mode = null, mixed $primaryKeyValue = null): string` – Render the widget HTML. Example: `echo $crud->render();`
-- `getId(): string` – Retrieve the generated container ID. Example: `$id = $crud->getId();`
-- `getTableData(int $page = 1, ?int $perPage = null, ?string $searchTerm = null, ?string $searchColumn = null): array` – Fetch data for AJAX responses. Example: `$data = $crud->getTableData(1, 10, 'sam', 'name');`
-- `createRecord(array $fields): ?array` – Insert a row and return it. Example: `$user = $crud->createRecord(['name' => 'Sam']);`
-- `updateRecord(string $primaryKeyColumn, mixed $primaryKeyValue, array $fields, string $mode = 'edit'): ?array` – Update a record. Example: `$crud->updateRecord('id', 5, ['status' => 'active']);`
-- `deleteRecord(string $primaryKeyColumn, mixed $primaryKeyValue): bool` – Delete/soft delete a row. Example: `$crud->deleteRecord('id', 9);`
-- `deleteRecords(string $primaryKeyColumn, array $primaryKeyValues): array` – Bulk delete. Example: `$crud->deleteRecords('id', [1, 2, 3]);`
-- `updateRecords(string $primaryKeyColumn, array $primaryKeyValues, array $fields, string $mode = 'edit'): array` – Bulk update. Example: `$crud->updateRecords('id', [2, 3], ['status' => 'archived']);`
-- `duplicateRecord(string $primaryKeyColumn, mixed $primaryKeyValue): ?array` – Clone a record. Example: `$copy = $crud->duplicateRecord('id', 7);`
-- `getRecord(string $primaryKeyColumn, mixed $primaryKeyValue): ?array` – Fetch single record with formatting. Example: `$record = $crud->getRecord('id', 7);`
+
+#### Rendering & Data Access
+
+- **`render(?string $mode = null, mixed $primaryKeyValue = null): string`** – Output the full FastCRUD widget.
+  ```php
+  echo $crud->render();
+  ```
+- **`getId(): string`** – Retrieve the generated component ID for DOM targeting.
+  ```php
+  $componentId = $crud->getId();
+  ```
+- **`getTableData(int $page = 1, ?int $perPage = null, ?string $searchTerm = null, ?string $searchColumn = null): array`** – Fetch paginated data for AJAX responses.
+  ```php
+  $payload = $crud->getTableData(1, 10, 'sam', 'name');
+  ```
+
+#### Record Operations
+
+- **`createRecord(array $fields): ?array`** – Insert a new record with behaviour support.
+  ```php
+  $user = $crud->createRecord(['name' => 'Sam', 'email' => 'sam@example.com']);
+  ```
+- **`updateRecord(string $primaryKeyColumn, mixed $primaryKeyValue, array $fields, string $mode = 'edit'): ?array`** – Update a record and return the latest data.
+  ```php
+  $updated = $crud->updateRecord('id', 5, ['status' => 'active']);
+  ```
+- **`deleteRecord(string $primaryKeyColumn, mixed $primaryKeyValue): bool`** – Delete or soft-delete a single record.
+  ```php
+  $crud->deleteRecord('id', 9);
+  ```
+- **`deleteRecords(string $primaryKeyColumn, array $primaryKeyValues): array`** – Delete multiple records at once.
+  ```php
+  $result = $crud->deleteRecords('id', [1, 2, 3]);
+  ```
+- **`updateRecords(string $primaryKeyColumn, array $primaryKeyValues, array $fields, string $mode = 'edit'): array`** – Apply bulk updates to several records.
+  ```php
+  $crud->updateRecords('id', [2, 3], ['status' => 'archived']);
+  ```
+- **`duplicateRecord(string $primaryKeyColumn, mixed $primaryKeyValue): ?array`** – Clone an existing record including allowed columns.
+  ```php
+  $copy = $crud->duplicateRecord('id', 7);
+  ```
+- **`getRecord(string $primaryKeyColumn, mixed $primaryKeyValue): ?array`** – Retrieve a single record with presentation rules applied.
+  ```php
+  $record = $crud->getRecord('id', 7);
+  ```
 
 ### FastCrud\CrudAjax
 
-- `CrudAjax::handle(): void` – Process the current FastCRUD AJAX request. Example:
+- **`CrudAjax::handle(): void`** – Process the current FastCRUD AJAX request.
   ```php
   if (CrudAjax::isAjaxRequest()) {
       CrudAjax::handle();
   }
   ```
-- `CrudAjax::isAjaxRequest(): bool` – Detect FastCRUD AJAX calls. Example: `if (CrudAjax::isAjaxRequest()) { /* ... */ }`
-- `CrudAjax::autoHandle(): void` – Auto-handle when within `Crud::init()`. Example: `CrudAjax::autoHandle();`
+- **`CrudAjax::isAjaxRequest(): bool`** – Detect whether a request targets FastCRUD.
+  ```php
+  if (CrudAjax::isAjaxRequest()) {
+      // delegate to FastCRUD handlers
+  }
+  ```
+- **`CrudAjax::autoHandle(): void`** – Automatically handle the request when wired into `Crud::init()`.
+  ```php
+  CrudAjax::autoHandle();
+  ```
 
 ### FastCrud\CrudConfig
 
-- `CrudConfig::setDbConfig(array $configuration): void` – Store PDO connection settings. Example:
+- **`CrudConfig::setDbConfig(array $configuration): void`** – Store PDO connection settings.
   ```php
   CrudConfig::setDbConfig([
       'driver' => 'pgsql',
@@ -287,19 +586,37 @@ MIT
       'password' => 'secret',
   ]);
   ```
-- `CrudConfig::getDbConfig(): array` – Retrieve current settings. Example: `$config = CrudConfig::getDbConfig();`
-- `CrudConfig::getUploadPath(): string` – Resolve upload base path. Example: `$path = CrudConfig::getUploadPath();`
+- **`CrudConfig::getDbConfig(): array`** – Retrieve the stored configuration array.
+  ```php
+  $config = CrudConfig::getDbConfig();
+  ```
+- **`CrudConfig::getUploadPath(): string`** – Resolve the base directory for uploads.
+  ```php
+  $path = CrudConfig::getUploadPath();
+  ```
 
 ### FastCrud\DB
 
-- `DB::connection(): PDO` – Get or build shared PDO instance. Example: `$pdo = DB::connection();`
-- `DB::setConnection(PDO $connection): void` – Inject your own PDO (testing). Example: `DB::setConnection($testPdo);`
-- `DB::disconnect(): void` – Clear cached PDO. Example: `DB::disconnect();`
+- **`DB::connection(): PDO`** – Access the shared PDO instance used by FastCRUD.
+  ```php
+  $pdo = DB::connection();
+  ```
+- **`DB::setConnection(PDO $connection): void`** – Inject your own PDO instance (for example, in tests).
+  ```php
+  DB::setConnection($testPdo);
+  ```
+- **`DB::disconnect(): void`** – Clear the cached PDO connection.
+  ```php
+  DB::disconnect();
+  ```
 
 ### FastCrud\ValidationException
 
-- `__construct(string $message, array $errors = [], int $code = 0, ?Throwable $previous = null)` – Throw validation failure with field errors. Example:
+- **`__construct(string $message, array $errors = [], int $code = 0, ?Throwable $previous = null)`** – Create a validation exception with field errors.
   ```php
   throw new ValidationException('Invalid data', ['email' => 'Taken']);
   ```
-- `getErrors(): array` – Retrieve validation error map. Example: `$errors = $exception->getErrors();`
+- **`getErrors(): array`** – Retrieve the error messages that were supplied.
+  ```php
+  $errors = $exception->getErrors();
+  ```
