@@ -168,7 +168,7 @@ CrudStyle::$bools_in_grid_color = 'success';
                         'inline' => true, // optional bootstrap inline layout
                     ])
                     ->change_type('gallery_images', 'images')
-                    // ->change_type('color', 'color', '#ff0000')
+                    ->change_type('color', 'color', '#ff0000')
                     ->change_type('content', 'rich_editor', '', ['height' => 450])
                     ->change_type('created_at', 'hidden', date('Y-m-d H:i:s'))
                   ->column_pattern("title","{title} - {slug}")
@@ -201,7 +201,7 @@ CrudStyle::$bools_in_grid_color = 'success';
                     ->column_callback('content', 'content_callback')
                     // Add a custom, computed column that isn't stored in the database
                     ->custom_column('status_label', 'render_status_badge')
-                    ->field_callback('color', 'create_color_picker')
+                    // ->field_callback('color', 'create_color_picker')
                     ->column_class('user_id', 'text-muted')
                     // ->column_width('title', '30%')
                     ->column_cut('content', 30)
