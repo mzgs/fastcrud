@@ -829,6 +829,76 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 ---
 
+### 🎨 FastCrud\CrudStyle - Global Styling Configuration
+
+Customize default CSS classes for buttons, rows, and components throughout FastCRUD by modifying these public static properties. All properties use Bootstrap 5 classes by default but can be overridden with any CSS framework.
+
+#### 🔘 Toolbar & Action Buttons
+
+- **`CrudStyle::$add_button_class`** – Add new record button (default: `'btn btn-sm btn-success'`)
+- **`CrudStyle::$link_button_class`** – Custom link buttons added via `link_button()` (default: `'btn btn-sm btn-outline-secondary'`)
+- **`CrudStyle::$search_button_class`** – Search form submit button (default: `'btn btn-outline-primary'`)
+- **`CrudStyle::$search_clear_button_class`** – Search form clear button (default: `'btn btn-outline-secondary'`)
+- **`CrudStyle::$batch_delete_button_class`** – Bulk delete button (default: `'btn btn-sm btn-danger'`)
+- **`CrudStyle::$bulk_apply_button_class`** – Bulk actions apply button (default: `'btn btn-sm btn-outline-primary'`)
+- **`CrudStyle::$export_csv_button_class`** – CSV export button (default: `'btn btn-sm btn-outline-secondary'`)
+- **`CrudStyle::$export_excel_button_class`** – Excel export button (default: `'btn btn-sm btn-outline-secondary'`)
+
+#### 🎯 Row Action Buttons
+
+- **`CrudStyle::$view_action_button_class`** – View/read record button (default: `'btn btn-sm btn-secondary'`)
+- **`CrudStyle::$edit_action_button_class`** – Edit record button (default: `'btn btn-sm btn-primary'`)
+- **`CrudStyle::$delete_action_button_class`** – Delete record button (default: `'btn btn-sm btn-danger'`)
+- **`CrudStyle::$duplicate_action_button_class`** – Duplicate record button (default: `'btn btn-sm btn-info'`)
+
+#### 🗂️ Panel & Form Buttons
+
+- **`CrudStyle::$panel_save_button_class`** – Save button in edit/create panels (default: `'btn btn-primary'`)
+- **`CrudStyle::$panel_cancel_button_class`** – Cancel button in edit/create panels (default: `'btn btn-outline-secondary'`)
+
+#### 🌲 Nested Tables & Grid
+
+- **`CrudStyle::$nested_toggle_button_classes`** – Expand/collapse buttons for nested tables (default: `'btn btn-link p-0'`)
+- **`CrudStyle::$edit_view_row_highlight_class`** – Table row highlight while editing/viewing (default: `'table-active'`)
+- **`CrudStyle::$bools_in_grid_color`** – Color variant for boolean switches in grid cells (default: `'primary'`)
+
+#### 💡 Usage Examples
+
+```php
+use FastCrud\CrudStyle;
+
+// 🎨 Customize for dark theme
+CrudStyle::$add_button_class = 'btn btn-sm btn-outline-success';
+CrudStyle::$edit_action_button_class = 'btn btn-sm btn-outline-warning';
+CrudStyle::$delete_action_button_class = 'btn btn-sm btn-outline-danger';
+CrudStyle::$edit_view_row_highlight_class = 'table-dark';
+
+// 🌈 Customize for colorful theme
+CrudStyle::$search_button_class = 'btn btn-info';
+CrudStyle::$export_csv_button_class = 'btn btn-success';
+CrudStyle::$export_excel_button_class = 'btn btn-warning';
+CrudStyle::$bools_in_grid_color = 'success';
+
+// 📱 Customize for mobile/compact theme
+CrudStyle::$add_button_class = 'btn btn-xs btn-success';
+CrudStyle::$view_action_button_class = 'btn btn-xs btn-outline-secondary';
+CrudStyle::$edit_action_button_class = 'btn btn-xs btn-outline-primary';
+CrudStyle::$delete_action_button_class = 'btn btn-xs btn-outline-danger';
+
+// 🎯 Customize panel buttons
+CrudStyle::$panel_save_button_class = 'btn btn-lg btn-success';
+CrudStyle::$panel_cancel_button_class = 'btn btn-lg btn-secondary';
+
+// 🌲 Customize nested table styling
+CrudStyle::$nested_toggle_button_classes = 'btn btn-outline-primary btn-sm';
+
+// 💼 Using custom CSS framework (Tailwind CSS example)
+CrudStyle::$add_button_class = 'bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded';
+CrudStyle::$edit_action_button_class = 'bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-sm';
+```
+
+---
+
 ### 💾 FastCrud\DB - Database Connection
 
 - **`DB::connection(): PDO`** – Access the shared PDO instance used by FastCRUD; connection settings come from `CrudConfig::setDbConfig()`.
