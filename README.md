@@ -182,7 +182,7 @@ All customization options are available through the main `FastCrud\Crud` class m
   $crud->setPanelWidth('30%');
   ```
 
-#### 📋 Table Display
+### 📋 Table Display
 
 - **`inline_edit(string|array $fields): self`** – Enable inline edits for selected columns (pass an array or a comma-separated string).
   ```php
@@ -201,7 +201,7 @@ All customization options are available through the main `FastCrud\Crud` class m
   $crud->set_field_labels('phone', 'Contact Number');
   ```
 
-#### 📊 Column Presentation
+### 📊 Column Presentation
 
 - **`column_pattern(string|array $columns, string $pattern): self`** – Render column values with template tokens like `{value}`, `{raw}`, `{column}`, `{label}`, and any column name from the row.
   ```php
@@ -255,7 +255,7 @@ All customization options are available through the main `FastCrud\Crud` class m
   $crud->column_summary('total', 'sum', 'Grand Total', 2);
   ```
 
-#### 📋 Field & Form Customization
+### 📋 Field & Form Customization
 
 - **`custom_field(string $field, string|array $callback): self`** – Inject additional, non-database fields into the form; callbacks accept the same shapes as other behaviour hooks.
   ```php
@@ -388,7 +388,7 @@ All customization options are available through the main `FastCrud\Crud` class m
   $crud->disabled('type', 'create');
   ```
 
-#### ✅ Validation Helpers
+### ✅ Validation Helpers
 
 - **`validation_required(string|array $fields, int $minLength = 1, string|array $mode = 'all'): self`** – Enforce required fields and minimum length (modes `'create'`, `'edit'`, `'view'`, `'all'`).
   ```php
@@ -403,7 +403,7 @@ All customization options are available through the main `FastCrud\Crud` class m
   $crud->unique('email', ['create', 'edit']);
   ```
 
-#### 🪝 Lifecycle Hooks
+### 🪝 Lifecycle Hooks
 
 Lifecycle hook methods accept only serializable callbacks: named functions (`'function_name'`), static method strings (`'Class::method'`), or class/method arrays (`[ClassName::class, 'method']`). Closures are not supported because the configuration is serialized for AJAX.
 
@@ -574,7 +574,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $crud->after_read('add_permissions');
   ```
 
-#### ⚙️ Actions & Toolbar
+### ⚙️ Actions & Toolbar
 
 - **`table_name(string $name): self`** – Set the headline shown above the table.
   ```php
@@ -658,7 +658,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $crud->link_button('/reports', 'bi-file-earmark', 'Reports', 'btn btn-sm btn-outline-info', ['target' => '_blank']);
   ```
 
-#### 🔍 Sorting, Filtering & Relationships
+### 🔍 Sorting, Filtering & Relationships
 
 - **`order_by(string|array $fields, string $direction = 'asc'): self`** – Define default ordering for query results; direction must be `'asc'` or `'desc'` (case-insensitive).
   ```php
@@ -693,7 +693,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $crud->relation('country_id', 'countries', 'id', 'name', ['active' => 1]);
   ```
 
-#### 📊 Query Extensions
+### 📊 Query Extensions
 
 - **`query(string $query): self`** – Replace the default select statement with your own SQL (must select the base table columns required by FastCRUD).
   ```php
@@ -704,7 +704,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $crud->subselect('orders_count', 'SELECT COUNT(*) FROM orders o WHERE o.user_id = users.id');
   ```
 
-#### 🔗 Nested Data
+### 🔗 Nested Data
 
 - **`nested_table(string $instanceName, string $parentColumn, string $innerTable, string $innerTableField, ?callable $configurator = null): self`** – Attach expandable child tables to each row; the method returns the child `Crud` instance so you can continue configuring it.
   ```php
@@ -713,7 +713,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   });
   ```
 
-#### 🎨 Rendering & Data Access
+### 🎨 Rendering & Data Access
 
 - **`render(?string $mode = null, mixed $primaryKeyValue = null): string`** – Output the full FastCRUD widget; `$mode` can be `null`, `'create'`, `'edit'`, or `'view'` and `$primaryKeyValue` targets a specific row for non-create modes.
   ```php
@@ -728,7 +728,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $payload = $crud->getTableData(1, 10, 'sam', 'name');
   ```
 
-#### 📄 Record Operations
+### 📄 Record Operations
 
 - **`createRecord(array $fields): ?array`** – Insert a new record with behaviour support; pass a column => value array and receive the inserted row or `null` if cancelled.
   ```php
