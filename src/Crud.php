@@ -6382,6 +6382,52 @@ HTML;
         return $lookup;
     }
 
+    /**
+     * Build template rows for each form mode so the client can render custom field markup
+     * (field callbacks + custom fields) even before a record exists.
+     *
+     * @param array<int, string> $allColumns
+     * @return array<string, array<string, mixed>>
+     */
+    private function buildFormTemplates(array $allColumns): array
+    {
+        $hasFieldCallbacks = $this->config['field_callbacks'] ?? [];
+        $hasCustomFields = $this->config['custom_fields'] ?? [];
+
+        if ($hasFieldCallbacks === [] && $hasCustomFields === []) {
+            return [];
+        }
+
+        $primaryKeyColumn = $this->getPrimaryKeyColumn();
+
+        $baseRow = [
+            '__fastcrud_primary_key'   => $primaryKeyColumn,
+            '__fastcrud_primary_value' => null,
+        ];
+
+        foreach ($allColumns as $column) {
+            if (!is_string($column)) {
+                continue;
+            }
+
+            $normalized = $this->normalizeColumnReference($column);
+            if ($normalized === '' || array_key_exists($normalized, $baseRow)) {
+                continue;
+            }
+
+            $baseRow[$normalized] = null;
+        }
+
+        $templates = [];
+
+        foreach (['create', 'edit', 'view'] as $mode) {
+            $row = $baseRow;
+            $templates[$mode] = $this->applyFieldCallbacksToRow($row, $mode);
+        }
+
+        return $templates;
+    }
+
     private function buildMeta(array $columns): array
     {
         $columnLookup = $this->buildColumnLookup($columns);
@@ -6424,6 +6470,14 @@ HTML;
 
             if (!in_array($normalized, $sortDisabled, true)) {
                 $sortDisabled[] = $normalized;
+            }
+        }
+
+        $formMeta = $this->buildFormMeta($columns);
+        if (isset($formMeta['all_columns']) && is_array($formMeta['all_columns'])) {
+            $templates = $this->buildFormTemplates($formMeta['all_columns']);
+            if ($templates !== []) {
+                $formMeta['templates'] = $templates;
             }
         }
 
@@ -6480,7 +6534,7 @@ HTML;
                 $this->config['order_by']
             ),
             'sort_disabled'  => $sortDisabled,
-            'form' => $this->buildFormMeta($columns),
+            'form' => $formMeta,
             'inline_edit' => $inline,
             'nested_tables' => $this->buildNestedTablesClientConfigPayload(),
             'soft_delete'   => $this->config['soft_delete'],
@@ -7052,6 +7106,11 @@ HTML;
         $formMeta = $this->buildFormMeta($columns);
         if (!isset($formMeta['all_columns']) || !is_array($formMeta['all_columns'])) {
             $formMeta['all_columns'] = $allColumns;
+        }
+
+        $templates = $this->buildFormTemplates($formMeta['all_columns']);
+        if ($templates !== []) {
+            $formMeta['templates'] = $templates;
         }
 
         return [
@@ -9206,6 +9265,25 @@ HTML;
     try { if (window.console && console.log) console.log('FastCrud bootstrap script running'); } catch (e) {}
     function FastCrudInit($) {
         $(document).ready(function() {
+        function deepClone(value) {
+            if (value === null || typeof value === 'undefined') {
+                return value;
+            }
+
+            try {
+                return JSON.parse(JSON.stringify(value));
+            } catch (error) {
+                if (Array.isArray(value)) {
+                    return $.extend(true, [], value);
+                }
+                if (value && typeof value === 'object') {
+                    return $.extend(true, {}, value);
+                }
+            }
+
+            return value;
+        }
+
         var tableId = '$id';
         var styleDefaults = {$styleJson};
         var editViewHighlightClass = getStyleClass('edit_view_row_highlight_class', 'table-warning');
@@ -9264,10 +9342,49 @@ HTML;
             default_tabs: {},
             behaviours: {},
             labels: {},
-            all_columns: []
+            all_columns: [],
+            templates: {}
         };
+        var formTemplates = {};
         var currentFieldErrors = {};
         var lastSubmitAction = null;
+        function getFormTemplate(mode) {
+            if (!mode) {
+                return null;
+            }
+
+            var templates = formTemplates && typeof formTemplates === 'object' ? formTemplates : {};
+            if (!templates) {
+                return null;
+            }
+
+            var key = String(mode).toLowerCase();
+            if (!Object.prototype.hasOwnProperty.call(templates, key)) {
+                return null;
+            }
+
+            var template = templates[key];
+            if (!template || typeof template !== 'object') {
+                return null;
+            }
+
+            return deepClone(template);
+        }
+
+        function ensureRowColumns(row) {
+            var output = row && typeof row === 'object' ? row : {};
+            var sourceColumns = baseColumns.length ? baseColumns : columnsCache;
+            sourceColumns.forEach(function(column) {
+                if (typeof column !== 'string') {
+                    return;
+                }
+                if (!Object.prototype.hasOwnProperty.call(output, column)) {
+                    output[column] = null;
+                }
+            });
+
+            return output;
+        }
         // Cache for on-demand row fetches (keyed by tableId + '::' + pkCol + '::' + pkVal)
         var rowCache = {};
         var formOnlyMode = container.attr('data-fastcrud-form-only') === '1';
@@ -10208,14 +10325,26 @@ HTML;
                 columnWidths = meta.column_widths && typeof meta.column_widths === 'object' ? meta.column_widths : {};
 
                 if (meta.form && typeof meta.form === 'object') {
+                    var templates = meta.form.templates && typeof meta.form.templates === 'object'
+                        ? deepClone(meta.form.templates)
+                        : {};
                     formConfig = {
                         layouts: meta.form.layouts && typeof meta.form.layouts === 'object' ? meta.form.layouts : {},
                         default_tabs: meta.form.default_tabs && typeof meta.form.default_tabs === 'object' ? meta.form.default_tabs : {},
                         behaviours: meta.form.behaviours && typeof meta.form.behaviours === 'object' ? meta.form.behaviours : {},
                         labels: meta.form.labels && typeof meta.form.labels === 'object' ? meta.form.labels : {},
-                        all_columns: Array.isArray(meta.form.all_columns) ? meta.form.all_columns.slice() : []
+                        all_columns: Array.isArray(meta.form.all_columns) ? meta.form.all_columns.slice() : [],
+                        templates: templates
                     };
-                    clientConfig.form = meta.form;
+                    formTemplates = templates;
+                    clientConfig.form = $.extend(true, {}, meta.form);
+                    if (Object.keys(templates).length) {
+                        clientConfig.form.templates = deepClone(templates);
+                    } else if (clientConfig.form && typeof clientConfig.form === 'object') {
+                        delete clientConfig.form.templates;
+                    }
+                } else {
+                    formTemplates = {};
                 }
 
                 inlineEditFields = {};
@@ -10266,21 +10395,33 @@ HTML;
             columnWidths = meta.column_widths && typeof meta.column_widths === 'object' ? meta.column_widths : {};
 
             if (meta.form && typeof meta.form === 'object') {
+                var liveTemplates = meta.form.templates && typeof meta.form.templates === 'object'
+                    ? deepClone(meta.form.templates)
+                    : {};
                 formConfig = {
                     layouts: meta.form.layouts && typeof meta.form.layouts === 'object' ? meta.form.layouts : {},
                     default_tabs: meta.form.default_tabs && typeof meta.form.default_tabs === 'object' ? meta.form.default_tabs : {},
                     behaviours: meta.form.behaviours && typeof meta.form.behaviours === 'object' ? meta.form.behaviours : {},
                     labels: meta.form.labels && typeof meta.form.labels === 'object' ? meta.form.labels : {},
-                    all_columns: Array.isArray(meta.form.all_columns) ? meta.form.all_columns : []
+                    all_columns: Array.isArray(meta.form.all_columns) ? meta.form.all_columns : [],
+                    templates: liveTemplates
                 };
-                clientConfig.form = meta.form;
+                formTemplates = liveTemplates;
+                clientConfig.form = $.extend(true, {}, meta.form);
+                if (Object.keys(liveTemplates).length) {
+                    clientConfig.form.templates = deepClone(liveTemplates);
+                } else if (clientConfig.form && typeof clientConfig.form === 'object') {
+                    delete clientConfig.form.templates;
+                }
             } else {
+                formTemplates = {};
                 formConfig = {
                     layouts: {},
                     default_tabs: {},
                     behaviours: {},
                     labels: {},
-                    all_columns: []
+                    all_columns: [],
+                    templates: {}
                 };
                 delete clientConfig.form;
             }
@@ -12433,8 +12574,20 @@ HTML;
 
             var templateContext = $.extend({}, row);
             var customFieldHtml = row.__fastcrud_field_html && typeof row.__fastcrud_field_html === 'object'
-                ? row.__fastcrud_field_html
+                ? deepClone(row.__fastcrud_field_html)
                 : {};
+
+            var templateForMode = formMode ? getFormTemplate(formMode) : null;
+            if (templateForMode && typeof templateForMode === 'object' && templateForMode.__fastcrud_field_html
+                && typeof templateForMode.__fastcrud_field_html === 'object') {
+                var templateHtml = deepClone(templateForMode.__fastcrud_field_html);
+                Object.keys(templateHtml).forEach(function(key) {
+                    if (!Object.prototype.hasOwnProperty.call(customFieldHtml, key)) {
+                        customFieldHtml[key] = templateHtml[key];
+                    }
+                });
+                row.__fastcrud_field_html = deepClone(customFieldHtml);
+            }
 
             var layout = buildFormLayout(formMode);
             var fields = layout.fields.slice();
@@ -12595,6 +12748,20 @@ HTML;
                         customContainer.append(htmlContent);
                     }
                     container.append(customContainer);
+
+                    // Sync value attributes inside custom markup with the resolved current value
+                    var valueHolders = customContainer.find('[data-fastcrud-field="' + column + '"]');
+                    if (valueHolders.length) {
+                        valueHolders.each(function() {
+                            var el = $(this);
+                            var tagName = el.prop('tagName');
+                            if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') {
+                                el.val(currentValue);
+                            } else {
+                                el.text(currentValue != null ? String(currentValue) : '');
+                            }
+                        });
+                    }
                     return;
                 }
 
@@ -14252,17 +14419,17 @@ HTML;
                                 if (!resolvedPrimaryForNew) {
                                     showFormError('Unable to prepare a new form instance.');
                                 } else {
-                                    var freshRow = {
-                                        __fastcrud_primary_key: resolvedPrimaryForNew,
-                                        __fastcrud_primary_value: null
-                                    };
-                                    var sourceColumns = baseColumns.length ? baseColumns : columnsCache;
-                                    sourceColumns.forEach(function(column) {
-                                        if (!Object.prototype.hasOwnProperty.call(freshRow, column)) {
-                                            freshRow[column] = null;
-                                        }
-                                    });
-                                    showEditForm(freshRow);
+                                    var freshRow = getFormTemplate('create');
+                                    if (!freshRow) {
+                                        freshRow = {
+                                            __fastcrud_primary_key: resolvedPrimaryForNew,
+                                            __fastcrud_primary_value: null
+                                        };
+                                    } else {
+                                        freshRow.__fastcrud_primary_key = resolvedPrimaryForNew || freshRow.__fastcrud_primary_key || null;
+                                        freshRow.__fastcrud_primary_value = null;
+                                    }
+                                    showEditForm(ensureRowColumns(freshRow));
                                     editSuccess.text('Record created successfully.').removeClass('d-none');
                                 }
                             }
@@ -14550,18 +14717,18 @@ HTML;
             editForm.data('mode', 'create');
             clearRowHighlight();
 
-            var templateRow = {
-                __fastcrud_primary_key: primaryKeyColumn,
-                __fastcrud_primary_value: null
-            };
-            var sourceColumns = baseColumns.length ? baseColumns : columnsCache;
-            sourceColumns.forEach(function(column) {
-                if (!Object.prototype.hasOwnProperty.call(templateRow, column)) {
-                    templateRow[column] = null;
-                }
-            });
+            var templateRow = getFormTemplate('create');
+            if (!templateRow) {
+                templateRow = {
+                    __fastcrud_primary_key: primaryKeyColumn,
+                    __fastcrud_primary_value: null
+                };
+            } else {
+                templateRow.__fastcrud_primary_key = primaryKeyColumn || templateRow.__fastcrud_primary_key || null;
+                templateRow.__fastcrud_primary_value = null;
+            }
 
-            showEditForm(templateRow);
+            showEditForm(ensureRowColumns(templateRow));
             return false;
         });
 
@@ -15116,18 +15283,18 @@ HTML;
                     return true;
                 }
 
-                var templateRow = {
-                    __fastcrud_primary_key: resolvedPrimary,
-                    __fastcrud_primary_value: null
-                };
-                var sourceColumns = baseColumns.length ? baseColumns : columnsCache;
-                sourceColumns.forEach(function(column) {
-                    if (!Object.prototype.hasOwnProperty.call(templateRow, column)) {
-                        templateRow[column] = null;
-                    }
-                });
+                var templateRow = getFormTemplate('create');
+                if (!templateRow) {
+                    templateRow = {
+                        __fastcrud_primary_key: resolvedPrimary,
+                        __fastcrud_primary_value: null
+                    };
+                } else {
+                    templateRow.__fastcrud_primary_key = resolvedPrimary || templateRow.__fastcrud_primary_key || null;
+                    templateRow.__fastcrud_primary_value = null;
+                }
 
-                showEditForm(templateRow);
+                showEditForm(ensureRowColumns(templateRow));
                 return true;
             }
 

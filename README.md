@@ -262,7 +262,18 @@ All customization options are available through the main `FastCrud\Crud` class m
   // Using a named function (function must accept 4 params: $field, $value, $row, $mode)
   // $field: field name, $value: current value, $row: full row data, $mode: 'create'|'edit'|'view'
   function add_confirmation_checkbox($field, $value, $row, $mode) {
-      return '<label><input type="checkbox" data-fastcrud-field="' . $field . '" value="1"> I confirm this action</label>';
+      return <<<HTML
+          <label class="form-check-label">
+              <input 
+                  type="checkbox" 
+                  class="form-check-input"
+                  name="{$field}"
+                  data-fastcrud-field="{$field}" 
+                  value="1"
+              > 
+              I confirm this action
+          </label>
+      HTML;
   }
   $crud->custom_field('confirmation', 'add_confirmation_checkbox');
   ```
@@ -272,7 +283,16 @@ All customization options are available through the main `FastCrud\Crud` class m
   // $field: field name, $value: current value, $row: full row data, $mode: 'create'|'edit'|'view'
   function create_color_picker($field, $value, $row, $mode) {
       $value = htmlspecialchars($value ?? '#000000');
-      return '<input type="color" data-fastcrud-field="' . $field . '" value="' . $value . '" class="form-control">';
+      return <<<HTML
+          <input
+              type="color"
+              class="form-control form-control-color"
+              name="{$field}"
+              data-fastcrud-field="{$field}"
+              value="{$value}"
+              title="Choose your color"
+          >
+      HTML;
   }
   $crud->field_callback('color', 'create_color_picker');
   ```
