@@ -197,6 +197,7 @@ CrudStyle::$bools_in_grid_color = 'success';
                          
                        
                     ])
+                    ->enable_select2()
                     ->column_pattern('slug', '<strong>{value} - {id} | {status}</strong>')
                     ->column_callback('content', 'content_callback')
                     // Add a custom, computed column that isn't stored in the database

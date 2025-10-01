@@ -137,6 +137,7 @@ class Crud
         'column_summaries' => [],
         'field_labels' => [],
         'panel_width' => null,
+        'select2' => false,
         'primary_key' => 'id',
         'form' => [
             'layouts' => [],
@@ -3041,6 +3042,13 @@ class Crud
     public function enable_export_excel(bool $enabled = true): self
     {
         $this->config['table_meta']['export_excel'] = (bool) $enabled;
+
+        return $this;
+    }
+
+    public function enable_select2(bool $enabled = true): self
+    {
+        $this->config['select2'] = (bool) $enabled;
 
         return $this;
     }
@@ -7153,6 +7161,7 @@ HTML;
             'rich_editor'       => [
                 'upload_path' => CrudConfig::getUploadPath(),
             ],
+            'select2'           => (bool) ($this->config['select2'] ?? false),
         ];
     }
 
@@ -7239,6 +7248,10 @@ HTML;
 
         if (isset($payload['columns_reverse'])) {
             $this->config['columns_reverse'] = (bool) $payload['columns_reverse'];
+        }
+
+        if (isset($payload['select2'])) {
+            $this->config['select2'] = (bool) $payload['select2'];
         }
 
 
@@ -9259,6 +9272,177 @@ HTML;
             $styleJson = '{}';
         }
 
+        $select2ThemeCss = <<<'CSS'
+:root, [data-bs-theme=light]{
+  --fastcrud-select2-bg:var(--bs-body-bg,#fff);
+  --fastcrud-select2-border:var(--bs-border-color,#ced4da);
+  --fastcrud-select2-text:var(--bs-body-color,#212529);
+  --fastcrud-select2-placeholder:var(--bs-secondary-color,rgba(108,117,125,0.75));
+  --fastcrud-select2-dropdown-bg:var(--bs-tertiary-bg,var(--bs-body-bg,#fff));
+  --fastcrud-select2-dropdown-text:var(--bs-body-color,#212529);
+  --fastcrud-select2-highlight-bg:var(--bs-primary,#0d6efd);
+  --fastcrud-select2-highlight-text:var(--bs-primary-contrast,#fff);
+  --fastcrud-select2-chip-bg:var(--bs-tertiary-bg,#f8f9fa);
+  --fastcrud-select2-chip-text:var(--bs-body-color,#212529);
+  --fastcrud-select2-chip-border:var(--fastcrud-select2-border);
+  --fastcrud-select2-disabled-bg:var(--bs-secondary-bg,#e9ecef);
+}
+[data-bs-theme=dark]{
+  --fastcrud-select2-bg:var(--bs-body-bg,#212529);
+  --fastcrud-select2-border:var(--bs-border-color,#495057);
+  --fastcrud-select2-text:var(--bs-body-color,#f8f9fa);
+  --fastcrud-select2-placeholder:var(--bs-secondary-color,#adb5bd);
+  --fastcrud-select2-dropdown-bg:var(--bs-tertiary-bg,var(--bs-body-bg,#2b3035));
+  --fastcrud-select2-dropdown-text:var(--bs-body-color,#f8f9fa);
+  --fastcrud-select2-highlight-bg:var(--bs-primary,#4dabf7);
+  --fastcrud-select2-highlight-text:var(--bs-primary-contrast,#fff);
+  --fastcrud-select2-chip-bg:rgba(255,255,255,0.08);
+  --fastcrud-select2-chip-text:var(--bs-body-color,#f8f9fa);
+  --fastcrud-select2-chip-border:rgba(255,255,255,0.15);
+  --fastcrud-select2-disabled-bg:rgba(255,255,255,0.06);
+}
+.select2-container--default .select2-selection--single,
+.select2-container--default .select2-selection--multiple{
+  background-color:var(--fastcrud-select2-bg);
+  border:1px solid var(--fastcrud-select2-border);
+  color:var(--fastcrud-select2-text);
+  border-radius:var(--bs-border-radius,0.375rem);
+  transition:border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+}
+.select2-container .select2-selection--single{
+  min-height:calc(2.5rem + 2px);
+  display:flex;
+  align-items:center;
+  padding:0.375rem 2rem 0.375rem 0.75rem;
+}
+.select2-container--default .select2-selection--single .select2-selection__rendered{
+  color:var(--fastcrud-select2-text);
+  line-height:1.5;
+  padding:0;
+}
+.select2-container--default .select2-selection--single .select2-selection__placeholder{
+  color:var(--fastcrud-select2-placeholder);
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow{
+  height:100%;
+  right:0.75rem;
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow b{
+  border-color:var(--fastcrud-select2-placeholder) transparent transparent transparent;
+}
+.select2-container--default .select2-selection--multiple{
+  min-height:calc(2.5rem + 2px);
+  padding:0.25rem 0.5rem;
+}
+.select2-container--default .select2-selection--multiple .select2-selection__rendered{
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.35rem;
+  margin:0;
+}
+.select2-container--default .select2-selection--multiple .select2-selection__choice{
+  background-color:var(--fastcrud-select2-chip-bg);
+  border:1px solid var(--fastcrud-select2-chip-border);
+  color:var(--fastcrud-select2-chip-text);
+  border-radius:var(--bs-border-radius-sm,0.25rem);
+  padding:0.1rem 0.5rem;
+}
+.select2-container--default .select2-selection--multiple .select2-selection__choice__remove{
+  color:var(--fastcrud-select2-chip-text);
+  margin-right:0.35rem;
+}
+.select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover{
+  color:var(--fastcrud-select2-highlight-bg);
+}
+.select2-container--default.select2-container--disabled .select2-selection--single,
+.select2-container--default.select2-container--disabled .select2-selection--multiple{
+  background-color:var(--fastcrud-select2-disabled-bg);
+  opacity:0.75;
+}
+.select2-container--default .select2-dropdown{
+  background-color:var(--fastcrud-select2-dropdown-bg);
+  border:1px solid var(--fastcrud-select2-border);
+  color:var(--fastcrud-select2-dropdown-text);
+  border-radius:var(--bs-border-radius,0.375rem);
+  box-shadow:0 0.5rem 1rem rgba(15,23,42,0.15);
+}
+.select2-container--default .select2-results__option{
+  color:var(--fastcrud-select2-dropdown-text);
+}
+.select2-container--default .select2-results__option--highlighted.select2-results__option--selectable{
+  background-color:var(--fastcrud-select2-highlight-bg);
+  color:var(--fastcrud-select2-highlight-text);
+}
+.select2-container--default .select2-results__option[aria-selected=true]{
+  background-color:rgba(var(--bs-primary-rgb,13,110,253),0.12);
+  color:var(--fastcrud-select2-highlight-bg);
+}
+.select2-search--dropdown .select2-search__field{
+  background-color:var(--fastcrud-select2-bg);
+  color:var(--fastcrud-select2-text);
+  border:1px solid var(--fastcrud-select2-border);
+  border-radius:var(--bs-border-radius,0.375rem);
+}
+.select2-search--dropdown .select2-search__field::placeholder{
+  color:var(--fastcrud-select2-placeholder);
+  opacity:0.75;
+}
+.select2-container--default.select2-container--focus .select2-selection--single,
+.select2-container--default.select2-container--focus .select2-selection--multiple,
+select:focus + .select2-container--default .select2-selection--single,
+select:focus + .select2-container--default .select2-selection--multiple{
+  border-color:var(--bs-primary,#0d6efd);
+  box-shadow:0 0 0 0.25rem rgba(var(--bs-primary-rgb,13,110,253),0.25);
+}
+select.is-invalid + .select2-container--default .select2-selection--single,
+select.is-invalid + .select2-container--default .select2-selection--multiple,
+select.was-validated:invalid + .select2-container--default .select2-selection--single,
+select.was-validated:invalid + .select2-container--default .select2-selection--multiple{
+  border-color:var(--bs-form-invalid-border-color,#dc3545);
+  box-shadow:0 0 0 0.25rem rgba(var(--bs-danger-rgb,220,53,69),0.25);
+}
+select.is-valid + .select2-container--default .select2-selection--single,
+select.is-valid + .select2-container--default .select2-selection--multiple,
+select.was-validated:valid + .select2-container--default .select2-selection--single,
+select.was-validated:valid + .select2-container--default .select2-selection--multiple{
+  border-color:var(--bs-form-valid-border-color,#198754);
+  box-shadow:0 0 0 0.25rem rgba(var(--bs-success-rgb,25,135,84),0.25);
+}
+select.form-select-sm + .select2-container .select2-selection--single{
+  min-height:calc(2.25rem + 2px);
+  padding:0.25rem 1.75rem 0.25rem 0.5rem;
+  font-size:0.875rem;
+}
+select.form-select-sm + .select2-container .select2-selection--multiple{
+  min-height:calc(2.25rem + 2px);
+  padding:0.2rem 0.4rem;
+  font-size:0.875rem;
+}
+select.form-select-lg + .select2-container .select2-selection--single{
+  min-height:calc(3rem + 2px);
+  padding:0.5rem 2.5rem 0.5rem 1rem;
+  font-size:1.25rem;
+}
+select.form-select-lg + .select2-container .select2-selection--multiple{
+  min-height:calc(3rem + 2px);
+  padding:0.4rem 0.75rem;
+  font-size:1.25rem;
+}
+.select2-dropdown .select2-results__options::-webkit-scrollbar{width:0.5rem;}
+.select2-dropdown .select2-results__options::-webkit-scrollbar-thumb{background-color:rgba(var(--bs-primary-rgb,13,110,253),0.35);border-radius:1rem;}
+.select2-dropdown .select2-results__options::-webkit-scrollbar-track{background-color:rgba(0,0,0,0.05);}
+[data-bs-theme=dark] .select2-dropdown .select2-results__options::-webkit-scrollbar-thumb{background-color:rgba(255,255,255,0.25);}
+[data-bs-theme=dark] .select2-dropdown .select2-results__options::-webkit-scrollbar-track{background-color:rgba(255,255,255,0.08);}
+CSS;
+        $select2ThemeCss = trim($select2ThemeCss);
+        $select2ThemeCssJson = json_encode(
+            $select2ThemeCss,
+            JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP
+        );
+        if (!is_string($select2ThemeCssJson)) {
+            $select2ThemeCssJson = '""';
+        }
+
         return <<<SCRIPT
 <script>
 (function() {
@@ -9304,6 +9488,7 @@ HTML;
                 clientConfig = {};
             }
         }
+        var select2Enabled = !!(clientConfig && clientConfig.select2);
         var richEditorConfig = clientConfig.rich_editor || {};
         var paginationContainer = $('#' + tableId + '-pagination');
         var currentPage = 1;
@@ -9599,6 +9784,7 @@ HTML;
             // Cleanup heavy widgets after the panel is fully hidden
             editOffcanvasElement.on('hidden.bs.offcanvas', function() {
                 destroyRichEditors(editFieldsContainer);
+                destroySelect2(editFieldsContainer);
                 destroyFilePonds(editFieldsContainer);
             });
         }
@@ -10051,6 +10237,161 @@ HTML;
             } catch (e) {}
         }
 
+        var select2State = window.FastCrudSelect2 || {};
+        if (!select2State.scriptUrl) {
+            select2State.scriptUrl = 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js';
+        }
+        if (!select2State.styleUrl) {
+            select2State.styleUrl = 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css';
+        }
+        if (!Array.isArray(select2State.queue)) {
+            select2State.queue = [];
+        }
+        if (typeof select2State.loaded !== 'boolean') {
+            select2State.loaded = (typeof $.fn !== 'undefined' && typeof $.fn.select2 === 'function');
+        } else if (select2State.loaded && (typeof $.fn === 'undefined' || typeof $.fn.select2 !== 'function')) {
+            select2State.loaded = false;
+        }
+        if (typeof select2State.loading !== 'boolean') {
+            select2State.loading = false;
+        }
+        window.FastCrudSelect2 = select2State;
+
+        function withSelect2Assets(callback) {
+            if (!select2Enabled || typeof callback !== 'function') {
+                return;
+            }
+            if (typeof $.fn !== 'undefined' && typeof $.fn.select2 === 'function') {
+                callback();
+                return;
+            }
+            select2State.queue.push(callback);
+            if (select2State.loading) {
+                return;
+            }
+            select2State.loading = true;
+            appendStylesheetOnce(select2State.styleUrl, 'fastcrud-select2-css');
+            try {
+                var select2ThemeStyleId = 'fastcrud-select2-theme-css';
+                if (!document.getElementById(select2ThemeStyleId)) {
+                    var select2ThemeStyle = document.createElement('style');
+                    select2ThemeStyle.id = select2ThemeStyleId;
+                    var select2ThemeCss = {$select2ThemeCssJson};
+                    select2ThemeStyle.textContent = select2ThemeCss;
+                    document.head.appendChild(select2ThemeStyle);
+                }
+            } catch (e) {}
+            var script = document.createElement('script');
+            script.src = select2State.scriptUrl;
+            script.async = true;
+            script.onload = function() {
+                select2State.loading = false;
+                select2State.loaded = true;
+                var queued = select2State.queue.slice();
+                select2State.queue.length = 0;
+                queued.forEach(function(fn) {
+                    try { fn(); } catch (error) { if (window.console && console.error) { console.error(error); } }
+                });
+            };
+            script.onerror = function() {
+                select2State.loading = false;
+                select2State.queue.length = 0;
+                if (window.console && console.error) {
+                    console.error('FastCrud: failed to load Select2 script');
+                }
+            };
+            document.head.appendChild(script);
+        }
+
+        function resolveSelect2DropdownParent(select) {
+            var parent = select.closest('.offcanvas.show, .modal.show');
+            if (parent.length) {
+                return parent;
+            }
+            parent = select.closest('.fastcrud-inline-editor');
+            if (parent.length) {
+                return parent;
+            }
+            parent = select.parent();
+            if (parent.length) {
+                return parent;
+            }
+            return $('body');
+        }
+
+        function initializeSelect2(container) {
+            if (!select2Enabled) {
+                return;
+            }
+            if (!container || !container.length) {
+                return;
+            }
+            var selectors = 'select[data-fastcrud-type="select"], select[data-fastcrud-type="multiselect"], select.fastcrud-inline-input';
+            var elements = container.is('select') ? container.filter(selectors) : container.find(selectors);
+            if (!elements.length) {
+                return;
+            }
+            withSelect2Assets(function() {
+                if (typeof $.fn === 'undefined' || typeof $.fn.select2 !== 'function') {
+                    return;
+                }
+                elements.each(function() {
+                    var select = $(this);
+                    if (select.data('select2')) {
+                        return;
+                    }
+                    var isMultiple = select.prop('multiple');
+                    var placeholder = select.attr('data-placeholder') || select.attr('placeholder') || null;
+                    if (!placeholder && !isMultiple) {
+                        var blankOption = select.find('option').filter(function() {
+                            var value = $(this).attr('value');
+                            if (typeof value === 'undefined' || value === null) {
+                                return true;
+                            }
+                            return String(value).trim() === '';
+                        }).first();
+                        if (blankOption.length) {
+                            placeholder = blankOption.text();
+                        }
+                    }
+                    var options = {
+                        width: '100%',
+                        dropdownParent: resolveSelect2DropdownParent(select)
+                    };
+                    if (placeholder) {
+                        options.placeholder = placeholder;
+                        options.allowClear = !isMultiple;
+                    } else if (!isMultiple && select.find('option[value=""]').length) {
+                        options.allowClear = true;
+                    }
+                    try {
+                        select.select2(options);
+                    } catch (error) {
+                        if (window.console && console.error) {
+                            console.error('FastCrud: failed to initialize Select2', error);
+                        }
+                    }
+                });
+            });
+        }
+
+        function destroySelect2(container) {
+            if (!container || !container.length) {
+                return;
+            }
+            if (typeof $.fn === 'undefined' || typeof $.fn.select2 !== 'function') {
+                return;
+            }
+            var selectors = 'select[data-fastcrud-type="select"], select[data-fastcrud-type="multiselect"], select.fastcrud-inline-input';
+            var elements = container.is('select') ? container.filter(selectors) : container.find(selectors);
+            elements.each(function() {
+                var select = $(this);
+                if (select.data('select2')) {
+                    try { select.select2('destroy'); } catch (e) {}
+                }
+            });
+        }
+
         var richEditorState = window.FastCrudRichEditor || {};
         if (!richEditorState.scriptUrl) {
             richEditorState.scriptUrl = 'https://mzgs.net/tinymce5/tinymce.min.js';
@@ -10130,6 +10471,7 @@ HTML;
                     onHide: function() {
                         clearRowHighlight();
                         destroyRichEditors(editFieldsContainer);
+                        destroySelect2(editFieldsContainer);
                         destroyFilePonds(editFieldsContainer);
                     }
                 });
@@ -12569,6 +12911,7 @@ HTML;
             }
 
             destroyRichEditors(editFieldsContainer);
+            destroySelect2(editFieldsContainer);
             editFieldsContainer.empty();
             editForm.find('input[type="hidden"][data-fastcrud-field]').remove();
 
@@ -13802,6 +14145,7 @@ HTML;
             }
 
             initializeRichEditors(editFieldsContainer);
+            initializeSelect2(editFieldsContainer);
 
             var behaviourSources = [formConfig.behaviours.pass_var || {}, formConfig.behaviours.pass_default || {}];
             var createdHiddenFields = {};
@@ -14585,7 +14929,14 @@ HTML;
             wrapper.append(input);
             cell.append(wrapper);
 
+            if (input.is('select')) {
+                initializeSelect2(wrapper);
+            }
+
             function restore() {
+                if (input && input.is && input.is('select')) {
+                    destroySelect2(wrapper);
+                }
                 cell.data('fastcrudEditing', false);
                 cell.html(originalHtml);
             }
@@ -14611,6 +14962,9 @@ HTML;
                     } else {
                         input.val(startValue);
                     }
+                    if (input.data('select2')) {
+                        input.trigger('change');
+                    }
                     input.focus();
                 } else {
                     input.val(startValue).focus().select();
@@ -14622,6 +14976,9 @@ HTML;
                     input.val(ensureColor(current)).focus();
                 } else if (input.is('select')) {
                     input.val(current).focus();
+                    if (input.data('select2')) {
+                        input.trigger('change');
+                    }
                 } else {
                     input.val(current).focus().select();
                 }
@@ -14661,6 +15018,7 @@ HTML;
                                 var key = rowCacheKey(pk.column, String(pk.value));
                                 if (response.row) { rowCache[key] = response.row; } else if (rowCache[key]) { delete rowCache[key]; }
                             } catch (e) {}
+                            destroySelect2(wrapper);
                             loadTableData(currentPage);
                         } else {
                             var message = response && response.error ? response.error : 'Failed to update value.';
