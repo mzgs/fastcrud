@@ -2837,19 +2837,19 @@ class Crud
             $label = ucfirst($name);
         }
 
-        $type = isset($options['type']) ? strtolower((string) $options['type']) : 'update';
-        if (!in_array($type, ['update', 'delete'], true)) {
-            throw new InvalidArgumentException('Bulk action type must be either "update" or "delete".');
+        if (isset($options['type'])) {
+            $providedType = strtolower((string) $options['type']);
+            if ($providedType !== '' && $providedType !== 'update') {
+                throw new InvalidArgumentException('Bulk actions no longer support the "delete" type. Use enable_batch_delete().');
+            }
         }
 
-        $action = isset($options['action']) ? trim((string) $options['action']) : '';
-        if ($action === '') {
-            $action = $type === 'update' ? 'bulk_update' : 'batch_delete';
+        if (array_key_exists('mode', $options)) {
+            throw new InvalidArgumentException('Bulk actions no longer accept a mode option.');
         }
 
-        $mode = isset($options['mode']) ? trim((string) $options['mode']) : null;
-        if ($mode === '') {
-            $mode = null;
+        if (array_key_exists('operation', $options)) {
+            throw new InvalidArgumentException('Bulk actions no longer accept a custom operation.');
         }
 
         $confirm = isset($options['confirm']) ? trim((string) $options['confirm']) : null;
@@ -2857,61 +2857,41 @@ class Crud
             $confirm = null;
         }
 
-        $operation = isset($options['operation']) ? trim((string) $options['operation']) : null;
-        if ($operation === '') {
-            $operation = null;
+        $fieldsOption = $options['fields'] ?? [];
+        if (!is_array($fieldsOption)) {
+            throw new InvalidArgumentException('Bulk update action requires a fields array.');
         }
 
-        $payload = isset($options['payload']) && is_array($options['payload']) ? $options['payload'] : null;
+        $fields = [];
+        foreach ($fieldsOption as $column => $value) {
+            if (!is_string($column)) {
+                continue;
+            }
+
+            $normalizedColumn = trim($column);
+            if ($normalizedColumn === '') {
+                continue;
+            }
+
+            $fields[$normalizedColumn] = $value;
+        }
+
+        if ($fields === []) {
+            throw new InvalidArgumentException('Bulk update action requires at least one column assignment.');
+        }
 
         $result = [
             'name'   => $name,
             'label'  => $label,
-            'type'   => $type,
-            'action' => $action,
+            'fields' => $fields,
         ];
-
-        if ($type === 'update') {
-            $fieldsOption = $options['fields'] ?? [];
-            if (!is_array($fieldsOption)) {
-                throw new InvalidArgumentException('Bulk update action requires a fields array.');
-            }
-
-            $fields = [];
-            foreach ($fieldsOption as $column => $value) {
-                if (!is_string($column)) {
-                    continue;
-                }
-
-                $normalizedColumn = trim($column);
-                if ($normalizedColumn === '') {
-                    continue;
-                }
-
-                $fields[$normalizedColumn] = $value;
-            }
-
-            if ($fields === []) {
-                throw new InvalidArgumentException('Bulk update action requires at least one column assignment.');
-            }
-
-            $result['fields'] = $fields;
-        }
-
-        if ($mode !== null) {
-            $result['mode'] = $mode;
-        }
 
         if ($confirm !== null) {
             $result['confirm'] = $confirm;
         }
 
-        if ($operation !== null) {
-            $result['operation'] = $operation;
-        }
-
-        if ($payload !== null) {
-            $result['payload'] = $payload;
+        if (isset($options['payload']) && is_array($options['payload']) && $options['payload'] !== []) {
+            $result['payload'] = $options['payload'];
         }
 
         return $result;
@@ -15454,47 +15434,12 @@ CSS;
             }
 
             var action = bulkActions[index] || {};
-            var type = typeof action.type === 'string' ? action.type.toLowerCase() : 'update';
-
-            if (type === 'delete') {
-                requestBatchDelete();
-                return;
-            }
-
             var selection = collectSelectionForBulk(true);
             if (!selection) {
                 return;
             }
 
             if (action.confirm && !window.confirm(String(action.confirm))) {
-                return;
-            }
-
-            if (type !== 'update') {
-                var fallbackAction = typeof action.action === 'string' && action.action !== '' ? action.action : 'bulk_action';
-                var payload = {
-                    fastcrud_ajax: '1',
-                    action: fallbackAction,
-                    table: tableName,
-                    id: tableId,
-                    primary_key_column: selection.column,
-                    primary_key_values: selection.values,
-                    config: JSON.stringify(clientConfig)
-                };
-
-                if (action.mode) {
-                    payload.mode = action.mode;
-                }
-
-                if (action.operation) {
-                    payload.operation = action.operation;
-                }
-
-                if (action.payload && typeof action.payload === 'object') {
-                    payload.payload = JSON.stringify(action.payload);
-                }
-
-                sendBulkAjax(payload, 'Bulk action failed.');
                 return;
             }
 
@@ -15505,7 +15450,7 @@ CSS;
 
             var payload = {
                 fastcrud_ajax: '1',
-                action: typeof action.action === 'string' && action.action !== '' ? action.action : 'bulk_update',
+                action: 'bulk_update',
                 table: tableName,
                 id: tableId,
                 primary_key_column: selection.column,
@@ -15513,14 +15458,6 @@ CSS;
                 fields: JSON.stringify(action.fields),
                 config: JSON.stringify(clientConfig)
             };
-
-            if (action.mode) {
-                payload.mode = action.mode;
-            }
-
-            if (action.operation) {
-                payload.operation = action.operation;
-            }
 
             sendBulkAjax(payload, 'Failed to apply bulk update.');
         }

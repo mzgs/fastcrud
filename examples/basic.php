@@ -131,9 +131,8 @@ CrudStyle::$bools_in_grid_color = 'success';
                     ->enable_batch_delete(true)
                     ->enable_soft_delete('deleted_at') 
                     ->add_bulk_action('publish', 'Publish Selected', [
-                        'type'   => 'update',
                         'fields' => ['is_featured' => 1],
-                        'mode'   => 'edit',
+                        'confirm' => 'Flag all chosen records?',
                     ])
                    
                     ->enable_export_csv()

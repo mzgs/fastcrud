@@ -626,17 +626,17 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $crud->enable_batch_delete();
   ```
-- **`add_bulk_action(string $name, string $label, array $options = []): self`** – Register a custom bulk action (`type` can be `'update'` or `'delete'`; for updates you may include `'mode' => 'create'|'edit'|'view'|'all'`).
+- **`add_bulk_action(string $name, string $label, array $options = []): self`** – Register a custom bulk update. Supply a `'fields' => ['column' => value]` map and optionally a `'confirm'` message before applying.
   ```php
   $crud->add_bulk_action('flag', 'Flag Selected', [
-      'type'   => 'update',
-      'fields' => ['flagged' => 1],
+      'fields'  => ['flagged' => 1],
+      'confirm' => 'Flag all chosen records?',
   ]);
   ```
-- **`set_bulk_actions(array $actions): self`** – Replace the entire bulk action list (each action supports the same keys as `add_bulk_action()`, including optional `'confirm'`, `'mode'`, `'operation'`, and `'payload'`).
+- **`set_bulk_actions(array $actions): self`** – Replace the entire bulk action list. Each entry mirrors `add_bulk_action()` with `name`, `label`, and a `'fields'` array.
   ```php
   $crud->set_bulk_actions([
-      ['name' => 'close', 'label' => 'Close', 'type' => 'update', 'fields' => ['open' => 0]],
+      ['name' => 'close', 'label' => 'Close', 'fields' => ['open' => 0]],
   ]);
   ```
 - **`enable_soft_delete(string $column, array $options = []): self`** – Configure soft-delete behaviour (`'mode'` accepts `'timestamp'`, `'literal'`, or `'expression'`; provide `'value'` for non-timestamp modes and optional `'additional'` assignments).
