@@ -10311,11 +10311,11 @@ CSS;
         }
 
         function resolveSelect2DropdownParent(select) {
-            var parent = select.closest('.offcanvas.show, .modal.show');
-            if (parent.length) {
-                return parent;
+            if (select && select.hasClass('fastcrud-inline-input')) {
+                return $('body');
             }
-            parent = select.closest('.fastcrud-inline-editor');
+
+            var parent = select.closest('.offcanvas.show, .modal.show');
             if (parent.length) {
                 return parent;
             }
@@ -14958,6 +14958,9 @@ CSS;
                 return '#000000';
             }
 
+            var committing = false;
+            var skipInitialCommit = true;
+
             fetchRowByPk(pk.column, pk.value).then(function(row){
                 var startValue = row && Object.prototype.hasOwnProperty.call(row, fieldKey) ? (row[fieldKey] == null ? '' : String(row[fieldKey])) : '';
                 if (changeType === 'color') {
@@ -14976,6 +14979,7 @@ CSS;
                 } else {
                     input.val(startValue).focus().select();
                 }
+                skipInitialCommit = false;
             }).catch(function(){
                 // If fetch fails, allow editing current display text
                 var current = cell.text();
@@ -14989,9 +14993,17 @@ CSS;
                 } else {
                     input.val(current).focus().select();
                 }
+                skipInitialCommit = false;
             });
 
-            var committing = false;
+            function requestCommit(force) {
+                if (!force && skipInitialCommit) {
+                    return;
+                }
+                skipInitialCommit = false;
+                commit();
+            }
+
             function commit() {
                 if (committing) return;
                 committing = true;
@@ -15041,17 +15053,27 @@ CSS;
             }
 
             input.on('keydown', function(e){
-                if (e.key === 'Enter') { e.preventDefault(); commit(); }
+                if (e.key === 'Enter') { e.preventDefault(); requestCommit(true); }
                 else if (e.key === 'Escape') { e.preventDefault(); restore(); }
             });
             if (changeType === 'color') {
-                input.on('change', function(){ commit(); });
-                input.on('blur', function(){ commit(); });
+                input.on('change', function(){ requestCommit(false); });
+                input.on('blur', function(){ requestCommit(false); });
             } else if (input.is('select')) {
-                input.on('change', function(){ commit(); });
-                input.on('blur', function(){ commit(); });
+                input.on('change', function(){ requestCommit(false); });
+                if (select2Enabled) {
+                    input.on('select2:close', function(){ requestCommit(false); });
+                    input.on('blur', function(){
+                        var element = $(this);
+                        if (!element.hasClass('select2-hidden-accessible')) {
+                            requestCommit(false);
+                        }
+                    });
+                } else {
+                    input.on('blur', function(){ requestCommit(false); });
+                }
             } else {
-                input.on('blur', function(){ commit(); });
+                input.on('blur', function(){ requestCommit(false); });
             }
         }
 
