@@ -19,6 +19,9 @@ class CrudConfig
     // show boolean fields as switches in grid cells
     public static bool $bools_in_grid = true;
 
+    // enable select2 widgets globally unless overridden per Crud instance
+    public static bool $enable_select2 = false;
+
     // For default CSS classes and colours refer to CrudStyle::$* properties.
 
     /**

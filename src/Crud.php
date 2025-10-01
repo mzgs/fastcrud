@@ -185,6 +185,8 @@ class Crud
         $this->table      = $table;
         $this->connection = $connection ?? DB::connection();
         $this->id         = $this->generateId();
+
+        $this->config['select2'] = CrudConfig::$enable_select2;
     }
 
     public function getTable(): string
