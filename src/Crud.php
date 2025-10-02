@@ -5468,7 +5468,7 @@ SQL;
         return <<<HTML
 <div {$attributesHtml}>
     <div id="{$id}-meta" class="d-flex flex-wrap align-items-center gap-2 mb-2"></div>
-    <div class="table-responsive">
+    <div class="table-responsive fastcrud-table-container">
         <table id="$id" class="table align-middle" data-table="$table" data-per-page="$perPage">
             <thead>
                 <tr>
@@ -5476,12 +5476,14 @@ $headerHtml
                 </tr>
             </thead>
             <tbody>
-                <tr>
-                    <td colspan="{$colspan}" class="text-center">
-                        <div class="spinner-border spinner-border-sm" role="status">
-                            <span class="visually-hidden">Loading...</span>
+                <tr class="fastcrud-loading-row">
+                    <td colspan="{$colspan}" class="text-center fastcrud-loading-placeholder">
+                        <div class="d-inline-flex align-items-center gap-2">
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <span class="fastcrud-loading-text">Loading data...</span>
                         </div>
-                        Loading data...
                     </td>
                 </tr>
             </tbody>
@@ -9520,6 +9522,106 @@ CSS;
         var formTemplates = {};
         var currentFieldErrors = {};
         var lastSubmitAction = null;
+        var tableHasRendered = false;
+        var activeFetchRequest = null;
+        var tableViewportCache = null;
+
+        function ensureLoadingStyles() {
+            var styleId = 'fastcrud-loading-style';
+            if (document.getElementById(styleId)) {
+                return;
+            }
+            if (!document.head) {
+                return;
+            }
+            var css = [
+                '.fastcrud-table-container{position:relative;}',
+                '.fastcrud-table-container>table{transition:opacity .18s ease-in-out,filter .18s ease-in-out;}',
+                '.fastcrud-table-container.fastcrud-loading-active>table{opacity:0.45;filter:blur(1px);}',
+                '.fastcrud-loading-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(255,255,255,0.7);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .18s ease-in-out;z-index:5;}',
+                '.fastcrud-loading-overlay.fastcrud-visible{opacity:1;pointer-events:auto;}',
+                '.fastcrud-loading-message{display:inline-flex;align-items:center;gap:0.5rem;font-weight:500;color:var(--bs-body-color,#212529);}',
+                '.fastcrud-loading-placeholder{vertical-align:middle;}',
+                '.fastcrud-loading-placeholder .spinner-border{width:1rem;height:1rem;}',
+                '[data-bs-theme=dark] .fastcrud-loading-overlay{background:rgba(15,23,42,0.55);}',
+                '@media (prefers-reduced-motion: reduce){.fastcrud-table-container>table{transition:none;filter:none;}.fastcrud-table-container.fastcrud-loading-active>table{opacity:1;}.fastcrud-loading-overlay{transition:none;}}'
+            ].join('');
+            var styleEl = document.createElement('style');
+            styleEl.id = styleId;
+            styleEl.type = 'text/css';
+            styleEl.appendChild(document.createTextNode(css));
+            document.head.appendChild(styleEl);
+        }
+
+        function getTableViewport() {
+            if (tableViewportCache && tableViewportCache.length) {
+                return tableViewportCache;
+            }
+            var viewport = container.find('.fastcrud-table-container').first();
+            if (!viewport.length) {
+                viewport = container.find('.table-responsive').first();
+            }
+            tableViewportCache = viewport;
+            return viewport;
+        }
+
+        function ensureLoadingOverlay(viewport) {
+            var target = viewport && viewport.length ? viewport : getTableViewport();
+            if (!target || !target.length) {
+                return $();
+            }
+            var overlay = target.children('.fastcrud-loading-overlay');
+            if (!overlay.length) {
+                overlay = $('<div class="fastcrud-loading-overlay" aria-live="polite"></div>');
+                var message = $('<div class="fastcrud-loading-message"></div>');
+                var spinner = $('<span class="spinner-border spinner-border-sm" role="status"></span>');
+                spinner.append('<span class="visually-hidden">Loading...</span>');
+                var text = $('<span class="fastcrud-loading-text"></span>').text('Refreshing...');
+                message.append(spinner).append(text);
+                overlay.append(message);
+                target.append(overlay);
+            }
+            return overlay;
+        }
+
+        function updateLoadingMessage(message) {
+            var overlay = ensureLoadingOverlay();
+            if (!overlay.length) {
+                return;
+            }
+            var text = overlay.find('.fastcrud-loading-text');
+            if (!text.length) {
+                return;
+            }
+            text.text(message || 'Refreshing...');
+        }
+
+        function beginLoadingState() {
+            var viewport = getTableViewport();
+            if (!viewport.length) {
+                return;
+            }
+            var overlay = ensureLoadingOverlay(viewport);
+            viewport.addClass('fastcrud-loading-active');
+            var raf = window.requestAnimationFrame || function(handler) {
+                return window.setTimeout(handler, 16);
+            };
+            raf(function() {
+                overlay.addClass('fastcrud-visible');
+            });
+        }
+
+        function endLoadingState() {
+            var viewport = getTableViewport();
+            if (!viewport.length) {
+                return;
+            }
+            var overlay = viewport.children('.fastcrud-loading-overlay');
+            overlay.removeClass('fastcrud-visible');
+            viewport.removeClass('fastcrud-loading-active');
+        }
+
+        ensureLoadingStyles();
         function getFormTemplate(mode) {
             if (!mode) {
                 return null;
@@ -11945,6 +12047,22 @@ CSS;
             editError.text(message).removeClass('d-none');
         }
 
+        function showLoadingRow(colspan, message) {
+            var tbody = table.find('tbody');
+            var row = $('<tr class="fastcrud-loading-row"></tr>');
+            var cell = $('<td></td>')
+                .attr('colspan', colspan)
+                .addClass('text-center fastcrud-loading-placeholder');
+            var wrapper = $('<div class="d-inline-flex align-items-center gap-2"></div>');
+            var spinner = $('<span class="spinner-border spinner-border-sm" role="status"></span>');
+            spinner.append('<span class="visually-hidden">Loading...</span>');
+            wrapper.append(spinner);
+            wrapper.append($('<span class="fastcrud-loading-text"></span>').text(message || 'Loading...'));
+            cell.append(wrapper);
+            row.append(cell);
+            tbody.html(row);
+        }
+
         function showEmptyRow(colspan, message) {
             var tbody = table.find('tbody');
             var row = $('<tr></tr>');
@@ -12771,14 +12889,23 @@ CSS;
 
         function loadTableData(page) {
             currentPage = page || 1;
-            // Clear row cache to avoid stale data after reloads
             rowCache = {};
             clearSelection();
 
+            if (activeFetchRequest && typeof activeFetchRequest.abort === 'function') {
+                activeFetchRequest.abort();
+            }
+
             var tbody = table.find('tbody');
             var totalColumns = table.find('thead th').length || 1;
+            var loadingMessage = tableHasRendered ? 'Refreshing data...' : 'Loading data...';
 
-            tbody.html('<tr><td colspan="' + totalColumns + '" class="text-center"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div> Loading...</td></tr>');
+            updateLoadingMessage(loadingMessage);
+            beginLoadingState();
+
+            if (!tableHasRendered) {
+                showLoadingRow(totalColumns, loadingMessage);
+            }
 
             var payload = {
                 fastcrud_ajax: '1',
@@ -12794,7 +12921,7 @@ CSS;
                 payload.search_column = currentSearchColumn;
             }
 
-            $.ajax({
+            var request = $.ajax({
                 url: window.location.pathname,
                 type: 'POST',
                 dataType: 'json',
@@ -12812,21 +12939,34 @@ CSS;
 
                         populateTableRows(response.data || []);
                         refreshTooltips();
-
                         renderSummaries(metaConfig.summaries || []);
 
                         if (response.pagination) {
                             buildPagination(response.pagination);
                         }
+
+                        tableHasRendered = true;
                     } else {
                         var errorMessage = response && response.error ? response.error : 'Failed to load data';
                         showError('Error: ' + errorMessage);
                     }
                 },
-                error: function(_, __, error) {
-                    showError('Failed to load table data: ' + error);
+                error: function(_, textStatus, error) {
+                    if (textStatus === 'abort') {
+                        return;
+                    }
+                    var message = error || 'Failed to load data';
+                    showError('Failed to load table data: ' + message);
+                },
+                complete: function(jqXHR) {
+                    if (activeFetchRequest === jqXHR) {
+                        activeFetchRequest = null;
+                        endLoadingState();
+                    }
                 }
             });
+
+            activeFetchRequest = request;
         }
 
         function showEditForm(row) {
