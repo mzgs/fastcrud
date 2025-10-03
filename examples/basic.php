@@ -7,6 +7,7 @@ require __DIR__ . '/../vendor/autoload.php';
 use FastCrud\Crud;
 use FastCrud\CrudConfig;
 use FastCrud\CrudStyle;
+use FastCrud\DatabseEditor;
 
 function fc_before_create_defaults(array $fields, array $context, Crud $crud): array
 {
@@ -76,6 +77,8 @@ Crud::init([
 ]);
 
 CrudStyle::$bools_in_grid_color = 'success';
+
+DatabseEditor::init();
  
 
   
@@ -109,11 +112,25 @@ CrudStyle::$bools_in_grid_color = 'success';
     <div class="container py-5">
         <div class="row justify-content-center">
 
+       
+
          <div class="col">
                 <div class="text-center mb-4">
                     <h1 class="display-5">FastCRUD Demo</h1>
                     <p class="lead">Dynamically rendered records for the configured table.</p>
                 </div>
+
+                  <div class="card mt-4">
+                <div class="card-header bg-secondary text-white">
+                    <h2 class="h5 mb-0">Database Editor</h2>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3 text-muted">Quickly inspect tables, rename them, add columns, or adjust column definitions.</p>
+                    <?= DatabseEditor::render(); ?>
+                    </div>
+                </div>
+
+
                 <?php
                 $postsCrud = new Crud('posts');
                 $postsCrud
@@ -265,6 +282,9 @@ CrudStyle::$bools_in_grid_color = 'success';
                 ?>
 
             </div>
+
+
+          
 
 
         </div>
