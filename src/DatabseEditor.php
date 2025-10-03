@@ -21,6 +21,7 @@ class DatabseEditor
     private static array $errors = [];
     private static bool $scriptInjected = false;
     private static bool $returnJsonResponse = false;
+    private static ?string $activeTable = null;
 
     public static function init(?array $dbConfig = null): void
     {
@@ -48,7 +49,9 @@ class DatabseEditor
             $tableColumns[$table] = self::fetchColumns($connection, $driver, $table);
         }
 
-        return self::renderHtml($tables, $tableColumns, $driver);
+        $activeTable = self::resolveActiveTable($tables);
+
+        return self::renderHtml($tables, $tableColumns, $driver, $activeTable);
     }
 
     private static function detectDriver(): string
@@ -142,6 +145,7 @@ class DatabseEditor
 
         $connection->exec($sql);
         self::$messages[] = sprintf('Table "%s" created.', $tableName);
+        self::$activeTable = $tableName;
     }
 
     private static function handleRenameTable(PDO $connection, string $driver): void
@@ -164,6 +168,7 @@ class DatabseEditor
 
         $connection->exec($sql);
         self::$messages[] = sprintf('Table "%s" renamed to "%s".', $current, $new);
+        self::$activeTable = $new;
     }
 
     private static function handleAddColumn(PDO $connection, string $driver): void
@@ -175,6 +180,8 @@ class DatabseEditor
         if (!self::isValidIdentifier($table) || !self::isValidIdentifier($column)) {
             throw new RuntimeException('Table and column names must contain only letters, numbers, or underscores.');
         }
+
+        self::$activeTable = $table;
 
         if (!self::isSafeType($type)) {
             throw new RuntimeException('Column type contains unsupported characters.');
@@ -200,6 +207,8 @@ class DatabseEditor
         if (!self::isValidIdentifier($table) || !self::isValidIdentifier($column) || !self::isValidIdentifier($newName)) {
             throw new RuntimeException('Table and column names must contain only letters, numbers, or underscores.');
         }
+
+        self::$activeTable = $table;
 
         if ($column === $newName) {
             return;
@@ -231,6 +240,8 @@ class DatabseEditor
         if (!self::isValidIdentifier($table) || !self::isValidIdentifier($column)) {
             throw new RuntimeException('Table and column names must contain only letters, numbers, or underscores.');
         }
+
+        self::$activeTable = $table;
 
         if (!self::isSafeType($type)) {
             throw new RuntimeException('Column type contains unsupported characters.');
@@ -271,6 +282,8 @@ class DatabseEditor
         if (!self::isValidIdentifier($table)) {
             throw new RuntimeException('Invalid table name provided for column reordering.');
         }
+
+        self::$activeTable = $table;
 
         if ($orderPayload === '') {
             throw new RuntimeException('Column order payload is missing.');
@@ -589,8 +602,40 @@ SQL;
         return $columns;
     }
 
-    private static function renderHtml(array $tables, array $tableColumns, string $driver): string
+    private static function resolveActiveTable(array $tables): ?string
     {
+        if ($tables === []) {
+            self::$activeTable = null;
+
+            return null;
+        }
+
+        $requested = self::$activeTable;
+        if (is_string($requested) && $requested !== '') {
+            foreach ($tables as $table) {
+                if (strcasecmp($table, $requested) === 0) {
+                    self::$activeTable = $table;
+
+                    return $table;
+                }
+            }
+        }
+
+        self::$activeTable = $tables[0];
+
+        return self::$activeTable;
+    }
+
+    private static function renderHtml(array $tables, array $tableColumns, string $driver, ?string $activeTable): string
+    {
+        if ($activeTable !== null && !in_array($activeTable, $tables, true)) {
+            $activeTable = null;
+        }
+
+        if ($activeTable === null) {
+            $activeTable = $tables[0] ?? null;
+        }
+
         $html = '<div class="fastcrud-db-editor d-flex flex-column gap-4">';
         $html .= '<div class="fc-db-editor-feedback" data-fc-db-feedback>' . self::renderFeedbackHtml() . '</div>';
 
@@ -636,8 +681,8 @@ SQL;
             foreach ($tables as $index => $table) {
                 $tableEscaped = htmlspecialchars($table, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                 $tabId = 'fc-db-editor-table-' . $index;
-                $isActive = $index === 0 ? ' active' : '';
-                $ariaSelected = $index === 0 ? 'true' : 'false';
+                $isActive = $table === $activeTable ? ' active' : '';
+                $ariaSelected = $table === $activeTable ? 'true' : 'false';
 
                 $html .= '<a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center' . $isActive . '" id="tab-' . $tabId . '" data-bs-toggle="list" href="#' . $tabId . '" role="tab" aria-controls="' . $tabId . '" aria-selected="' . $ariaSelected . '">';
                 $html .= '<span><i class="bi bi-table text-primary me-2"></i>' . $tableEscaped . '</span>';
@@ -654,7 +699,7 @@ SQL;
             foreach ($tables as $index => $table) {
                 $tableEscaped = htmlspecialchars($table, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                 $tabId = 'fc-db-editor-table-' . $index;
-                $isActive = $index === 0 ? ' show active' : '';
+                $isActive = $table === $activeTable ? ' show active' : '';
 
                 $html .= '<div class="tab-pane fade' . $isActive . '" id="' . $tabId . '" role="tabpanel" aria-labelledby="tab-' . $tabId . '">';
                 $html .= '<div class="card shadow-sm border-0">';
