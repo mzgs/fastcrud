@@ -83,6 +83,7 @@ class DatabseEditor
             match ($action) {
                 'add_table' => self::handleAddTable($connection, $driver),
                 'rename_table' => self::handleRenameTable($connection, $driver),
+                'delete_table' => self::handleDeleteTable($connection, $driver),
                 'add_column' => self::handleAddColumn($connection, $driver),
                 'rename_column' => self::handleRenameColumn($connection, $driver),
                 'change_column_type' => self::handleChangeColumnType($connection, $driver),
@@ -169,6 +170,37 @@ class DatabseEditor
         $connection->exec($sql);
         self::$messages[] = sprintf('Table "%s" renamed to "%s".', $current, $new);
         self::$activeTable = $new;
+    }
+
+    private static function handleDeleteTable(PDO $connection, string $driver): void
+    {
+        $table = isset($_POST['table_name']) ? trim((string) $_POST['table_name']) : '';
+
+        if (!self::isValidIdentifier($table)) {
+            throw new RuntimeException('Table name must contain only letters, numbers, or underscores.');
+        }
+
+        $tables = self::fetchTables($connection, $driver);
+        $matched = null;
+        foreach ($tables as $existing) {
+            if (strcasecmp($existing, $table) === 0) {
+                $matched = $existing;
+                break;
+            }
+        }
+
+        if ($matched === null) {
+            throw new RuntimeException(sprintf('Table "%s" does not exist.', $table));
+        }
+
+        $sql = sprintf('DROP TABLE IF EXISTS %s', self::quoteIdentifier($matched, $driver));
+        $connection->exec($sql);
+
+        self::$messages[] = sprintf('Table "%s" deleted.', $matched);
+
+        if (self::$activeTable !== null && strcasecmp(self::$activeTable, $matched) === 0) {
+            self::$activeTable = null;
+        }
     }
 
     private static function handleAddColumn(PDO $connection, string $driver): void
@@ -670,11 +702,11 @@ SQL;
                 $html .= '<span class="badge rounded-pill bg-primary-subtle text-primary">' . $columnCount . '</span>';
                 $html .= '</a>';
             }
-            $html .= '<div class="list-group-item bg-body-tertiary">';
+            $html .= '<div class="list-group-item bg-body-tertiary mt-3">';
             $html .= '<form method="post" class="input-group input-group-sm" data-fc-db-editor-form>';
             $html .= '<input type="hidden" name="fc_db_editor_action" value="add_table">';
             $html .= '<input type="text" name="new_table" class="form-control" placeholder="New table" required pattern="[A-Za-z0-9_]+">';
-            $html .= '<button type="submit" class="btn btn-outline-success" title="Create table" aria-label="Create table"><i class="bi bi-plus-lg"></i></button>';
+            $html .= '<button type="submit" class="btn btn-success" title="Create table" aria-label="Create table"><i class="bi bi-plus-lg"></i></button>';
             $html .= '</form>';
             $html .= '</div>';
             $html .= '</div>';
@@ -702,6 +734,12 @@ SQL;
                 $html .= '</form>';
                 $html .= '</div>';
                 $html .= '</div>';
+                $confirmMessage = htmlspecialchars(sprintf('Delete table "%s"? This action cannot be undone.', $table), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $html .= '<form method="post" class="d-flex align-items-center ms-auto" data-fc-db-editor-form>';
+                $html .= '<input type="hidden" name="fc_db_editor_action" value="delete_table">';
+                $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
+                $html .= '<button type="submit" class="btn btn-outline-danger btn-sm" data-fc-db-confirm="' . $confirmMessage . '" title="Delete table" aria-label="Delete table"><i class="bi bi-trash me-1"></i>Delete table</button>';
+                $html .= '</form>';
                 $html .= '</div>';
                 $tipMessage = $reorderEnabled
                     ? 'Tip: drag the handle to reorder columns. Click a column name to rename it or click the type badge to change its definition.'
@@ -1429,6 +1467,18 @@ SQL;
             return;
         }
         if (!form.hasAttribute('data-fc-db-editor-form')) {
+            return;
+        }
+
+        var confirmMessage = null;
+        if (event.submitter && event.submitter.hasAttribute('data-fc-db-confirm')) {
+            confirmMessage = event.submitter.getAttribute('data-fc-db-confirm');
+        } else if (form.hasAttribute('data-fc-db-confirm')) {
+            confirmMessage = form.getAttribute('data-fc-db-confirm');
+        }
+
+        if (confirmMessage && !window.confirm(confirmMessage)) {
+            event.preventDefault();
             return;
         }
 
