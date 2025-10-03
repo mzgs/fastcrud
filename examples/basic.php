@@ -116,8 +116,13 @@ DatabseEditor::init();
 
          <div class="col">
                 <div class="text-center mb-4">
-                    <h1 class="display-5">FastCRUD Demo</h1>
-                    <p class="lead">Dynamically rendered records for the configured table.</p>
+                    <div class="d-flex justify-content-center align-items-center gap-2">
+                        <h1 class="display-5 mb-0">FastCRUD Demo</h1>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-theme-toggle aria-label="Switch to light theme">
+                            <i class="bi bi-moon-stars-fill" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <p class="lead mt-2">Dynamically rendered records for the configured table.</p>
                 </div>
 
                   <div class="card mt-4">
@@ -292,7 +297,41 @@ DatabseEditor::init();
         src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         crossorigin="anonymous"
     ></script>
+    <script>
+        (function () {
+            const storageKey = 'fastcrud-theme';
+            const body = document.body;
+            const toggleButton = document.querySelector('[data-theme-toggle]');
+            if (!toggleButton) {
+                return;
+            }
+
+            const icon = toggleButton.querySelector('i');
+            const applyTheme = (theme) => {
+                body.setAttribute('data-bs-theme', theme);
+                if (icon) {
+                    icon.classList.toggle('bi-sun-fill', theme === 'light');
+                    icon.classList.toggle('bi-moon-stars-fill', theme === 'dark');
+                }
+                const targetLabel = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+                toggleButton.setAttribute('aria-label', targetLabel);
+                toggleButton.setAttribute('title', targetLabel);
+                toggleButton.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+            };
+
+            const storedTheme = localStorage.getItem(storageKey);
+            const initialTheme = storedTheme === 'light' ? 'light' : 'dark';
+            applyTheme(initialTheme);
+
+            toggleButton.addEventListener('click', () => {
+                const currentTheme = body.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light';
+                const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                applyTheme(nextTheme);
+                localStorage.setItem(storageKey, nextTheme);
+            });
+        }());
+    </script>
 </body>
  
-   
+  
 </html>

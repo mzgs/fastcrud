@@ -715,7 +715,7 @@ SQL;
                 } else {
                     $html .= '<div class="table-responsive">';
                     $html .= '<table class="table table-striped table-hover table-sm align-middle mb-4">';
-                    $html .= '<thead class="table-light">';
+                    $html .= '<thead class="bg-body-secondary text-body-emphasis">';
                     $html .= '<tr>';
                     if ($reorderEnabled) {
                         $html .= '<th scope="col" class="text-muted small text-center" style="width: 2.5rem;"><span class="visually-hidden">Reorder</span></th>';
