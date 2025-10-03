@@ -724,8 +724,8 @@ SQL;
                         $html .= '</form>';
                         $html .= '</td>';
                         $html .= '<td class="text-center align-middle">' . ($column['nullable'] ? '<span class="badge bg-success-subtle text-success">Yes</span>' : '<span class="badge bg-danger-subtle text-danger">No</span>') . '</td>';
-                        $html .= '<td class="align-middle">' . $defaultEscaped . '</td>';
-                        $html .= '<td class="align-middle">' . $extraEscaped . '</td>';
+                        $html .= '<td class="align-middle small">' . $defaultEscaped . '</td>';
+                        $html .= '<td class="align-middle small">' . $extraEscaped . '</td>';
                         $html .= '</tr>';
                     }
                     $html .= '</tbody></table>';
