@@ -832,7 +832,7 @@ SQL;
                 'INTEGER', 'REAL', 'TEXT', 'BLOB', 'NUMERIC'
             ],
             default => [
-                'BIGINT', 'BINARY(255)', 'BIT', 'BOOLEAN', 'CHAR(36)', 'DATE', 'DATETIME', 'DECIMAL(10,2)', 'DOUBLE', 'FLOAT', 'INT', 'JSON', 'LONGTEXT', 'MEDIUMTEXT', 'SMALLINT', 'TEXT', 'TIME', 'TIMESTAMP', 'TINYINT', 'VARCHAR(255)'
+                'BIGINT', 'BINARY(255)', 'BIT', 'BOOLEAN', 'CHAR(36)', 'DATE', 'DATETIME', 'DECIMAL(10,2)', 'DOUBLE', 'FLOAT', 'INT', 'JSON', 'LONGTEXT', 'MEDIUMTEXT', 'SMALLINT', 'TEXT', 'TIME', 'TIMESTAMP', 'TINYINT', 'TINYINT(1)', 'VARCHAR(255)'
             ],
         };
     }
