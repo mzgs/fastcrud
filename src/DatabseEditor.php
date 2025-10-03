@@ -20,6 +20,7 @@ class DatabseEditor
      */
     private static array $errors = [];
     private static bool $scriptInjected = false;
+    private static bool $returnJsonResponse = false;
 
     public static function init(?array $dbConfig = null): void
     {
@@ -62,6 +63,7 @@ class DatabseEditor
 
     private static function handleRequest(PDO $connection, string $driver): void
     {
+        self::$returnJsonResponse = false;
         if ((($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
             return;
         }
@@ -72,6 +74,8 @@ class DatabseEditor
             return;
         }
 
+        self::markJsonResponseIfNeeded($action);
+
         try {
             match ($action) {
                 'add_table' => self::handleAddTable($connection, $driver),
@@ -79,6 +83,7 @@ class DatabseEditor
                 'add_column' => self::handleAddColumn($connection, $driver),
                 'rename_column' => self::handleRenameColumn($connection, $driver),
                 'change_column_type' => self::handleChangeColumnType($connection, $driver),
+                'reorder_columns' => self::handleReorderColumns($connection, $driver),
                 default => null,
             };
         } catch (PDOException $exception) {
@@ -86,6 +91,39 @@ class DatabseEditor
         } catch (RuntimeException $exception) {
             self::$errors[] = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         }
+
+        self::respondJsonIfNeeded();
+    }
+
+    private static function markJsonResponseIfNeeded(string $action): void
+    {
+        if ($action !== 'reorder_columns') {
+            return;
+        }
+
+        self::$returnJsonResponse = self::isReorderAjaxRequest();
+    }
+
+    private static function respondJsonIfNeeded(): void
+    {
+        if (!self::$returnJsonResponse) {
+            return;
+        }
+
+        $payload = [
+            'feedback' => self::renderFeedbackHtml(),
+        ];
+
+        header('Content-Type: application/json');
+        echo json_encode($payload);
+        self::$returnJsonResponse = false;
+        self::resetFeedback();
+        exit;
+    }
+
+    private static function isReorderAjaxRequest(): bool
+    {
+        return isset($_SERVER['HTTP_X_FASTCRUD_DB_REORDER']);
     }
 
     private static function handleAddTable(PDO $connection, string $driver): void
@@ -219,6 +257,85 @@ class DatabseEditor
 
         $connection->exec($sql);
         self::$messages[] = sprintf('Column "%s" type updated for "%s".', $column, $table);
+    }
+
+    private static function handleReorderColumns(PDO $connection, string $driver): void
+    {
+        if ($driver !== 'mysql') {
+            throw new RuntimeException('Column reordering is currently supported only for MySQL connections.');
+        }
+
+        $table = isset($_POST['table_name']) ? trim((string) $_POST['table_name']) : '';
+        $orderPayload = isset($_POST['column_order']) ? trim((string) $_POST['column_order']) : '';
+
+        if (!self::isValidIdentifier($table)) {
+            throw new RuntimeException('Invalid table name provided for column reordering.');
+        }
+
+        if ($orderPayload === '') {
+            throw new RuntimeException('Column order payload is missing.');
+        }
+
+        $requestedOrder = array_values(array_filter(array_map('trim', explode(',', $orderPayload)), static function (string $value): bool {
+            return $value !== '';
+        }));
+
+        if ($requestedOrder === []) {
+            throw new RuntimeException('Column order payload is empty.');
+        }
+
+        $columns = self::fetchColumns($connection, $driver, $table);
+        if ($columns === []) {
+            throw new RuntimeException(sprintf('No columns found for table "%s".', $table));
+        }
+
+        $existingNames = array_map(static function (array $column): string {
+            return (string) $column['name'];
+        }, $columns);
+
+        $lookup = [];
+        foreach ($existingNames as $name) {
+            $lookup[strtolower($name)] = $name;
+        }
+
+        $normalizedOrder = [];
+        foreach ($requestedOrder as $name) {
+            if (!self::isValidIdentifier($name)) {
+                throw new RuntimeException('Column order contains an invalid identifier.');
+            }
+            $key = strtolower($name);
+            if (!isset($lookup[$key])) {
+                throw new RuntimeException(sprintf('Column "%s" does not exist on "%s".', $name, $table));
+            }
+            $normalizedOrder[] = $lookup[$key];
+        }
+
+        if (count($normalizedOrder) !== count($existingNames)) {
+            throw new RuntimeException('Column order does not include every column.');
+        }
+
+        if (count(array_unique($normalizedOrder)) !== count($normalizedOrder)) {
+            throw new RuntimeException('Column order contains duplicate entries.');
+        }
+
+        $sortedExisting = $existingNames;
+        sort($sortedExisting);
+        $sortedRequested = $normalizedOrder;
+        sort($sortedRequested);
+        if ($sortedExisting !== $sortedRequested) {
+            throw new RuntimeException('Column order does not match the existing schema.');
+        }
+
+        if ($normalizedOrder === $existingNames) {
+            self::$messages[] = sprintf('Column order for "%s" is already up to date.', $table);
+            return;
+        }
+
+        self::applyMysqlColumnOrder($connection, $table, $normalizedOrder);
+
+        if (!self::$returnJsonResponse) {
+            self::$messages[] = sprintf('Column order updated for "%s".', $table);
+        }
     }
 
     private static function fetchTables(PDO $connection, string $driver): array
@@ -366,13 +483,116 @@ SQL;
         return $columns;
     }
 
+    private static function applyMysqlColumnOrder(PDO $connection, string $table, array $orderedColumns): void
+    {
+        if ($orderedColumns === []) {
+            return;
+        }
+
+        $createSql = self::fetchMysqlCreateTable($connection, $table);
+        $definitions = self::parseMysqlCreateTableColumns($createSql);
+
+        $clauses = [];
+        foreach ($orderedColumns as $index => $column) {
+            if (!isset($definitions[$column])) {
+                throw new RuntimeException(sprintf('Unable to determine definition for column "%s".', $column));
+            }
+
+            $position = $index === 0
+                ? ' FIRST'
+                : ' AFTER ' . self::quoteIdentifier($orderedColumns[$index - 1], 'mysql');
+
+            $clauses[] = sprintf(
+                'MODIFY COLUMN %s %s%s',
+                self::quoteIdentifier($column, 'mysql'),
+                $definitions[$column],
+                $position
+            );
+        }
+
+        if ($clauses === []) {
+            return;
+        }
+
+        $sql = sprintf(
+            'ALTER TABLE %s %s',
+            self::quoteIdentifier($table, 'mysql'),
+            implode(', ', $clauses)
+        );
+
+        $connection->exec($sql);
+    }
+
+    private static function fetchMysqlCreateTable(PDO $connection, string $table): string
+    {
+        $sql = sprintf('SHOW CREATE TABLE %s', self::quoteIdentifier($table, 'mysql'));
+        $statement = $connection->query($sql);
+        if ($statement === false) {
+            throw new RuntimeException('Unable to read table definition for reordering.');
+        }
+
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            throw new RuntimeException('Unable to read table definition for reordering.');
+        }
+
+        $createStatement = '';
+        if (isset($row['Create Table'])) {
+            $createStatement = (string) $row['Create Table'];
+        } elseif (isset($row['Create Table '])) { // MariaDB quirk on some versions
+            $createStatement = (string) $row['Create Table '];
+        }
+
+        $createStatement = trim($createStatement);
+        if ($createStatement === '') {
+            throw new RuntimeException('Received empty table definition while reordering columns.');
+        }
+
+        return $createStatement;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function parseMysqlCreateTableColumns(string $createSql): array
+    {
+        $start = strpos($createSql, '(');
+        $end = strrpos($createSql, ')');
+        if ($start === false || $end === false || $end <= $start) {
+            return [];
+        }
+
+        $body = substr($createSql, $start + 1, $end - $start - 1);
+        $lines = preg_split('/\r?\n/', $body) ?: [];
+
+        $columns = [];
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '' || $line[0] !== '`') {
+                continue;
+            }
+
+            $line = rtrim($line, ',');
+            if (!preg_match('/^`([^`]+)`\s+(.*)$/', $line, $matches)) {
+                continue;
+            }
+
+            $name = $matches[1];
+            $definition = trim($matches[2]);
+            if ($definition === '') {
+                continue;
+            }
+
+            $columns[$name] = $definition;
+        }
+
+        return $columns;
+    }
+
     private static function renderHtml(array $tables, array $tableColumns, string $driver): string
     {
-        $messages = self::renderAlerts(self::$messages, 'success');
-        $errors = self::renderAlerts(self::$errors, 'danger');
-
         $html = '<div class="fastcrud-db-editor d-flex flex-column gap-4">';
-        $html .= $errors . $messages;
+        $html .= '<div class="fc-db-editor-feedback" data-fc-db-feedback>' . self::renderFeedbackHtml() . '</div>';
 
         $html .= '<section class="fastcrud-db-editor__add-table">';
         $html .= '<div class="card shadow-sm border-0">';
@@ -407,6 +627,7 @@ SQL;
             $html .= '<div class="alert alert-info" role="alert">No tables found for the current connection.</div>';
         } else {
             $typeOptions = self::getColumnTypeOptions($driver);
+            $reorderEnabled = $driver === 'mysql';
             $html .= '<div class="row g-4">';
             $html .= '<div class="col-12 col-lg-4 col-xl-3">';
             $html .= '<div class="card shadow-sm border-0 h-100">';
@@ -450,7 +671,10 @@ SQL;
                 $html .= '</div>';
                 $html .= '</div>';
                 $html .= '</div>';
-                $html .= '<p class="text-muted small mb-4">Tip: click a column name to rename it or click the type badge to change its definition.</p>';
+                $tipMessage = $reorderEnabled
+                    ? 'Tip: drag the handle to reorder columns. Click a column name to rename it or click the type badge to change its definition.'
+                    : 'Tip: click a column name to rename it or click the type badge to change its definition.';
+                $html .= '<p class="text-muted small mb-4">' . $tipMessage . '</p>';
 
                 $html .= '<div class="fastcrud-db-editor__columns">';
                 $columns = $tableColumns[$table] ?? [];
@@ -460,8 +684,14 @@ SQL;
                     $html .= '<div class="table-responsive">';
                     $html .= '<table class="table table-striped table-hover table-sm align-middle mb-4">';
                     $html .= '<thead class="table-light">';
-                    $html .= '<tr><th scope="col">Column</th><th scope="col">Type</th><th scope="col" class="text-center">Nullable</th><th scope="col">Default</th><th scope="col">Extra</th></tr>';
-                    $html .= '</thead><tbody>';
+                    $html .= '<tr>';
+                    if ($reorderEnabled) {
+                        $html .= '<th scope="col" class="text-muted small text-center" style="width: 2.5rem;"><span class="visually-hidden">Reorder</span></th>';
+                    }
+                    $html .= '<th scope="col">Column</th><th scope="col">Type</th><th scope="col" class="text-center">Nullable</th><th scope="col">Default</th><th scope="col">Extra</th>';
+                    $html .= '</tr>';
+                    $tbodyAttributes = $reorderEnabled ? ' data-fc-db-columns data-fc-db-table="' . $tableEscaped . '"' : '';
+                    $html .= '</thead><tbody' . $tbodyAttributes . '>';
                     foreach ($columns as $column) {
                         $columnName = $column['name'];
                         $columnType = $column['type'];
@@ -471,7 +701,10 @@ SQL;
                         $extraEscaped = htmlspecialchars($column['extra'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                         $typeOptionsHtml = self::buildTypeOptions($typeOptions, (string) $columnType);
 
-                        $html .= '<tr>';
+                        $html .= '<tr data-fc-db-column="' . $columnEscaped . '">';
+                        if ($reorderEnabled) {
+                            $html .= '<td class="text-center text-muted align-middle" data-fc-db-reorder-handle title="Drag to reorder"><i class="bi bi-grip-vertical"></i></td>';
+                        }
                         $html .= '<th scope="row" class="align-middle" data-fc-inline-container="name">';
                         $html .= '<span class="fw-semibold fc-db-inline-trigger link-primary" data-fc-inline-trigger role="button" tabindex="0" title="Click to rename column">' . $columnEscaped . '</span>';
                         $html .= '<form method="post" class="fc-db-inline-form d-inline-flex align-items-center gap-2 d-none" data-fc-inline-form data-fc-db-editor-form>';
@@ -496,6 +729,13 @@ SQL;
                         $html .= '</tr>';
                     }
                     $html .= '</tbody></table>';
+                    if ($reorderEnabled) {
+                        $html .= '<form method="post" class="d-none" data-fc-db-editor-form data-fc-db-reorder-form>';
+                        $html .= '<input type="hidden" name="fc_db_editor_action" value="reorder_columns">';
+                        $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
+                        $html .= '<input type="hidden" name="column_order" value="">';
+                        $html .= '</form>';
+                    }
                     $html .= '</div>';
                 }
 
@@ -543,8 +783,7 @@ SQL;
             self::$scriptInjected = true;
         }
 
-        self::$messages = [];
-        self::$errors = [];
+        self::resetFeedback();
 
         return $html;
     }
@@ -564,6 +803,20 @@ SQL;
         $html .= '</div>';
 
         return $html;
+    }
+
+    private static function renderFeedbackHtml(): string
+    {
+        $errors = self::renderAlerts(self::$errors, 'danger');
+        $messages = self::renderAlerts(self::$messages, 'success');
+
+        return $errors . $messages;
+    }
+
+    private static function resetFeedback(): void
+    {
+        self::$messages = [];
+        self::$errors = [];
     }
 
     /**
@@ -636,6 +889,19 @@ SQL;
 .fastcrud-db-editor .fc-db-inline-form select {
     min-width: 160px;
 }
+.fastcrud-db-editor [data-fc-db-reorder-handle] {
+    cursor: grab;
+    width: 2.5rem;
+}
+.fastcrud-db-editor [data-fc-db-reorder-handle]:active {
+    cursor: grabbing;
+}
+.fastcrud-db-editor .fc-db-reorder-ghost {
+    opacity: 0.6;
+}
+.fastcrud-db-editor .fc-db-reorder-chosen {
+    background-color: rgba(13, 110, 253, 0.08);
+}
 </style>
 <script>
 (function(){
@@ -644,8 +910,306 @@ SQL;
     }
     window.FastCrudDbEditorInlineInitialised = true;
 
+    var columnSortables = [];
+    var sortableScriptCallbacks = [];
+    var sortableScriptRequested = false;
+
     function getEditorRoot() {
         return document.querySelector('.fastcrud-db-editor');
+    }
+
+    function loadSortable(callback) {
+        if (typeof callback !== 'function') {
+            return;
+        }
+
+        if (typeof window.Sortable === 'function') {
+            callback();
+            return;
+        }
+
+        sortableScriptCallbacks.push(callback);
+
+        if (sortableScriptRequested) {
+            return;
+        }
+
+        var existing = document.querySelector('script[data-fc-db-sortable]');
+        if (existing) {
+            sortableScriptRequested = true;
+            existing.addEventListener('load', function () {
+                var callbacks = sortableScriptCallbacks.slice();
+                sortableScriptCallbacks = [];
+                callbacks.forEach(function (cb) { cb(); });
+            }, { once: true });
+            existing.addEventListener('error', function () {
+                sortableScriptRequested = false;
+                sortableScriptCallbacks = [];
+                console.error('FastCRUD: failed to load SortableJS.');
+            }, { once: true });
+            return;
+        }
+
+        sortableScriptRequested = true;
+        var script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js';
+        script.async = true;
+        script.setAttribute('data-fc-db-sortable', '1');
+        script.onload = function () {
+            var callbacks = sortableScriptCallbacks.slice();
+            sortableScriptCallbacks = [];
+            callbacks.forEach(function (cb) { cb(); });
+        };
+        script.onerror = function () {
+            sortableScriptRequested = false;
+            sortableScriptCallbacks = [];
+            console.error('FastCRUD: failed to load SortableJS.');
+        };
+
+        document.head.appendChild(script);
+    }
+
+    function destroyColumnSortables() {
+        columnSortables.forEach(function (instance) {
+            if (instance && typeof instance.destroy === 'function') {
+                instance.destroy();
+            }
+        });
+        columnSortables = [];
+    }
+
+    function applyColumnOrderFromString(list, orderString) {
+        if (!list || !orderString) {
+            return;
+        }
+
+        var order = orderString.split(',').map(function (value) {
+            return value.trim();
+        }).filter(function (value) {
+            return value !== '';
+        });
+
+        if (!order.length) {
+            return;
+        }
+
+        var rows = Array.prototype.slice.call(list.querySelectorAll('[data-fc-db-column]'));
+        var lookup = {};
+        rows.forEach(function (row) {
+            var name = row.getAttribute('data-fc-db-column');
+            if (name) {
+                lookup[name] = row;
+            }
+        });
+
+        order.forEach(function (name) {
+            var row = lookup[name];
+            if (row) {
+                list.appendChild(row);
+            }
+        });
+    }
+
+    function updateFeedback(content) {
+        var container = document.querySelector('[data-fc-db-feedback]');
+        if (!container) {
+            return;
+        }
+        container.innerHTML = content;
+    }
+
+    function buildAlertHtml(type, message) {
+        var cssClass = type === 'danger' ? 'alert-danger' : 'alert-success';
+        return '<div class="alert ' + cssClass + ' alert-dismissible fade show" role="alert">'
+            + message
+            + '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>'
+            + '</div>';
+    }
+
+    function extractFeedbackFromHtml(html) {
+        if (!html) {
+            return null;
+        }
+
+        try {
+            var parser = new DOMParser();
+            var doc = parser.parseFromString(html, 'text/html');
+            var feedback = doc.querySelector('[data-fc-db-feedback]');
+            return feedback ? feedback.innerHTML : null;
+        } catch (parseError) {
+            console.warn('FastCRUD: unable to parse HTML response for feedback.', parseError);
+        }
+
+        return null;
+    }
+
+    function submitReorderForm(form, list, fallbackOrder) {
+        if (!form || form.dataset.fcAjaxSubmitting === '1') {
+            return;
+        }
+
+        form.dataset.fcAjaxSubmitting = '1';
+
+        var editor = getEditorRoot();
+        if (editor) {
+            editor.classList.add('fc-db-editor-loading');
+        }
+
+        var action = form.getAttribute('action') || window.location.href;
+        var method = (form.getAttribute('method') || 'POST').toUpperCase();
+        if (method !== 'POST') {
+            method = 'POST';
+        }
+
+        var formData = new FormData(form);
+
+        fetch(action, {
+            method: method,
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-FastCrud-Db-Editor': '1',
+                'X-FastCrud-Db-Reorder': '1',
+                'Accept': 'application/json, text/html;q=0.9'
+            },
+            credentials: 'same-origin'
+        })
+        .then(function (response) {
+            return response.text().then(function (text) {
+                return {
+                    ok: response.ok,
+                    text: text,
+                    contentType: response.headers.get('Content-Type') || ''
+                };
+            });
+        })
+        .then(function (payload) {
+            var handled = false;
+            var contentType = payload.contentType.toLowerCase();
+
+            if (contentType.indexOf('application/json') !== -1) {
+                try {
+                    var json = payload.text ? JSON.parse(payload.text) : {};
+                    if (json && typeof json.feedback === 'string') {
+                        updateFeedback(json.feedback);
+                        handled = true;
+                    }
+                } catch (parseError) {
+                    console.warn('FastCRUD: failed to parse JSON response.', parseError);
+                }
+            }
+
+            if (!handled) {
+                var feedbackHtml = extractFeedbackFromHtml(payload.text);
+                if (feedbackHtml !== null) {
+                    updateFeedback(feedbackHtml);
+                    handled = true;
+                }
+            }
+
+            if (!payload.ok) {
+                throw new Error('Reorder request failed');
+            }
+            if (!handled) {
+                updateFeedback('');
+            }
+        })
+        .catch(function (error) {
+            console.error('FastCRUD: column reorder request failed.', error);
+            updateFeedback(buildAlertHtml('danger', 'Column order could not be saved. Please try again.'));
+            if (list && typeof fallbackOrder === 'string' && fallbackOrder !== '') {
+                applyColumnOrderFromString(list, fallbackOrder);
+                list.dataset.fcDbInitialOrder = fallbackOrder;
+            }
+        })
+        .finally(function () {
+            delete form.dataset.fcAjaxSubmitting;
+            var root = getEditorRoot();
+            if (root) {
+                root.classList.remove('fc-db-editor-loading');
+            }
+        });
+    }
+
+    function handleColumnReorder(list) {
+        if (!list) {
+            return;
+        }
+
+        var rows = list.querySelectorAll('[data-fc-db-column]');
+        if (!rows.length) {
+            return;
+        }
+
+        var order = Array.prototype.map.call(rows, function (row) {
+            return row.getAttribute('data-fc-db-column');
+        }).filter(function (value) {
+            return typeof value === 'string' && value !== '';
+        });
+
+        if (!order.length) {
+            return;
+        }
+
+        var previousOrder = list.dataset.fcDbInitialOrder || '';
+        var serialized = order.join(',');
+        if (previousOrder === serialized) {
+            return;
+        }
+        list.dataset.fcDbInitialOrder = serialized;
+
+        var container = list.closest('.fastcrud-db-editor__columns');
+        if (!container) {
+            return;
+        }
+
+        var form = container.querySelector('[data-fc-db-reorder-form]');
+        if (!form) {
+            return;
+        }
+
+        var input = form.querySelector('input[name="column_order"]');
+        if (!input) {
+            return;
+        }
+
+        input.value = serialized;
+        submitReorderForm(form, list, previousOrder);
+    }
+
+    function initColumnSortables() {
+        var lists = document.querySelectorAll('[data-fc-db-columns]');
+        if (!lists.length) {
+            destroyColumnSortables();
+            return;
+        }
+
+        loadSortable(function () {
+            destroyColumnSortables();
+
+            lists.forEach(function (list) {
+                var order = Array.prototype.map.call(list.querySelectorAll('[data-fc-db-column]'), function (row) {
+                    return row.getAttribute('data-fc-db-column');
+                }).filter(function (value) {
+                    return typeof value === 'string' && value !== '';
+                });
+
+                list.dataset.fcDbInitialOrder = order.join(',');
+
+                var sortable = new window.Sortable(list, {
+                    animation: 150,
+                    handle: '[data-fc-db-reorder-handle]',
+                    ghostClass: 'fc-db-reorder-ghost',
+                    chosenClass: 'fc-db-reorder-chosen',
+                    dragClass: 'fc-db-reorder-drag',
+                    onEnd: function (evt) {
+                        handleColumnReorder(evt.to || list);
+                    }
+                });
+
+                columnSortables.push(sortable);
+            });
+        });
     }
 
     function showForm(container) {
@@ -823,6 +1387,7 @@ SQL;
         }
 
         current.replaceWith(updated);
+        initColumnSortables();
         return true;
     }
 
@@ -979,6 +1544,7 @@ SQL;
         });
     });
 
+    initColumnSortables();
     document.addEventListener('submit', handleAjaxSubmit, true);
 })();
 </script>
