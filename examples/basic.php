@@ -125,7 +125,6 @@ DatabseEditor::init();
                     <h2 class="h5 mb-0">Database Editor</h2>
                 </div>
                 <div class="card-body">
-                    <p class="mb-3 text-muted">Quickly inspect tables, rename them, add columns, or adjust column definitions.</p>
                     <?= DatabseEditor::render(); ?>
                     </div>
                 </div>

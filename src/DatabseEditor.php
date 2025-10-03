@@ -639,33 +639,9 @@ SQL;
         $html = '<div class="fastcrud-db-editor d-flex flex-column gap-4">';
         $html .= '<div class="fc-db-editor-feedback" data-fc-db-feedback>' . self::renderFeedbackHtml() . '</div>';
 
-        $html .= '<section class="fastcrud-db-editor__add-table">';
-        $html .= '<div class="card shadow-sm border-0">';
-        $html .= '<div class="card-header bg-primary text-white">';
-        $html .= '<div class="d-flex align-items-center gap-2">';
-        $html .= '<span class="fs-5"><i class="bi bi-plus-circle me-2"></i>Create Table</span>';
-        $html .= '<span class="text-white-50 small">Start with a primary key column automatically.</span>';
-        $html .= '</div>';
-        $html .= '</div>';
-        $html .= '<div class="card-body">';
-        $html .= '<form method="post" class="row g-3 align-items-end" data-fc-db-editor-form>';
-        $html .= '<input type="hidden" name="fc_db_editor_action" value="add_table">';
-        $html .= '<div class="col-md-8">';
-        $html .= '<label class="form-label text-muted">Table name</label>';
-        $html .= '<input type="text" name="new_table" class="form-control" placeholder="e.g. posts" required pattern="[A-Za-z0-9_]+">';
-        $html .= '</div>';
-        $html .= '<div class="col-md-4">';
-        $html .= '<button type="submit" class="btn btn-success w-100"><i class="bi bi-check-circle me-1"></i>Create Table</button>';
-        $html .= '</div>';
-        $html .= '</form>';
-        $html .= '</div>';
-        $html .= '</div>';
-        $html .= '</section>';
-
         $html .= '<section class="fastcrud-db-editor__tables">';
         $html .= '<div class="d-flex justify-content-between align-items-center mb-3">';
         $html .= '<h2 class="h5 mb-0">Schema Overview</h2>';
-        $html .= '<span class="badge bg-secondary">' . count($tables) . ' tables</span>';
         $html .= '</div>';
 
         if ($tables === []) {
@@ -673,10 +649,14 @@ SQL;
         } else {
             $typeOptions = self::getColumnTypeOptions($driver);
             $reorderEnabled = $driver === 'mysql';
+            $tableCount = count($tables);
             $html .= '<div class="row g-4">';
             $html .= '<div class="col-12 col-lg-4 col-xl-3">';
             $html .= '<div class="card shadow-sm border-0 h-100">';
-            $html .= '<div class="card-header bg-body-tertiary fw-semibold">Tables</div>';
+            $html .= '<div class="card-header bg-body-tertiary fw-semibold d-flex justify-content-between align-items-center">';
+            $html .= '<span>Tables</span>';
+            $html .= '<span class="badge bg-secondary">' . $tableCount . ' tables</span>';
+            $html .= '</div>';
             $html .= '<div class="list-group list-group-flush" id="fc-db-editor-table-list" role="tablist">';
             foreach ($tables as $index => $table) {
                 $tableEscaped = htmlspecialchars($table, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
