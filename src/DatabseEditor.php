@@ -529,8 +529,8 @@ SQL;
                 $html .= '</div>';
                 $html .= '</div>';
                 $html .= '</div>';
-                $html .= '</div>';
             }
+            $html .= '</div>';
             $html .= '</div>';
             $html .= '</div>';
         }
