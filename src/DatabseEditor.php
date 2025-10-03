@@ -690,6 +690,13 @@ SQL;
                 $html .= '<span class="badge rounded-pill bg-primary-subtle text-primary">' . $columnCount . '</span>';
                 $html .= '</a>';
             }
+            $html .= '<div class="list-group-item bg-body-tertiary">';
+            $html .= '<form method="post" class="input-group input-group-sm" data-fc-db-editor-form>';
+            $html .= '<input type="hidden" name="fc_db_editor_action" value="add_table">';
+            $html .= '<input type="text" name="new_table" class="form-control" placeholder="New table" required pattern="[A-Za-z0-9_]+">';
+            $html .= '<button type="submit" class="btn btn-outline-success" title="Create table" aria-label="Create table"><i class="bi bi-plus-lg"></i></button>';
+            $html .= '</form>';
+            $html .= '</div>';
             $html .= '</div>';
             $html .= '</div>';
             $html .= '</div>';
