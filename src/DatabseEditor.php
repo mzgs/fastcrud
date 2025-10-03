@@ -499,7 +499,7 @@ SQL;
                     $html .= '</div>';
                 }
 
-                $html .= '<div class="card bg-light border-0">';
+                $html .= '<div class="card border-0 bg-body-tertiary">';
                 $html .= '<div class="card-body">';
                 $html .= '<form method="post" class="row g-3 align-items-end" data-fc-db-editor-form>';
                 $html .= '<input type="hidden" name="fc_db_editor_action" value="add_column">';
@@ -510,7 +510,13 @@ SQL;
                 $html .= '</div>';
                 $html .= '<div class="col-md-5">';
                 $html .= '<label class="form-label text-muted">Column type</label>';
-                $html .= '<input type="text" name="column_type" class="form-control" required placeholder="e.g. VARCHAR(255)">';
+                $html .= '<select name="column_type" class="form-select" required>';
+                $html .= '<option value="" disabled selected>Select type</option>';
+                foreach ($typeOptions as $option) {
+                    $escapedOption = htmlspecialchars($option, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                    $html .= '<option value="' . $escapedOption . '">' . $escapedOption . '</option>';
+                }
+                $html .= '</select>';
                 $html .= '</div>';
                 $html .= '<div class="col-md-2">';
                 $html .= '<button type="submit" class="btn btn-success w-100"><i class="bi bi-plus-lg me-1"></i>Add</button>';
