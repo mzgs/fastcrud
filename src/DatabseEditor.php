@@ -1237,10 +1237,10 @@ SQL;
                 $html .= '<div class="col-md-5">';
                 $html .= '<label class="form-label text-muted">Column type</label>';
                 $html .= '<select name="column_type" class="form-select" required>';
-                $html .= '<option value="" disabled selected>Select type</option>';
                 foreach ($typeOptions as $option) {
                     $escapedOption = htmlspecialchars($option, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                    $html .= '<option value="' . $escapedOption . '">' . $escapedOption . '</option>';
+                    $selected = $option === 'VARCHAR(255)' ? ' selected' : '';
+                    $html .= '<option value="' . $escapedOption . '"' . $selected . '>' . $escapedOption . '</option>';
                 }
                 $html .= '</select>';
                 $html .= '</div>';
