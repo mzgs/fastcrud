@@ -994,7 +994,7 @@ SQL;
             $html .= '</div>';
             $html .= '<form method="post" class="ms-lg-auto">';
             $html .= '<input type="hidden" name="fc_db_editor_action" value="download_database">';
-            $html .= '<button type="submit" class="btn btn-light fw-semibold shadow-sm px-3 py-2"><i class="bi bi-download me-2"></i>Download export</button>';
+            $html .= '<button type="submit" class="btn btn-dark fw-semibold shadow-sm px-3 py-2"><i class="bi bi-download me-2"></i>Download export</button>';
             $html .= '</form>';
             $html .= '</div>';
             $html .= '<div class="fc-db-hero__metrics mt-2">';
@@ -1361,12 +1361,24 @@ SQL;
 .fastcrud-db-editor {
     --fc-db-radius: 1rem;
     --fc-db-radius-lg: 1.75rem;
-    --fc-db-border: rgba(15, 23, 42, 0.08);
-    --fc-db-border-strong: rgba(15, 23, 42, 0.18);
-    --fc-db-muted: #6c757d;
+    --fc-db-border: rgba(var(--bs-body-color-rgb, 15, 23, 42), 0.08);
+    --fc-db-border-strong: rgba(var(--bs-body-color-rgb, 15, 23, 42), 0.18);
+    --fc-db-muted: rgba(var(--bs-body-color-rgb, 108, 117, 125), 0.85);
     --fc-db-hero-gradient: linear-gradient(135deg, #2563eb 0%, #7c3aed 55%, #ec4899 110%);
-    --fc-db-accent: #2563eb;
-    --fc-db-accent-soft: rgba(37, 99, 235, 0.12);
+    --fc-db-accent: rgb(var(--bs-primary-rgb, 37, 99, 235));
+    --fc-db-accent-soft: rgba(var(--bs-primary-rgb, 37, 99, 235), 0.12);
+    --fc-db-surface: var(--bs-card-bg, #ffffff);
+    --fc-db-surface-muted: rgba(var(--bs-body-color-rgb, 15, 23, 42), 0.04);
+    --fc-db-surface-strong: rgba(var(--bs-body-color-rgb, 15, 23, 42), 0.08);
+    --fc-db-row-hover: rgba(var(--bs-primary-rgb, 37, 99, 235), 0.08);
+    --fc-db-badge-bg: rgba(var(--bs-body-color-rgb, 15, 23, 42), 0.07);
+    --fc-db-hero-metric-bg: rgba(255, 255, 255, 0.18);
+    --fc-db-hero-metric-icon-bg: rgba(255, 255, 255, 0.22);
+    --fc-db-empty-bg: rgba(var(--bs-body-color-rgb, 15, 23, 42), 0.03);
+    --fc-db-table-tip-bg: rgba(var(--bs-primary-rgb, 37, 99, 235), 0.08);
+    --fc-db-table-tip-border: rgba(var(--bs-primary-rgb, 37, 99, 235), 0.2);
+    --fc-db-table-divider: rgba(var(--bs-body-color-rgb, 148, 163, 184), 0.22);
+    --fc-db-loading-overlay: rgba(255, 255, 255, 0.65);
     position: relative;
     z-index: 0;
     color: var(--bs-body-color);
@@ -1427,7 +1439,7 @@ SQL;
     gap: 0.45rem;
     padding: 0.35rem 0.75rem;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.18);
+    background: var(--fc-db-hero-metric-bg);
     color: #fff;
     backdrop-filter: blur(6px);
     min-width: 0;
@@ -1440,7 +1452,7 @@ SQL;
     width: 1.75rem;
     height: 1.75rem;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.22);
+    background: var(--fc-db-hero-metric-icon-bg);
     font-size: 0.9rem;
     flex: 0 0 auto;
 }
@@ -1469,9 +1481,11 @@ SQL;
     border: 1px solid var(--fc-db-border);
     border-radius: var(--fc-db-radius);
     box-shadow: 0 24px 56px rgba(15, 23, 42, 0.12);
+    background: var(--fc-db-surface);
 }
 .fc-db-sidebar__header {
-    background: rgba(15, 23, 42, 0.03);
+    background: var(--fc-db-surface-muted);
+    border-bottom: 1px solid var(--fc-db-border);
 }
 .fc-db-sidebar__list {
     max-height: clamp(260px, 48vh, 520px);
@@ -1490,13 +1504,15 @@ SQL;
     flex-direction: column;
     gap: 0;
     margin: 0;
+    padding: 0;
+    list-style: none;
 }
 .fc-db-table-link {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    border: 1px solid transparent !important;
+    border: 1px solid transparent;
     border-radius: 0.75rem;
     margin: 0.35rem 0;
     padding: 0.9rem 1rem;
@@ -1504,34 +1520,38 @@ SQL;
     color: inherit;
     text-decoration: none;
     width: 100%;
+    background: var(--fc-db-surface);
+}
+.fc-db-table-link__name {
+    display: inline-flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 .fc-db-table-link:hover,
 .fc-db-table-link:focus,
 .fc-db-table-link.active {
-    background-color: var(--fc-db-accent-soft) !important;
-    background: var(--fc-db-accent-soft) !important;
-    color: inherit !important;
+    background-color: var(--fc-db-accent-soft);
+    background: var(--fc-db-accent-soft);
+    color: inherit;
 }
+.fc-db-table-link:focus,
 .fc-db-table-link:focus-visible {
     outline: none;
     box-shadow: none;
 }
-.fc-db-table-link:focus {
-    outline: none;
-    box-shadow: none !important;
-}
 .fc-db-table-link.active {
-    box-shadow: none !important;
-    border-color: transparent !important;
+    box-shadow: none;
+    border-color: transparent;
 }
 .fc-db-table-link .badge {
     border-radius: 999px;
     font-size: 0.75rem;
-    background: rgba(15, 23, 42, 0.07);
+    background: var(--fc-db-badge-bg);
 }
 .fc-db-sidebar__empty {
     border-radius: var(--fc-db-radius);
-    background: rgba(15, 23, 42, 0.03);
+    background: var(--fc-db-empty-bg);
     margin: 0.75rem;
 }
 .fc-db-editor-tab-content > .tab-pane {
@@ -1541,28 +1561,31 @@ SQL;
     border-radius: var(--fc-db-radius);
     border: 1px solid var(--fc-db-border);
     box-shadow: 0 30px 60px rgba(15, 23, 42, 0.12);
+    background: var(--fc-db-surface);
 }
 .fc-db-table__header {
-    background: rgba(15, 23, 42, 0.02);
+    background: var(--fc-db-surface-muted);
+    border-bottom: 1px solid var(--fc-db-border);
 }
 .fc-db-table__tip {
     border-radius: var(--fc-db-radius);
-    border: 1px solid rgba(37, 99, 235, 0.1);
-    background: rgba(37, 99, 235, 0.08);
+    border: 1px solid var(--fc-db-table-tip-border);
+    background: var(--fc-db-table-tip-bg);
+    color: var(--fc-db-accent);
 }
 .fc-db-columns-table thead th {
     font-size: 0.72rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #475569;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+    color: rgba(var(--bs-body-color-rgb, 71, 85, 105), 0.85);
+    border-bottom: 1px solid var(--fc-db-border-strong);
 }
 .fc-db-columns-table tbody tr:hover {
-    background: rgba(37, 99, 235, 0.05);
+    background: var(--fc-db-row-hover);
 }
 .fc-db-columns-table td,
 .fc-db-columns-table th {
-    border-color: rgba(148, 163, 184, 0.22);
+    border-color: var(--fc-db-table-divider);
 }
 .fc-db-columns-table .badge {
     font-size: 0.7rem;
@@ -1573,17 +1596,17 @@ SQL;
 }
 .fc-db-add-column {
     border-radius: var(--fc-db-radius);
-    border: 1px dashed rgba(79, 70, 229, 0.4);
-    background: rgba(79, 70, 229, 0.04);
+    border: 1px dashed rgba(var(--bs-primary-rgb, 79, 70, 229), 0.4);
+    background: rgba(var(--bs-primary-rgb, 79, 70, 229), 0.04);
 }
 .fc-db-add-column:hover {
-    border-color: rgba(79, 70, 229, 0.55);
-    background: rgba(79, 70, 229, 0.08);
+    border-color: rgba(var(--bs-primary-rgb, 79, 70, 229), 0.55);
+    background: rgba(var(--bs-primary-rgb, 79, 70, 229), 0.08);
 }
 .fc-db-editor-empty {
     border-radius: var(--fc-db-radius);
-    border: 1px dashed rgba(148, 163, 184, 0.4);
-    background: rgba(241, 245, 249, 0.6);
+    border: 1px dashed rgba(var(--bs-body-color-rgb, 148, 163, 184), 0.4);
+    background: var(--fc-db-empty-bg);
 }
 .fastcrud-db-editor [data-fc-db-reorder-handle] {
     cursor: grab;
@@ -1632,7 +1655,7 @@ SQL;
     content: '';
     position: absolute;
     inset: 0;
-    background: rgba(255, 255, 255, 0.65);
+    background: var(--fc-db-loading-overlay);
     backdrop-filter: blur(2px);
     z-index: 20;
 }
@@ -1670,138 +1693,49 @@ SQL;
 .fastcrud-db-editor[data-bs-theme="dark"] {
     --fc-db-border: rgba(148, 163, 184, 0.24);
     --fc-db-border-strong: rgba(148, 163, 184, 0.32);
-    --fc-db-accent: #3b82f6;
-    --fc-db-accent-soft: rgba(59, 130, 246, 0.22);
-    color: #e2e8f0;
-}
-:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-hero__metric,
-[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-hero__metric,
-.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-hero__metric {
-    background: rgba(30, 41, 59, 0.68);
-}
-:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-hero__metric-icon,
-[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-hero__metric-icon,
-.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-hero__metric-icon {
-    background: rgba(255, 255, 255, 0.18);
-}
-:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-editor-sidebar,
-[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-editor-sidebar,
-.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-editor-sidebar,
-:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table,
-[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table,
-.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-table,
-:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-add-column,
-[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-add-column,
-.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-add-column {
-    background: rgba(15, 23, 42, 0.9);
-    color: #e2e8f0;
-    border-color: var(--fc-db-border);
-}
-:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table-link,
-[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table-link,
-.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-table-link {
-    color: #e2e8f0;
-    background: rgba(15, 23, 42, 0.55);
-}
-:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table-link:hover,
-[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table-link:hover,
-.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-table-link:hover {
-    background: var(--fc-db-accent-soft);
-}
-:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-sidebar__header,
-[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-sidebar__header,
-.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-sidebar__header {
-    background: rgba(15, 23, 42, 0.35);
-    border-color: var(--fc-db-border);
-}
-:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table__tip,
-[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table__tip,
-.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-table__tip {
-    background: rgba(37, 99, 235, 0.2);
-    color: #e2e8f0;
-}
-:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-columns-table thead th,
-[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-columns-table thead th,
-.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-columns-table thead th {
-    color: rgba(226, 232, 240, 0.8);
-}
-:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-columns-table td,
-[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-columns-table td,
-.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-columns-table td,
-:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-columns-table th,
-[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-columns-table th,
-.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-columns-table th {
-    border-color: rgba(51, 65, 85, 0.6);
-}
-:root[data-bs-theme="dark"] .fastcrud-db-editor.fc-db-editor-loading::after,
-[data-bs-theme="dark"] .fastcrud-db-editor.fc-db-editor-loading::after,
-.fastcrud-db-editor[data-bs-theme="dark"].fc-db-editor-loading::after {
-    background: rgba(15, 23, 42, 0.55);
+    --fc-db-accent: rgb(var(--bs-primary-rgb, 59, 130, 246));
+    --fc-db-accent-soft: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.22);
+    --fc-db-surface: rgba(15, 23, 42, 0.92);
+    --fc-db-surface-muted: rgba(15, 23, 42, 0.45);
+    --fc-db-surface-strong: rgba(148, 163, 184, 0.25);
+    --fc-db-row-hover: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.18);
+    --fc-db-badge-bg: rgba(15, 23, 42, 0.55);
+    --fc-db-hero-metric-bg: rgba(30, 41, 59, 0.68);
+    --fc-db-hero-metric-icon-bg: rgba(255, 255, 255, 0.18);
+    --fc-db-empty-bg: rgba(15, 23, 42, 0.45);
+    --fc-db-table-tip-bg: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.2);
+    --fc-db-table-tip-border: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.35);
+    --fc-db-table-divider: rgba(51, 65, 85, 0.6);
+    --fc-db-loading-overlay: rgba(15, 23, 42, 0.55);
+    --fc-db-muted: rgba(226, 232, 240, 0.78);
+    color: rgba(226, 232, 240, 0.92);
 }
 
 @media (prefers-color-scheme: dark) {
-    :root:not([data-bs-theme]),
-    :root[data-bs-theme="auto"] {
+    :root:not([data-bs-theme]) {
         color-scheme: dark;
     }
-    :root:not([data-bs-theme]) .fastcrud-db-editor,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor {
+    :root:not([data-bs-theme]) body:not([data-bs-theme]) .fastcrud-db-editor,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor,
+    body[data-bs-theme="auto"] .fastcrud-db-editor {
         --fc-db-border: rgba(148, 163, 184, 0.24);
         --fc-db-border-strong: rgba(148, 163, 184, 0.32);
-        --fc-db-accent: #3b82f6;
-        --fc-db-accent-soft: rgba(59, 130, 246, 0.22);
-        color: #e2e8f0;
-    }
-    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-hero__metric,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-hero__metric {
-        background: rgba(30, 41, 59, 0.68);
-    }
-    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-hero__metric-icon,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-hero__metric-icon {
-        background: rgba(255, 255, 255, 0.18);
-    }
-    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-editor-sidebar,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-editor-sidebar,
-    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-table,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-table,
-    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-add-column,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-add-column {
-        background: rgba(15, 23, 42, 0.9);
-        color: #e2e8f0;
-        border-color: var(--fc-db-border);
-    }
-    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-table-link,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-table-link {
-        color: #e2e8f0;
-        background: rgba(15, 23, 42, 0.55);
-    }
-    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-table-link:hover,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-table-link:hover {
-        background: var(--fc-db-accent-soft);
-    }
-    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-sidebar__header,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-sidebar__header {
-        background: rgba(15, 23, 42, 0.35);
-        border-color: var(--fc-db-border);
-    }
-    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-table__tip,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-table__tip {
-        background: rgba(37, 99, 235, 0.2);
-        color: #e2e8f0;
-    }
-    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-columns-table thead th,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-columns-table thead th {
-        color: rgba(226, 232, 240, 0.8);
-    }
-    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-columns-table td,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-columns-table td,
-    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-columns-table th,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-columns-table th {
-        border-color: rgba(51, 65, 85, 0.6);
-    }
-    :root:not([data-bs-theme]) .fastcrud-db-editor.fc-db-editor-loading::after,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor.fc-db-editor-loading::after {
-        background: rgba(15, 23, 42, 0.55);
+        --fc-db-accent: rgb(var(--bs-primary-rgb, 59, 130, 246));
+        --fc-db-accent-soft: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.22);
+        --fc-db-surface: rgba(15, 23, 42, 0.92);
+        --fc-db-surface-muted: rgba(15, 23, 42, 0.45);
+        --fc-db-surface-strong: rgba(148, 163, 184, 0.25);
+        --fc-db-row-hover: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.18);
+        --fc-db-badge-bg: rgba(15, 23, 42, 0.55);
+        --fc-db-hero-metric-bg: rgba(30, 41, 59, 0.68);
+        --fc-db-hero-metric-icon-bg: rgba(255, 255, 255, 0.18);
+        --fc-db-empty-bg: rgba(15, 23, 42, 0.45);
+        --fc-db-table-tip-bg: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.2);
+        --fc-db-table-tip-border: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.35);
+        --fc-db-table-divider: rgba(51, 65, 85, 0.6);
+        --fc-db-loading-overlay: rgba(15, 23, 42, 0.55);
+        --fc-db-muted: rgba(226, 232, 240, 0.78);
+        color: rgba(226, 232, 240, 0.92);
     }
 }
 </style>

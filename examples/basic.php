@@ -130,7 +130,7 @@ DatabseEditor::init();
                     <h2 class="h5 mb-0">Database Editor</h2>
                 </div>
                 <div class="card-body">
-                    <?= DatabseEditor::render(false); ?>
+                    <?= DatabseEditor::render(true); ?>
                     </div>
                 </div>
 
