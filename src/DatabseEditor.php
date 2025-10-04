@@ -937,12 +937,18 @@ SQL;
             $activeTable = $tables[0] ?? null;
         }
 
+        $dbConfig = CrudConfig::getDbConfig();
+        $databaseName = $dbConfig['database'] ?? ($dbConfig['dbname'] ?? '');
+        $databaseName = is_string($databaseName) ? trim($databaseName) : '';
+        $databaseHeading = $databaseName !== '' ? $databaseName : 'Database';
+        $databaseHeading = htmlspecialchars($databaseHeading, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
         $html = '<div class="fastcrud-db-editor d-flex flex-column gap-4">';
         $html .= '<div class="fc-db-editor-feedback" data-fc-db-feedback>' . self::renderFeedbackHtml() . '</div>';
 
         $html .= '<section class="fastcrud-db-editor__tables">';
         $html .= '<div class="d-flex justify-content-between align-items-center mb-3">';
-        $html .= '<h2 class="h5 mb-0">Schema Overview</h2>';
+        $html .= '<h2 class="h5 mb-0"><i class="bi bi-database text-primary me-2"></i>' . $databaseHeading . '</h2>';
         $html .= '<form method="post" class="ms-auto">';
         $html .= '<input type="hidden" name="fc_db_editor_action" value="download_database">';
         $html .= '<button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-download me-1"></i>Download database</button>';
