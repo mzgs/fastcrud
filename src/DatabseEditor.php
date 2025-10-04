@@ -739,6 +739,7 @@ class DatabseEditor
                 'nullable' => ($row['Null'] ?? '') === 'YES',
                 'default' => $row['Default'] ?? null,
                 'extra' => (string) ($row['Extra'] ?? ''),
+                'key' => (string) ($row['Key'] ?? ''),
             ];
         }
 
@@ -769,6 +770,7 @@ SQL;
                 'nullable' => ($row['is_nullable'] ?? '') === 'YES',
                 'default' => $row['column_default'] ?? null,
                 'extra' => '',
+                'key' => '',
             ];
         }
 
@@ -791,6 +793,7 @@ SQL;
                 'nullable' => ((int) ($row['notnull'] ?? 0)) === 0,
                 'default' => $row['dflt_value'] ?? null,
                 'extra' => ((int) ($row['pk'] ?? 0)) === 1 ? 'PRIMARY KEY' : '',
+                'key' => ((int) ($row['pk'] ?? 0)) === 1 ? 'PRIMARY' : '',
             ];
         }
 
@@ -1164,20 +1167,19 @@ SQL;
                         $columnEscaped = htmlspecialchars($columnName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                         $typeEscaped = htmlspecialchars($columnType, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                         $defaultEscaped = htmlspecialchars((string) ($column['default'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                        $extraEscaped = htmlspecialchars($column['extra'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                        $extraRaw = (string) ($column['extra'] ?? '');
+                        $columnKey = (string) ($column['key'] ?? '');
+                        $extraEscaped = htmlspecialchars($extraRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                         $typeOptionsHtml = self::buildTypeOptions($typeOptions, (string) $columnType);
                         $nullableBadge = $column['nullable']
                             ? '<span class="badge bg-success-subtle text-success"><i class="bi bi-check-lg me-1"></i>Yes</span>'
                             : '<span class="badge bg-danger-subtle text-danger"><i class="bi bi-x-lg me-1"></i>No</span>';
-                        $isPrimary = stripos($extraEscaped, 'primary') !== false;
-                        $isAutoIncrement = stripos($extraEscaped, 'auto') !== false;
-                        $badges = '';
-                        if ($isPrimary) {
-                            $badges .= '<span class="badge bg-warning-subtle text-warning ms-2">Primary</span>';
-                        }
-                        if ($isAutoIncrement) {
-                            $badges .= '<span class="badge bg-info-subtle text-info ms-2">Auto</span>';
-                        }
+                        $isPrimary = stripos($extraRaw, 'primary') !== false
+                            || stripos($columnKey, 'primary') !== false
+                            || strcasecmp($columnKey, 'pri') === 0;
+                        $primaryIcon = $isPrimary
+                            ? '<span class="ms-2 text-warning fc-db-primary-key-icon" title="Primary key"><i class="bi bi-key-fill" aria-hidden="true"></i><span class="visually-hidden">Primary key</span></span>'
+                            : '';
                         $html .= '<tr data-fc-db-column="' . $columnEscaped . '">';
                         if ($reorderEnabled) {
                             $html .= '<td class="text-center text-muted align-middle" data-fc-db-reorder-handle title="Drag to reorder"><i class="bi bi-grip-vertical"></i></td>';
@@ -1185,6 +1187,9 @@ SQL;
                         $html .= '<th scope="row" class="align-middle">';
                         $html .= '<div data-fc-inline-container="name" class="fc-db-inline">';
                         $html .= '<span class="fw-semibold fc-db-inline-trigger link-body-emphasis" data-fc-inline-trigger role="button" tabindex="0" title="Rename column">' . $columnEscaped . '</span>';
+                        if ($primaryIcon !== '') {
+                            $html .= $primaryIcon;
+                        }
                         $html .= '<form method="post" class="fc-db-inline-form d-flex align-items-center gap-2 d-none" data-fc-inline-form data-fc-db-editor-form>';
                         $html .= '<input type="hidden" name="fc_db_editor_action" value="rename_column">';
                         $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
@@ -1192,7 +1197,6 @@ SQL;
                         $html .= '<input type="text" name="new_column_name" class="form-control form-control-sm" value="' . $columnEscaped . '" required pattern="[A-Za-z0-9_]+" placeholder="Column name">';
                         $html .= '</form>';
                         $html .= '</div>';
-                        $html .= $badges;
                         $html .= '</th>';
                         $html .= '<td class="align-middle" data-fc-inline-container="type">';
                         $html .= '<span class="badge rounded-pill bg-primary-subtle text-primary fc-db-inline-trigger font-monospace" data-fc-inline-trigger role="button" tabindex="0" title="Change column type">' . $typeEscaped . '</span>';
@@ -1643,6 +1647,18 @@ SQL;
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
+}
+.fastcrud-db-editor .fc-db-primary-key-icon {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    font-size: 0.95rem;
+}
+.fastcrud-db-editor .fc-db-primary-key-icon i {
+    line-height: 1;
+}
+.fastcrud-db-editor .fc-db-inline-editing .fc-db-primary-key-icon {
+    display: none;
 }
 .fastcrud-db-editor .fc-db-inline-form input,
 .fastcrud-db-editor .fc-db-inline-form select {
