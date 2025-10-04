@@ -21,6 +21,7 @@
 - [📦 Installation](#-installation)
 - [🚀 Quick Start](#-quick-start)
 - [🔧 Configuration](#-configuration)
+- [🗃️ Database Editor](#️-database-editor)
 - [📜 API Reference & Customization](#-api-reference--customization)
 - [📝 License](#-license)
 
@@ -131,6 +132,151 @@ echo $orders->render();
 
 
 
+
+## 🗃️ Database Editor
+
+FastCRUD includes a visual Database Editor that provides a web-based interface for managing your database schema. Create, modify, and organize tables and columns directly from your browser without writing SQL.
+
+### 🎯 Features
+
+- **Visual Schema Management** - Create, rename, and delete tables through an intuitive interface
+- **Column Management** - Add, rename, and modify column types with live feedback
+- **Drag & Drop Reordering** - Reorder columns visually (MySQL only)
+- **Multi-Database Support** - Works with MySQL, PostgreSQL, and SQLite
+- **Database Export** - Download complete database dumps as SQL files
+- **Real-time Updates** - AJAX-powered interface with instant feedback
+- **Type-safe Operations** - Built-in validation prevents invalid schema changes
+
+### 🚀 Quick Start
+
+```php
+<?php
+require __DIR__ . '/vendor/autoload.php';
+
+use FastCrud\DatabseEditor;
+
+// Initialize with database connection
+DatabseEditor::init([
+    'driver' => 'mysql',
+    'host' => '127.0.0.1',
+    'database' => 'your_database',
+    'username' => 'your_username',
+    'password' => 'your_password',
+]);
+
+// Render the database editor interface
+echo DatabseEditor::render();
+?>
+```
+
+### 💡 Complete HTML Example
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Database Editor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="card">
+            <div class="card-header">
+                <h1 class="h4 mb-0">Database Schema Editor</h1>
+            </div>
+            <div class="card-body">
+                <?php
+                require __DIR__ . '/vendor/autoload.php';
+                use FastCrud\DatabseEditor;
+                
+                DatabseEditor::init(['database' => 'your_db', 'username' => 'user', 'password' => 'pass']);
+                echo DatabseEditor::render();
+                ?>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+```
+
+### 🛠️ API Reference
+
+#### Database Editor Class
+
+##### Initialization
+- **`DatabseEditor::init(?array $dbConfig = null): void`** – Initialize the database editor with connection settings
+  ```php
+  DatabseEditor::init([
+      'driver' => 'mysql',        // mysql, pgsql, sqlite
+      'host' => 'localhost',
+      'database' => 'my_app',
+      'username' => 'db_user',
+      'password' => 'db_password',
+  ]);
+  ```
+
+##### Rendering
+- **`DatabseEditor::render(): string`** – Generate and return the complete database editor HTML interface
+  ```php
+  $editorHtml = DatabseEditor::render();
+  echo $editorHtml;
+  ```
+
+### ⚡ Supported Operations
+
+#### Table Management
+- **Create Tables** - Add new tables with auto-generated primary key
+- **Rename Tables** - Click table names to rename them inline
+- **Delete Tables** - Remove tables with confirmation prompts
+- **Table Overview** - View table structure and column count at a glance
+
+#### Column Management
+- **Add Columns** - Create new columns with customizable data types
+- **Rename Columns** - Click column names for inline editing
+- **Change Types** - Modify column data types using dropdown selectors
+- **Reorder Columns** - Drag and drop to reorder (MySQL only)
+
+#### Data Types by Database
+
+**MySQL Types:**
+`BIGINT`, `BINARY(255)`, `BIT`, `BOOLEAN`, `CHAR(36)`, `DATE`, `DATETIME`, `DECIMAL(10,2)`, `DOUBLE`, `FLOAT`, `INT`, `JSON`, `LONGTEXT`, `MEDIUMTEXT`, `SMALLINT`, `TEXT`, `TIME`, `TIMESTAMP`, `TINYINT`, `TINYINT(1)`, `VARCHAR(255)`
+
+**PostgreSQL Types:**
+`BIGINT`, `BIGSERIAL`, `BOOLEAN`, `DATE`, `DECIMAL(10,2)`, `DOUBLE PRECISION`, `INTEGER`, `JSON`, `JSONB`, `NUMERIC(10,2)`, `SERIAL`, `SMALLINT`, `TEXT`, `TIMESTAMP`, `UUID`, `VARCHAR(255)`
+
+**SQLite Types:**
+`INTEGER`, `REAL`, `TEXT`, `BLOB`, `NUMERIC`
+
+### 💾 Database Export
+
+The Database Editor includes a built-in export feature that generates complete SQL dumps:
+
+- **One-click Export** - Download entire database structure and data
+- **Timestamped Files** - Automatic filename with creation date
+- **Complete Dumps** - Includes CREATE statements and INSERT data
+- **Multi-database Support** - Optimized export for each database type
+
+### 🔒 Security Features
+
+- **Input Validation** - All identifiers validated against SQL injection
+- **Type Safety** - Column types validated for safety
+- **Identifier Quoting** - Proper escaping for database identifiers
+- **Error Handling** - Graceful error messages with recovery options
+
+### 💡 Usage Tips
+
+1. **Backup First** - Always backup your database before making structural changes
+2. **Test Changes** - Use on development databases before production
+3. **Column Reordering** - MySQL-only feature for organizing table structure
+4. **Keyboard Navigation** - Use Tab/Enter for quick form navigation
+5. **Bulk Operations** - Export entire database or work table by table
+
+---
 
 ## 📜 API Reference & Customization
 
