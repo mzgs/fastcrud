@@ -1069,7 +1069,7 @@ SQL;
             $html .= '</div>';
             $html .= '</div>';
             $html .= '<div class="fc-db-sidebar__list" data-fc-db-sidebar-list="">';
-            $html .= '<div class="list-group list-group-flush" id="fc-db-editor-table-list" role="tablist" data-fc-db-table-list="">';
+            $html .= '<div class="fc-db-table-list" id="fc-db-editor-table-list" role="tablist" data-fc-db-table-list="">';
             foreach ($tables as $index => $table) {
                 $tableEscaped = htmlspecialchars($table, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                 $tabId = 'fc-db-editor-table-' . $index;
@@ -1079,7 +1079,7 @@ SQL;
                 $columnCountAttr = htmlspecialchars((string) $columnCount, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                 $columnBadge = $columnCount === 1 ? '1 col' : $columnCount . ' cols';
                 $tableSearch = htmlspecialchars(strtolower($table), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $html .= '<a class="list-group-item list-group-item-action fc-db-table-link d-flex justify-content-between align-items-center' . $isActive . '" data-fc-db-table-name="' . $tableSearch . '" data-fc-db-table-label="' . $tableEscaped . '" data-fc-db-table-columns="' . $columnCountAttr . '" id="tab-' . $tabId . '" data-bs-toggle="list" href="#' . $tabId . '" role="tab" aria-controls="' . $tabId . '" aria-selected="' . $ariaSelected . '" title="View ' . $tableEscaped . '">';
+                $html .= '<a class="fc-db-table-link' . $isActive . '" data-fc-db-table-name="' . $tableSearch . '" data-fc-db-table-label="' . $tableEscaped . '" data-fc-db-table-columns="' . $columnCountAttr . '" id="tab-' . $tabId . '" data-bs-toggle="list" href="#' . $tabId . '" role="tab" aria-controls="' . $tabId . '" aria-selected="' . $ariaSelected . '" title="View ' . $tableEscaped . '">';
                 $html .= '<span class="fc-db-table-link__name text-truncate"><i class="bi bi-table text-primary me-2"></i>' . $tableEscaped . '</span>';
                 $html .= '<span class="badge bg-body-secondary text-body fw-semibold">' . $columnBadge . '</span>';
                 $html .= '</a>';
@@ -1344,6 +1344,20 @@ SQL;
     {
         return <<<'HTML'
 <style>
+@supports (scrollbar-gutter: stable both-edges) {
+    html.fc-db-scrollbar-stable,
+    html.fc-db-scrollbar-stable body {
+        scrollbar-gutter: stable both-edges;
+    }
+}
+
+@supports not (scrollbar-gutter: stable both-edges) {
+    html.fc-db-scrollbar-stable,
+    html.fc-db-scrollbar-stable body {
+        overflow-y: scroll;
+    }
+}
+
 .fastcrud-db-editor {
     --fc-db-radius: 1rem;
     --fc-db-radius-lg: 1.75rem;
@@ -1471,13 +1485,25 @@ SQL;
     background: rgba(99, 102, 241, 0.35);
     border-radius: 999px;
 }
+.fc-db-table-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 0;
+}
 .fc-db-table-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
     border: 1px solid transparent !important;
     border-radius: 0.75rem;
     margin: 0.35rem 0;
     padding: 0.9rem 1rem;
     transition: background-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;
     color: inherit;
+    text-decoration: none;
+    width: 100%;
 }
 .fc-db-table-link:hover,
 .fc-db-table-link:focus,
@@ -1485,6 +1511,10 @@ SQL;
     background-color: var(--fc-db-accent-soft) !important;
     background: var(--fc-db-accent-soft) !important;
     color: inherit !important;
+}
+.fc-db-table-link:focus-visible {
+    outline: none;
+    box-shadow: none;
 }
 .fc-db-table-link:focus {
     outline: none;
@@ -1792,6 +1822,20 @@ SQL;
         return document.querySelector('.fastcrud-db-editor');
     }
 
+    function stabiliseScrollbarGutter() {
+        var root = document.documentElement;
+        var body = document.body;
+        if (!root) {
+            return;
+        }
+        if (!root.classList.contains('fc-db-scrollbar-stable')) {
+            root.classList.add('fc-db-scrollbar-stable');
+        }
+        if (body && !body.classList.contains('fc-db-scrollbar-stable')) {
+            body.classList.add('fc-db-scrollbar-stable');
+        }
+    }
+
     function loadSortable(callback) {
         if (typeof callback !== 'function') {
             return;
@@ -1958,6 +2002,25 @@ SQL;
         }
     }
 
+    function scrollContainerTo(container, top) {
+        if (!container) {
+            return;
+        }
+
+        var nextTop = Math.max(top, 0);
+
+        if (typeof container.scrollTo === 'function') {
+            try {
+                container.scrollTo({ top: nextTop, behavior: 'smooth' });
+                return;
+            } catch (scrollError) {
+                // Fallback to direct assignment when smooth scrolling is unsupported.
+            }
+        }
+
+        container.scrollTop = nextTop;
+    }
+
     function scrollActiveTableIntoView(link) {
         if (suppressTableAutoScroll) {
             suppressTableAutoScroll = false;
@@ -1982,21 +2045,19 @@ SQL;
         var containerRect = container.getBoundingClientRect();
         var targetRect = target.getBoundingClientRect();
         var buffer = 8;
-        var needsScroll = targetRect.top < (containerRect.top + buffer)
-            || targetRect.bottom > (containerRect.bottom - buffer);
+        var containerScrollTop = container.scrollTop;
+        var viewportTop = containerScrollTop;
+        var viewportBottom = viewportTop + container.clientHeight;
+        var targetTop = targetRect.top - containerRect.top + containerScrollTop;
+        var targetBottom = targetRect.bottom - containerRect.top + containerScrollTop;
 
-        if (!needsScroll) {
+        if (targetBottom <= viewportTop) {
+            scrollContainerTo(container, targetTop - buffer);
             return;
         }
 
-        try {
-            target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        } catch (scrollError) {
-            if (targetRect.top < containerRect.top + buffer) {
-                container.scrollTop -= (containerRect.top - targetRect.top) + buffer;
-            } else if (targetRect.bottom > containerRect.bottom - buffer) {
-                container.scrollTop += (targetRect.bottom - containerRect.bottom) + buffer;
-            }
+        if (targetTop >= viewportBottom) {
+            scrollContainerTo(container, targetBottom - container.clientHeight + buffer);
         }
     }
 
@@ -2596,6 +2657,7 @@ SQL;
         }
     });
 
+    stabiliseScrollbarGutter();
     initColumnSortables();
     initTableSearch();
     updateHeroFromActiveLink();
