@@ -943,104 +943,219 @@ SQL;
         $databaseHeading = $databaseName !== '' ? $databaseName : 'Database';
         $databaseHeading = htmlspecialchars($databaseHeading, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-        $html = '<div class="fastcrud-db-editor d-flex flex-column gap-4">';
-        $html .= '<div class="fc-db-editor-feedback" data-fc-db-feedback>' . self::renderFeedbackHtml() . '</div>';
+        $driverLabel = strtoupper($driver);
+        $tableCount = count($tables);
+        $totalColumns = 0;
+        foreach ($tableColumns as $columns) {
+            $totalColumns += count($columns ?? []);
+        }
 
-        $html .= '<section class="fastcrud-db-editor__tables">';
-        $html .= '<div class="d-flex justify-content-between align-items-center mb-3">';
-        $html .= '<h2 class="h5 mb-0"><i class="bi bi-database text-primary me-2"></i>' . $databaseHeading . '</h2>';
-        $html .= '<form method="post" class="ms-auto">';
+        $host = $dbConfig['host'] ?? ($dbConfig['hostname'] ?? '');
+        $host = is_string($host) ? trim($host) : '';
+        $port = $dbConfig['port'] ?? '';
+        $port = is_scalar($port) ? (string) $port : '';
+        $schema = $dbConfig['schema'] ?? '';
+        $schema = is_string($schema) ? trim($schema) : '';
+        $connectionPieces = [];
+        if ($host !== '') {
+            $label = $port !== '' ? $host . ':' . $port : $host;
+            $connectionPieces[] = $label;
+        }
+        if ($driver === 'sqlite') {
+            $path = $dbConfig['database'] ?? ($dbConfig['path'] ?? '');
+            $path = is_string($path) ? trim($path) : '';
+            if ($path !== '') {
+                $connectionPieces[] = \basename($path);
+            }
+        } elseif ($schema !== '' && strcasecmp($schema, $databaseName) !== 0) {
+            $connectionPieces[] = $schema;
+        }
+        $connectionDisplay = $connectionPieces !== [] ? htmlspecialchars(implode(' • ', array_unique($connectionPieces)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '';
+
+        $activeTableLabel = $activeTable !== null ? htmlspecialchars($activeTable, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : null;
+        $driverLabelEscaped = htmlspecialchars($driverLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $totalColumnsFormatted = number_format($totalColumns);
+        $tableCountFormatted = number_format($tableCount);
+
+        $html = '<div class="fastcrud-db-editor">';
+        $html .= '<div class="fastcrud-db-editor__feedback" data-fc-db-feedback>' . self::renderFeedbackHtml() . '</div>';
+
+        $html .= '<section class="fc-db-editor-hero position-relative overflow-hidden rounded-4 shadow-sm">';
+        $html .= '<div class="fc-db-hero__backdrop"></div>';
+        $html .= '<div class="fc-db-hero__content p-3 p-lg-4">';
+        $html .= '<div class="fc-db-hero__header d-flex flex-column flex-lg-row align-items-lg-center gap-2">';
+        $html .= '<div class="fc-db-hero__title">';
+        $html .= '<span class="fc-db-hero__eyebrow text-uppercase small text-white-50">Schema overview</span>';
+        $html .= '<h2 class="h3 text-white mb-1"><i class="bi bi-database me-2"></i>' . $databaseHeading . '</h2>';
+        if ($connectionDisplay !== '') {
+            $html .= '<p class="mb-0 text-white-50 small">' . $connectionDisplay . '</p>';
+        }
+        $html .= '</div>';
+        $html .= '<form method="post" class="ms-lg-auto">';
         $html .= '<input type="hidden" name="fc_db_editor_action" value="download_database">';
-        $html .= '<button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-download me-1"></i>Download database</button>';
+        $html .= '<button type="submit" class="btn btn-light fw-semibold shadow-sm px-3 py-2"><i class="bi bi-download me-2"></i>Download export</button>';
         $html .= '</form>';
         $html .= '</div>';
+        $html .= '<div class="fc-db-hero__metrics mt-2">';
+        $html .= '<div class="fc-db-hero__metric">';
+        $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-diagram-3"></i></span>';
+        $html .= '<span class="fc-db-hero__metric-text"><span class="fc-db-hero__metric-value">' . $tableCountFormatted . '</span><span class="fc-db-hero__metric-label">' . ($tableCount === 1 ? 'Table' : 'Tables') . '</span></span>';
+        $html .= '</div>';
+        $html .= '<div class="fc-db-hero__metric">';
+        $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-layout-text-window"></i></span>';
+        $html .= '<span class="fc-db-hero__metric-text"><span class="fc-db-hero__metric-value">' . $totalColumnsFormatted . '</span><span class="fc-db-hero__metric-label">Columns</span></span>';
+        $html .= '</div>';
+        $html .= '<div class="fc-db-hero__metric">';
+        $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-cpu"></i></span>';
+        $html .= '<span class="fc-db-hero__metric-text"><span class="fc-db-hero__metric-value">' . $driverLabelEscaped . '</span><span class="fc-db-hero__metric-label">Driver</span></span>';
+        $html .= '</div>';
+        if ($activeTableLabel !== null) {
+            $activeTableColumnCount = 0;
+            if ($activeTable !== null) {
+                $activeTableColumnCount = count($tableColumns[$activeTable] ?? []);
+            }
+            $activeTableColumnCountLabel = $activeTableColumnCount === 1 ? '1 column' : $activeTableColumnCount . ' columns';
+            $activeTableColumnCountLabelEscaped = htmlspecialchars($activeTableColumnCountLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $activeTableColumnCountAttr = htmlspecialchars((string) $activeTableColumnCount, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $html .= '<div class="fc-db-hero__metric">';
+            $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-lightning-charge"></i></span>';
+            $html .= '<span class="fc-db-hero__metric-text">';
+            $html .= '<span class="fc-db-hero__metric-value" data-fc-db-active-table data-fc-db-active-default="' . $activeTableLabel . '">' . $activeTableLabel . '</span>';
+            $html .= '<span class="fc-db-hero__metric-label">Active table &middot; <span data-fc-db-active-count data-fc-db-active-count-value="' . $activeTableColumnCountAttr . '">' . $activeTableColumnCountLabelEscaped . '</span></span>';
+            $html .= '</span>';
+            $html .= '</div>';
+        }
+        $html .= '</div>';
+        $html .= '</div>';
+        $html .= '</section>';
 
         if ($tables === []) {
-            $html .= '<div class="alert alert-info" role="alert">No tables found for the current connection.</div>';
+            $html .= '<section class="fc-db-editor-empty card border-0 shadow-sm mt-4">';
+            $html .= '<div class="card-body p-5 text-center">';
+            $html .= '<div class="display-6 text-muted mb-3"><i class="bi bi-emoji-smile"></i></div>';
+            $html .= '<h3 class="fw-semibold">No tables detected yet</h3>';
+            $html .= '<p class="text-muted mx-auto" style="max-width: 420px;">Connect a database or create your first table to start managing your schema. FastCRUD keeps destructive actions gated behind confirmations.</p>';
+            $html .= '<div class="mt-4 d-inline-block">';
+            $html .= '<form method="post" class="row g-3 justify-content-center align-items-end" data-fc-db-editor-form>';
+            $html .= '<input type="hidden" name="fc_db_editor_action" value="add_table">';
+            $html .= '<div class="col-12 col-md-auto">';
+            $html .= '<label class="form-label text-muted">Table name</label>';
+            $html .= '<input type="text" name="new_table" class="form-control form-control-lg" placeholder="e.g. customers" required pattern="[A-Za-z0-9_]+">';
+            $html .= '</div>';
+            $html .= '<div class="col-12 col-md-auto">';
+            $html .= '<button type="submit" class="btn btn-primary btn-lg w-100"><i class="bi bi-plus-lg me-2"></i>Create table</button>';
+            $html .= '</div>';
+            $html .= '</form>';
+            $html .= '</div>';
+            $html .= '</div>';
+            $html .= '</section>';
         } else {
             $typeOptions = self::getColumnTypeOptions($driver);
             $reorderEnabled = $driver === 'mysql';
-            $tableCount = count($tables);
-            $html .= '<div class="row g-4">';
-            $html .= '<div class="col-12 col-lg-4 col-xl-3">';
-            $html .= '<div class="card shadow-sm border-0 h-100">';
-            $html .= '<div class="card-header bg-body-tertiary fw-semibold d-flex justify-content-between align-items-center">';
-            $html .= '<span>Tables</span>';
-            $html .= '<span class="badge bg-secondary">' . $tableCount . ' tables</span>';
+            $html .= '<section class="fc-db-editor-workspace mt-4">';
+            $html .= '<div class="row g-4 align-items-start">';
+            $html .= '<div class="col-12 col-xl-4 col-xxl-3">';
+            $html .= '<aside class="fc-db-editor-sidebar card border-0 shadow-sm h-100">';
+            $html .= '<div class="fc-db-sidebar__header border-bottom p-3">';
+            $html .= '<div class="d-flex align-items-center justify-content-between">';
+            $html .= '<h3 class="h6 mb-0 text-body-secondary text-uppercase">Tables</h3>';
+            $html .= '<span class="badge bg-primary-subtle text-primary">' . $tableCountFormatted . '</span>';
             $html .= '</div>';
-            $html .= '<div class="list-group list-group-flush" id="fc-db-editor-table-list" role="tablist">';
+            $html .= '<div class="input-group input-group-sm mt-3">';
+            $html .= '<span class="input-group-text bg-transparent border-end-0"><i class="bi bi-search"></i></span>';
+            $html .= '<input type="search" class="form-control border-start-0" placeholder="Search tables" autocomplete="off" data-fc-db-table-search aria-label="Search tables">';
+            $html .= '</div>';
+            $html .= '</div>';
+            $html .= '<div class="fc-db-sidebar__list" data-fc-db-sidebar-list="">';
+            $html .= '<div class="list-group list-group-flush" id="fc-db-editor-table-list" role="tablist" data-fc-db-table-list="">';
             foreach ($tables as $index => $table) {
                 $tableEscaped = htmlspecialchars($table, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                 $tabId = 'fc-db-editor-table-' . $index;
                 $isActive = $table === $activeTable ? ' active' : '';
                 $ariaSelected = $table === $activeTable ? 'true' : 'false';
-
-                $html .= '<a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center' . $isActive . '" id="tab-' . $tabId . '" data-bs-toggle="list" href="#' . $tabId . '" role="tab" aria-controls="' . $tabId . '" aria-selected="' . $ariaSelected . '">';
-                $html .= '<span><i class="bi bi-table text-primary me-2"></i>' . $tableEscaped . '</span>';
                 $columnCount = count($tableColumns[$table] ?? []);
-                $html .= '<span class="badge rounded-pill bg-primary-subtle text-primary">' . $columnCount . '</span>';
+                $columnCountAttr = htmlspecialchars((string) $columnCount, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $columnBadge = $columnCount === 1 ? '1 col' : $columnCount . ' cols';
+                $tableSearch = htmlspecialchars(strtolower($table), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $html .= '<a class="list-group-item list-group-item-action fc-db-table-link d-flex justify-content-between align-items-center' . $isActive . '" data-fc-db-table-name="' . $tableSearch . '" data-fc-db-table-label="' . $tableEscaped . '" data-fc-db-table-columns="' . $columnCountAttr . '" id="tab-' . $tabId . '" data-bs-toggle="list" href="#' . $tabId . '" role="tab" aria-controls="' . $tabId . '" aria-selected="' . $ariaSelected . '" title="View ' . $tableEscaped . '">';
+                $html .= '<span class="fc-db-table-link__name text-truncate"><i class="bi bi-table text-primary me-2"></i>' . $tableEscaped . '</span>';
+                $html .= '<span class="badge bg-body-secondary text-body fw-semibold">' . $columnBadge . '</span>';
                 $html .= '</a>';
             }
-            $html .= '<div class="list-group-item bg-body-tertiary mt-3">';
-            $html .= '<form method="post" class="input-group input-group-sm" data-fc-db-editor-form>';
+            $html .= '</div>';
+            $html .= '<div class="fc-db-sidebar__empty text-center text-muted small py-4 d-none" data-fc-db-sidebar-empty role="status" aria-live="polite">No tables matched your search.</div>';
+            $html .= '</div>';
+            $html .= '<div class="fc-db-sidebar__footer border-top p-3">';
+            $html .= '<form method="post" class="row g-2 align-items-center" data-fc-db-editor-form>';
             $html .= '<input type="hidden" name="fc_db_editor_action" value="add_table">';
-            $html .= '<input type="text" name="new_table" class="form-control" placeholder="New table" required pattern="[A-Za-z0-9_]+">';
-            $html .= '<button type="submit" class="btn btn-success" title="Create table" aria-label="Create table"><i class="bi bi-plus-lg"></i></button>';
+            $html .= '<div class="col">';
+            $html .= '<label class="form-label text-muted small mb-1">New table</label>';
+            $html .= '<input type="text" name="new_table" class="form-control form-control-sm" placeholder="analytics" required pattern="[A-Za-z0-9_]+">';
+            $html .= '</div>';
+            $html .= '<div class="col-auto">';
+            $html .= '<button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i></button>';
+            $html .= '</div>';
             $html .= '</form>';
             $html .= '</div>';
+            $html .= '</aside>';
             $html .= '</div>';
-            $html .= '</div>';
-            $html .= '</div>';
-
-            $html .= '<div class="col-12 col-lg-8 col-xl-9">';
-            $html .= '<div class="tab-content" id="fc-db-editor-table-content">';
+            $html .= '<div class="col-12 col-xl-8 col-xxl-9">';
+            $html .= '<div class="tab-content fc-db-editor-tab-content" id="fc-db-editor-table-content">';
             foreach ($tables as $index => $table) {
                 $tableEscaped = htmlspecialchars($table, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                 $tabId = 'fc-db-editor-table-' . $index;
                 $isActive = $table === $activeTable ? ' show active' : '';
-
+                $columns = $tableColumns[$table] ?? [];
+                $columnCount = count($columns);
+                $columnSummary = $columnCount === 1 ? '1 column' : $columnCount . ' columns';
+                $tipMessage = $reorderEnabled
+                    ? 'Drag the handle to reorder columns. Click a column name to rename it or use the type badge to adjust definitions.'
+                    : 'Click a column name to rename it or use the type badge to adjust definitions.';
                 $html .= '<div class="tab-pane fade' . $isActive . '" id="' . $tabId . '" role="tabpanel" aria-labelledby="tab-' . $tabId . '">';
-                $html .= '<div class="card shadow-sm border-0">';
-                $html .= '<div class="card-body">';
-                $html .= '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">';
-                $html .= '<div class="d-flex align-items-center gap-2">';
-                $html .= '<div data-fc-inline-container="name">';
-                $html .= '<span class="h5 mb-0 fw-semibold fc-db-inline-trigger link-primary" data-fc-inline-trigger role="button" tabindex="0" title="Click to rename table">' . $tableEscaped . '</span>';
-                $html .= '<form method="post" class="fc-db-inline-form d-inline-flex align-items-center gap-2 d-none" data-fc-inline-form data-fc-db-editor-form>';
+                $html .= '<div class="fc-db-table card border-0 shadow-sm">';
+                $html .= '<div class="fc-db-table__header border-bottom p-4 d-flex flex-column flex-lg-row align-items-lg-center gap-3">';
+                $html .= '<div class="d-flex align-items-center gap-3">';
+                $html .= '<div data-fc-inline-container="name" class="fc-db-inline">';
+                $html .= '<span class="h4 mb-0 fw-semibold text-body fc-db-inline-trigger link-primary" data-fc-inline-trigger role="button" tabindex="0" title="Rename table">' . $tableEscaped . '</span>';
+                $html .= '<form method="post" class="fc-db-inline-form d-flex align-items-center gap-2 d-none" data-fc-inline-form data-fc-db-editor-form>';
                 $html .= '<input type="hidden" name="fc_db_editor_action" value="rename_table">';
                 $html .= '<input type="hidden" name="current_table" value="' . $tableEscaped . '">';
                 $html .= '<input type="text" name="new_table_name" class="form-control form-control-sm" value="' . $tableEscaped . '" required pattern="[A-Za-z0-9_]+" placeholder="Table name">';
                 $html .= '</form>';
                 $html .= '</div>';
+                $html .= '<span class="badge bg-primary-subtle text-primary fw-semibold">' . $columnSummary . '</span>';
                 $html .= '</div>';
                 $confirmMessage = htmlspecialchars(sprintf('Delete table "%s"? This action cannot be undone.', $table), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $html .= '<form method="post" class="d-flex align-items-center ms-auto" data-fc-db-editor-form>';
+                $html .= '<form method="post" class="ms-lg-auto d-flex align-items-center" data-fc-db-editor-form>';
                 $html .= '<input type="hidden" name="fc_db_editor_action" value="delete_table">';
                 $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
-                $html .= '<button type="submit" class="btn btn-outline-danger btn-sm" data-fc-db-confirm="' . $confirmMessage . '" title="Delete table" aria-label="Delete table"><i class="bi bi-trash me-1"></i>Delete table</button>';
+                $html .= '<button type="submit" class="btn btn-outline-danger btn-sm" data-fc-db-confirm="' . $confirmMessage . '" title="Delete table" aria-label="Delete table"><i class="bi bi-trash me-1"></i>Delete</button>';
                 $html .= '</form>';
                 $html .= '</div>';
-                $tipMessage = $reorderEnabled
-                    ? 'Tip: drag the handle to reorder columns. Click a column name to rename it or click the type badge to change its definition.'
-                    : 'Tip: click a column name to rename it or click the type badge to change its definition.';
-                $html .= '<p class="text-muted small mb-4">' . $tipMessage . '</p>';
-
-                $html .= '<div class="fastcrud-db-editor__columns">';
-                $columns = $tableColumns[$table] ?? [];
+                $html .= '<div class="fc-db-table__body p-4">';
+                $html .= '<div class="alert alert-info fc-db-table__tip" role="alert">' . $tipMessage . '</div>';
                 if ($columns === []) {
-                    $html .= '<div class="alert alert-warning" role="alert">No columns detected.</div>';
+                    $html .= '<div class="fc-db-empty-state card border-0 bg-body-tertiary text-center py-5">';
+                    $html .= '<div class="text-muted mb-2"><i class="bi bi-columns-gap fs-3"></i></div>';
+                    $html .= '<p class="mb-0 text-muted">No columns detected for this table.</p>';
+                    $html .= '</div>';
                 } else {
-                    $html .= '<div class="table-responsive">';
-                    $html .= '<table class="table table-striped table-hover table-sm align-middle mb-4">';
-                    $html .= '<thead class="bg-body-secondary text-body-emphasis">';
+                    $html .= '<div class="table-responsive fc-db-table__grid">';
+                    $html .= '<table class="table table-hover align-middle mb-4 fc-db-columns-table">';
+                    $html .= '<thead>';
                     $html .= '<tr>';
                     if ($reorderEnabled) {
                         $html .= '<th scope="col" class="text-muted small text-center" style="width: 2.5rem;"><span class="visually-hidden">Reorder</span></th>';
                     }
-                    $html .= '<th scope="col">Column</th><th scope="col">Type</th><th scope="col" class="text-center">Nullable</th><th scope="col">Default</th><th scope="col">Extra</th>';
+                    $html .= '<th scope="col" class="text-muted text-uppercase small">Column</th>';
+                    $html .= '<th scope="col" class="text-muted text-uppercase small">Type</th>';
+                    $html .= '<th scope="col" class="text-center text-muted text-uppercase small">Nullable</th>';
+                    $html .= '<th scope="col" class="text-muted text-uppercase small">Default</th>';
+                    $html .= '<th scope="col" class="text-muted text-uppercase small">Extra</th>';
                     $html .= '</tr>';
+                    $html .= '</thead>';
                     $tbodyAttributes = $reorderEnabled ? ' data-fc-db-columns data-fc-db-table="' . $tableEscaped . '"' : '';
-                    $html .= '</thead><tbody' . $tbodyAttributes . '>';
+                    $html .= '<tbody' . $tbodyAttributes . '>';
                     foreach ($columns as $column) {
                         $columnName = $column['name'];
                         $columnType = $column['type'];
@@ -1049,32 +1164,46 @@ SQL;
                         $defaultEscaped = htmlspecialchars((string) ($column['default'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                         $extraEscaped = htmlspecialchars($column['extra'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                         $typeOptionsHtml = self::buildTypeOptions($typeOptions, (string) $columnType);
-
+                        $nullableBadge = $column['nullable']
+                            ? '<span class="badge bg-success-subtle text-success"><i class="bi bi-check-lg me-1"></i>Yes</span>'
+                            : '<span class="badge bg-danger-subtle text-danger"><i class="bi bi-x-lg me-1"></i>No</span>';
+                        $isPrimary = stripos($extraEscaped, 'primary') !== false;
+                        $isAutoIncrement = stripos($extraEscaped, 'auto') !== false;
+                        $badges = '';
+                        if ($isPrimary) {
+                            $badges .= '<span class="badge bg-warning-subtle text-warning ms-2">Primary</span>';
+                        }
+                        if ($isAutoIncrement) {
+                            $badges .= '<span class="badge bg-info-subtle text-info ms-2">Auto</span>';
+                        }
                         $html .= '<tr data-fc-db-column="' . $columnEscaped . '">';
                         if ($reorderEnabled) {
                             $html .= '<td class="text-center text-muted align-middle" data-fc-db-reorder-handle title="Drag to reorder"><i class="bi bi-grip-vertical"></i></td>';
                         }
-                        $html .= '<th scope="row" class="align-middle" data-fc-inline-container="name">';
-                        $html .= '<span class="fw-semibold fc-db-inline-trigger link-primary" data-fc-inline-trigger role="button" tabindex="0" title="Click to rename column">' . $columnEscaped . '</span>';
-                        $html .= '<form method="post" class="fc-db-inline-form d-inline-flex align-items-center gap-2 d-none" data-fc-inline-form data-fc-db-editor-form>';
+                        $html .= '<th scope="row" class="align-middle">';
+                        $html .= '<div data-fc-inline-container="name" class="fc-db-inline">';
+                        $html .= '<span class="fw-semibold fc-db-inline-trigger link-body-emphasis" data-fc-inline-trigger role="button" tabindex="0" title="Rename column">' . $columnEscaped . '</span>';
+                        $html .= '<form method="post" class="fc-db-inline-form d-flex align-items-center gap-2 d-none" data-fc-inline-form data-fc-db-editor-form>';
                         $html .= '<input type="hidden" name="fc_db_editor_action" value="rename_column">';
                         $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
                         $html .= '<input type="hidden" name="column_name" value="' . $columnEscaped . '">';
                         $html .= '<input type="text" name="new_column_name" class="form-control form-control-sm" value="' . $columnEscaped . '" required pattern="[A-Za-z0-9_]+" placeholder="Column name">';
                         $html .= '</form>';
+                        $html .= '</div>';
+                        $html .= $badges;
                         $html .= '</th>';
                         $html .= '<td class="align-middle" data-fc-inline-container="type">';
-                        $html .= '<span class="badge rounded-pill bg-primary-subtle text-primary fc-db-inline-trigger font-monospace" data-fc-inline-trigger role="button" tabindex="0" title="Click to change column type">' . $typeEscaped . '</span>';
-                        $html .= '<form method="post" class="fc-db-inline-form d-inline-flex align-items-center gap-2 d-none" data-fc-inline-form data-fc-db-editor-form>';
+                        $html .= '<span class="badge rounded-pill bg-primary-subtle text-primary fc-db-inline-trigger font-monospace" data-fc-inline-trigger role="button" tabindex="0" title="Change column type">' . $typeEscaped . '</span>';
+                        $html .= '<form method="post" class="fc-db-inline-form d-flex align-items-center gap-2 d-none" data-fc-inline-form data-fc-db-editor-form>';
                         $html .= '<input type="hidden" name="fc_db_editor_action" value="change_column_type">';
                         $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
                         $html .= '<input type="hidden" name="column_name" value="' . $columnEscaped . '">';
                         $html .= '<select name="new_column_type" class="form-select form-select-sm fc-db-type-select" required>' . $typeOptionsHtml . '</select>';
                         $html .= '</form>';
                         $html .= '</td>';
-                        $html .= '<td class="text-center align-middle">' . ($column['nullable'] ? '<span class="badge bg-success-subtle text-success">Yes</span>' : '<span class="badge bg-danger-subtle text-danger">No</span>') . '</td>';
-                        $html .= '<td class="align-middle small">' . $defaultEscaped . '</td>';
-                        $html .= '<td class="align-middle small">' . $extraEscaped . '</td>';
+                        $html .= '<td class="text-center align-middle">' . $nullableBadge . '</td>';
+                        $html .= '<td class="align-middle small text-muted">' . ($defaultEscaped !== '' ? $defaultEscaped : '<span class="text-body-secondary">—</span>') . '</td>';
+                        $html .= '<td class="align-middle small text-muted">' . ($extraEscaped !== '' ? $extraEscaped : '<span class="text-body-secondary">—</span>') . '</td>';
                         $html .= '</tr>';
                     }
                     $html .= '</tbody></table>';
@@ -1088,7 +1217,7 @@ SQL;
                     $html .= '</div>';
                 }
 
-                $html .= '<div class="card border-0 bg-body-tertiary">';
+                $html .= '<div class="fc-db-add-column card border-0 bg-body-tertiary">';
                 $html .= '<div class="card-body">';
                 $html .= '<form method="post" class="row g-3 align-items-end" data-fc-db-editor-form>';
                 $html .= '<input type="hidden" name="fc_db_editor_action" value="add_column">';
@@ -1117,14 +1246,13 @@ SQL;
                 $html .= '</div>';
                 $html .= '</div>';
                 $html .= '</div>';
-                $html .= '</div>';
             }
             $html .= '</div>';
             $html .= '</div>';
             $html .= '</div>';
+            $html .= '</section>';
         }
 
-        $html .= '</section>';
         $html .= '</div>';
 
         if (!self::$scriptInjected) {
@@ -1214,33 +1342,220 @@ SQL;
     {
         return <<<'HTML'
 <style>
-.fastcrud-db-editor [data-fc-inline-trigger] {
-    cursor: pointer;
-}
-.fastcrud-db-editor [data-fc-inline-trigger]:focus {
-    outline: 0;
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-    border-radius: 0.375rem;
-}
-.fastcrud-db-editor.fc-db-editor-loading {
+.fastcrud-db-editor {
+    --fc-db-radius: 1rem;
+    --fc-db-radius-lg: 1.75rem;
+    --fc-db-border: rgba(15, 23, 42, 0.08);
+    --fc-db-border-strong: rgba(15, 23, 42, 0.18);
+    --fc-db-muted: #6c757d;
+    --fc-db-hero-gradient: linear-gradient(135deg, #2563eb 0%, #7c3aed 55%, #ec4899 110%);
     position: relative;
-    opacity: 0.6;
+    z-index: 0;
+    color: var(--bs-body-color);
+}
+.fastcrud-db-editor .card {
+    border-radius: var(--fc-db-radius);
+    border-color: var(--fc-db-border);
+}
+.fc-db-editor-hero {
+    position: relative;
+    border-radius: var(--fc-db-radius-lg);
+    overflow: hidden;
+    background: var(--fc-db-hero-gradient);
+    color: #fff;
+    box-shadow: 0 32px 60px rgba(79, 70, 229, 0.35);
+}
+.fc-db-hero__backdrop {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(120% 90% at 15% 0%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 55%),
+        radial-gradient(90% 80% at 85% 15%, rgba(96, 165, 250, 0.45) 0%, rgba(59, 130, 246, 0) 55%),
+        var(--fc-db-hero-gradient);
+    opacity: 0.9;
     pointer-events: none;
-    transition: opacity 0.2s ease;
+    transform: translateZ(0);
 }
-.fastcrud-db-editor .fc-db-inline-editing {
-    background-color: rgba(13, 110, 253, 0.08);
-    border-radius: 0.375rem;
-    padding: 0.25rem 0.5rem;
+.fc-db-hero__content {
+    position: relative;
+    z-index: 1;
+    color: #fff;
+}
+.fc-db-hero__header {
+    row-gap: 0.75rem;
+}
+.fc-db-hero__title h2 {
+    font-size: clamp(1.5rem, 1.2vw + 1.1rem, 2.1rem);
+}
+.fc-db-hero__title p {
+    margin-top: 0.15rem;
+}
+.fc-db-editor-hero .text-muted,
+.fc-db-editor-hero .text-body-secondary {
+    color: rgba(255, 255, 255, 0.75) !important;
+}
+.fc-db-editor-hero .badge {
+    color: #0f172a;
+}
+.fc-db-hero__metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    min-width: 0;
+}
+.fc-db-hero__metric {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    backdrop-filter: blur(6px);
+    min-width: 0;
+    max-width: 100%;
+}
+.fc-db-hero__metric-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.22);
+    font-size: 0.9rem;
+    flex: 0 0 auto;
+}
+.fc-db-hero__metric-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+    min-width: 0;
+}
+.fc-db-hero__metric-value {
+    font-weight: 700;
+    font-size: 0.95rem;
     display: inline-block;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
-.fastcrud-db-editor .fc-db-inline-form input,
-.fastcrud-db-editor .fc-db-inline-form select {
-    min-width: 160px;
+.fc-db-hero__metric-label {
+    font-size: 0.72rem;
+    opacity: 0.78;
+    display: block;
+    min-width: 0;
+}
+.fc-db-editor-sidebar {
+    border: 1px solid var(--fc-db-border);
+    border-radius: var(--fc-db-radius);
+    box-shadow: 0 24px 56px rgba(15, 23, 42, 0.12);
+}
+.fc-db-sidebar__header {
+    background: rgba(15, 23, 42, 0.03);
+}
+.fc-db-sidebar__list {
+    max-height: clamp(260px, 48vh, 520px);
+    overflow-y: auto;
+    padding-inline: 0.5rem;
+}
+.fc-db-sidebar__list::-webkit-scrollbar {
+    width: 0.55rem;
+}
+.fc-db-sidebar__list::-webkit-scrollbar-thumb {
+    background: rgba(99, 102, 241, 0.35);
+    border-radius: 999px;
+}
+.fc-db-table-link {
+    border: 0;
+    border-radius: 0.75rem;
+    margin: 0.35rem 0;
+    padding: 0.9rem 1rem;
+}
+.fc-db-table-link:hover {
+    background: rgba(37, 99, 235, 0.12);
+}
+.fc-db-table-link.active {
+    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+    color: #fff;
+    box-shadow: 0 18px 36px rgba(79, 70, 229, 0.45);
+}
+.fc-db-table-link.active .badge {
+    background: rgba(255, 255, 255, 0.35);
+    color: #fff;
+}
+.fc-db-table-link .badge {
+    border-radius: 999px;
+    font-size: 0.75rem;
+    background: rgba(15, 23, 42, 0.07);
+}
+.fc-db-sidebar__empty {
+    border-radius: var(--fc-db-radius);
+    background: rgba(15, 23, 42, 0.03);
+    margin: 0.75rem;
+}
+.fc-db-editor-tab-content > .tab-pane {
+    transition: none;
+}
+.fc-db-table {
+    border-radius: var(--fc-db-radius);
+    border: 1px solid var(--fc-db-border);
+    box-shadow: 0 30px 60px rgba(15, 23, 42, 0.12);
+}
+.fc-db-table__header {
+    background: rgba(15, 23, 42, 0.02);
+}
+.fc-db-table__tip {
+    border-radius: var(--fc-db-radius);
+    border: 1px solid rgba(37, 99, 235, 0.1);
+    background: rgba(37, 99, 235, 0.08);
+}
+.fc-db-columns-table thead th {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #475569;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+}
+.fc-db-columns-table tbody tr:hover {
+    background: rgba(37, 99, 235, 0.05);
+}
+.fc-db-columns-table td,
+.fc-db-columns-table th {
+    border-color: rgba(148, 163, 184, 0.22);
+}
+.fc-db-columns-table .badge {
+    font-size: 0.7rem;
+}
+.fc-db-columns-table [data-fc-inline-trigger] {
+    padding-inline: 0.25rem;
+    border-radius: 0.5rem;
+}
+.fc-db-add-column {
+    border-radius: var(--fc-db-radius);
+    border: 1px dashed rgba(79, 70, 229, 0.4);
+    background: rgba(79, 70, 229, 0.04);
+}
+.fc-db-add-column:hover {
+    border-color: rgba(79, 70, 229, 0.55);
+    background: rgba(79, 70, 229, 0.08);
+}
+.fc-db-editor-empty {
+    border-radius: var(--fc-db-radius);
+    border: 1px dashed rgba(148, 163, 184, 0.4);
+    background: rgba(241, 245, 249, 0.6);
 }
 .fastcrud-db-editor [data-fc-db-reorder-handle] {
     cursor: grab;
     width: 2.5rem;
+    color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.fastcrud-db-editor [data-fc-db-reorder-handle]:hover {
+    color: #2563eb;
 }
 .fastcrud-db-editor [data-fc-db-reorder-handle]:active {
     cursor: grabbing;
@@ -1249,7 +1564,211 @@ SQL;
     opacity: 0.6;
 }
 .fastcrud-db-editor .fc-db-reorder-chosen {
-    background-color: rgba(13, 110, 253, 0.08);
+    background-color: rgba(37, 99, 235, 0.08);
+}
+.fastcrud-db-editor [data-fc-inline-trigger] {
+    cursor: pointer;
+}
+.fastcrud-db-editor [data-fc-inline-trigger]:focus-visible {
+    outline: 3px solid rgba(59, 130, 246, 0.35);
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+}
+.fastcrud-db-editor .fc-db-inline-editing {
+    background-color: rgba(59, 130, 246, 0.1);
+    border-radius: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.fastcrud-db-editor .fc-db-inline-form input,
+.fastcrud-db-editor .fc-db-inline-form select {
+    min-width: 180px;
+}
+.fastcrud-db-editor.fc-db-editor-loading {
+    pointer-events: none;
+}
+.fastcrud-db-editor.fc-db-editor-loading::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(2px);
+    z-index: 20;
+}
+.fastcrud-db-editor.fc-db-editor-loading::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 3rem;
+    height: 3rem;
+    margin: -1.5rem 0 0 -1.5rem;
+    border-radius: 50%;
+    border: 4px solid rgba(59, 130, 246, 0.25);
+    border-top-color: rgba(59, 130, 246, 0.9);
+    z-index: 21;
+}
+@media (prefers-reduced-motion: reduce) {
+    .fc-db-table-link,
+    .fc-db-hero__metric,
+    .fc-db-add-column,
+    .fc-db-editor-tab-content > .tab-pane {
+        transition: none !important;
+    }
+}
+@media (max-width: 991.98px) {
+    .fc-db-editor-hero {
+        border-radius: var(--fc-db-radius);
+    }
+    .fc-db-sidebar__list {
+        max-height: none;
+    }
+}
+:root[data-bs-theme="dark"] .fastcrud-db-editor,
+[data-bs-theme="dark"] .fastcrud-db-editor,
+.fastcrud-db-editor[data-bs-theme="dark"] {
+    --fc-db-border: rgba(148, 163, 184, 0.24);
+    --fc-db-border-strong: rgba(148, 163, 184, 0.32);
+    color: #e2e8f0;
+}
+:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-hero__metric,
+[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-hero__metric,
+.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-hero__metric {
+    background: rgba(30, 41, 59, 0.68);
+}
+:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-hero__metric-icon,
+[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-hero__metric-icon,
+.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-hero__metric-icon {
+    background: rgba(255, 255, 255, 0.18);
+}
+:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-editor-sidebar,
+[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-editor-sidebar,
+.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-editor-sidebar,
+:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table,
+[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table,
+.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-table,
+:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-add-column,
+[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-add-column,
+.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-add-column {
+    background: rgba(15, 23, 42, 0.9);
+    color: #e2e8f0;
+    border-color: var(--fc-db-border);
+}
+:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table-link,
+[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table-link,
+.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-table-link {
+    color: #e2e8f0;
+    background: rgba(15, 23, 42, 0.55);
+}
+:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table-link:hover,
+[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table-link:hover,
+.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-table-link:hover {
+    background: rgba(37, 99, 235, 0.22);
+}
+:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table-link.active,
+[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table-link.active,
+.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-table-link.active {
+    box-shadow: 0 18px 36px rgba(79, 70, 229, 0.3);
+}
+:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-sidebar__header,
+[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-sidebar__header,
+.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-sidebar__header {
+    background: rgba(15, 23, 42, 0.35);
+    border-color: var(--fc-db-border);
+}
+:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table__tip,
+[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table__tip,
+.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-table__tip {
+    background: rgba(37, 99, 235, 0.2);
+    color: #e2e8f0;
+}
+:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-columns-table thead th,
+[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-columns-table thead th,
+.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-columns-table thead th {
+    color: rgba(226, 232, 240, 0.8);
+}
+:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-columns-table td,
+[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-columns-table td,
+.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-columns-table td,
+:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-columns-table th,
+[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-columns-table th,
+.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-columns-table th {
+    border-color: rgba(51, 65, 85, 0.6);
+}
+:root[data-bs-theme="dark"] .fastcrud-db-editor.fc-db-editor-loading::after,
+[data-bs-theme="dark"] .fastcrud-db-editor.fc-db-editor-loading::after,
+.fastcrud-db-editor[data-bs-theme="dark"].fc-db-editor-loading::after {
+    background: rgba(15, 23, 42, 0.55);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-bs-theme]),
+    :root[data-bs-theme="auto"] {
+        color-scheme: dark;
+    }
+    :root:not([data-bs-theme]) .fastcrud-db-editor,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor {
+        --fc-db-border: rgba(148, 163, 184, 0.24);
+        --fc-db-border-strong: rgba(148, 163, 184, 0.32);
+        color: #e2e8f0;
+    }
+    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-hero__metric,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-hero__metric {
+        background: rgba(30, 41, 59, 0.68);
+    }
+    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-hero__metric-icon,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-hero__metric-icon {
+        background: rgba(255, 255, 255, 0.18);
+    }
+    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-editor-sidebar,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-editor-sidebar,
+    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-table,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-table,
+    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-add-column,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-add-column {
+        background: rgba(15, 23, 42, 0.9);
+        color: #e2e8f0;
+        border-color: var(--fc-db-border);
+    }
+    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-table-link,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-table-link {
+        color: #e2e8f0;
+        background: rgba(15, 23, 42, 0.55);
+    }
+    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-table-link:hover,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-table-link:hover {
+        background: rgba(37, 99, 235, 0.22);
+    }
+    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-table-link.active,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-table-link.active {
+        box-shadow: 0 18px 36px rgba(79, 70, 229, 0.3);
+    }
+    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-sidebar__header,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-sidebar__header {
+        background: rgba(15, 23, 42, 0.35);
+        border-color: var(--fc-db-border);
+    }
+    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-table__tip,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-table__tip {
+        background: rgba(37, 99, 235, 0.2);
+        color: #e2e8f0;
+    }
+    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-columns-table thead th,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-columns-table thead th {
+        color: rgba(226, 232, 240, 0.8);
+    }
+    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-columns-table td,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-columns-table td,
+    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-columns-table th,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-columns-table th {
+        border-color: rgba(51, 65, 85, 0.6);
+    }
+    :root:not([data-bs-theme]) .fastcrud-db-editor.fc-db-editor-loading::after,
+    :root[data-bs-theme="auto"] .fastcrud-db-editor.fc-db-editor-loading::after {
+        background: rgba(15, 23, 42, 0.55);
+    }
 }
 </style>
 <script>
@@ -1262,6 +1781,7 @@ SQL;
     var columnSortables = [];
     var sortableScriptCallbacks = [];
     var sortableScriptRequested = false;
+    var tableSearchTeardown = null;
 
     function getEditorRoot() {
         return document.querySelector('.fastcrud-db-editor');
@@ -1390,6 +1910,134 @@ SQL;
         }
 
         return null;
+    }
+
+    function updateHeroFromLink(link) {
+        if (!link) {
+            return;
+        }
+
+        var root = getEditorRoot();
+        if (!root) {
+            return;
+        }
+
+        var labelEl = root.querySelector('[data-fc-db-active-table]');
+        if (labelEl) {
+            var fallback = labelEl.getAttribute('data-fc-db-active-default') || '';
+            var newLabel = link.getAttribute('data-fc-db-table-label') || fallback;
+            labelEl.textContent = newLabel || fallback;
+        }
+
+        var countEl = root.querySelector('[data-fc-db-active-count]');
+        if (countEl) {
+            var countAttr = link.getAttribute('data-fc-db-table-columns');
+            var numeric = countAttr ? parseInt(countAttr, 10) : NaN;
+            if (!Number.isNaN(numeric)) {
+                var summary = numeric === 1 ? '1 column' : numeric + ' columns';
+                countEl.textContent = summary;
+                countEl.setAttribute('data-fc-db-active-count-value', String(numeric));
+            }
+        }
+    }
+
+    function updateHeroFromActiveLink() {
+        var root = getEditorRoot();
+        if (!root) {
+            return;
+        }
+
+        var active = root.querySelector('[data-fc-db-table-label].active');
+        if (active) {
+            updateHeroFromLink(active);
+        }
+    }
+
+    function scrollActiveTableIntoView(link) {
+        var root = getEditorRoot();
+        if (!root) {
+            return;
+        }
+
+        var container = root.querySelector('.fc-db-sidebar__list');
+        if (!container) {
+            return;
+        }
+
+        var target = link || root.querySelector('[data-fc-db-table-label].active');
+        if (!target) {
+            return;
+        }
+
+        try {
+            target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch (scrollError) {
+            var containerRect = container.getBoundingClientRect();
+            var targetRect = target.getBoundingClientRect();
+            if (targetRect.top < containerRect.top) {
+                container.scrollTop -= (containerRect.top - targetRect.top) + 16;
+            } else if (targetRect.bottom > containerRect.bottom) {
+                container.scrollTop += (targetRect.bottom - containerRect.bottom) + 16;
+            }
+        }
+    }
+
+    function initTableSearch() {
+        if (tableSearchTeardown) {
+            tableSearchTeardown();
+            tableSearchTeardown = null;
+        }
+
+        var root = getEditorRoot();
+        if (!root) {
+            return;
+        }
+
+        var input = root.querySelector('[data-fc-db-table-search]');
+        var list = root.querySelector('[data-fc-db-table-list]');
+        var emptyState = root.querySelector('[data-fc-db-sidebar-empty]');
+
+        if (!input || !list) {
+            if (emptyState) {
+                emptyState.classList.add('d-none');
+            }
+            return;
+        }
+
+        var items = Array.prototype.slice.call(list.querySelectorAll('[data-fc-db-table-label]'));
+        if (!items.length) {
+            if (emptyState) {
+                emptyState.classList.remove('d-none');
+            }
+            return;
+        }
+
+        var filter = function () {
+            var term = input.value.trim().toLowerCase();
+            var matches = 0;
+
+            items.forEach(function (item) {
+                var name = (item.getAttribute('data-fc-db-table-name') || '').toLowerCase();
+                var match = term === '' || name.indexOf(term) !== -1;
+                item.classList.toggle('d-none', !match);
+                if (match) {
+                    matches += 1;
+                }
+            });
+
+            if (emptyState) {
+                emptyState.classList.toggle('d-none', matches > 0);
+            }
+        };
+
+        input.addEventListener('input', filter);
+        input.addEventListener('search', filter);
+        filter();
+
+        tableSearchTeardown = function () {
+            input.removeEventListener('input', filter);
+            input.removeEventListener('search', filter);
+        };
     }
 
     function submitReorderForm(form, list, fallbackOrder) {
@@ -1527,7 +2175,13 @@ SQL;
     }
 
     function initColumnSortables() {
-        var lists = document.querySelectorAll('[data-fc-db-columns]');
+        var root = getEditorRoot();
+        if (!root) {
+            destroyColumnSortables();
+            return;
+        }
+
+        var lists = root.querySelectorAll('[data-fc-db-columns]');
         if (!lists.length) {
             destroyColumnSortables();
             return;
@@ -1546,7 +2200,7 @@ SQL;
                 list.dataset.fcDbInitialOrder = order.join(',');
 
                 var sortable = new window.Sortable(list, {
-                    animation: 150,
+                    animation: 0,
                     handle: '[data-fc-db-reorder-handle]',
                     ghostClass: 'fc-db-reorder-ghost',
                     chosenClass: 'fc-db-reorder-chosen',
@@ -1558,6 +2212,8 @@ SQL;
 
                 columnSortables.push(sortable);
             });
+
+            scrollActiveTableIntoView();
         });
     }
 
@@ -1737,6 +2393,9 @@ SQL;
 
         current.replaceWith(updated);
         initColumnSortables();
+        initTableSearch();
+        updateHeroFromActiveLink();
+        scrollActiveTableIntoView();
         return true;
     }
 
@@ -1821,13 +2480,21 @@ SQL;
 
     document.addEventListener('click', function (event) {
         var trigger = event.target.closest('[data-fc-inline-trigger]');
-        if (!trigger) {
+        if (trigger) {
+            event.preventDefault();
+            var container = trigger.closest('[data-fc-inline-container]');
+            if (container) {
+                showForm(container);
+            }
             return;
         }
-        event.preventDefault();
-        var container = trigger.closest('[data-fc-inline-container]');
-        if (container) {
-            showForm(container);
+
+        var tableLink = event.target.closest('[data-fc-db-table-label]');
+        if (tableLink) {
+            window.setTimeout(function () {
+                updateHeroFromLink(tableLink);
+                scrollActiveTableIntoView(tableLink);
+            }, 120);
         }
     });
 
@@ -1905,7 +2572,18 @@ SQL;
         });
     });
 
+    document.addEventListener('shown.bs.tab', function (event) {
+        var target = event.target;
+        if (target && target.matches('[data-fc-db-table-label]')) {
+            updateHeroFromLink(target);
+            scrollActiveTableIntoView(target);
+        }
+    });
+
     initColumnSortables();
+    initTableSearch();
+    updateHeroFromActiveLink();
+    scrollActiveTableIntoView();
     document.addEventListener('submit', handleAjaxSubmit, true);
 })();
 </script>
