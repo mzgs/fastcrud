@@ -22,6 +22,7 @@ class DatabseEditor
     private static bool $scriptInjected = false;
     private static bool $returnJsonResponse = false;
     private static ?string $activeTable = null;
+    private static bool $downloadHandled = false;
 
     public static function init(?array $dbConfig = null): void
     {
@@ -31,6 +32,7 @@ class DatabseEditor
         }
 
         self::$initialized = true;
+        self::maybeHandleDownloadEarly();
     }
 
     public static function render(): string
@@ -77,6 +79,23 @@ class DatabseEditor
             return;
         }
 
+        if ($action === 'download_database') {
+            if (self::$downloadHandled) {
+                return;
+            }
+
+            self::$downloadHandled = true;
+            try {
+                self::handleDownloadDatabase($connection, $driver);
+            } catch (PDOException $exception) {
+                self::$errors[] = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            } catch (RuntimeException $exception) {
+                self::$errors[] = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            }
+
+            return;
+        }
+
         self::markJsonResponseIfNeeded($action);
 
         try {
@@ -97,6 +116,33 @@ class DatabseEditor
         }
 
         self::respondJsonIfNeeded();
+    }
+
+    private static function maybeHandleDownloadEarly(): void
+    {
+        if (self::$downloadHandled) {
+            return;
+        }
+
+        if ((($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
+            return;
+        }
+
+        $action = isset($_POST['fc_db_editor_action']) ? trim((string) $_POST['fc_db_editor_action']) : '';
+        if ($action !== 'download_database') {
+            return;
+        }
+
+        try {
+            $connection = DB::connection();
+            $driver = self::detectDriver();
+            self::$downloadHandled = true;
+            self::handleDownloadDatabase($connection, $driver);
+        } catch (PDOException $exception) {
+            self::$errors[] = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        } catch (RuntimeException $exception) {
+            self::$errors[] = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        }
     }
 
     private static function markJsonResponseIfNeeded(string $action): void
@@ -201,6 +247,20 @@ class DatabseEditor
         if (self::$activeTable !== null && strcasecmp(self::$activeTable, $matched) === 0) {
             self::$activeTable = null;
         }
+    }
+
+    private static function handleDownloadDatabase(PDO $connection, string $driver): void
+    {
+        $dump = self::generateDatabaseDump($connection, $driver);
+
+        $filename = 'fastcrud-database-' . date('Ymd-His') . '.sql';
+        self::clearOutputBuffers();
+        header('Content-Type: application/sql; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . strlen($dump));
+
+        echo $dump;
+        exit;
     }
 
     private static function handleAddColumn(PDO $connection, string $driver): void
@@ -381,6 +441,215 @@ class DatabseEditor
         if (!self::$returnJsonResponse) {
             self::$messages[] = sprintf('Column order updated for "%s".', $table);
         }
+    }
+
+    private static function generateDatabaseDump(PDO $connection, string $driver): string
+    {
+        $header = [
+            '-- FastCRUD database export',
+            '-- Generated: ' . gmdate('Y-m-d\TH:i:s\Z'),
+            sprintf('-- Driver: %s', strtoupper($driver)),
+            '',
+        ];
+
+        $body = match ($driver) {
+            'mysql' => self::generateMysqlDump($connection),
+            'sqlite' => self::generateSqliteDump($connection),
+            default => throw new RuntimeException('Database downloads are currently supported for MySQL and SQLite connections only.'),
+        };
+
+        return implode("\n", $header) . $body;
+    }
+
+    private static function generateMysqlDump(PDO $connection): string
+    {
+        $tables = self::fetchMysqlTables($connection);
+        if ($tables === []) {
+            return "-- No tables found for this MySQL connection.\n";
+        }
+
+        $lines = [
+            'SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";',
+            'SET FOREIGN_KEY_CHECKS = 0;',
+            '',
+        ];
+
+        foreach ($tables as $table) {
+            $quotedTable = self::quoteIdentifier($table, 'mysql');
+            $lines[] = sprintf('-- Table structure for %s', $quotedTable);
+            $lines[] = sprintf('DROP TABLE IF EXISTS %s;', $quotedTable);
+            $lines[] = self::fetchMysqlCreateStatement($connection, $table) . ';';
+            $lines[] = '';
+
+            $rows = self::fetchTableData($connection, 'mysql', $table);
+            $lines = array_merge($lines, self::buildInsertStatements($connection, 'mysql', $table, $quotedTable, $rows));
+        }
+
+        $lines[] = 'SET FOREIGN_KEY_CHECKS = 1;';
+        $lines[] = '';
+
+        return implode("\n", $lines);
+    }
+
+    private static function generateSqliteDump(PDO $connection): string
+    {
+        $tables = self::fetchSqliteTables($connection);
+        if ($tables === []) {
+            return "-- No tables found for this SQLite connection.\n";
+        }
+
+        $lines = [
+            'PRAGMA foreign_keys=OFF;',
+            '',
+        ];
+
+        foreach ($tables as $table) {
+            $quotedTable = self::quoteIdentifier($table, 'sqlite');
+            $lines[] = sprintf('-- Table structure for %s', $quotedTable);
+            $lines[] = sprintf('DROP TABLE IF EXISTS %s;', $quotedTable);
+            $lines[] = self::fetchSqliteCreateStatement($connection, $table) . ';';
+            $lines[] = '';
+
+            $rows = self::fetchTableData($connection, 'sqlite', $table);
+            $lines = array_merge($lines, self::buildInsertStatements($connection, 'sqlite', $table, $quotedTable, $rows));
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private static function fetchMysqlCreateStatement(PDO $connection, string $table): string
+    {
+        $sql = sprintf('SHOW CREATE TABLE %s', self::quoteIdentifier($table, 'mysql'));
+        $statement = $connection->query($sql);
+        if ($statement === false) {
+            throw new RuntimeException(sprintf('Unable to fetch CREATE statement for table "%s".', $table));
+        }
+
+        $result = $statement->fetch(PDO::FETCH_ASSOC);
+        if ($result === false) {
+            throw new RuntimeException(sprintf('Unable to fetch CREATE statement for table "%s".', $table));
+        }
+
+        foreach ($result as $key => $value) {
+            if (stripos((string) $key, 'create') !== false && is_string($value)) {
+                return $value;
+            }
+        }
+
+        throw new RuntimeException(sprintf('Unable to fetch CREATE statement for table "%s".', $table));
+    }
+
+    private static function fetchSqliteCreateStatement(PDO $connection, string $table): string
+    {
+        $statement = $connection->prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = :name");
+        if ($statement === false) {
+            throw new RuntimeException(sprintf('Unable to fetch CREATE statement for table "%s".', $table));
+        }
+
+        $statement->execute(['name' => $table]);
+        $result = $statement->fetch(PDO::FETCH_ASSOC);
+        if ($result === false) {
+            throw new RuntimeException(sprintf('Unable to fetch CREATE statement for table "%s".', $table));
+        }
+
+        $create = $result['sql'] ?? null;
+        if (!is_string($create) || $create === '') {
+            throw new RuntimeException(sprintf('Unable to fetch CREATE statement for table "%s".', $table));
+        }
+
+        return $create;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<string>
+     */
+    private static function buildInsertStatements(PDO $connection, string $driver, string $table, string $quotedTable, array $rows): array
+    {
+        if ($rows === []) {
+            return [
+                sprintf('-- No rows for %s', $quotedTable),
+                '',
+            ];
+        }
+
+        $columnNames = array_keys($rows[0]);
+        $columnList = implode(', ', array_map(static function (string $column) use ($driver): string {
+            return self::quoteIdentifier($column, $driver);
+        }, $columnNames));
+
+        $lines = [];
+        foreach (array_chunk($rows, 100) as $chunk) {
+            $valueRows = [];
+            foreach ($chunk as $row) {
+                $values = [];
+                foreach ($columnNames as $column) {
+                    $values[] = self::formatValueForInsert($connection, $row[$column] ?? null);
+                }
+                $valueRows[] = '(' . implode(', ', $values) . ')';
+            }
+
+            $lines[] = sprintf(
+                'INSERT INTO %s (%s) VALUES\n  %s;',
+                $quotedTable,
+                $columnList,
+                implode(",\n  ", $valueRows)
+            );
+        }
+
+        $lines[] = '';
+
+        return $lines;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function fetchTableData(PDO $connection, string $driver, string $table): array
+    {
+        $sql = sprintf('SELECT * FROM %s', self::quoteIdentifier($table, $driver));
+        $statement = $connection->query($sql);
+        if ($statement === false) {
+            return [];
+        }
+
+        $rows = [];
+        while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    private static function formatValueForInsert(PDO $connection, mixed $value): string
+    {
+        if ($value === null) {
+            return 'NULL';
+        }
+
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+
+        if (is_resource($value)) {
+            $stream = stream_get_contents($value);
+            if (!is_string($stream)) {
+                return 'NULL';
+            }
+
+            return "X'" . bin2hex($stream) . "'";
+        }
+
+        $quoted = $connection->quote((string) $value);
+        if ($quoted === false) {
+            return "'" . addslashes((string) $value) . "'";
+        }
+
+        return $quoted;
     }
 
     private static function fetchTables(PDO $connection, string $driver): array
@@ -674,6 +943,10 @@ SQL;
         $html .= '<section class="fastcrud-db-editor__tables">';
         $html .= '<div class="d-flex justify-content-between align-items-center mb-3">';
         $html .= '<h2 class="h5 mb-0">Schema Overview</h2>';
+        $html .= '<form method="post" class="ms-auto">';
+        $html .= '<input type="hidden" name="fc_db_editor_action" value="download_database">';
+        $html .= '<button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-download me-1"></i>Download database</button>';
+        $html .= '</form>';
         $html .= '</div>';
 
         if ($tables === []) {
@@ -1657,5 +1930,12 @@ HTML;
         }
 
         return preg_match('/^[A-Za-z0-9_(), \"\']+$/', $type) === 1;
+    }
+
+    private static function clearOutputBuffers(): void
+    {
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
     }
 }
