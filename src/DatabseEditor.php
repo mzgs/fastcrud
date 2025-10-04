@@ -1351,6 +1351,8 @@ SQL;
     --fc-db-border-strong: rgba(15, 23, 42, 0.18);
     --fc-db-muted: #6c757d;
     --fc-db-hero-gradient: linear-gradient(135deg, #2563eb 0%, #7c3aed 55%, #ec4899 110%);
+    --fc-db-accent: #2563eb;
+    --fc-db-accent-soft: rgba(37, 99, 235, 0.12);
     position: relative;
     z-index: 0;
     color: var(--bs-body-color);
@@ -1470,22 +1472,27 @@ SQL;
     border-radius: 999px;
 }
 .fc-db-table-link {
-    border: 0;
+    border: 1px solid transparent !important;
     border-radius: 0.75rem;
     margin: 0.35rem 0;
     padding: 0.9rem 1rem;
+    transition: background-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;
+    color: inherit;
 }
-.fc-db-table-link:hover {
-    background: rgba(37, 99, 235, 0.12);
+.fc-db-table-link:hover,
+.fc-db-table-link:focus,
+.fc-db-table-link.active {
+    background-color: var(--fc-db-accent-soft) !important;
+    background: var(--fc-db-accent-soft) !important;
+    color: inherit !important;
+}
+.fc-db-table-link:focus {
+    outline: none;
+    box-shadow: none !important;
 }
 .fc-db-table-link.active {
-    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
-    color: #fff;
-    box-shadow: 0 18px 36px rgba(79, 70, 229, 0.45);
-}
-.fc-db-table-link.active .badge {
-    background: rgba(255, 255, 255, 0.35);
-    color: #fff;
+    box-shadow: none !important;
+    border-color: transparent !important;
 }
 .fc-db-table-link .badge {
     border-radius: 999px;
@@ -1633,6 +1640,8 @@ SQL;
 .fastcrud-db-editor[data-bs-theme="dark"] {
     --fc-db-border: rgba(148, 163, 184, 0.24);
     --fc-db-border-strong: rgba(148, 163, 184, 0.32);
+    --fc-db-accent: #3b82f6;
+    --fc-db-accent-soft: rgba(59, 130, 246, 0.22);
     color: #e2e8f0;
 }
 :root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-hero__metric,
@@ -1667,12 +1676,7 @@ SQL;
 :root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table-link:hover,
 [data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table-link:hover,
 .fastcrud-db-editor[data-bs-theme="dark"] .fc-db-table-link:hover {
-    background: rgba(37, 99, 235, 0.22);
-}
-:root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table-link.active,
-[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-table-link.active,
-.fastcrud-db-editor[data-bs-theme="dark"] .fc-db-table-link.active {
-    box-shadow: 0 18px 36px rgba(79, 70, 229, 0.3);
+    background: var(--fc-db-accent-soft);
 }
 :root[data-bs-theme="dark"] .fastcrud-db-editor .fc-db-sidebar__header,
 [data-bs-theme="dark"] .fastcrud-db-editor .fc-db-sidebar__header,
@@ -1714,6 +1718,8 @@ SQL;
     :root[data-bs-theme="auto"] .fastcrud-db-editor {
         --fc-db-border: rgba(148, 163, 184, 0.24);
         --fc-db-border-strong: rgba(148, 163, 184, 0.32);
+        --fc-db-accent: #3b82f6;
+        --fc-db-accent-soft: rgba(59, 130, 246, 0.22);
         color: #e2e8f0;
     }
     :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-hero__metric,
@@ -1741,11 +1747,7 @@ SQL;
     }
     :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-table-link:hover,
     :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-table-link:hover {
-        background: rgba(37, 99, 235, 0.22);
-    }
-    :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-table-link.active,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-table-link.active {
-        box-shadow: 0 18px 36px rgba(79, 70, 229, 0.3);
+        background: var(--fc-db-accent-soft);
     }
     :root:not([data-bs-theme]) .fastcrud-db-editor .fc-db-sidebar__header,
     :root[data-bs-theme="auto"] .fastcrud-db-editor .fc-db-sidebar__header {
@@ -1784,6 +1786,7 @@ SQL;
     var sortableScriptCallbacks = [];
     var sortableScriptRequested = false;
     var tableSearchTeardown = null;
+    var suppressTableAutoScroll = false;
 
     function getEditorRoot() {
         return document.querySelector('.fastcrud-db-editor');
@@ -1956,6 +1959,11 @@ SQL;
     }
 
     function scrollActiveTableIntoView(link) {
+        if (suppressTableAutoScroll) {
+            suppressTableAutoScroll = false;
+            return;
+        }
+
         var root = getEditorRoot();
         if (!root) {
             return;
@@ -1971,15 +1979,23 @@ SQL;
             return;
         }
 
+        var containerRect = container.getBoundingClientRect();
+        var targetRect = target.getBoundingClientRect();
+        var buffer = 8;
+        var needsScroll = targetRect.top < (containerRect.top + buffer)
+            || targetRect.bottom > (containerRect.bottom - buffer);
+
+        if (!needsScroll) {
+            return;
+        }
+
         try {
             target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         } catch (scrollError) {
-            var containerRect = container.getBoundingClientRect();
-            var targetRect = target.getBoundingClientRect();
-            if (targetRect.top < containerRect.top) {
-                container.scrollTop -= (containerRect.top - targetRect.top) + 16;
-            } else if (targetRect.bottom > containerRect.bottom) {
-                container.scrollTop += (targetRect.bottom - containerRect.bottom) + 16;
+            if (targetRect.top < containerRect.top + buffer) {
+                container.scrollTop -= (containerRect.top - targetRect.top) + buffer;
+            } else if (targetRect.bottom > containerRect.bottom - buffer) {
+                container.scrollTop += (targetRect.bottom - containerRect.bottom) + buffer;
             }
         }
     }
@@ -2493,10 +2509,8 @@ SQL;
 
         var tableLink = event.target.closest('[data-fc-db-table-label]');
         if (tableLink) {
-            window.setTimeout(function () {
-                updateHeroFromLink(tableLink);
-                scrollActiveTableIntoView(tableLink);
-            }, 120);
+            suppressTableAutoScroll = true;
+            updateHeroFromLink(tableLink);
         }
     });
 
