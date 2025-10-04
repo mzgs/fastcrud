@@ -995,10 +995,6 @@ SQL;
                 $html .= '<p class="mb-0 text-white-50 small">' . $connectionDisplay . '</p>';
             }
             $html .= '</div>';
-            $html .= '<form method="post" class="ms-lg-auto">';
-            $html .= '<input type="hidden" name="fc_db_editor_action" value="download_database">';
-            $html .= '<button type="submit" class="btn btn-dark fw-semibold shadow-sm px-3 py-2"><i class="bi bi-download me-2"></i>Download export</button>';
-            $html .= '</form>';
             $html .= '</div>';
             $html .= '<div class="fc-db-hero__metrics mt-2">';
             $html .= '<div class="fc-db-hero__metric">';
@@ -1029,6 +1025,16 @@ SQL;
                 $html .= '</span>';
                 $html .= '</div>';
             }
+            $html .= '<div class="fc-db-hero__metric fc-db-hero__metric--action">';
+            $html .= '<form method="post" class="w-100">';
+            $html .= '<input type="hidden" name="fc_db_editor_action" value="download_database">';
+            $html .= '<button type="submit" class="btn p-0 border-0 bg-transparent text-white w-100 h-100 d-flex align-items-center text-decoration-none position-relative overflow-hidden" style="transition: all 0.2s ease; backdrop-filter: blur(8px); gap: 0.35rem;" onmouseover="this.style.background=\'rgba(255,255,255,0.1)\'; this.style.transform=\'translateY(-1px)\'" onmouseout="this.style.background=\'transparent\'; this.style.transform=\'translateY(0)\'">';
+            $html .= '<span class="fc-db-hero__metric-icon text-white"><i class="bi bi-cloud-download"></i></span>';
+            $html .= '<span class="fc-db-hero__metric-text text-start"><span class="fc-db-hero__metric-value fw-semibold">Download</span><span class="fc-db-hero__metric-label opacity-75">Database export</span></span>';
+            $html .= '<span class="position-absolute top-0 end-0 bottom-0 start-0 rounded" style="background: linear-gradient(45deg, transparent 49%, rgba(255,255,255,0.05) 50%, transparent 51%); animation: shimmer 2s infinite;"></span>';
+            $html .= '</button>';
+            $html .= '</form>';
+            $html .= '</div>';
             $html .= '</div>';
             $html .= '</div>';
             $html .= '</section>';
@@ -1743,6 +1749,33 @@ SQL;
         --fc-db-muted: rgba(226, 232, 240, 0.78);
         color: rgba(226, 232, 240, 0.92);
     }
+}
+
+/* Enhanced download export button styling */
+.fc-db-hero__metric--action {
+    position: relative;
+}
+
+.fc-db-hero__metric--action:hover {
+    transform: translateY(-1px);
+}
+
+.fc-db-hero__metric--action button:focus {
+    outline: 2px solid rgba(34, 197, 94, 0.5);
+    outline-offset: 2px;
+}
+
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+.fc-db-hero__metric--action:hover .shimmer {
+    animation-play-state: running;
 }
 </style>
 <script>
