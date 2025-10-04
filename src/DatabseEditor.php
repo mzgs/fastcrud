@@ -1113,9 +1113,6 @@ SQL;
                 $columns = $tableColumns[$table] ?? [];
                 $columnCount = count($columns);
                 $columnSummary = $columnCount === 1 ? '1 column' : $columnCount . ' columns';
-                $tipMessage = $reorderEnabled
-                    ? 'Drag the handle to reorder columns. Click a column name to rename it or use the type badge to adjust definitions.'
-                    : 'Click a column name to rename it or use the type badge to adjust definitions.';
                 $html .= '<div class="tab-pane fade' . $isActive . '" id="' . $tabId . '" role="tabpanel" aria-labelledby="tab-' . $tabId . '">';
                 $html .= '<div class="fc-db-table card border-0 shadow-sm">';
                 $html .= '<div class="fc-db-table__header border-bottom p-4 d-flex flex-column flex-lg-row align-items-lg-center gap-3">';
@@ -1138,7 +1135,6 @@ SQL;
                 $html .= '</form>';
                 $html .= '</div>';
                 $html .= '<div class="fc-db-table__body p-4">';
-                $html .= '<div class="alert alert-info fc-db-table__tip" role="alert">' . $tipMessage . '</div>';
                 if ($columns === []) {
                     $html .= '<div class="fc-db-empty-state card border-0 bg-body-tertiary text-center py-5">';
                     $html .= '<div class="text-muted mb-2"><i class="bi bi-columns-gap fs-3"></i></div>';
@@ -1570,12 +1566,6 @@ SQL;
 .fc-db-table__header {
     background: var(--fc-db-surface-muted);
     border-bottom: 1px solid var(--fc-db-border);
-}
-.fc-db-table__tip {
-    border-radius: var(--fc-db-radius);
-    border: 1px solid var(--fc-db-table-tip-border);
-    background: var(--fc-db-table-tip-bg);
-    color: var(--fc-db-accent);
 }
 .fc-db-columns-table thead th {
     font-size: 0.72rem;
