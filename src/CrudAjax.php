@@ -541,7 +541,17 @@ class CrudAjax
     private static function handleExportExcel(array $request): void
     {
         $dataset = self::buildExportDataset($request);
-        $content = self::generateCsvContent($dataset['columns'], $dataset['rows'], $dataset['labels']);
+        // Excel is more consistent with tab-delimited content across locales.
+        // Include a `sep=\t` directive so Excel honors the delimiter even on locales
+        // that default to semicolons.
+        $content = self::generateCsvContent(
+            $dataset['columns'],
+            $dataset['rows'],
+            $dataset['labels'],
+            "\t",
+            '"',
+            'sep=\t'
+        );
         $filename = self::buildExportFilename($dataset['table'], 'xls');
 
         self::respondFile($filename, 'application/vnd.ms-excel; charset=utf-8', $content);
@@ -654,7 +664,14 @@ class CrudAjax
      * @param array<int, array<string, mixed>> $rows
      * @param array<string, string> $labels
      */
-    private static function generateCsvContent(array $columns, array $rows, array $labels, string $delimiter = ',', string $enclosure = '"'): string
+    private static function generateCsvContent(
+        array $columns,
+        array $rows,
+        array $labels,
+        string $delimiter = ',',
+        string $enclosure = '"',
+        ?string $preamble = null
+    ): string
     {
         $stream = fopen('php://temp', 'w+');
         if ($stream === false) {
@@ -662,6 +679,10 @@ class CrudAjax
         }
 
         fwrite($stream, "\xEF\xBB\xBF");
+
+        if ($preamble !== null && $preamble !== '') {
+            fwrite($stream, $preamble . "\r\n");
+        }
 
         $header = [];
         foreach ($columns as $column) {
