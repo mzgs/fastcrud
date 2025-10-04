@@ -35,7 +35,7 @@ class DatabseEditor
         self::maybeHandleDownloadEarly();
     }
 
-    public static function render(): string
+    public static function render(bool $showHeader = true): string
     {
         if (!self::$initialized) {
             self::init();
@@ -53,7 +53,7 @@ class DatabseEditor
 
         $activeTable = self::resolveActiveTable($tables);
 
-        return self::renderHtml($tables, $tableColumns, $driver, $activeTable);
+        return self::renderHtml($tables, $tableColumns, $driver, $activeTable, $showHeader);
     }
 
     private static function detectDriver(): string
@@ -927,7 +927,7 @@ SQL;
         return self::$activeTable;
     }
 
-    private static function renderHtml(array $tables, array $tableColumns, string $driver, ?string $activeTable): string
+    private static function renderHtml(array $tables, array $tableColumns, string $driver, ?string $activeTable, bool $showHeader): string
     {
         if ($activeTable !== null && !in_array($activeTable, $tables, true)) {
             $activeTable = null;
@@ -980,54 +980,56 @@ SQL;
         $html = '<div class="fastcrud-db-editor">';
         $html .= '<div class="fastcrud-db-editor__feedback" data-fc-db-feedback>' . self::renderFeedbackHtml() . '</div>';
 
-        $html .= '<section class="fc-db-editor-hero position-relative overflow-hidden rounded-4 shadow-sm">';
-        $html .= '<div class="fc-db-hero__backdrop"></div>';
-        $html .= '<div class="fc-db-hero__content p-3 p-lg-4">';
-        $html .= '<div class="fc-db-hero__header d-flex flex-column flex-lg-row align-items-lg-center gap-2">';
-        $html .= '<div class="fc-db-hero__title">';
-        $html .= '<span class="fc-db-hero__eyebrow text-uppercase small text-white-50">Schema overview</span>';
-        $html .= '<h2 class="h3 text-white mb-1"><i class="bi bi-database me-2"></i>' . $databaseHeading . '</h2>';
-        if ($connectionDisplay !== '') {
-            $html .= '<p class="mb-0 text-white-50 small">' . $connectionDisplay . '</p>';
-        }
-        $html .= '</div>';
-        $html .= '<form method="post" class="ms-lg-auto">';
-        $html .= '<input type="hidden" name="fc_db_editor_action" value="download_database">';
-        $html .= '<button type="submit" class="btn btn-light fw-semibold shadow-sm px-3 py-2"><i class="bi bi-download me-2"></i>Download export</button>';
-        $html .= '</form>';
-        $html .= '</div>';
-        $html .= '<div class="fc-db-hero__metrics mt-2">';
-        $html .= '<div class="fc-db-hero__metric">';
-        $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-diagram-3"></i></span>';
-        $html .= '<span class="fc-db-hero__metric-text"><span class="fc-db-hero__metric-value">' . $tableCountFormatted . '</span><span class="fc-db-hero__metric-label">' . ($tableCount === 1 ? 'Table' : 'Tables') . '</span></span>';
-        $html .= '</div>';
-        $html .= '<div class="fc-db-hero__metric">';
-        $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-layout-text-window"></i></span>';
-        $html .= '<span class="fc-db-hero__metric-text"><span class="fc-db-hero__metric-value">' . $totalColumnsFormatted . '</span><span class="fc-db-hero__metric-label">Columns</span></span>';
-        $html .= '</div>';
-        $html .= '<div class="fc-db-hero__metric">';
-        $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-cpu"></i></span>';
-        $html .= '<span class="fc-db-hero__metric-text"><span class="fc-db-hero__metric-value">' . $driverLabelEscaped . '</span><span class="fc-db-hero__metric-label">Driver</span></span>';
-        $html .= '</div>';
-        if ($activeTableLabel !== null) {
-            $activeTableColumnCount = 0;
-            if ($activeTable !== null) {
-                $activeTableColumnCount = count($tableColumns[$activeTable] ?? []);
+        if ($showHeader) {
+            $html .= '<section class="fc-db-editor-hero position-relative overflow-hidden rounded-4 shadow-sm">';
+            $html .= '<div class="fc-db-hero__backdrop"></div>';
+            $html .= '<div class="fc-db-hero__content p-3 p-lg-4">';
+            $html .= '<div class="fc-db-hero__header d-flex flex-column flex-lg-row align-items-lg-center gap-2">';
+            $html .= '<div class="fc-db-hero__title">';
+            $html .= '<span class="fc-db-hero__eyebrow text-uppercase small text-white-50">Schema overview</span>';
+            $html .= '<h2 class="h3 text-white mb-1"><i class="bi bi-database me-2"></i>' . $databaseHeading . '</h2>';
+            if ($connectionDisplay !== '') {
+                $html .= '<p class="mb-0 text-white-50 small">' . $connectionDisplay . '</p>';
             }
-            $activeTableColumnCountLabel = $activeTableColumnCount === 1 ? '1 column' : $activeTableColumnCount . ' columns';
-            $activeTableColumnCountLabelEscaped = htmlspecialchars($activeTableColumnCountLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            $activeTableColumnCountAttr = htmlspecialchars((string) $activeTableColumnCount, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            $html .= '<div class="fc-db-hero__metric">';
-            $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-lightning-charge"></i></span>';
-            $html .= '<span class="fc-db-hero__metric-text">';
-            $html .= '<span class="fc-db-hero__metric-value" data-fc-db-active-table data-fc-db-active-default="' . $activeTableLabel . '">' . $activeTableLabel . '</span>';
-            $html .= '<span class="fc-db-hero__metric-label">Active table &middot; <span data-fc-db-active-count data-fc-db-active-count-value="' . $activeTableColumnCountAttr . '">' . $activeTableColumnCountLabelEscaped . '</span></span>';
-            $html .= '</span>';
             $html .= '</div>';
+            $html .= '<form method="post" class="ms-lg-auto">';
+            $html .= '<input type="hidden" name="fc_db_editor_action" value="download_database">';
+            $html .= '<button type="submit" class="btn btn-light fw-semibold shadow-sm px-3 py-2"><i class="bi bi-download me-2"></i>Download export</button>';
+            $html .= '</form>';
+            $html .= '</div>';
+            $html .= '<div class="fc-db-hero__metrics mt-2">';
+            $html .= '<div class="fc-db-hero__metric">';
+            $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-diagram-3"></i></span>';
+            $html .= '<span class="fc-db-hero__metric-text"><span class="fc-db-hero__metric-value">' . $tableCountFormatted . '</span><span class="fc-db-hero__metric-label">' . ($tableCount === 1 ? 'Table' : 'Tables') . '</span></span>';
+            $html .= '</div>';
+            $html .= '<div class="fc-db-hero__metric">';
+            $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-layout-text-window"></i></span>';
+            $html .= '<span class="fc-db-hero__metric-text"><span class="fc-db-hero__metric-value">' . $totalColumnsFormatted . '</span><span class="fc-db-hero__metric-label">Columns</span></span>';
+            $html .= '</div>';
+            $html .= '<div class="fc-db-hero__metric">';
+            $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-cpu"></i></span>';
+            $html .= '<span class="fc-db-hero__metric-text"><span class="fc-db-hero__metric-value">' . $driverLabelEscaped . '</span><span class="fc-db-hero__metric-label">Driver</span></span>';
+            $html .= '</div>';
+            if ($activeTableLabel !== null) {
+                $activeTableColumnCount = 0;
+                if ($activeTable !== null) {
+                    $activeTableColumnCount = count($tableColumns[$activeTable] ?? []);
+                }
+                $activeTableColumnCountLabel = $activeTableColumnCount === 1 ? '1 column' : $activeTableColumnCount . ' columns';
+                $activeTableColumnCountLabelEscaped = htmlspecialchars($activeTableColumnCountLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $activeTableColumnCountAttr = htmlspecialchars((string) $activeTableColumnCount, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $html .= '<div class="fc-db-hero__metric">';
+                $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-lightning-charge"></i></span>';
+                $html .= '<span class="fc-db-hero__metric-text">';
+                $html .= '<span class="fc-db-hero__metric-value" data-fc-db-active-table data-fc-db-active-default="' . $activeTableLabel . '">' . $activeTableLabel . '</span>';
+                $html .= '<span class="fc-db-hero__metric-label">Active table &middot; <span data-fc-db-active-count data-fc-db-active-count-value="' . $activeTableColumnCountAttr . '">' . $activeTableColumnCountLabelEscaped . '</span></span>';
+                $html .= '</span>';
+                $html .= '</div>';
+            }
+            $html .= '</div>';
+            $html .= '</div>';
+            $html .= '</section>';
         }
-        $html .= '</div>';
-        $html .= '</div>';
-        $html .= '</section>';
 
         if ($tables === []) {
             $html .= '<section class="fc-db-editor-empty card border-0 shadow-sm mt-4">';

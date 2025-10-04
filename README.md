@@ -221,7 +221,7 @@ echo DatabseEditor::render();
   ```
 
 ##### Rendering
-- **`DatabseEditor::render(): string`** – Generate and return the complete database editor HTML interface
+- **`DatabseEditor::render(bool $showHeader = true): string`** – Generate and return the complete database editor HTML interface. Pass `false` to omit the hero header block.
   ```php
   $editorHtml = DatabseEditor::render();
   echo $editorHtml;
