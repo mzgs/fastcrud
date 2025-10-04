@@ -1586,6 +1586,10 @@ SQL;
 .fc-db-columns-table td,
 .fc-db-columns-table th {
     border-color: var(--fc-db-table-divider);
+    height: 3.0rem;
+    vertical-align: middle;
+    padding-top: 0.125rem;
+    padding-bottom: 0.125rem;
 }
 .fc-db-columns-table .badge {
     font-size: 0.7rem;
@@ -1658,7 +1662,7 @@ SQL;
 }
 .fastcrud-db-editor .fc-db-inline-form input,
 .fastcrud-db-editor .fc-db-inline-form select {
-    min-width: 180px;
+     
 }
 .fastcrud-db-editor.fc-db-editor-loading {
     pointer-events: none;
