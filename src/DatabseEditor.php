@@ -1224,7 +1224,7 @@ SQL;
                         $html .= '</div>';
                         $html .= '</th>';
                         $html .= '<td class="align-middle" data-fc-inline-container="type">';
-                        $html .= '<span class="badge rounded-pill bg-primary-subtle text-primary fc-db-inline-trigger font-monospace" data-fc-inline-trigger role="button" tabindex="0" title="Change column type">' . $typeEscaped . '</span>';
+                        $html .= '<span class="badge rounded-pill bg-primary-subtle text-primary fc-db-inline-trigger font-monospace fc-db-column-type" data-fc-inline-trigger role="button" tabindex="0" title="' . $typeEscaped . '" aria-label="Change column type">' . $typeEscaped . '</span>';
                         $html .= '<form method="post" class="fc-db-inline-form d-flex align-items-center gap-2 d-none" data-fc-inline-form data-fc-db-editor-form>';
                         $html .= '<input type="hidden" name="fc_db_editor_action" value="change_column_type">';
                         $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
@@ -1626,6 +1626,14 @@ SQL;
 }
 .fc-db-columns-table .badge {
     font-size: 0.7rem;
+}
+.fastcrud-db-editor .fc-db-column-type {
+    max-width: 12rem;
+    display: inline-block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
 }
 .fc-db-columns-table [data-fc-inline-trigger] {
     padding-inline: 0.25rem;
