@@ -106,6 +106,7 @@ class DatabseEditor
                 'add_column' => self::handleAddColumn($connection, $driver),
                 'rename_column' => self::handleRenameColumn($connection, $driver),
                 'change_column_type' => self::handleChangeColumnType($connection, $driver),
+                'delete_column' => self::handleDeleteColumn($connection, $driver),
                 'reorder_columns' => self::handleReorderColumns($connection, $driver),
                 default => null,
             };
@@ -360,6 +361,27 @@ class DatabseEditor
 
         $connection->exec($sql);
         self::$messages[] = sprintf('Column "%s" type updated for "%s".', $column, $table);
+    }
+
+    private static function handleDeleteColumn(PDO $connection, string $driver): void
+    {
+        $table = isset($_POST['table_name']) ? trim((string) $_POST['table_name']) : '';
+        $column = isset($_POST['column_name']) ? trim((string) $_POST['column_name']) : '';
+
+        if (!self::isValidIdentifier($table) || !self::isValidIdentifier($column)) {
+            throw new RuntimeException('Table and column names must contain only letters, numbers, or underscores.');
+        }
+
+        self::$activeTable = $table;
+
+        $sql = sprintf(
+            'ALTER TABLE %s DROP COLUMN %s',
+            self::quoteIdentifier($table, $driver),
+            self::quoteIdentifier($column, $driver)
+        );
+
+        $connection->exec($sql);
+        self::$messages[] = sprintf('Column "%s" deleted from "%s".', $column, $table);
     }
 
     private static function handleReorderColumns(PDO $connection, string $driver): void
@@ -1159,6 +1181,7 @@ SQL;
                     $html .= '<th scope="col" class="text-center text-muted text-uppercase small">Nullable</th>';
                     $html .= '<th scope="col" class="text-muted text-uppercase small">Default</th>';
                     $html .= '<th scope="col" class="text-muted text-uppercase small">Extra</th>';
+                    $html .= '<th scope="col" class="text-end text-muted text-uppercase small">Delete</th>';
                     $html .= '</tr>';
                     $html .= '</thead>';
                     $tbodyAttributes = $reorderEnabled ? ' data-fc-db-columns data-fc-db-table="' . $tableEscaped . '"' : '';
@@ -1212,6 +1235,16 @@ SQL;
                         $html .= '<td class="text-center align-middle">' . $nullableBadge . '</td>';
                         $html .= '<td class="align-middle small text-muted">' . ($defaultEscaped !== '' ? $defaultEscaped : '<span class="text-body-secondary">—</span>') . '</td>';
                         $html .= '<td class="align-middle small text-muted">' . ($extraEscaped !== '' ? $extraEscaped : '<span class="text-body-secondary">—</span>') . '</td>';
+                        $confirmDeleteColumn = htmlspecialchars(sprintf('Delete column "%s" from "%s"? This action cannot be undone.', $columnName, $table), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                        $deleteAriaLabel = htmlspecialchars(sprintf('Delete column %s from %s', $columnName, $table), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                        $html .= '<td class="text-end align-middle">';
+                        $html .= '<form method="post" class="d-inline" data-fc-db-editor-form>';
+                        $html .= '<input type="hidden" name="fc_db_editor_action" value="delete_column">';
+                        $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
+                        $html .= '<input type="hidden" name="column_name" value="' . $columnEscaped . '">';
+                        $html .= '<button type="submit" class="btn btn-outline-danger btn-sm" data-fc-db-confirm="' . $confirmDeleteColumn . '" title="Delete column" aria-label="' . $deleteAriaLabel . '"><i class="bi bi-trash"></i></button>';
+                        $html .= '</form>';
+                        $html .= '</td>';
                         $html .= '</tr>';
                     }
                     $html .= '</tbody></table>';
