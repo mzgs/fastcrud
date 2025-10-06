@@ -73,7 +73,7 @@ class CrudStyle
     public static string $delete_action_icon = 'fas fa-trash';
 
     /** @var string Icon class for duplicate action buttons. */
-    public static string $duplicate_action_icon = 'fas fa-copy';
+    public static string $duplicate_action_icon = 'far fa-copy';
 
     /** @var string Icon class for expand nested records. */
     public static string $expand_action_icon = 'fas fa-chevron-down';
