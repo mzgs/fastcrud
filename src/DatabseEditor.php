@@ -1006,7 +1006,8 @@ SQL;
         $html .= '<div class="fastcrud-db-editor__feedback" data-fc-db-feedback>' . self::renderFeedbackHtml() . '</div>';
 
         if ($showHeader) {
-            $html .= '<section class="fc-db-editor-hero d-flex align-items-center justify-content-between px-3 py-2 rounded-3">';
+            $html .= '<div class="card">';
+            $html .= '<section class="fc-db-editor-hero d-flex align-items-center justify-content-between px-3 py-2">';
             $html .= '<div class="d-flex align-items-center gap-3">';
             $html .= '<div class="fc-db-hero__title d-flex align-items-center gap-2">';
             $html .= '<i class="bi bi-database text-white fs-5"></i>';
@@ -1035,6 +1036,7 @@ SQL;
             $html .= '</button>';
             $html .= '</form>';
             $html .= '</section>';
+            $html .= '</div>';
         }
 
         if ($tables === []) {
@@ -1063,7 +1065,8 @@ SQL;
             $html .= '<section class="fc-db-editor-workspace mt-4">';
             $html .= '<div class="row g-4 align-items-start">';
             $html .= '<div class="col-12 col-xl-4 col-xxl-3">';
-            $html .= '<aside class="fc-db-editor-sidebar card border-0 shadow-sm h-100">';
+            $html .= '<div class="card h-100">';
+            $html .= '<aside class="fc-db-editor-sidebar">';
             $html .= '<div class="fc-db-sidebar__header border-bottom p-3">';
             $html .= '<div class="d-flex align-items-center justify-content-between">';
             $html .= '<h3 class="h6 mb-0 text-body-secondary text-uppercase">Tables</h3>';
@@ -1093,7 +1096,7 @@ SQL;
             $html .= '</div>';
             $html .= '<div class="fc-db-sidebar__empty text-center text-muted small py-4 d-none" data-fc-db-sidebar-empty role="status" aria-live="polite">No tables matched your search.</div>';
             $html .= '</div>';
-            $html .= '<div class="fc-db-sidebar__footer border-top p-3">';
+            $html .= '<div class="fc-db-sidebar__footer border-top p-3">'; 
             $html .= '<form method="post" class="row g-2 align-items-end" data-fc-db-editor-form>';
             $html .= '<input type="hidden" name="fc_db_editor_action" value="add_table">';
             $html .= '<div class="col">';
@@ -1106,6 +1109,7 @@ SQL;
             $html .= '</form>';
             $html .= '</div>';
             $html .= '</aside>';
+            $html .= '</div>';
             $html .= '</div>';
             $html .= '<div class="col-12 col-xl-8 col-xxl-9">';
             $html .= '<div class="tab-content fc-db-editor-tab-content" id="fc-db-editor-table-content">';
@@ -1375,36 +1379,13 @@ SQL;
 .fastcrud-db-editor {
     --fc-db-radius: 1rem;
     --fc-db-radius-lg: 1.75rem;
-    --fc-db-border: rgba(var(--bs-body-color-rgb, 15, 23, 42), 0.08);
-    --fc-db-border-strong: rgba(var(--bs-body-color-rgb, 15, 23, 42), 0.18);
-    --fc-db-muted: rgba(var(--bs-body-color-rgb, 108, 117, 125), 0.85);
-    --fc-db-hero-gradient: linear-gradient(135deg, #2563eb 0%, #7c3aed 55%, #ec4899 110%);
-    --fc-db-accent: rgb(var(--bs-primary-rgb, 37, 99, 235));
-    --fc-db-accent-soft: rgba(var(--bs-primary-rgb, 37, 99, 235), 0.12);
-    --fc-db-surface: var(--bs-card-bg, #ffffff);
-    --fc-db-surface-muted: rgba(var(--bs-body-color-rgb, 15, 23, 42), 0.04);
-    --fc-db-surface-strong: rgba(var(--bs-body-color-rgb, 15, 23, 42), 0.08);
-    --fc-db-row-hover: rgba(var(--bs-primary-rgb, 37, 99, 235), 0.08);
-    --fc-db-badge-bg: rgba(var(--bs-body-color-rgb, 15, 23, 42), 0.07);
-    --fc-db-hero-metric-bg: rgba(255, 255, 255, 0.18);
-    --fc-db-hero-metric-icon-bg: rgba(255, 255, 255, 0.22);
-    --fc-db-empty-bg: rgba(var(--bs-body-color-rgb, 15, 23, 42), 0.03);
-    --fc-db-table-tip-bg: rgba(var(--bs-primary-rgb, 37, 99, 235), 0.08);
-    --fc-db-table-tip-border: rgba(var(--bs-primary-rgb, 37, 99, 235), 0.2);
-    --fc-db-table-divider: rgba(var(--bs-body-color-rgb, 148, 163, 184), 0.22);
-    --fc-db-loading-overlay: rgba(255, 255, 255, 0.65);
     position: relative;
     z-index: 0;
-    color: var(--bs-body-color);
 }
 .fastcrud-db-editor .card {
     border-radius: var(--fc-db-radius);
-    border-color: var(--fc-db-border);
 }
 .fc-db-editor-hero {
-    background: var(--fc-db-hero-gradient);
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.1);
     min-height: 3rem;
 }
 .fc-db-hero__metric-compact {
@@ -1413,11 +1394,8 @@ SQL;
 .fc-db-editor-sidebar {
     border: 1px solid var(--fc-db-border);
     border-radius: var(--fc-db-radius);
-    box-shadow: 0 24px 56px rgba(15, 23, 42, 0.12);
-    background: var(--fc-db-surface);
 }
 .fc-db-sidebar__header {
-    background: var(--fc-db-surface-muted);
     border-bottom: 1px solid var(--fc-db-border);
 }
 .fc-db-sidebar__list {
@@ -1429,7 +1407,6 @@ SQL;
     width: 0.55rem;
 }
 .fc-db-sidebar__list::-webkit-scrollbar-thumb {
-    background: rgba(99, 102, 241, 0.35);
     border-radius: 999px;
 }
 .fc-db-table-list {
@@ -1450,7 +1427,6 @@ SQL;
     margin: 0.25rem 0;
     padding: 0.5rem 0.75rem;
     transition: background-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;
-    color: inherit;
     text-decoration: none;
     width: 100%;
     background: var(--fc-db-surface);
@@ -1464,9 +1440,6 @@ SQL;
 .fc-db-table-link:hover,
 .fc-db-table-link:focus,
 .fc-db-table-link.active {
-    background-color: var(--fc-db-accent-soft);
-    background: var(--fc-db-accent-soft);
-    color: inherit;
 }
 .fc-db-table-link:focus,
 .fc-db-table-link:focus-visible {
@@ -1475,7 +1448,6 @@ SQL;
 }
 .fc-db-table-link.active {
     box-shadow: none;
-    border-color: transparent;
 }
 .fc-db-table-link .badge {
     border-radius: 999px;
@@ -1492,9 +1464,6 @@ SQL;
 }
 .fc-db-table {
     border-radius: var(--fc-db-radius);
-    border: 1px solid var(--fc-db-border);
-    box-shadow: 0 30px 60px rgba(15, 23, 42, 0.12);
-    background: var(--fc-db-surface);
 }
 .fc-db-table__header {
     background: var(--fc-db-surface-muted);
@@ -1504,15 +1473,12 @@ SQL;
     font-size: 0.72rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: rgba(var(--bs-body-color-rgb, 71, 85, 105), 0.85);
-    border-bottom: 1px solid var(--fc-db-border-strong);
 }
 .fc-db-columns-table tbody tr:hover {
     background: var(--fc-db-row-hover);
 }
 .fc-db-columns-table td,
 .fc-db-columns-table th {
-    border-color: var(--fc-db-table-divider);
     height: 3.0rem;
     vertical-align: middle;
     padding-top: 0.125rem;
@@ -1535,28 +1501,20 @@ SQL;
 }
 .fc-db-add-column {
     border-radius: var(--fc-db-radius);
-    border: 1px dashed rgba(var(--bs-primary-rgb, 79, 70, 229), 0.4);
-    background: rgba(var(--bs-primary-rgb, 79, 70, 229), 0.04);
 }
 .fc-db-add-column:hover {
-    border-color: rgba(var(--bs-primary-rgb, 79, 70, 229), 0.55);
-    background: rgba(var(--bs-primary-rgb, 79, 70, 229), 0.08);
 }
 .fc-db-editor-empty {
     border-radius: var(--fc-db-radius);
-    border: 1px dashed rgba(var(--bs-body-color-rgb, 148, 163, 184), 0.4);
-    background: var(--fc-db-empty-bg);
 }
 .fastcrud-db-editor [data-fc-db-reorder-handle] {
     cursor: grab;
     width: 2.5rem;
-    color: #64748b;
     display: inline-flex;
     align-items: center;
     justify-content: center;
 }
 .fastcrud-db-editor [data-fc-db-reorder-handle]:hover {
-    color: #2563eb;
 }
 .fastcrud-db-editor [data-fc-db-reorder-handle]:active {
     cursor: grabbing;
@@ -1565,18 +1523,15 @@ SQL;
     opacity: 0.6;
 }
 .fastcrud-db-editor .fc-db-reorder-chosen {
-    background-color: rgba(37, 99, 235, 0.08);
 }
 .fastcrud-db-editor [data-fc-inline-trigger] {
     cursor: pointer;
 }
 .fastcrud-db-editor [data-fc-inline-trigger]:focus-visible {
-    outline: 3px solid rgba(59, 130, 246, 0.35);
     outline-offset: 2px;
     border-radius: 0.5rem;
 }
 .fastcrud-db-editor .fc-db-inline-editing {
-    background-color: rgba(59, 130, 246, 0.1);
     border-radius: 0.5rem;
     padding: 0.25rem 0.5rem;
     display: inline-flex;
@@ -1619,8 +1574,7 @@ SQL;
     height: 3rem;
     margin: -1.5rem 0 0 -1.5rem;
     border-radius: 50%;
-    border: 4px solid rgba(59, 130, 246, 0.25);
-    border-top-color: rgba(59, 130, 246, 0.9);
+    border: 4px solid;
     z-index: 21;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1639,56 +1593,7 @@ SQL;
         max-height: none;
     }
 }
-:root[data-bs-theme="dark"] .fastcrud-db-editor,
-[data-bs-theme="dark"] .fastcrud-db-editor,
-.fastcrud-db-editor[data-bs-theme="dark"] {
-    --fc-db-border: rgba(148, 163, 184, 0.24);
-    --fc-db-border-strong: rgba(148, 163, 184, 0.32);
-    --fc-db-accent: rgb(var(--bs-primary-rgb, 59, 130, 246));
-    --fc-db-accent-soft: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.22);
-    --fc-db-surface: rgba(15, 23, 42, 0.92);
-    --fc-db-surface-muted: rgba(15, 23, 42, 0.45);
-    --fc-db-surface-strong: rgba(148, 163, 184, 0.25);
-    --fc-db-row-hover: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.18);
-    --fc-db-badge-bg: rgba(15, 23, 42, 0.55);
-    --fc-db-hero-metric-bg: rgba(30, 41, 59, 0.68);
-    --fc-db-hero-metric-icon-bg: rgba(255, 255, 255, 0.18);
-    --fc-db-empty-bg: rgba(15, 23, 42, 0.45);
-    --fc-db-table-tip-bg: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.2);
-    --fc-db-table-tip-border: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.35);
-    --fc-db-table-divider: rgba(51, 65, 85, 0.6);
-    --fc-db-loading-overlay: rgba(15, 23, 42, 0.55);
-    --fc-db-muted: rgba(226, 232, 240, 0.78);
-    color: rgba(226, 232, 240, 0.92);
-}
 
-@media (prefers-color-scheme: dark) {
-    :root:not([data-bs-theme]) {
-        color-scheme: dark;
-    }
-    :root:not([data-bs-theme]) body:not([data-bs-theme]) .fastcrud-db-editor,
-    :root[data-bs-theme="auto"] .fastcrud-db-editor,
-    body[data-bs-theme="auto"] .fastcrud-db-editor {
-        --fc-db-border: rgba(148, 163, 184, 0.24);
-        --fc-db-border-strong: rgba(148, 163, 184, 0.32);
-        --fc-db-accent: rgb(var(--bs-primary-rgb, 59, 130, 246));
-        --fc-db-accent-soft: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.22);
-        --fc-db-surface: rgba(15, 23, 42, 0.92);
-        --fc-db-surface-muted: rgba(15, 23, 42, 0.45);
-        --fc-db-surface-strong: rgba(148, 163, 184, 0.25);
-        --fc-db-row-hover: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.18);
-        --fc-db-badge-bg: rgba(15, 23, 42, 0.55);
-        --fc-db-hero-metric-bg: rgba(30, 41, 59, 0.68);
-        --fc-db-hero-metric-icon-bg: rgba(255, 255, 255, 0.18);
-        --fc-db-empty-bg: rgba(15, 23, 42, 0.45);
-        --fc-db-table-tip-bg: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.2);
-        --fc-db-table-tip-border: rgba(var(--bs-primary-rgb, 59, 130, 246), 0.35);
-        --fc-db-table-divider: rgba(51, 65, 85, 0.6);
-        --fc-db-loading-overlay: rgba(15, 23, 42, 0.55);
-        --fc-db-muted: rgba(226, 232, 240, 0.78);
-        color: rgba(226, 232, 240, 0.92);
-    }
-}
 
 </style>
 <script>

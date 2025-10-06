@@ -107,6 +107,11 @@ DatabseEditor::init();
     >
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
 
+
+    <style>
+       
+    </style>
+
 </head>
 <body data-bs-theme="dark" >
     <div class="container py-5">
