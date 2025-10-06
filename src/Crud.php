@@ -6068,7 +6068,6 @@ CSS;
 #{$containerId} table tfoot td.fastcrud-actions-cell {
     position: sticky;
     right: 0;
-    background-color: var(--bs-body-bg, #ffffff);
     min-width: 12rem;
 }
 

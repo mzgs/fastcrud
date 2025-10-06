@@ -283,6 +283,33 @@ a:hover {
 .form-check-input:focus { box-shadow: var(--ring); }
 .form-check-input:checked { background-color: var(--accent); border-color: var(--accent); }
 
+
+
+/* ===============================
+   Beautiful Large Checkbox Styling
+   =============================== */
+input[type="checkbox"] {
+  /* Size */
+  width: 20px;
+  height: 20px;
+
+ 
+  border: 1px solid #888;
+  border-radius: var(--radius-input);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+
+/* Make checkmark (for browsers that support it) larger */
+input[type="checkbox"]::before {
+  content: "";
+  display: block;
+  transform: scale(1.6);
+}
+ 
+
+
 /* ================================
    TABLES
    ================================ */
@@ -435,3 +462,5 @@ a:hover {
 .shadow-soft { box-shadow: var(--shadow); }
 .ring        { box-shadow: var(--ring); }
 .radius      { border-radius: var(--radius); }
+
+
