@@ -6109,7 +6109,7 @@ CSS;
 }
 
 #{$containerId} .fastcrud-icon {
-    font-size: 1.25rem;
+    font-size: {$this->escapeHtml(CrudStyle::$action_icon_size)};
     line-height: 1;
 }
 
@@ -11644,12 +11644,12 @@ CSS;
         // It was unused and removed to reduce dead code.
 
         var actionIcons = {
-            view: '<i class="fas fa-eye fastcrud-icon" aria-hidden="true"></i>',
-            edit: '<i class="fas fa-edit fastcrud-icon" aria-hidden="true"></i>',
-            delete: '<i class="fas fa-trash fastcrud-icon" aria-hidden="true"></i>',
-            duplicate: '<i class="fas fa-copy fastcrud-icon" aria-hidden="true"></i>',
-            expand: '<i class="fas fa-chevron-down fastcrud-icon" aria-hidden="true"></i>',
-            collapse: '<i class="fas fa-chevron-up fastcrud-icon" aria-hidden="true"></i>'
+            view: '<i class="{$this->escapeHtml(CrudStyle::$view_action_icon)} fastcrud-icon" aria-hidden="true"></i>',
+            edit: '<i class="{$this->escapeHtml(CrudStyle::$edit_action_icon)} fastcrud-icon" aria-hidden="true"></i>',
+            delete: '<i class="{$this->escapeHtml(CrudStyle::$delete_action_icon)} fastcrud-icon" aria-hidden="true"></i>',
+            duplicate: '<i class="{$this->escapeHtml(CrudStyle::$duplicate_action_icon)} fastcrud-icon" aria-hidden="true"></i>',
+            expand: '<i class="{$this->escapeHtml(CrudStyle::$expand_action_icon)} fastcrud-icon" aria-hidden="true"></i>',
+            collapse: '<i class="{$this->escapeHtml(CrudStyle::$collapse_action_icon)} fastcrud-icon" aria-hidden="true"></i>'
         };
 
         // Note: previously had a jQuery-based builder for the action cell here.

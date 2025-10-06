@@ -62,4 +62,25 @@ class CrudStyle
 
     /** @var string Accent color for boolean switches rendered in the grid. */
     public static string $bools_in_grid_color = 'primary';
+
+    /** @var string Icon class for view action buttons. */
+    public static string $view_action_icon = 'fas fa-eye';
+
+    /** @var string Icon class for edit action buttons. */
+    public static string $edit_action_icon = 'fas fa-edit';
+
+    /** @var string Icon class for delete action buttons. */
+    public static string $delete_action_icon = 'fas fa-trash';
+
+    /** @var string Icon class for duplicate action buttons. */
+    public static string $duplicate_action_icon = 'fas fa-copy';
+
+    /** @var string Icon class for expand nested records. */
+    public static string $expand_action_icon = 'fas fa-chevron-down';
+
+    /** @var string Icon class for collapse nested records. */
+    public static string $collapse_action_icon = 'fas fa-chevron-up';
+
+    /** @var string Font size for action button icons. */
+    public static string $action_icon_size = '1.05rem';
 }
