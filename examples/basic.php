@@ -110,7 +110,7 @@ DatabseEditor::init();
                     <div class="d-flex justify-content-center align-items-center gap-2">
                         <h1 class="display-5 mb-0">FastCRUD Demo</h1>
                         <button type="button" class="btn btn-outline-secondary btn-sm" data-theme-toggle aria-label="Switch to light theme">
-                            <i class="bi bi-moon-stars-fill" aria-hidden="true"></i>
+                            <i class="fas fa-moon" aria-hidden="true"></i>
                         </button>
                     </div>
                     <p class="lead mt-2">Dynamically rendered records for the configured table.</p>
@@ -219,7 +219,7 @@ DatabseEditor::init();
                     // ->column_width('title', '30%')
                     ->column_cut('content', 30)
                     ->setPanelWidth('30%')
-                    ->link_button('example.com?id={id}', 'bi bi-person', '', 'btn btn-success', ['target' => '_blank', 'class' => 'me-2'] )
+                    ->link_button('example.com?id={id}', 'fas fa-user', '', 'btn btn-success', ['target' => '_blank', 'class' => 'me-2'] )
                     // ->change_type('title', 'textarea','',['rows' => 12])
                   
                     // ->highlight('id', 'equals', 32, 'bg-info')
@@ -227,7 +227,7 @@ DatabseEditor::init();
                     ->table_name('Posts Overview')
                     // ->highlight_row('title', 'contains', 'we', 'table-info')
                     // ->table_tooltip('FastCRUD live preview of posts')
-                    ->table_icon('bi bi-newspaper');
+                    ->table_icon('fas fa-newspaper');
                     // ->column_summary('id', 'count', 'Total');
 
                  
@@ -259,7 +259,7 @@ DatabseEditor::init();
                 $usersCrud = new Crud('users');
                 $usersCrud
                 ->columns('username,email')
-                ->table_icon('bi bi-people')
+                ->table_icon('fas fa-users')
                     ->nested_table('posts', 'id', 'posts', 'user_id', static function (Crud $nested): void {
                         $nested
                             ->table_name('Posts')
@@ -302,8 +302,8 @@ DatabseEditor::init();
             const applyTheme = (theme) => {
                 body.setAttribute('data-bs-theme', theme);
                 if (icon) {
-                    icon.classList.toggle('bi-sun-fill', theme === 'light');
-                    icon.classList.toggle('bi-moon-stars-fill', theme === 'dark');
+                    icon.classList.toggle('fa-sun', theme === 'light');
+                    icon.classList.toggle('fa-moon', theme === 'dark');
                 }
                 const targetLabel = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
                 toggleButton.setAttribute('aria-label', targetLabel);

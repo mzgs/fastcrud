@@ -179,7 +179,7 @@ echo DatabseEditor::render();
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Database Editor</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://site-assets.fontawesome.com/releases/v7.0.0/css/all.css" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 </head>
 <body>
@@ -746,7 +746,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```
 - **`table_icon(string $iconClass): self`** – Add an icon before the table title.
   ```php
-  $crud->table_icon('bi-people');
+  $crud->table_icon('fas fa-users');
   ```
 - **`enable_add(bool $enabled = true): self`** – Toggle the add-record button.
   ```php
@@ -815,7 +815,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```
 - **`link_button(string $url, string $iconClass, ?string $label = null, ?string $buttonClass = null, array $options = []): self`** – Add a custom toolbar button; the `$options` array lets you set HTML attributes like `['target' => '_blank']`.
   ```php
-  $crud->link_button('/reports', 'bi-file-earmark', 'Reports', 'btn btn-sm btn-outline-info', ['target' => '_blank']);
+  $crud->link_button('/reports', 'fas fa-file-alt', 'Reports', 'btn btn-sm btn-outline-info', ['target' => '_blank']);
   ```
 
 ---

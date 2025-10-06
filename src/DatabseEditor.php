@@ -1010,7 +1010,7 @@ SQL;
             $html .= '<section class="fc-db-editor-hero d-flex align-items-center justify-content-between px-3 py-2">';
             $html .= '<div class="d-flex align-items-center gap-3">';
             $html .= '<div class="fc-db-hero__title d-flex align-items-center gap-2">';
-            $html .= '<i class="bi bi-database  fs-5"></i>';
+            $html .= '<i class="fas fa-database fs-5"></i>';
             $html .= '<h2 class="h6  mb-0 fw-semibold">' . $databaseHeading . '</h2>';
             if ($connectionDisplay !== '') {
                 $html .= '<span class="-50 small">(' . $connectionDisplay . ')</span>';
@@ -1018,20 +1018,20 @@ SQL;
             $html .= '</div>';
             $html .= '<div class="fc-db-hero__metrics d-flex align-items-center">';
             $html .= '<span class="fc-db-hero__metric-compact  small me-3">';
-            $html .= '<i class="bi bi-diagram-3 me-1"></i>' . $tableCountFormatted . ' ' . ($tableCount === 1 ? 'Table' : 'Tables');
+            $html .= '<i class="fas fa-sitemap me-1"></i>' . $tableCountFormatted . ' ' . ($tableCount === 1 ? 'Table' : 'Tables');
             $html .= '</span>';
             $html .= '<span class="fc-db-hero__metric-compact   small me-3">';
-            $html .= '<i class="bi bi-layout-text-window me-1"></i>' . $totalColumnsFormatted . ' Columns';
+            $html .= '<i class="fas fa-columns me-1"></i>' . $totalColumnsFormatted . ' Columns';
             $html .= '</span>';
             $html .= '<span class="fc-db-hero__metric-compact  small me-3">';
-            $html .= '<i class="bi bi-cpu me-1"></i>' . $driverLabelEscaped;
+            $html .= '<i class="fas fa-microchip me-1"></i>' . $driverLabelEscaped;
             $html .= '</span>';
             $html .= '</div>';
             $html .= '</div>';
             $html .= '<form method="post" class="d-inline">';
             $html .= '<input type="hidden" name="fc_db_editor_action" value="download_database">';
             $html .= '<button type="submit" class="btn btn-sm btn-outline-success d-flex align-items-center gap-1 px-2 py-1" title="Download database export">';
-            $html .= '<i class="bi bi-cloud-download"></i>';
+            $html .= '<i class="fas fa-cloud-download-alt"></i>';
             $html .= '<span class="small">Export</span>';
             $html .= '</button>';
             $html .= '</form>';
@@ -1042,7 +1042,7 @@ SQL;
         if ($tables === []) {
             $html .= '<section class="fc-db-editor-empty card border-0 shadow-sm mt-4">';
             $html .= '<div class="card-body p-5 text-center">';
-            $html .= '<div class="display-6 text-muted mb-3"><i class="bi bi-emoji-smile"></i></div>';
+            $html .= '<div class="display-6 text-muted mb-3"><i class="fas fa-smile"></i></div>';
             $html .= '<h3 class="fw-semibold">No tables detected yet</h3>';
             $html .= '<p class="text-muted mx-auto" style="max-width: 420px;">Connect a database or create your first table to start managing your schema. FastCRUD keeps destructive actions gated behind confirmations.</p>';
             $html .= '<div class="mt-4 d-inline-block">';
@@ -1053,7 +1053,7 @@ SQL;
             $html .= '<input type="text" name="new_table" class="form-control form-control-lg" placeholder="e.g. customers" required pattern="[A-Za-z0-9_]+">';
             $html .= '</div>';
             $html .= '<div class="col-12 col-md-auto">';
-            $html .= '<button type="submit" class="btn btn-primary btn-lg w-100"><i class="bi bi-plus-lg me-2"></i>Create table</button>';
+            $html .= '<button type="submit" class="btn btn-primary btn-lg w-100"><i class="fas fa-plus me-2"></i>Create table</button>';
             $html .= '</div>';
             $html .= '</form>';
             $html .= '</div>';
@@ -1073,7 +1073,7 @@ SQL;
             $html .= '<span class="badge bg-primary-subtle text-primary">' . $tableCountFormatted . '</span>';
             $html .= '</div>';
             $html .= '<div class="input-group input-group-sm mt-3">';
-            $html .= '<span class="input-group-text bg-transparent border-end-0"><i class="bi bi-search"></i></span>';
+            $html .= '<span class="input-group-text bg-transparent border-end-0"><i class="fas fa-search"></i></span>';
             $html .= '<input type="search" class="form-control border-start-0" placeholder="Search tables" autocomplete="off" data-fc-db-table-search aria-label="Search tables">';
             $html .= '</div>';
             $html .= '</div>';
@@ -1089,7 +1089,7 @@ SQL;
                 $columnBadge = $columnCount === 1 ? '1 col' : $columnCount . ' cols';
                 $tableSearch = htmlspecialchars(strtolower($table), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                 $html .= '<a class="fc-db-table-link' . $isActive . '" data-fc-db-table-name="' . $tableSearch . '" data-fc-db-table-label="' . $tableEscaped . '" data-fc-db-table-columns="' . $columnCountAttr . '" id="tab-' . $tabId . '" data-bs-toggle="list" href="#' . $tabId . '" role="tab" aria-controls="' . $tabId . '" aria-selected="' . $ariaSelected . '" title="View ' . $tableEscaped . '">';
-                $html .= '<span class="fc-db-table-link__name text-truncate"><i class="bi bi-table text-primary me-2"></i>' . $tableEscaped . '</span>';
+                $html .= '<span class="fc-db-table-link__name text-truncate"><i class="fas fa-table text-primary me-2"></i>' . $tableEscaped . '</span>';
                 $html .= '<span class="badge bg-body-secondary text-body fw-semibold">' . $columnBadge . '</span>';
                 $html .= '</a>';
             }
@@ -1104,7 +1104,7 @@ SQL;
             $html .= '<input type="text" name="new_table" class="form-control form-control-sm" placeholder="" required pattern="[A-Za-z0-9_]+">';
             $html .= '</div>';
             $html .= '<div class="col-auto">';
-            $html .= '<button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i></button>';
+            $html .= '<button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i></button>';
             $html .= '</div>';
             $html .= '</form>';
             $html .= '</div>';
@@ -1139,13 +1139,13 @@ SQL;
                 $html .= '<form method="post" class="ms-lg-auto d-flex align-items-center" data-fc-db-editor-form>';
                 $html .= '<input type="hidden" name="fc_db_editor_action" value="delete_table">';
                 $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
-                $html .= '<button type="submit" class="btn btn-outline-danger btn-sm" data-fc-db-confirm="' . $confirmMessage . '" title="Delete table" aria-label="Delete table"><i class="bi bi-trash me-1"></i>Delete</button>';
+                $html .= '<button type="submit" class="btn btn-outline-danger btn-sm" data-fc-db-confirm="' . $confirmMessage . '" title="Delete table" aria-label="Delete table"><i class="fas fa-trash me-1"></i>Delete</button>';
                 $html .= '</form>';
                 $html .= '</div>';
                 $html .= '<div class="fc-db-table__body p-4">';
                 if ($columns === []) {
                     $html .= '<div class="fc-db-empty-state card border-0 bg-body-tertiary text-center py-5">';
-                    $html .= '<div class="text-muted mb-2"><i class="bi bi-columns-gap fs-3"></i></div>';
+                    $html .= '<div class="text-muted mb-2"><i class="fas fa-columns fs-3"></i></div>';
                     $html .= '<p class="mb-0 text-muted">No columns detected for this table.</p>';
                     $html .= '</div>';
                 } else {
@@ -1177,17 +1177,17 @@ SQL;
                         $extraEscaped = htmlspecialchars($extraRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                         $typeOptionsHtml = self::buildTypeOptions($typeOptions, (string) $columnType);
                         $nullableBadge = $column['nullable']
-                            ? '<span class="badge bg-success-subtle text-success"><i class="bi bi-check-lg me-1"></i>Yes</span>'
-                            : '<span class="badge bg-danger-subtle text-danger"><i class="bi bi-x-lg me-1"></i>No</span>';
+                            ? '<span class="badge bg-success-subtle text-success"><i class="fas fa-check me-1"></i>Yes</span>'
+                            : '<span class="badge bg-danger-subtle text-danger"><i class="fas fa-times me-1"></i>No</span>';
                         $isPrimary = stripos($extraRaw, 'primary') !== false
                             || stripos($columnKey, 'primary') !== false
                             || strcasecmp($columnKey, 'pri') === 0;
                         $primaryIcon = $isPrimary
-                            ? '<span class="ms-2 text-warning fc-db-primary-key-icon" title="Primary key"><i class="bi bi-key-fill" aria-hidden="true"></i><span class="visually-hidden">Primary key</span></span>'
+                            ? '<span class="ms-2 text-warning fc-db-primary-key-icon" title="Primary key"><i class="fas fa-key" aria-hidden="true"></i><span class="visually-hidden">Primary key</span></span>'
                             : '';
                         $html .= '<tr data-fc-db-column="' . $columnEscaped . '">';
                         if ($reorderEnabled) {
-                            $html .= '<td class="text-center text-muted align-middle" data-fc-db-reorder-handle title="Drag to reorder"><i class="bi bi-grip-vertical"></i></td>';
+                            $html .= '<td class="text-center text-muted align-middle" data-fc-db-reorder-handle title="Drag to reorder"><i class="fas fa-grip-vertical"></i></td>';
                         }
                         $html .= '<th scope="row" class="align-middle">';
                         $html .= '<div data-fc-inline-container="name" class="fc-db-inline">';
@@ -1222,7 +1222,7 @@ SQL;
                         $html .= '<input type="hidden" name="fc_db_editor_action" value="delete_column">';
                         $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
                         $html .= '<input type="hidden" name="column_name" value="' . $columnEscaped . '">';
-                        $html .= '<button type="submit" class="btn btn-outline-danger btn-sm" data-fc-db-confirm="' . $confirmDeleteColumn . '" title="Delete column" aria-label="' . $deleteAriaLabel . '"><i class="bi bi-trash"></i></button>';
+                        $html .= '<button type="submit" class="btn btn-outline-danger btn-sm" data-fc-db-confirm="' . $confirmDeleteColumn . '" title="Delete column" aria-label="' . $deleteAriaLabel . '"><i class="fas fa-trash"></i></button>';
                         $html .= '</form>';
                         $html .= '</td>';
                         $html .= '</tr>';
@@ -1235,7 +1235,7 @@ SQL;
                     $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
                     
                     if ($reorderEnabled) {
-                        $html .= '<td class="text-center"><i class="bi bi-plus-lg text-muted"></i></td>';
+                        $html .= '<td class="text-center"><i class="fas fa-plus text-muted"></i></td>';
                     }
                     
                     $html .= '<td>';
@@ -1257,7 +1257,7 @@ SQL;
                     $html .= '<td>—</td>';
                     
                     $html .= '<td class="text-end">';
-                    $html .= '<button type="submit" class="btn btn-success btn-sm"><i class="bi bi-plus-lg me-1"></i>Add</button>';
+                    $html .= '<button type="submit" class="btn btn-success btn-sm"><i class="fas fa-plus me-1"></i>Add</button>';
                     $html .= '</td>';
                     
                     $html .= '</form>';
