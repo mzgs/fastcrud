@@ -130,10 +130,11 @@ DatabseEditor::init();
                     <h2 class="h5 mb-0">Database Editor</h2>
                 </div>
                 <div class="card-body">
-                    <?= DatabseEditor::render(true); ?>
+                  
                     </div>
                 </div>
 
+                <?= DatabseEditor::render(true); ?>
 
                 <?php
                 $postsCrud = new Crud('posts');
