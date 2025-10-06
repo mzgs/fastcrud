@@ -108,7 +108,8 @@ DatabseEditor::init();
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
 
 
-    <link href="https://mzgs.github.io/dripicons/webfont.css" rel="stylesheet" crossorigin="anonymous" >
+    <link href="https://mzgs.github.io/dripicons/webfont.css" rel="stylesheet"  >
+    <link href="https://site-assets.fontawesome.com/releases/v7.0.0/css/all.css" rel="stylesheet"  >
     <link href="style.css" rel="stylesheet" crossorigin="anonymous" >
 
 </head>
@@ -129,7 +130,11 @@ DatabseEditor::init();
                     <p class="lead mt-2">Dynamically rendered records for the configured table.</p>
                 </div>
 
-            
+                <div class="card mb-5">
+                    <div class="card-body">
+                        <p class="mb-0"><i class="fa-light fa-gear-complex"></i> Thisasddasdasd <i class="far fa-database"></i></p>
+                        </div>  
+                </div>
 
                 <?= DatabseEditor::render(true); ?>
 
