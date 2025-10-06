@@ -1006,59 +1006,47 @@ SQL;
         $html .= '<div class="fastcrud-db-editor__feedback" data-fc-db-feedback>' . self::renderFeedbackHtml() . '</div>';
 
         if ($showHeader) {
-            $html .= '<section class="fc-db-editor-hero position-relative overflow-hidden rounded-4 shadow-sm">';
-            $html .= '<div class="fc-db-hero__backdrop"></div>';
-            $html .= '<div class="fc-db-hero__content p-3 p-lg-4">';
-            $html .= '<div class="fc-db-hero__header d-flex flex-column flex-lg-row align-items-lg-center gap-2">';
-            $html .= '<div class="fc-db-hero__title">';
-            $html .= '<span class="fc-db-hero__eyebrow text-uppercase small text-white-50">Schema overview</span>';
-            $html .= '<h2 class="h3 text-white mb-1"><i class="bi bi-database me-2"></i>' . $databaseHeading . '</h2>';
+            $html .= '<section class="fc-db-editor-hero d-flex align-items-center justify-content-between px-3 py-2 rounded-3">';
+            $html .= '<div class="d-flex align-items-center gap-3">';
+            $html .= '<div class="fc-db-hero__title d-flex align-items-center gap-2">';
+            $html .= '<i class="bi bi-database text-white fs-5"></i>';
+            $html .= '<h2 class="h6 text-white mb-0 fw-semibold">' . $databaseHeading . '</h2>';
             if ($connectionDisplay !== '') {
-                $html .= '<p class="mb-0 text-white-50 small">' . $connectionDisplay . '</p>';
+                $html .= '<span class="text-white-50 small">(' . $connectionDisplay . ')</span>';
             }
             $html .= '</div>';
-            $html .= '</div>';
-            $html .= '<div class="fc-db-hero__metrics mt-2">';
-            $html .= '<div class="fc-db-hero__metric">';
-            $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-diagram-3"></i></span>';
-            $html .= '<span class="fc-db-hero__metric-text"><span class="fc-db-hero__metric-value">' . $tableCountFormatted . '</span><span class="fc-db-hero__metric-label">' . ($tableCount === 1 ? 'Table' : 'Tables') . '</span></span>';
-            $html .= '</div>';
-            $html .= '<div class="fc-db-hero__metric">';
-            $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-layout-text-window"></i></span>';
-            $html .= '<span class="fc-db-hero__metric-text"><span class="fc-db-hero__metric-value">' . $totalColumnsFormatted . '</span><span class="fc-db-hero__metric-label">Columns</span></span>';
-            $html .= '</div>';
-            $html .= '<div class="fc-db-hero__metric">';
-            $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-cpu"></i></span>';
-            $html .= '<span class="fc-db-hero__metric-text"><span class="fc-db-hero__metric-value">' . $driverLabelEscaped . '</span><span class="fc-db-hero__metric-label">Driver</span></span>';
-            $html .= '</div>';
+            $html .= '<div class="fc-db-hero__metrics d-flex align-items-center">';
+            $html .= '<span class="fc-db-hero__metric-compact text-white-50 small me-3">';
+            $html .= '<i class="bi bi-diagram-3 me-1"></i>' . $tableCountFormatted . ' ' . ($tableCount === 1 ? 'Table' : 'Tables');
+            $html .= '</span>';
+            $html .= '<span class="fc-db-hero__metric-compact text-white-50 small me-3">';
+            $html .= '<i class="bi bi-layout-text-window me-1"></i>' . $totalColumnsFormatted . ' Columns';
+            $html .= '</span>';
+            $html .= '<span class="fc-db-hero__metric-compact text-white-50 small me-3">';
+            $html .= '<i class="bi bi-cpu me-1"></i>' . $driverLabelEscaped;
+            $html .= '</span>';
             if ($activeTableLabel !== null) {
                 $activeTableColumnCount = 0;
                 if ($activeTable !== null) {
                     $activeTableColumnCount = count($tableColumns[$activeTable] ?? []);
                 }
-                $activeTableColumnCountLabel = $activeTableColumnCount === 1 ? '1 column' : $activeTableColumnCount . ' columns';
-                $activeTableColumnCountLabelEscaped = htmlspecialchars($activeTableColumnCountLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $activeTableColumnCountLabelEscaped = htmlspecialchars($activeTableColumnCount . ' cols', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                 $activeTableColumnCountAttr = htmlspecialchars((string) $activeTableColumnCount, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $html .= '<div class="fc-db-hero__metric">';
-                $html .= '<span class="fc-db-hero__metric-icon"><i class="bi bi-lightning-charge"></i></span>';
-                $html .= '<span class="fc-db-hero__metric-text">';
-                $html .= '<span class="fc-db-hero__metric-value" data-fc-db-active-table data-fc-db-active-default="' . $activeTableLabel . '">' . $activeTableLabel . '</span>';
-                $html .= '<span class="fc-db-hero__metric-label">Active table &middot; <span data-fc-db-active-count data-fc-db-active-count-value="' . $activeTableColumnCountAttr . '">' . $activeTableColumnCountLabelEscaped . '</span></span>';
+                $html .= '<span class="fc-db-hero__metric-compact text-warning small fw-semibold">';
+                $html .= '<i class="bi bi-lightning-charge me-1"></i>';
+                $html .= '<span data-fc-db-active-table data-fc-db-active-default="' . $activeTableLabel . '">' . $activeTableLabel . '</span>';
+                $html .= ' (<span data-fc-db-active-count data-fc-db-active-count-value="' . $activeTableColumnCountAttr . '">' . $activeTableColumnCountLabelEscaped . '</span>)';
                 $html .= '</span>';
-                $html .= '</div>';
             }
-            $html .= '<div class="fc-db-hero__metric fc-db-hero__metric--action">';
-            $html .= '<form method="post" class="w-100">';
+            $html .= '</div>';
+            $html .= '</div>';
+            $html .= '<form method="post" class="d-inline">';
             $html .= '<input type="hidden" name="fc_db_editor_action" value="download_database">';
-            $html .= '<button type="submit" class="btn p-0 border-0 bg-transparent text-white w-100 h-100 d-flex align-items-center text-decoration-none position-relative overflow-hidden" style="transition: all 0.2s ease; backdrop-filter: blur(8px); gap: 0.35rem;" onmouseover="this.style.background=\'rgba(255,255,255,0.1)\'; this.style.transform=\'translateY(-1px)\'" onmouseout="this.style.background=\'transparent\'; this.style.transform=\'translateY(0)\'">';
-            $html .= '<span class="fc-db-hero__metric-icon text-white"><i class="bi bi-cloud-download"></i></span>';
-            $html .= '<span class="fc-db-hero__metric-text text-start"><span class="fc-db-hero__metric-value fw-semibold">Download</span><span class="fc-db-hero__metric-label opacity-75">Database export</span></span>';
-            $html .= '<span class="position-absolute top-0 end-0 bottom-0 start-0 rounded" style="background: linear-gradient(45deg, transparent 49%, rgba(255,255,255,0.05) 50%, transparent 51%); animation: shimmer 2s infinite;"></span>';
+            $html .= '<button type="submit" class="btn btn-sm btn-outline-light d-flex align-items-center gap-1 px-2 py-1" title="Download database export">';
+            $html .= '<i class="bi bi-cloud-download"></i>';
+            $html .= '<span class="small">Export</span>';
             $html .= '</button>';
             $html .= '</form>';
-            $html .= '</div>';
-            $html .= '</div>';
-            $html .= '</div>';
             $html .= '</section>';
         }
 
@@ -1427,94 +1415,13 @@ SQL;
     border-color: var(--fc-db-border);
 }
 .fc-db-editor-hero {
-    position: relative;
-    border-radius: var(--fc-db-radius-lg);
-    overflow: hidden;
     background: var(--fc-db-hero-gradient);
     color: #fff;
-    box-shadow: 0 32px 60px rgba(79, 70, 229, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    min-height: 3rem;
 }
-.fc-db-hero__backdrop {
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(120% 90% at 15% 0%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 55%),
-        radial-gradient(90% 80% at 85% 15%, rgba(96, 165, 250, 0.45) 0%, rgba(59, 130, 246, 0) 55%),
-        var(--fc-db-hero-gradient);
-    opacity: 0.9;
-    pointer-events: none;
-    transform: translateZ(0);
-}
-.fc-db-hero__content {
-    position: relative;
-    z-index: 1;
-    color: #fff;
-}
-.fc-db-hero__header {
-    row-gap: 0.75rem;
-}
-.fc-db-hero__title h2 {
-    font-size: clamp(1.5rem, 1.2vw + 1.1rem, 2.1rem);
-}
-.fc-db-hero__title p {
-    margin-top: 0.15rem;
-}
-.fc-db-editor-hero .text-muted,
-.fc-db-editor-hero .text-body-secondary {
-    color: rgba(255, 255, 255, 0.75) !important;
-}
-.fc-db-editor-hero .badge {
-    color: #0f172a;
-}
-.fc-db-hero__metrics {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    align-items: center;
-    min-width: 0;
-}
-.fc-db-hero__metric {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.35rem 0.75rem;
-    border-radius: 999px;
-    background: var(--fc-db-hero-metric-bg);
-    color: #fff;
-    backdrop-filter: blur(6px);
-    min-width: 0;
-    max-width: 100%;
-}
-.fc-db-hero__metric-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    border-radius: 50%;
-    background: var(--fc-db-hero-metric-icon-bg);
-    font-size: 0.9rem;
-    flex: 0 0 auto;
-}
-.fc-db-hero__metric-text {
-    display: flex;
-    flex-direction: column;
-    line-height: 1.1;
-    min-width: 0;
-}
-.fc-db-hero__metric-value {
-    font-weight: 700;
-    font-size: 0.95rem;
-    display: inline-block;
-    min-width: 0;
+.fc-db-hero__metric-compact {
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.fc-db-hero__metric-label {
-    font-size: 0.72rem;
-    opacity: 0.78;
-    display: block;
-    min-width: 0;
 }
 .fc-db-editor-sidebar {
     border: 1px solid var(--fc-db-border);
@@ -1796,32 +1703,6 @@ SQL;
     }
 }
 
-/* Enhanced download export button styling */
-.fc-db-hero__metric--action {
-    position: relative;
-}
-
-.fc-db-hero__metric--action:hover {
-    transform: translateY(-1px);
-}
-
-.fc-db-hero__metric--action button:focus {
-    outline: 2px solid rgba(34, 197, 94, 0.5);
-    outline-offset: 2px;
-}
-
-@keyframes shimmer {
-    0% {
-        transform: translateX(-100%);
-    }
-    100% {
-        transform: translateX(100%);
-    }
-}
-
-.fc-db-hero__metric--action:hover .shimmer {
-    animation-play-state: running;
-}
 </style>
 <script>
 (function(){
