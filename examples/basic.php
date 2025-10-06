@@ -176,6 +176,74 @@ DatabseEditor::init();
   --radius: 6px; /* reduced radius */
 }
 
+[data-bs-theme="light"] {
+  /* Core Palette */
+  --bg: #f7f8fb;
+  --bg-2: #ffffff;
+  --surface: #ffffff;
+  --surface-elev: #f2f4f7;
+
+  /* Neutrals */
+  --border: #dcdfe4;
+  --border-strong: #c9cdd4;
+
+  /* Text */
+  --text: #16181d;
+  --text-2: #4b5563;
+  --text-disabled: #9aa3af;
+
+  /* Brand / State */
+  --accent: #2f6bff;  /* slightly deeper, luxe blue */
+  --accent-2: #00b8d4;
+  --success: #17b26a;
+  --warning: #f59e0b;
+  --error:   #dc2626;
+  --info:    #3b82f6;
+
+  /* Tokens -> Bootstrap */
+  --bs-body-bg: var(--bg);
+  --bs-body-color: var(--text);
+  --bs-secondary-color: var(--text-2);
+  --bs-tertiary-color: var(--text-disabled);
+  --bs-border-color: var(--border);
+
+  --bs-link-color: var(--accent);
+  --bs-link-hover-color: color-mix(in srgb, var(--accent) 80%, #000 20%);
+
+  --bs-primary: var(--accent);
+  --bs-info: var(--info);
+  --bs-success: var(--success);
+  --bs-warning: var(--warning);
+  --bs-danger: var(--error);
+
+  --bs-card-bg: var(--surface);
+  --bs-card-border-color: var(--border);
+  --bs-card-color: var(--text);
+
+  --bs-navbar-bg: color-mix(in srgb, var(--bg-2) 92%, transparent);
+  --bs-navbar-color: var(--text);
+  --bs-navbar-brand-color: var(--text);
+
+  --bs-dropdown-bg: var(--surface);
+  --bs-dropdown-link-color: var(--text);
+  --bs-dropdown-link-hover-bg: rgba(0,0,0,.05);
+
+  --bs-table-bg: var(--surface);
+  --bs-table-border-color: var(--border-strong);
+  --bs-table-color: var(--text);
+
+  --bs-input-bg: var(--surface);
+  --bs-input-border-color: var(--border-strong);
+  --bs-input-color: var(--text);
+  --bs-input-placeholder-color: var(--text-disabled);
+
+  /* Aesthetics */
+  --shadow: 0 6px 18px rgba(20, 24, 31, .06), 0 2px 6px rgba(20, 24, 31, .04);
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,.6);
+  --radius: 6px;
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
 /* --- Background Gradient --- */
 body {
   background:
