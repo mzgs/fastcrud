@@ -1238,8 +1238,8 @@ SQL;
                     $html .= '</div>';
                 }
 
-                $html .= '<div class="fc-db-add-column card border-0 bg-body-tertiary">';
-                $html .= '<div class="card-body">';
+                $html .= '<div class="fc-db-add-column mt-4 pt-3 border-top">';
+                $html .= '<h6 class="text-muted mb-3">Add New Column</h6>';
                 $html .= '<form method="post" class="row g-3 align-items-end" data-fc-db-editor-form>';
                 $html .= '<input type="hidden" name="fc_db_editor_action" value="add_column">';
                 $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
@@ -1261,7 +1261,6 @@ SQL;
                 $html .= '<button type="submit" class="btn btn-success w-100"><i class="bi bi-plus-lg me-1"></i>Add</button>';
                 $html .= '</div>';
                 $html .= '</form>';
-                $html .= '</div>';
                 $html .= '</div>';
 
                 $html .= '</div>';
