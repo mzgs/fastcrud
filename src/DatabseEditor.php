@@ -1442,6 +1442,7 @@ SQL;
 .fc-db-table-link:hover,
 .fc-db-table-link:focus,
 .fc-db-table-link.active {
+    background-color: var(--bs-primary-bg-subtle);
 }
 .fc-db-table-link:focus,
 .fc-db-table-link:focus-visible {
