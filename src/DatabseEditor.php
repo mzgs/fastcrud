@@ -1121,7 +1121,8 @@ SQL;
                 $columnCount = count($columns);
                 $columnSummary = $columnCount === 1 ? '1 column' : $columnCount . ' columns';
                 $html .= '<div class="tab-pane fade' . $isActive . '" id="' . $tabId . '" role="tabpanel" aria-labelledby="tab-' . $tabId . '">';
-                $html .= '<div class="fc-db-table card border-0 shadow-sm">';
+                $html .= '<div class="card">';
+                $html .= '<div class="fc-db-table">';
                 $html .= '<div class="fc-db-table__header border-bottom p-4 d-flex flex-column flex-lg-row align-items-lg-center gap-3">';
                 $html .= '<div class="d-flex align-items-center gap-3">';
                 $html .= '<div data-fc-inline-container="name" class="fc-db-inline">';
@@ -1263,6 +1264,7 @@ SQL;
                 $html .= '</div>';
                 $html .= '</div>';
 
+                $html .= '</div>';
                 $html .= '</div>';
                 $html .= '</div>';
                 $html .= '</div>';
