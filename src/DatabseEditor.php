@@ -1016,28 +1016,15 @@ SQL;
             }
             $html .= '</div>';
             $html .= '<div class="fc-db-hero__metrics d-flex align-items-center">';
-            $html .= '<span class="fc-db-hero__metric-compact text-white-50 small me-3">';
+            $html .= '<span class="fc-db-hero__metric-compact  small me-3">';
             $html .= '<i class="bi bi-diagram-3 me-1"></i>' . $tableCountFormatted . ' ' . ($tableCount === 1 ? 'Table' : 'Tables');
             $html .= '</span>';
-            $html .= '<span class="fc-db-hero__metric-compact text-white-50 small me-3">';
+            $html .= '<span class="fc-db-hero__metric-compact   small me-3">';
             $html .= '<i class="bi bi-layout-text-window me-1"></i>' . $totalColumnsFormatted . ' Columns';
             $html .= '</span>';
-            $html .= '<span class="fc-db-hero__metric-compact text-white-50 small me-3">';
+            $html .= '<span class="fc-db-hero__metric-compact  small me-3">';
             $html .= '<i class="bi bi-cpu me-1"></i>' . $driverLabelEscaped;
             $html .= '</span>';
-            if ($activeTableLabel !== null) {
-                $activeTableColumnCount = 0;
-                if ($activeTable !== null) {
-                    $activeTableColumnCount = count($tableColumns[$activeTable] ?? []);
-                }
-                $activeTableColumnCountLabelEscaped = htmlspecialchars($activeTableColumnCount . ' cols', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $activeTableColumnCountAttr = htmlspecialchars((string) $activeTableColumnCount, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $html .= '<span class="fc-db-hero__metric-compact text-warning small fw-semibold">';
-                $html .= '<i class="bi bi-lightning-charge me-1"></i>';
-                $html .= '<span data-fc-db-active-table data-fc-db-active-default="' . $activeTableLabel . '">' . $activeTableLabel . '</span>';
-                $html .= ' (<span data-fc-db-active-count data-fc-db-active-count-value="' . $activeTableColumnCountAttr . '">' . $activeTableColumnCountLabelEscaped . '</span>)';
-                $html .= '</span>';
-            }
             $html .= '</div>';
             $html .= '</div>';
             $html .= '<form method="post" class="d-inline">';
