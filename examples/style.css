@@ -169,13 +169,7 @@
 
 hr { border-color: color-mix(in srgb, var(--bs-border-color) 80%, transparent); }
 
-/* Subtle gradient headers (tables, cards with .bg-body-tertiary) */
-.table thead th,
-.bg-body-tertiary {
-  background: linear-gradient(180deg,
-    color-mix(in srgb, var(--surface) 94%, transparent) 0%,
-    color-mix(in srgb, var(--surface) 80%, transparent) 100%);
-}
+
 
 /* ================================
    TYPOGRAPHY & LINKS
@@ -315,7 +309,15 @@ input[type="checkbox"]::before {
   border-color: var(--bs-table-border-color);
  
   overflow: hidden;
-  box-shadow: var(--shadow);
+ 
+}
+
+/* Subtle gradient headers (tables, cards with .bg-body-tertiary) */
+.table thead th,
+.bg-body-tertiary {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--surface) 94%, transparent) 0%,
+    color-mix(in srgb, var(--surface) 80%, transparent) 100%);
 }
 
 .table th, .table td { 
@@ -414,18 +416,7 @@ input[type="checkbox"]::before {
 /* ================================
    PAGINATION & MISC
    ================================ */
-.page-link {
-  border-radius: calc(var(--radius) - 2px);
-  transition: background-color .12s ease, color .12s ease, border-color .12s ease;
-}
-.page-link:hover {
-  background-color: color-mix(in srgb, var(--bs-border-color) 18%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--bs-border-color));
-}
-.page-item.active .page-link {
-  background-color: var(--accent);
-  border-color: var(--accent);
-}
+ 
 
 /* Tooltips & Popovers */
 .tooltip .tooltip-inner,
