@@ -1,0 +1,381 @@
+  /* ================================
+   Refined Dual Theme (Light + Dark)
+   — Elegant neutrals, vivid accents
+   — Crisp borders, soft elevation
+   — Beautiful focus & hover states
+   — Works with [data-bs-theme] switch
+   ================================ */
+
+/* ----- LIGHT THEME ----- */
+:root,
+[data-bs-theme="light"] {
+  /* Core Palette */
+  --bg: #f7f8fb;
+  --bg-2: #ffffff;
+  --surface: #ffffff;
+  --surface-elev: #f2f4f7;
+
+  /* Neutrals */
+  --border: #dcdfe4;
+  --border-strong: #c9cdd4;
+
+  /* Text */
+  --text: #16181d;
+  --text-2: #4b5563;
+  --text-disabled: #9aa3af;
+
+  /* Brand / State */
+  --accent: #2f6bff;  /* slightly deeper, luxe blue */
+  --accent-2: #00b8d4;
+  --success: #17b26a;
+  --warning: #f59e0b;
+  --error:   #dc2626;
+  --info:    #3b82f6;
+
+  /* Tokens -> Bootstrap */
+  --bs-body-bg: var(--bg);
+  --bs-body-color: var(--text);
+  --bs-secondary-color: var(--text-2);
+  --bs-tertiary-color: var(--text-disabled);
+  --bs-border-color: var(--border);
+
+  --bs-link-color: var(--accent);
+  --bs-link-hover-color: color-mix(in srgb, var(--accent) 80%, #000 20%);
+
+  --bs-primary: var(--accent);
+  --bs-info: var(--info);
+  --bs-success: var(--success);
+  --bs-warning: var(--warning);
+  --bs-danger: var(--error);
+
+  --bs-card-bg: var(--surface);
+  --bs-card-border-color: var(--border);
+  --bs-card-color: var(--text);
+
+  --bs-navbar-bg: color-mix(in srgb, var(--bg-2) 92%, transparent);
+  --bs-navbar-color: var(--text);
+  --bs-navbar-brand-color: var(--text);
+
+  --bs-dropdown-bg: var(--surface);
+  --bs-dropdown-link-color: var(--text);
+  --bs-dropdown-link-hover-bg: rgba(0,0,0,.05);
+
+  --bs-table-bg: var(--surface);
+  --bs-table-border-color: var(--border-strong);
+  --bs-table-color: var(--text);
+
+  --bs-input-bg: var(--surface);
+  --bs-input-border-color: var(--border-strong);
+  --bs-input-color: var(--text);
+  --bs-input-placeholder-color: var(--text-disabled);
+
+  /* Aesthetics */
+  --shadow: 0 6px 18px rgba(20, 24, 31, .06), 0 2px 6px rgba(20, 24, 31, .04);
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,.6);
+  --radius: 6px;
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* ----- DARK THEME ----- */
+[data-bs-theme="dark"] {
+  /* Core Palette */
+  --bg: #121317;
+  --bg-2: #191b21;
+  --surface: #1c1f26;
+  --surface-elev: #222632;
+
+  /* Neutrals */
+  --border: #2c3240;
+  --border-strong: #3a4152;
+
+  /* Text */
+  --text: #e7eaf0;
+  --text-2: #b6beca;
+  --text-disabled: #7a8494;
+
+  /* Brand / State (keep brand hue, adjust luminance) */
+  --accent: #4d7dff;
+  --accent-2: #15d0e6;
+  --success: #2ad38a;
+  --warning: #ffc24d;
+  --error:   #f05252;
+  --info:    #6aa6ff;
+
+  /* Tokens -> Bootstrap */
+  --bs-body-bg: var(--bg);
+  --bs-body-color: var(--text);
+  --bs-secondary-color: var(--text-2);
+  --bs-tertiary-color: var(--text-disabled);
+  --bs-border-color: var(--border);
+
+  --bs-link-color: var(--accent);
+  --bs-link-hover-color: color-mix(in srgb, var(--accent) 85%, #ffffff 15%);
+
+  --bs-primary: var(--accent);
+  --bs-info: var(--info);
+  --bs-success: var(--success);
+  --bs-warning: var(--warning);
+  --bs-danger: var(--error);
+
+  --bs-card-bg: var(--surface);
+  --bs-card-border-color: var(--border);
+  --bs-card-color: var(--text);
+
+  --bs-navbar-bg: color-mix(in srgb, var(--bg-2) 92%, transparent);
+  --bs-navbar-color: var(--text);
+  --bs-navbar-brand-color: var(--text);
+
+  --bs-dropdown-bg: var(--surface);
+  --bs-dropdown-link-color: var(--text);
+  --bs-dropdown-link-hover-bg: rgba(255,255,255,.06);
+
+  --bs-table-bg: var(--surface);
+  --bs-table-border-color: var(--border-strong);
+  --bs-table-color: var(--text);
+
+  --bs-input-bg: var(--surface-elev);
+  --bs-input-border-color: var(--border-strong);
+  --bs-input-color: var(--text);
+  --bs-input-placeholder-color: var(--text-disabled);
+
+  /* Aesthetics */
+  --shadow: 0 10px 30px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,.04);
+  --radius: 6px; /* reduced radius */
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* ----- Auto-switch with system preference (optional) ----- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-bs-theme]) {
+    color-scheme: dark;
+  }
+}
+/* If you prefer explicit control, toggle [data-bs-theme="light"|"dark"] on <html> */
+
+/* ================================
+   SHARED ELEVATION & MOTION POLISH
+   ================================ */
+* { accent-color: var(--accent); }
+:root, [data-bs-theme] { color-scheme: light dark; }
+
+.card, .dropdown-menu, .offcanvas, .modal-content, .toast {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--bs-border-color);
+  background-clip: padding-box;
+}
+
+hr { border-color: color-mix(in srgb, var(--bs-border-color) 80%, transparent); }
+
+/* Subtle gradient headers (tables, cards with .bg-body-tertiary) */
+.table thead th,
+.bg-body-tertiary {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--surface) 94%, transparent) 0%,
+    color-mix(in srgb, var(--surface) 80%, transparent) 100%);
+}
+
+/* ================================
+   TYPOGRAPHY & LINKS
+   ================================ */
+a {
+  text-decoration: none;
+  transition: color .18s ease, text-shadow .18s ease;
+}
+a:hover {
+  color: var(--bs-link-hover-color);
+  text-shadow: 0 0 .01px currentColor;
+}
+
+/* ================================
+   NAVBAR
+   ================================ */
+.navbar {
+  border-bottom: 1px solid var(--bs-border-color);
+  backdrop-filter: saturate(120%) blur(6px);
+}
+.navbar .nav-link {
+  border-radius: calc(var(--radius) - 2px);
+  padding-inline: .6rem;
+  transition: background-color .18s ease, color .18s ease;
+}
+.navbar .nav-link:hover,
+.navbar .nav-link:focus {
+  background-color: color-mix(in srgb, var(--bs-border-color) 16%, transparent);
+}
+
+/* ================================
+   BUTTONS
+   ================================ */
+.btn {
+  border-radius: var(--radius);
+  border-width: 1px;
+  box-shadow: var(--shadow-inset);
+  transition: transform .06s ease, box-shadow .18s ease, background-color .18s ease, border-color .18s ease;
+}
+.btn:active { transform: translateY(1px); }
+
+.btn-primary {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent) 94%, #fff 6%) 0%,
+    var(--accent) 100%);
+  border-color: color-mix(in srgb, var(--accent) 75%, #000 25%);
+}
+.btn-primary:hover {
+  filter: brightness(1.03);
+}
+.btn-outline-primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-outline-primary:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 80%, #000 20%);
+}
+
+/* Soft variants */
+.btn-light, .btn-dark {
+  border-color: var(--bs-border-color);
+}
+
+/* ================================
+   FORMS / INPUTS
+   ================================ */
+.form-control, .form-select, .form-check-input, .input-group-text {
+  border-radius: var(--radius);
+  border-color: var(--bs-input-border-color);
+  background-color: var(--bs-input-bg);
+  color: var(--bs-input-color);
+  transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+  box-shadow: var(--shadow-inset);
+}
+.form-control::placeholder { color: var(--bs-input-placeholder-color); }
+
+.form-control:focus, .form-select:focus {
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--bs-input-border-color));
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* Valid / Invalid hints */
+.was-validated .form-control:valid, .form-control.is-valid {
+  border-color: color-mix(in srgb, var(--success) 70%, var(--bs-input-border-color));
+}
+.was-validated .form-control:invalid, .form-control.is-invalid {
+  border-color: color-mix(in srgb, var(--error) 70%, var(--bs-input-border-color));
+}
+
+/* Input group merge polish */
+.input-group > .form-control,
+.input-group > .input-group-text,
+.input-group > .btn {
+  border-radius: 0;
+}
+.input-group > :first-child { border-top-left-radius: var(--radius); border-bottom-left-radius: var(--radius); }
+.input-group > :last-child  { border-top-right-radius: var(--radius); border-bottom-right-radius: var(--radius); }
+
+/* Switch */
+.form-check-input:focus { box-shadow: var(--ring); }
+.form-check-input:checked { background-color: var(--accent); border-color: var(--accent); }
+
+/* ================================
+   TABLES
+   ================================ */
+.table {
+  --tbl-row-hover: color-mix(in srgb, var(--bs-border-color) 18%, transparent);
+  border-color: var(--bs-table-border-color);
+}
+.table th, .table td { border-color: var(--bs-table-border-color); }
+.table-hover tbody tr:hover { background-color: var(--tbl-row-hover); }
+
+.table-striped > tbody > tr:nth-of-type(odd) > * {
+  background-color: color-mix(in srgb, var(--surface) 96%, transparent);
+}
+
+/* Compact, tidy look */
+.table > :not(caption) > * > * {
+  padding-block: .75rem;
+}
+
+/* ================================
+   DROPDOWNS
+   ================================ */
+.dropdown-menu {
+  border-color: var(--bs-border-color);
+}
+.dropdown-item {
+  border-radius: calc(var(--radius) - 2px);
+  transition: background-color .12s ease, color .12s ease;
+}
+.dropdown-item:hover, .dropdown-item:focus {
+  background-color: color-mix(in srgb, var(--bs-border-color) 18%, transparent);
+}
+ 
+
+/* ================================
+   BADGES & ALERTS
+   ================================ */
+.badge {
+  border-radius: calc(var(--radius) - 2px);
+  padding: .45em .6em;
+  box-shadow: var(--shadow-inset);
+}
+
+.alert {
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  box-shadow: var(--shadow-inset);
+}
+
+/* Soft background tints for alerts */
+.alert-primary   { background: color-mix(in srgb, var(--accent) 12%, transparent);   color: var(--text); }
+.alert-success   { background: color-mix(in srgb, var(--success) 12%, transparent);  color: var(--text); }
+.alert-warning   { background: color-mix(in srgb, var(--warning) 14%, transparent);  color: var(--text); }
+.alert-danger    { background: color-mix(in srgb, var(--error) 12%, transparent);    color: var(--text); }
+.alert-info      { background: color-mix(in srgb, var(--info) 12%, transparent);     color: var(--text); }
+
+/* ================================
+   CARDS
+   ================================ */
+.card {
+  background-image:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--surface) 98%, transparent) 0%,
+      color-mix(in srgb, var(--surface) 92%, transparent) 100%);
+}
+.card-header {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--surface) 96%, transparent) 0%,
+    color-mix(in srgb, var(--surface) 88%, transparent) 100%);
+  border-bottom-color: var(--bs-border-color);
+}
+
+/* ================================
+   PAGINATION & MISC
+   ================================ */
+.page-link {
+  border-radius: calc(var(--radius) - 2px);
+  transition: background-color .12s ease, color .12s ease, border-color .12s ease;
+}
+.page-link:hover {
+  background-color: color-mix(in srgb, var(--bs-border-color) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--bs-border-color));
+}
+.page-item.active .page-link {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Tooltips & Popovers */
+.tooltip .tooltip-inner,
+.popover {
+  border-radius: calc(var(--radius) - 2px);
+}
+
+/* ================================
+   UTILITIES
+   ================================ */
+.shadow-soft { box-shadow: var(--shadow); }
+.ring        { box-shadow: var(--ring); }
+.radius      { border-radius: var(--radius); }

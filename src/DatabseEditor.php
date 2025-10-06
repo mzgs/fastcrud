@@ -1010,10 +1010,10 @@ SQL;
             $html .= '<section class="fc-db-editor-hero d-flex align-items-center justify-content-between px-3 py-2">';
             $html .= '<div class="d-flex align-items-center gap-3">';
             $html .= '<div class="fc-db-hero__title d-flex align-items-center gap-2">';
-            $html .= '<i class="bi bi-database text-white fs-5"></i>';
-            $html .= '<h2 class="h6 text-white mb-0 fw-semibold">' . $databaseHeading . '</h2>';
+            $html .= '<i class="bi bi-database  fs-5"></i>';
+            $html .= '<h2 class="h6  mb-0 fw-semibold">' . $databaseHeading . '</h2>';
             if ($connectionDisplay !== '') {
-                $html .= '<span class="text-white-50 small">(' . $connectionDisplay . ')</span>';
+                $html .= '<span class="-50 small">(' . $connectionDisplay . ')</span>';
             }
             $html .= '</div>';
             $html .= '<div class="fc-db-hero__metrics d-flex align-items-center">';
