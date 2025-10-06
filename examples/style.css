@@ -73,6 +73,8 @@
   --shadow: 0 6px 18px rgba(20, 24, 31, .06), 0 2px 6px rgba(20, 24, 31, .04);
   --shadow-inset: inset 0 1px 0 rgba(255,255,255,.6);
   --radius: 8px;
+  --radius-btn: 6px;
+  --radius-input: 5px;
   --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
@@ -141,7 +143,9 @@
   /* Aesthetics */
   --shadow: 0 10px 30px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
   --shadow-inset: inset 0 1px 0 rgba(255,255,255,.04);
-  --radius: 12px; 
+  --radius: 12px;
+  --radius-btn: 6px;
+  --radius-input: 6px;
   --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
@@ -209,7 +213,7 @@ a:hover {
    BUTTONS
    ================================ */
 .btn {
-  border-radius: var(--radius);
+  border-radius: var(--radius-btn);
   border-width: 1px;
   box-shadow: var(--shadow-inset);
   transition: transform .06s ease, box-shadow .18s ease, background-color .18s ease, border-color .18s ease;
@@ -243,7 +247,7 @@ a:hover {
    FORMS / INPUTS
    ================================ */
 .form-control, .form-select, .form-check-input, .input-group-text {
-  border-radius: var(--radius);
+  border-radius: var(--radius-input);
   border-color: var(--bs-input-border-color);
   background-color: var(--bs-input-bg);
   color: var(--bs-input-color);
@@ -272,8 +276,8 @@ a:hover {
 .input-group > .btn {
   border-radius: 0;
 }
-.input-group > :first-child { border-top-left-radius: var(--radius); border-bottom-left-radius: var(--radius); }
-.input-group > :last-child  { border-top-right-radius: var(--radius); border-bottom-right-radius: var(--radius); }
+.input-group > :first-child { border-top-left-radius: var(--radius-input); border-bottom-left-radius: var(--radius-input); }
+.input-group > :last-child  { border-top-right-radius: var(--radius-input); border-bottom-right-radius: var(--radius-input); }
 
 /* Switch */
 .form-check-input:focus { box-shadow: var(--ring); }
