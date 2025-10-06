@@ -1030,7 +1030,7 @@ SQL;
             $html .= '</div>';
             $html .= '<form method="post" class="d-inline">';
             $html .= '<input type="hidden" name="fc_db_editor_action" value="download_database">';
-            $html .= '<button type="submit" class="btn btn-sm btn-outline-light d-flex align-items-center gap-1 px-2 py-1" title="Download database export">';
+            $html .= '<button type="submit" class="btn btn-sm btn-outline-success d-flex align-items-center gap-1 px-2 py-1" title="Download database export">';
             $html .= '<i class="bi bi-cloud-download"></i>';
             $html .= '<span class="small">Export</span>';
             $html .= '</button>';
@@ -1227,6 +1227,42 @@ SQL;
                         $html .= '</td>';
                         $html .= '</tr>';
                     }
+                    
+                    // Add new column row
+                    $html .= '<tr class="fc-db-add-column-row bg-body-tertiary">';
+                    $html .= '<form method="post" data-fc-db-editor-form>';
+                    $html .= '<input type="hidden" name="fc_db_editor_action" value="add_column">';
+                    $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
+                    
+                    if ($reorderEnabled) {
+                        $html .= '<td class="text-center"><i class="bi bi-plus-lg text-muted"></i></td>';
+                    }
+                    
+                    $html .= '<td>';
+                    $html .= '<input type="text" name="column_name" class="form-control form-control-sm" required pattern="[A-Za-z0-9_]+" placeholder="Column name">';
+                    $html .= '</td>';
+                    
+                    $html .= '<td>';
+                    $html .= '<select name="column_type" class="form-select form-select-sm" required>';
+                    foreach ($typeOptions as $option) {
+                        $escapedOption = htmlspecialchars($option, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                        $selected = $option === 'VARCHAR(255)' ? ' selected' : '';
+                        $html .= '<option value="' . $escapedOption . '"' . $selected . '>' . $escapedOption . '</option>';
+                    }
+                    $html .= '</select>';
+                    $html .= '</td>';
+                    
+                    $html .= '<td class="text-center">—</td>';
+                    $html .= '<td>—</td>';
+                    $html .= '<td>—</td>';
+                    
+                    $html .= '<td class="text-end">';
+                    $html .= '<button type="submit" class="btn btn-success btn-sm"><i class="bi bi-plus-lg me-1"></i>Add</button>';
+                    $html .= '</td>';
+                    
+                    $html .= '</form>';
+                    $html .= '</tr>';
+                    
                     $html .= '</tbody></table>';
                     if ($reorderEnabled) {
                         $html .= '<form method="post" class="d-none" data-fc-db-editor-form data-fc-db-reorder-form>';
@@ -1238,30 +1274,6 @@ SQL;
                     $html .= '</div>';
                 }
 
-                $html .= '<div class="fc-db-add-column mt-4 pt-3 border-top">';
-                $html .= '<h6 class="text-muted mb-3">Add New Column</h6>';
-                $html .= '<form method="post" class="row g-3 align-items-end" data-fc-db-editor-form>';
-                $html .= '<input type="hidden" name="fc_db_editor_action" value="add_column">';
-                $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
-                $html .= '<div class="col-md-5">';
-                $html .= '<label class="form-label text-muted">Column name</label>';
-                $html .= '<input type="text" name="column_name" class="form-control" required pattern="[A-Za-z0-9_]+" placeholder="">';
-                $html .= '</div>';
-                $html .= '<div class="col-md-5">';
-                $html .= '<label class="form-label text-muted">Column type</label>';
-                $html .= '<select name="column_type" class="form-select" required>';
-                foreach ($typeOptions as $option) {
-                    $escapedOption = htmlspecialchars($option, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                    $selected = $option === 'VARCHAR(255)' ? ' selected' : '';
-                    $html .= '<option value="' . $escapedOption . '"' . $selected . '>' . $escapedOption . '</option>';
-                }
-                $html .= '</select>';
-                $html .= '</div>';
-                $html .= '<div class="col-md-2">';
-                $html .= '<button type="submit" class="btn btn-success w-100"><i class="bi bi-plus-lg me-1"></i>Add</button>';
-                $html .= '</div>';
-                $html .= '</form>';
-                $html .= '</div>';
 
                 $html .= '</div>';
                 $html .= '</div>';
