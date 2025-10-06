@@ -72,9 +72,9 @@
   /* Aesthetics */
   --shadow: 0 6px 18px rgba(20, 24, 31, .06), 0 2px 6px rgba(20, 24, 31, .04);
   --shadow-inset: inset 0 1px 0 rgba(255,255,255,.6);
-  --radius: 8px;
+  --radius: 12px;
   --radius-btn: 6px;
-  --radius-input: 5px;
+  --radius-input: 6px;
   --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
@@ -143,9 +143,6 @@
   /* Aesthetics */
   --shadow: 0 10px 30px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
   --shadow-inset: inset 0 1px 0 rgba(255,255,255,.04);
-  --radius: 12px;
-  --radius-btn: 6px;
-  --radius-input: 6px;
   --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
@@ -316,7 +313,7 @@ input[type="checkbox"]::before {
 .table {
   --tbl-row-hover: color-mix(in srgb, var(--bs-border-color) 18%, transparent);
   border-color: var(--bs-table-border-color);
-  border-radius: var(--radius);
+ 
   overflow: hidden;
   box-shadow: var(--shadow);
 }
@@ -346,32 +343,12 @@ input[type="checkbox"]::before {
   padding: 1rem 1.25rem;
   border-bottom: 2px solid var(--border-strong);
 }
-
-.table thead th:first-child {
-  border-top-left-radius: var(--radius);
-}
-
-.table thead th:last-child {
-  border-top-right-radius: var(--radius);
-}
-
  
-
-.table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.table tbody tr:last-child td:first-child {
-  border-bottom-left-radius: var(--radius);
-}
-
-.table tbody tr:last-child td:last-child {
-  border-bottom-right-radius: var(--radius);
-}
 
 /* Compact, tidy look */
 .table > :not(caption) > * > * {
   padding-block: .75rem;
+  background-color: transparent;
 }
 
 /* Dark theme adjustments for table headers */
