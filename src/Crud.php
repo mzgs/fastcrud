@@ -34,6 +34,10 @@ class Crud
      */
     private array $enumOptionsCache = [];
     /**
+     * @var array<string, array<string, mixed>>|null
+     */
+    private ?array $queryBuilderFieldCache = null;
+    /**
      * @var array<string, array{name: string, parent_column: string, parent_column_raw: string, foreign_column: string, crud: self}>
      */
     private array $nestedTables = [];
@@ -51,6 +55,21 @@ class Crud
         'not_in',
         'empty',
         'not_empty',
+    ];
+
+    private const QUERY_BUILDER_OPERATOR_CONFIG = [
+        'equals' => ['label' => 'Equals', 'requires_value' => true, 'multi' => false],
+        'not_equals' => ['label' => 'Does not equal', 'requires_value' => true, 'multi' => false],
+        'contains' => ['label' => 'Contains', 'requires_value' => true, 'multi' => false],
+        'not_contains' => ['label' => 'Does not contain', 'requires_value' => true, 'multi' => false],
+        'gt' => ['label' => 'Greater than', 'requires_value' => true, 'multi' => false],
+        'gte' => ['label' => 'Greater than or equal', 'requires_value' => true, 'multi' => false],
+        'lt' => ['label' => 'Less than', 'requires_value' => true, 'multi' => false],
+        'lte' => ['label' => 'Less than or equal', 'requires_value' => true, 'multi' => false],
+        'in' => ['label' => 'Is one of', 'requires_value' => true, 'multi' => true],
+        'not_in' => ['label' => 'Is not one of', 'requires_value' => true, 'multi' => true],
+        'empty' => ['label' => 'Is empty', 'requires_value' => false, 'multi' => false],
+        'not_empty' => ['label' => 'Is not empty', 'requires_value' => false, 'multi' => false],
     ];
 
     private const SUPPORTED_SUMMARY_TYPES = ['sum', 'avg', 'min', 'max', 'count'];
@@ -139,6 +158,12 @@ class Crud
         'panel_width' => null,
         'select2' => false,
         'primary_key' => 'id',
+        'query_builder' => [
+            'filters' => [],
+            'logic' => 'AND',
+            'sorts' => [],
+            'active_view' => null,
+        ],
         'form' => [
             'layouts' => [],
             'default_tabs' => [],
@@ -3860,6 +3885,39 @@ class Crud
             $counter++;
         }
 
+        $queryFilters = $this->config['query_builder']['filters'] ?? [];
+        if (is_array($queryFilters) && $queryFilters !== []) {
+            $logic = isset($this->config['query_builder']['logic'])
+                && strtoupper((string) $this->config['query_builder']['logic']) === 'OR'
+                ? 'OR'
+                : 'AND';
+
+            $qbClauses = [];
+            $qbPlaceholderCounter = 0;
+
+            foreach ($queryFilters as $filter) {
+                if (!is_array($filter)) {
+                    continue;
+                }
+
+                $clause = $this->buildQueryBuilderFilterClause($filter, $parameters, $qbPlaceholderCounter);
+                if ($clause !== '') {
+                    $qbClauses[] = $clause;
+                }
+            }
+
+            if ($qbClauses !== []) {
+                $combined = count($qbClauses) > 1
+                    ? '(' . implode(' ' . $logic . ' ', $qbClauses) . ')'
+                    : $qbClauses[0];
+
+                $clauses[] = [
+                    'glue'   => 'AND',
+                    'clause' => $combined,
+                ];
+            }
+        }
+
         if ($searchTerm !== null && $searchTerm !== '') {
             $configuredColumns = $this->config['search_columns'];
             $map = $this->getWhereColumnsMapForAllSearch(); // display => expr
@@ -5425,22 +5483,27 @@ SQL;
 
         $batchDeleteEnabled = $this->isBatchDeleteEnabled();
         $headerHtml = $this->buildHeader($columns);
+        $clientConfigPayload = $this->buildClientConfigPayload();
         $script     = $this->generateAjaxScript();
         $styles     = $this->buildActionColumnStyles($rawId, $formOnly);
         $colspan    = $this->escapeHtml((string) (count($columns) + 1 + ($batchDeleteEnabled ? 1 : 0) + ($this->hasNestedTables() ? 1 : 0)));
         $offcanvas  = $this->buildEditOffcanvas($rawId, $formOnly) . $this->buildViewOffcanvas($rawId, $formOnly);
+        $queryBuilderModal = $this->buildQueryBuilderModal($rawId, $formOnly);
 
         $configJson = '{}';
         try {
-            $configJson = json_encode($this->buildClientConfigPayload(), JSON_THROW_ON_ERROR);
+            $configJson = json_encode($clientConfigPayload, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
             $configJson = '{}';
         }
+
+        $viewStorageKey = $this->buildViewStorageKey($clientConfigPayload);
 
         $containerAttributes = [
             'id'                              => $rawId . '-container',
             'data-fastcrud-config'            => $configJson,
             'data-fastcrud-initial-primary-column' => $this->getPrimaryKeyColumn(),
+            'data-fastcrud-view-storage-key'  => $viewStorageKey,
         ];
 
         if ($formOnly) {
@@ -5498,6 +5561,7 @@ $headerHtml
         <div id="{$id}-range" class="text-muted small ms-auto"></div>
     </nav>
 </div>
+$queryBuilderModal
 $styles
 $offcanvas
 $script
@@ -6004,6 +6068,67 @@ HTML;
 HTML;
     }
 
+    private function buildQueryBuilderModal(string $id, bool $formOnly = false): string
+    {
+        if ($formOnly) {
+            return '';
+        }
+
+        $escapedId = $this->escapeHtml($id);
+        $modalId = $escapedId . '-query-builder';
+        $logicId = $escapedId . '-qb-logic';
+        $filtersId = $escapedId . '-qb-filters';
+        $sortsId = $escapedId . '-qb-sorts';
+        $applyId = $escapedId . '-qb-apply';
+        $clearId = $escapedId . '-qb-clear';
+        $saveId = $escapedId . '-qb-save';
+
+        return <<<HTML
+<div class="modal fade fastcrud-query-builder" id="{$modalId}" tabindex="-1" aria-labelledby="{$modalId}-label" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="{$modalId}-label">Query Builder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="{$logicId}" class="form-label">Match Conditions</label>
+                    <select id="{$logicId}" class="form-select form-select-sm" style="max-width: 14rem;">
+                        <option value="AND">All conditions (AND)</option>
+                        <option value="OR">Any condition (OR)</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">Filters</h6>
+                        <small class="text-muted">Add one or more conditions to filter results</small>
+                    </div>
+                    <div id="{$filtersId}"></div>
+                </div>
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">Sort Order</h6>
+                        <small class="text-muted">Define the priority of ordering</small>
+                    </div>
+                    <div id="{$sortsId}"></div>
+                </div>
+            </div>
+            <div class="modal-footer d-flex align-items-center">
+                <div class="me-auto d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="{$clearId}">Clear</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="{$saveId}">Save as View</button>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-primary" id="{$applyId}">Apply</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+HTML;
+    }
+
     private function buildActionColumnStyles(string $id, bool $formOnly = false): string
     {
         $containerId = $this->escapeHtml($id . '-container');
@@ -6125,6 +6250,24 @@ CSS;
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+}
+
+#{$containerId} .fastcrud-view-controls .form-select-sm {
+    min-width: 12rem;
+}
+
+.fastcrud-query-builder .modal-body h6 {
+    font-size: 0.95rem;
+}
+
+.fastcrud-query-builder .modal-body small {
+    font-size: 0.75rem;
+}
+
+.fastcrud-query-builder .fastcrud-qb-filter-row .form-select-sm,
+.fastcrud-query-builder .fastcrud-qb-filter-row .form-control-sm,
+.fastcrud-query-builder .fastcrud-qb-sort-row .form-select-sm {
+    font-size: 0.875rem;
 }
 
 #{$containerId} table thead th.fastcrud-actions,
@@ -6593,6 +6736,7 @@ HTML;
             'inline_edit' => $inline,
             'nested_tables' => $this->buildNestedTablesClientConfigPayload(),
             'soft_delete'   => $this->config['soft_delete'],
+            'query_builder' => $this->buildQueryBuilderClientPayload(),
         ];
     }
 
@@ -7209,14 +7353,720 @@ HTML;
                 'upload_path' => CrudConfig::getUploadPath(),
             ],
             'select2'           => (bool) ($this->config['select2'] ?? false),
+            'query_builder'     => $this->buildQueryBuilderClientPayload(),
         ];
     }
+
+    /**
+     * Build a stable namespace for storing client-side saved views.
+     *
+     * @param array<string, mixed> $clientConfig
+     */
+    private function buildViewStorageKey(array $clientConfig): string
+    {
+        $tableKey = $this->table;
+        if (isset($clientConfig['table']['key']) && is_string($clientConfig['table']['key']) && $clientConfig['table']['key'] !== '') {
+            $tableKey = $clientConfig['table']['key'];
+        }
+
+        $hashSource = [
+            'table'           => $tableKey,
+            'columns'         => $clientConfig['columns'] ?? [],
+            'visible_columns' => $clientConfig['visible_columns'] ?? null,
+            'joins'           => $clientConfig['joins'] ?? [],
+            'relations'       => $clientConfig['relations'] ?? [],
+        ];
+
+        $hash = substr(sha1($tableKey), 0, 12);
+        try {
+            $hash = substr(sha1(json_encode($hashSource, JSON_THROW_ON_ERROR)), 0, 12);
+        } catch (JsonException) {
+            // Ignore and keep fallback hash.
+        }
+
+        return $tableKey . ':' . $hash;
+    }
+
+    private function buildQueryBuilderClientPayload(): array
+    {
+        $state = $this->config['query_builder'] ?? [];
+        $logic = isset($state['logic']) && strtoupper((string) $state['logic']) === 'OR' ? 'OR' : 'AND';
+
+        $filters = [];
+        if (isset($state['filters']) && is_array($state['filters'])) {
+            foreach ($state['filters'] as $filter) {
+                if (!is_array($filter) || !isset($filter['field'], $filter['operator'])) {
+                    continue;
+                }
+
+                $filters[] = [
+                    'field'    => (string) $filter['field'],
+                    'operator' => (string) $filter['operator'],
+                    'value'    => $filter['value'] ?? null,
+                    'type'     => $filter['type'] ?? null,
+                ];
+            }
+        }
+
+        $sorts = [];
+        if (isset($state['sorts']) && is_array($state['sorts']) && $state['sorts'] !== []) {
+            foreach ($state['sorts'] as $sort) {
+                if (!is_array($sort) || !isset($sort['field'])) {
+                    continue;
+                }
+
+                $field = $this->normalizeColumnReference((string) $sort['field']);
+                if ($field === '') {
+                    continue;
+                }
+
+                $direction = isset($sort['direction']) && strtoupper((string) $sort['direction']) === 'DESC'
+                    ? 'DESC'
+                    : 'ASC';
+
+                $sorts[] = [
+                    'field'     => $field,
+                    'direction' => $direction,
+                ];
+            }
+        } else {
+            foreach ($this->config['order_by'] as $sort) {
+                if (!is_array($sort) || !isset($sort['field'])) {
+                    continue;
+                }
+
+                $field = $this->normalizeColumnReference((string) $sort['field']);
+                if ($field === '') {
+                    continue;
+                }
+
+                $direction = isset($sort['direction']) && strtoupper((string) $sort['direction']) === 'DESC'
+                    ? 'DESC'
+                    : 'ASC';
+
+                $sorts[] = [
+                    'field'     => $field,
+                    'direction' => $direction,
+                ];
+            }
+        }
+
+        $fields = [];
+        foreach ($this->getQueryBuilderFieldMap() as $field) {
+            $entry = $field;
+            unset($entry['sql']);
+            $fields[] = $entry;
+        }
+
+        $activeView = null;
+        if (isset($state['active_view']) && is_string($state['active_view'])) {
+            $trimmed = trim($state['active_view']);
+            if ($trimmed !== '') {
+                $activeView = $trimmed;
+            }
+        }
+
+        return [
+            'logic'       => $logic,
+            'filters'     => $filters,
+            'sorts'       => $sorts,
+            'fields'      => $fields,
+            'operators'   => $this->getQueryBuilderOperators(),
+            'active_view' => $activeView,
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function getQueryBuilderOperators(): array
+    {
+        $operators = [];
+
+        foreach (self::QUERY_BUILDER_OPERATOR_CONFIG as $operator => $config) {
+            $label = isset($config['label']) && is_string($config['label'])
+                ? $config['label']
+                : ucwords(str_replace('_', ' ', $operator));
+
+            $operators[] = [
+                'value' => $operator,
+                'label' => $label,
+                'requires_value' => (bool) ($config['requires_value'] ?? true),
+                'multi' => (bool) ($config['multi'] ?? false),
+            ];
+        }
+
+        return $operators;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function getQueryBuilderFieldMap(): array
+    {
+        if ($this->queryBuilderFieldCache !== null) {
+            return $this->queryBuilderFieldCache;
+        }
+
+        $fields = [];
+
+        $mainSchema = $this->getTableSchema($this->table);
+        foreach ($this->getBaseTableColumns() as $column) {
+            if (!is_string($column) || $column === '') {
+                continue;
+            }
+
+            $normalized = $this->normalizeColumnReference($column);
+            if ($normalized === '') {
+                continue;
+            }
+
+            $columnMeta = $mainSchema[$column] ?? [];
+            if (!$this->isQueryBuilderFilterable($columnMeta)) {
+                continue;
+            }
+
+            $fields[$normalized] = $this->makeQueryBuilderFieldEntry(
+                $normalized,
+                'main.' . $column,
+                $columnMeta
+            );
+        }
+
+        foreach ($this->config['joins'] as $index => $join) {
+            if (!is_array($join) || !isset($join['table'])) {
+                continue;
+            }
+
+            $joinTable = trim((string) $join['table']);
+            if ($joinTable === '') {
+                continue;
+            }
+
+            $alias = isset($join['alias']) && is_string($join['alias']) && trim($join['alias']) !== ''
+                ? trim((string) $join['alias'])
+                : ('j' . $index);
+
+            $joinColumns = $this->getTableColumnsFor($joinTable);
+            $joinSchema  = $this->getTableSchema($joinTable);
+
+            foreach ($joinColumns as $column) {
+                if (!is_string($column) || $column === '') {
+                    continue;
+                }
+
+                $normalized = $this->normalizeColumnReference($alias . '__' . $column);
+                if ($normalized === '') {
+                    continue;
+                }
+
+                $columnMeta = $joinSchema[$column] ?? [];
+                if (!$this->isQueryBuilderFilterable($columnMeta)) {
+                    continue;
+                }
+
+                $fields[$normalized] = $this->makeQueryBuilderFieldEntry(
+                    $normalized,
+                    $alias . '.' . $column,
+                    $columnMeta
+                );
+            }
+        }
+
+        $this->queryBuilderFieldCache = $fields;
+
+        return $fields;
+    }
+
+    /**
+     * @param array<string, mixed> $columnMeta
+     * @return array<string, mixed>
+     */
+    private function makeQueryBuilderFieldEntry(string $fieldKey, string $qualifiedName, array $columnMeta): array
+    {
+        $type = $this->determineQueryBuilderFieldType($columnMeta);
+        $options = $this->extractEnumValues($columnMeta);
+        $label = $this->resolveColumnLabel($fieldKey);
+
+        return [
+            'id'       => $fieldKey,
+            'field'    => $fieldKey,
+            'label'    => $label,
+            'type'     => $type,
+            'nullable' => $this->queryBuilderColumnIsNullable($columnMeta),
+            'options'  => $options,
+            'sql'      => $this->quoteQualifiedIdentifier($qualifiedName),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $columnMeta
+     */
+    private function determineQueryBuilderFieldType(array $columnMeta): string
+    {
+        $typeInfo = $this->detectSqlTypeInfo($columnMeta);
+        $normalized = $typeInfo['normalized'];
+
+        if ($normalized === '') {
+            if (isset($columnMeta['type']) && is_string($columnMeta['type'])) {
+                $normalized = strtolower(trim((string) $columnMeta['type']));
+            }
+        }
+
+        if ($normalized === '') {
+            return 'string';
+        }
+
+        if ($this->isNumericType($normalized)) {
+            return 'number';
+        }
+
+        if (str_contains($normalized, 'bool')) {
+            return 'boolean';
+        }
+
+        if (str_contains($normalized, 'enum')) {
+            return 'enum';
+        }
+
+        if (str_contains($normalized, 'timestamp') || str_contains($normalized, 'datetime')) {
+            return 'datetime';
+        }
+
+        if (str_contains($normalized, 'date')) {
+            if (!str_contains($normalized, 'time')) {
+                return 'date';
+            }
+
+            return 'datetime';
+        }
+
+        if (str_contains($normalized, 'time')) {
+            return 'time';
+        }
+
+        return 'string';
+    }
+
+    /**
+     * @param array<string, mixed> $columnMeta
+     */
+    private function isQueryBuilderFilterable(array $columnMeta): bool
+    {
+        $typeInfo = $this->detectSqlTypeInfo($columnMeta);
+        $normalized = $typeInfo['normalized'];
+
+        if ($normalized === '') {
+            if (isset($columnMeta['type']) && is_string($columnMeta['type'])) {
+                $normalized = strtolower(trim((string) $columnMeta['type']));
+            }
+        }
+
+        if ($normalized === '') {
+            return true;
+        }
+
+        $token = strtolower($normalized);
+        $token = preg_replace('/\(.*\)/', '', $token) ?? $token;
+        $token = trim($token);
+
+        $blocked = [
+            'json', 'jsonb', 'blob', 'tinyblob', 'mediumblob', 'longblob',
+            'binary', 'varbinary', 'bit', 'geometry', 'point', 'linestring',
+            'polygon', 'multipoint', 'multilinestring', 'multipolygon',
+            'geometrycollection', 'bytea'
+        ];
+
+        return !in_array($token, $blocked, true);
+    }
+
+    /**
+     * @param array<string, mixed> $columnMeta
+     */
+    private function queryBuilderColumnIsNullable(array $columnMeta): bool
+    {
+        $meta = $columnMeta['meta'] ?? null;
+        if (is_array($meta)) {
+            if (array_key_exists('Null', $meta)) {
+                return strtoupper((string) $meta['Null']) !== 'NO';
+            }
+
+            if (array_key_exists('IS_NULLABLE', $meta)) {
+                return strtoupper((string) $meta['IS_NULLABLE']) !== 'NO';
+            }
+
+            if (array_key_exists('is_nullable', $meta)) {
+                $value = $meta['is_nullable'];
+                if (is_string($value)) {
+                    return strtoupper($value) !== 'NO';
+                }
+
+                if (is_bool($value)) {
+                    return $value;
+                }
+
+                if (is_int($value)) {
+                    return $value !== 0;
+                }
+            }
+        }
+
+        if (isset($columnMeta['is_nullable'])) {
+            $value = $columnMeta['is_nullable'];
+            if (is_string($value)) {
+                return strtoupper($value) !== 'NO';
+            }
+
+            if (is_bool($value)) {
+                return $value;
+            }
+
+            if (is_int($value)) {
+                return $value !== 0;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $orderBy
+     * @return array<int, array<string, mixed>>
+     */
+    private function sanitizeOrderByEntries(array $orderBy): array
+    {
+        $sanitized = [];
+
+        foreach ($orderBy as $entry) {
+            if (!is_array($entry) || !isset($entry['field'])) {
+                continue;
+            }
+
+            $field = $this->normalizeColumnReference((string) $entry['field']);
+            if ($field === '') {
+                continue;
+            }
+
+            $direction = isset($entry['direction']) && strtoupper((string) $entry['direction']) === 'DESC'
+                ? 'DESC'
+                : 'ASC';
+
+            $sanitized[] = [
+                'field'     => $field,
+                'direction' => $direction,
+            ];
+        }
+
+        return $sanitized;
+    }
+
+    private function normalizeQueryBuilderValue(mixed $value, string $fieldType): mixed
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_string($value)) {
+            $value = trim($value);
+        }
+
+        switch ($fieldType) {
+            case 'number':
+                if ($value === '' || (!is_numeric($value) && !is_bool($value))) {
+                    return null;
+                }
+
+                return $value + 0;
+
+            case 'boolean':
+                if (is_bool($value)) {
+                    return $value ? 1 : 0;
+                }
+
+                if (is_numeric($value)) {
+                    return ((int) $value) ? 1 : 0;
+                }
+
+                if (is_string($value)) {
+                    $lower = strtolower($value);
+                    if (in_array($lower, ['1', 'true', 'yes', 'y', 'on'], true)) {
+                        return 1;
+                    }
+
+                    if (in_array($lower, ['0', 'false', 'no', 'n', 'off'], true)) {
+                        return 0;
+                    }
+                }
+
+                return null;
+
+            case 'date':
+            case 'datetime':
+            case 'time':
+            case 'enum':
+            default:
+                if ($value === '') {
+                    return null;
+                }
+
+                if (is_scalar($value)) {
+                    return (string) $value;
+                }
+
+                return null;
+        }
+    }
+
+    private function sanitizeQueryBuilderFilter(mixed $filter): ?array
+    {
+        if (!is_array($filter)) {
+            return null;
+        }
+
+        if (!isset($filter['field']) || !is_string($filter['field'])) {
+            return null;
+        }
+
+        $fieldKey = $this->normalizeColumnReference((string) $filter['field']);
+        if ($fieldKey === '') {
+            return null;
+        }
+
+        $fieldMap = $this->getQueryBuilderFieldMap();
+        if (!isset($fieldMap[$fieldKey])) {
+            return null;
+        }
+
+        $operator = isset($filter['operator']) ? strtolower((string) $filter['operator']) : '';
+        if (!in_array($operator, self::SUPPORTED_CONDITION_OPERATORS, true)) {
+            return null;
+        }
+
+        $operatorConfig = self::QUERY_BUILDER_OPERATOR_CONFIG[$operator] ?? null;
+        if ($operatorConfig === null) {
+            return null;
+        }
+
+        $fieldMeta = $fieldMap[$fieldKey];
+        $fieldType = isset($fieldMeta['type']) && is_string($fieldMeta['type']) ? $fieldMeta['type'] : 'string';
+
+        $requiresValue = (bool) ($operatorConfig['requires_value'] ?? true);
+        $isMulti = (bool) ($operatorConfig['multi'] ?? false);
+
+        if ($requiresValue) {
+            $rawValue = $filter['value'] ?? null;
+
+            if ($isMulti) {
+                if (!is_array($rawValue)) {
+                    $rawValue = $rawValue === null ? [] : [$rawValue];
+                }
+
+                $normalized = [];
+                foreach ($rawValue as $item) {
+                    $candidate = $this->normalizeQueryBuilderValue($item, $fieldType);
+                    if ($candidate === null) {
+                        continue;
+                    }
+                    $normalized[] = $candidate;
+                }
+
+                if ($normalized === []) {
+                    return null;
+                }
+
+                $value = $normalized;
+            } else {
+                $value = $this->normalizeQueryBuilderValue($rawValue, $fieldType);
+                if ($value === null) {
+                    return null;
+                }
+            }
+        } else {
+            $value = null;
+        }
+
+        return [
+            'field'    => $fieldKey,
+            'operator' => $operator,
+            'value'    => $value,
+            'type'     => $fieldType,
+            'sql'      => $fieldMeta['sql'],
+            'nullable' => $fieldMeta['nullable'] ?? true,
+        ];
+    }
+
+    private function applyQueryBuilderPayload(mixed $payload): void
+    {
+        $state = [
+            'filters' => [],
+            'logic' => 'AND',
+            'sorts' => $this->config['order_by'],
+            'active_view' => null,
+        ];
+
+        if (!is_array($payload)) {
+            $this->config['query_builder'] = $state;
+
+            return;
+        }
+
+        if (isset($payload['logic']) && strtoupper((string) $payload['logic']) === 'OR') {
+            $state['logic'] = 'OR';
+        }
+
+        if (isset($payload['active_view']) && is_string($payload['active_view'])) {
+            $trimmed = trim($payload['active_view']);
+            if ($trimmed !== '') {
+                $state['active_view'] = $trimmed;
+            }
+        }
+
+        if (isset($payload['filters']) && is_array($payload['filters'])) {
+            $filters = [];
+            foreach ($payload['filters'] as $filter) {
+                $sanitized = $this->sanitizeQueryBuilderFilter($filter);
+                if ($sanitized !== null) {
+                    $filters[] = $sanitized;
+                }
+            }
+
+            if ($filters !== []) {
+                $state['filters'] = $filters;
+            }
+        }
+
+        if (isset($payload['sorts']) && is_array($payload['sorts'])) {
+            $sorts = $this->sanitizeOrderByEntries($payload['sorts']);
+            if ($sorts !== []) {
+                $state['sorts'] = $sorts;
+                $this->config['order_by'] = $sorts;
+            }
+        } else {
+            $state['sorts'] = $this->config['order_by'];
+        }
+
+        $this->config['query_builder'] = $state;
+    }
+
+    private function buildQueryBuilderFilterClause(array $filter, array &$parameters, int &$placeholderCounter): string
+    {
+        $column = isset($filter['sql']) && is_string($filter['sql']) ? $filter['sql'] : '';
+        if ($column === '') {
+            return '';
+        }
+
+        $operator = isset($filter['operator']) ? strtolower((string) $filter['operator']) : '';
+        if ($operator === '') {
+            return '';
+        }
+
+        $type = isset($filter['type']) && is_string($filter['type']) ? $filter['type'] : 'string';
+
+        $basePlaceholder = ':qb_' . $placeholderCounter;
+        $placeholderCounter++;
+
+        switch ($operator) {
+            case 'equals':
+            case 'not_equals':
+            case 'gt':
+            case 'gte':
+            case 'lt':
+            case 'lte':
+                $value = $filter['value'] ?? null;
+                if ($value === null) {
+                    return '';
+                }
+
+                if (is_string($value) && $value === '') {
+                    return '';
+                }
+
+                $map = [
+                    'equals' => '=',
+                    'not_equals' => '<>',
+                    'gt' => '>',
+                    'gte' => '>=',
+                    'lt' => '<',
+                    'lte' => '<=',
+                ];
+
+                $parameters[$basePlaceholder] = $value;
+
+                return sprintf('%s %s %s', $column, $map[$operator], $basePlaceholder);
+
+            case 'contains':
+            case 'not_contains':
+                $value = $filter['value'] ?? null;
+                if ($value === null) {
+                    return '';
+                }
+
+                $stringValue = (string) $value;
+                if ($stringValue === '') {
+                    return '';
+                }
+
+                $parameters[$basePlaceholder] = '%' . $stringValue . '%';
+                $keyword = $operator === 'contains' ? 'LIKE' : 'NOT LIKE';
+
+                return sprintf('%s %s %s', $column, $keyword, $basePlaceholder);
+
+            case 'in':
+            case 'not_in':
+                $values = is_array($filter['value']) ? $filter['value'] : [];
+                if ($values === []) {
+                    return '';
+                }
+
+                $placeholders = [];
+                foreach ($values as $index => $value) {
+                    if ($value === null) {
+                        continue;
+                    }
+
+                    if (is_string($value) && $value === '') {
+                        continue;
+                    }
+
+                    $placeholder = $basePlaceholder . '_' . $index;
+                    $parameters[$placeholder] = $value;
+                    $placeholders[] = $placeholder;
+                }
+
+                if ($placeholders === []) {
+                    return '';
+                }
+
+                $keyword = $operator === 'in' ? 'IN' : 'NOT IN';
+
+                return sprintf('%s %s (%s)', $column, $keyword, implode(', ', $placeholders));
+
+            case 'empty':
+                if ($type === 'number' || $type === 'boolean') {
+                    return sprintf('%s IS NULL', $column);
+                }
+
+                return sprintf("(%s IS NULL OR %s = '')", $column, $column);
+
+            case 'not_empty':
+                if ($type === 'number' || $type === 'boolean') {
+                    return sprintf('%s IS NOT NULL', $column);
+                }
+
+                return sprintf("(%s IS NOT NULL AND %s <> '')", $column, $column);
+        }
+
+        return '';
+    }
+
 
     /**
      * @param array<string, mixed> $payload
      */
     private function applyClientConfig(array $payload): void
     {
+        $this->queryBuilderFieldCache = null;
+
         if (isset($payload['primary_key']) && is_string($payload['primary_key']) && trim($payload['primary_key']) !== '') {
             $this->primary_key($payload['primary_key']);
         }
@@ -7797,6 +8647,14 @@ HTML;
                 ];
             }
         }
+
+        $orderByConfig = $this->config['order_by'];
+        if (!is_array($orderByConfig)) {
+            $orderByConfig = [];
+        }
+        $this->config['order_by'] = $this->sanitizeOrderByEntries($orderByConfig);
+
+        $this->applyQueryBuilderPayload($payload['query_builder'] ?? null);
 
         if (isset($payload['form']) && is_array($payload['form'])) {
             $this->mergeFormConfig($payload['form']);
@@ -9559,6 +10417,926 @@ CSS;
         var nestedTablesConfig = Array.isArray(clientConfig.nested_tables) ? clientConfig.nested_tables : [];
         var nestedRowStates = {};
         var orderBy = [];
+        var queryBuilderConfig = clientConfig.query_builder && typeof clientConfig.query_builder === 'object'
+            ? deepClone(clientConfig.query_builder)
+            : {};
+        var queryBuilderFields = Array.isArray(queryBuilderConfig.fields) ? deepClone(queryBuilderConfig.fields) : [];
+        var queryBuilderOperators = Array.isArray(queryBuilderConfig.operators) ? deepClone(queryBuilderConfig.operators) : [];
+        var queryBuilderFieldMap = {};
+        queryBuilderFields.forEach(function(field) {
+            if (!field || typeof field !== 'object') {
+                return;
+            }
+            var id = field.id || field.field;
+            if (!id) {
+                return;
+            }
+            var key = String(id);
+            var normalizedField = $.extend(true, {}, field);
+            normalizedField.id = key;
+            normalizedField.field = key;
+            if (typeof normalizedField.options === 'object' && !Array.isArray(normalizedField.options)) {
+                var optionsArray = [];
+                Object.keys(normalizedField.options).forEach(function(optionKey) {
+                    optionsArray.push({
+                        value: optionKey,
+                        label: normalizedField.options[optionKey]
+                    });
+                });
+                normalizedField.options = optionsArray;
+            }
+            queryBuilderFieldMap[key] = normalizedField;
+        });
+        var queryBuilderOperatorMap = {};
+        queryBuilderOperators.forEach(function(operator) {
+            if (!operator || typeof operator !== 'object' || !operator.value) {
+                return;
+            }
+            queryBuilderOperatorMap[String(operator.value)] = operator;
+        });
+        var queryBuilderState = {
+            filters: [],
+            logic: queryBuilderConfig.logic === 'OR' ? 'OR' : 'AND',
+            sorts: Array.isArray(queryBuilderConfig.sorts) ? deepClone(queryBuilderConfig.sorts) : [],
+            activeView: queryBuilderConfig.active_view || null
+        };
+        if (Array.isArray(queryBuilderConfig.filters)) {
+            queryBuilderState.filters = queryBuilderConfig.filters.map(function(filter) {
+                var field = filter && typeof filter.field === 'string' ? filter.field : '';
+                var operator = filter && typeof filter.operator === 'string' ? filter.operator : 'equals';
+                var rawValue = '';
+                if (filter && Array.isArray(filter.value)) {
+                    rawValue = filter.value.join(', ');
+                } else if (filter && filter.value !== null && typeof filter.value !== 'undefined') {
+                    rawValue = String(filter.value);
+                }
+                return {
+                    field: field,
+                    operator: operator,
+                    value: rawValue
+                };
+            });
+        }
+        var queryBuilderModal = null;
+        var queryBuilderFiltersContainer = null;
+        var queryBuilderSortsContainer = null;
+        var queryBuilderLogicSelect = null;
+        var filtersButton = null;
+        var filtersButtonBadge = null;
+        var viewSelect = null;
+        var deleteViewButton = null;
+        var viewStorageNamespace = 'fastcrud:views:';
+        var storageKeyAttr = container.attr('data-fastcrud-view-storage-key');
+        var viewStorageKey = viewStorageNamespace + (storageKeyAttr && storageKeyAttr.length ? storageKeyAttr : tableId);
+        var savedViews = [];
+
+        function getFieldInfo(fieldId) {
+            if (!fieldId && fieldId !== 0) {
+                return null;
+            }
+            return queryBuilderFieldMap[String(fieldId)] || null;
+        }
+
+        function getOperatorInfo(operator) {
+            if (!operator) {
+                return null;
+            }
+            return queryBuilderOperatorMap[String(operator)] || null;
+        }
+
+        function getOperatorsForField(fieldId) {
+            var info = getFieldInfo(fieldId);
+            var type = info && info.type ? String(info.type) : 'string';
+            var allowed;
+            switch (type) {
+                case 'number':
+                case 'date':
+                case 'datetime':
+                case 'time':
+                    allowed = ['equals', 'not_equals', 'gt', 'gte', 'lt', 'lte', 'in', 'not_in', 'empty', 'not_empty'];
+                    break;
+                case 'boolean':
+                    allowed = ['equals', 'not_equals', 'in', 'not_in', 'empty', 'not_empty'];
+                    break;
+                default:
+                    allowed = ['contains', 'not_contains', 'equals', 'not_equals', 'in', 'not_in', 'empty', 'not_empty'];
+                    break;
+            }
+
+            var filtered = [];
+            allowed.forEach(function(op) {
+                if (getOperatorInfo(op)) {
+                    if (filtered.indexOf(op) === -1) {
+                        filtered.push(op);
+                    }
+                }
+            });
+
+            if (filtered.length === 0) {
+                filtered.push('equals');
+            }
+
+            return filtered;
+        }
+
+        function convertValueForType(rawValue, type) {
+            if (rawValue === null || typeof rawValue === 'undefined') {
+                return null;
+            }
+
+            if (typeof rawValue !== 'string') {
+                rawValue = String(rawValue);
+            }
+
+            var trimmed = rawValue.trim();
+
+            if (trimmed === '') {
+                return '';
+            }
+
+            switch (type) {
+                case 'number':
+                    if (trimmed === '' || isNaN(Number(trimmed))) {
+                        return null;
+                    }
+                    return Number(trimmed);
+                case 'boolean':
+                    var lower = trimmed.toLowerCase();
+                    if (['1', 'true', 'yes', 'y', 'on'].indexOf(lower) !== -1) {
+                        return 1;
+                    }
+                    if (['0', 'false', 'no', 'n', 'off'].indexOf(lower) !== -1) {
+                        return 0;
+                    }
+                    return null;
+                default:
+                    return trimmed;
+            }
+        }
+
+        function convertValuesForType(rawList, type) {
+            if (!Array.isArray(rawList)) {
+                return [];
+            }
+
+            var results = [];
+            rawList.forEach(function(item) {
+                var converted = convertValueForType(item, type);
+                if (converted === null) {
+                    return;
+                }
+                if (typeof converted === 'string' && converted === '') {
+                    return;
+                }
+                results.push(converted);
+            });
+
+            return results;
+        }
+
+        function buildFilterPayloadForState(filter) {
+            if (!filter || typeof filter !== 'object') {
+                return null;
+            }
+
+            var field = filter.field ? String(filter.field) : '';
+            if (!field) {
+                return null;
+            }
+
+            var operator = filter.operator ? String(filter.operator) : 'equals';
+            if (!getOperatorInfo(operator)) {
+                operator = 'equals';
+            }
+
+            var fieldInfo = getFieldInfo(field) || {};
+            var type = fieldInfo.type || 'string';
+            var requiresValue = !(operator === 'empty' || operator === 'not_empty');
+            var multi = operator === 'in' || operator === 'not_in';
+
+            if (!requiresValue) {
+                return {
+                    field: field,
+                    operator: operator
+                };
+            }
+
+            var rawValue = filter.value;
+            if (typeof rawValue !== 'string') {
+                rawValue = rawValue === null || typeof rawValue === 'undefined' ? '' : String(rawValue);
+            }
+
+            if (multi) {
+                var parts = rawValue.split(',').map(function(piece) {
+                    return piece.trim();
+                }).filter(function(piece) {
+                    return piece.length > 0;
+                });
+
+                var convertedList = convertValuesForType(parts, type);
+                if (!convertedList.length) {
+                    return null;
+                }
+
+                return {
+                    field: field,
+                    operator: operator,
+                    value: convertedList
+                };
+            }
+
+            var converted = convertValueForType(rawValue, type);
+            if (converted === null) {
+                return null;
+            }
+
+            if (typeof converted === 'string' && converted === '') {
+                return null;
+            }
+
+            return {
+                field: field,
+                operator: operator,
+                value: converted
+            };
+        }
+
+        function createDefaultFilter() {
+            var firstField = queryBuilderFields.length ? String(queryBuilderFields[0].id || queryBuilderFields[0].field) : '';
+            return {
+                field: firstField,
+                operator: 'equals',
+                value: ''
+            };
+        }
+
+        function createDefaultSort() {
+            var firstField = queryBuilderFields.length ? String(queryBuilderFields[0].id || queryBuilderFields[0].field) : '';
+            return {
+                field: firstField,
+                direction: 'ASC'
+            };
+        }
+
+        function loadSavedViews() {
+            if (!window.localStorage) {
+                return [];
+            }
+
+            try {
+                var raw = window.localStorage.getItem(viewStorageKey);
+                if (!raw) {
+                    return [];
+                }
+                var parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (error) {
+                return [];
+            }
+        }
+
+        function persistSavedViews(views) {
+            if (!window.localStorage) {
+                return;
+            }
+
+            try {
+                window.localStorage.setItem(viewStorageKey, JSON.stringify(views));
+            } catch (error) {
+                if (window.console && console.warn) {
+                    console.warn('FastCrud: failed to persist saved views', error);
+                }
+            }
+        }
+
+        function updateViewDeleteState() {
+            if (!deleteViewButton) {
+                return;
+            }
+
+            if (!viewSelect || !viewSelect.val()) {
+                deleteViewButton.prop('disabled', true);
+            } else {
+                deleteViewButton.prop('disabled', false);
+            }
+        }
+
+        function renderSavedViewsSelect() {
+            if (!viewSelect || !viewSelect.length) {
+                return;
+            }
+
+            var current = viewSelect.val() || '';
+            viewSelect.empty();
+            viewSelect.append('<option value="">Default view</option>');
+            savedViews.forEach(function(view) {
+                if (!view || typeof view.name !== 'string') {
+                    return;
+                }
+                var option = $('<option></option>').attr('value', view.name).text(view.name);
+                viewSelect.append(option);
+            });
+
+            if (current && savedViews.some(function(view) { return view && view.name === current; })) {
+                viewSelect.val(current);
+            } else if (queryBuilderState.activeView) {
+                viewSelect.val(queryBuilderState.activeView);
+            } else {
+                viewSelect.val('');
+            }
+
+            updateViewDeleteState();
+        }
+
+        function updateQueryBuilderBadge() {
+            if (!filtersButtonBadge) {
+                return;
+            }
+
+            var count = queryBuilderState.filters.filter(function(filter) {
+                return filter && filter.field;
+            }).length;
+
+            if (count > 0) {
+                filtersButtonBadge.text(count).removeClass('d-none');
+            } else {
+                filtersButtonBadge.text('').addClass('d-none');
+            }
+        }
+
+        function syncSortStateFromOrderBy() {
+            queryBuilderState.sorts = deepClone(orderBy || []);
+        }
+
+        function syncQueryBuilderToConfig() {
+            if (formOnlyMode) {
+                return;
+            }
+
+            var filtersPayload = [];
+            queryBuilderState.filters.forEach(function(filter) {
+                var payload = buildFilterPayloadForState(filter);
+                if (payload) {
+                    filtersPayload.push(payload);
+                }
+            });
+
+            if (!clientConfig.query_builder || typeof clientConfig.query_builder !== 'object') {
+                clientConfig.query_builder = {};
+            }
+
+            clientConfig.query_builder.filters = filtersPayload;
+            clientConfig.query_builder.logic = queryBuilderState.logic === 'OR' ? 'OR' : 'AND';
+            clientConfig.query_builder.sorts = deepClone(orderBy || []);
+            clientConfig.query_builder.active_view = queryBuilderState.activeView || null;
+        }
+
+        function hydrateQueryBuilderFromMeta(metaQB) {
+            if (!metaQB || typeof metaQB !== 'object') {
+                return;
+            }
+
+            if (Array.isArray(metaQB.fields)) {
+                queryBuilderFields = deepClone(metaQB.fields);
+                queryBuilderFieldMap = {};
+                queryBuilderFields.forEach(function(field) {
+                    if (!field || typeof field !== 'object') {
+                        return;
+                    }
+                    var id = field.id || field.field;
+                    if (!id) {
+                        return;
+                    }
+                    var key = String(id);
+                    var normalizedField = $.extend(true, {}, field);
+                    normalizedField.id = key;
+                    normalizedField.field = key;
+                    if (typeof normalizedField.options === 'object' && !Array.isArray(normalizedField.options)) {
+                        var optionsArray = [];
+                        Object.keys(normalizedField.options).forEach(function(optionKey) {
+                            optionsArray.push({
+                                value: optionKey,
+                                label: normalizedField.options[optionKey]
+                            });
+                        });
+                        normalizedField.options = optionsArray;
+                    }
+                    queryBuilderFieldMap[key] = normalizedField;
+                });
+            }
+
+            if (Array.isArray(metaQB.operators)) {
+                queryBuilderOperators = deepClone(metaQB.operators);
+                queryBuilderOperatorMap = {};
+                queryBuilderOperators.forEach(function(operator) {
+                    if (!operator || typeof operator !== 'object' || !operator.value) {
+                        return;
+                    }
+                    queryBuilderOperatorMap[String(operator.value)] = operator;
+                });
+            }
+
+            if (Array.isArray(metaQB.filters)) {
+                queryBuilderState.filters = metaQB.filters.map(function(filter) {
+                    var field = filter && typeof filter.field === 'string' ? filter.field : '';
+                    var operator = filter && typeof filter.operator === 'string' ? filter.operator : 'equals';
+                    var rawValue = '';
+                    if (filter && Array.isArray(filter.value)) {
+                        rawValue = filter.value.join(', ');
+                    } else if (filter && filter.value !== null && typeof filter.value !== 'undefined') {
+                        rawValue = String(filter.value);
+                    }
+                    return {
+                        field: field,
+                        operator: operator,
+                        value: rawValue
+                    };
+                });
+            }
+
+            queryBuilderState.logic = metaQB.logic === 'OR' ? 'OR' : 'AND';
+
+            if (Array.isArray(metaQB.sorts)) {
+                queryBuilderState.sorts = deepClone(metaQB.sorts);
+                orderBy = deepClone(metaQB.sorts);
+                clientConfig.order_by = deepClone(metaQB.sorts);
+            }
+
+            if (typeof metaQB.active_view === 'string' && metaQB.active_view.trim() !== '') {
+                queryBuilderState.activeView = metaQB.active_view.trim();
+            } else {
+                queryBuilderState.activeView = null;
+            }
+
+            renderSavedViewsSelect();
+            updateQueryBuilderBadge();
+        }
+
+        function ensureQueryBuilderModal() {
+            if (queryBuilderModal && queryBuilderModal.length) {
+                return;
+            }
+
+            queryBuilderModal = $('#' + tableId + '-query-builder');
+            if (queryBuilderModal && queryBuilderModal.length && !queryBuilderModal.data('fastcrudPortal')) {
+                queryBuilderModal.appendTo(document.body);
+                queryBuilderModal.data('fastcrudPortal', 1);
+            }
+            queryBuilderFiltersContainer = $('#' + tableId + '-qb-filters');
+            queryBuilderSortsContainer = $('#' + tableId + '-qb-sorts');
+            queryBuilderLogicSelect = $('#' + tableId + '-qb-logic');
+
+            if (queryBuilderModal && queryBuilderModal.length && !queryBuilderModal.data('fastcrudBound')) {
+                var applyBtn = $('#' + tableId + '-qb-apply');
+                var clearBtn = $('#' + tableId + '-qb-clear');
+                var saveBtn = $('#' + tableId + '-qb-save');
+
+                if (applyBtn.length) {
+                    applyBtn.on('click', function(event) {
+                        event.preventDefault();
+                        applyQueryBuilderSelections();
+                    });
+                }
+
+                if (clearBtn.length) {
+                    clearBtn.on('click', function(event) {
+                        event.preventDefault();
+                        clearQueryBuilderState();
+                    });
+                }
+
+                if (saveBtn.length) {
+                    saveBtn.on('click', function(event) {
+                        event.preventDefault();
+                        saveCurrentView();
+                    });
+                }
+
+                if (queryBuilderLogicSelect && queryBuilderLogicSelect.length) {
+                    queryBuilderLogicSelect.on('change', function() {
+                        var val = $(this).val() === 'OR' ? 'OR' : 'AND';
+                        if (queryBuilderState.logic !== val) {
+                            queryBuilderState.logic = val;
+                            markFiltersDirty();
+                        }
+                    });
+                }
+
+                queryBuilderModal.data('fastcrudBound', 1);
+            }
+        }
+
+        function renderQueryBuilderFilters() {
+            ensureQueryBuilderModal();
+            if (!queryBuilderFiltersContainer || !queryBuilderFiltersContainer.length) {
+                return;
+            }
+
+            queryBuilderFiltersContainer.empty();
+
+            if (!queryBuilderFields.length) {
+                queryBuilderFiltersContainer.append('<div class="text-muted small">No filterable fields available.</div>');
+                return;
+            }
+
+            queryBuilderState.filters.forEach(function(filter, index) {
+                var currentFilter = filter || { field: '', operator: 'equals', value: '' };
+                var row = $('<div class="row g-2 align-items-center mb-2 fastcrud-qb-filter-row"></div>');
+
+                var fieldCol = $('<div class="col-4"></div>');
+                var fieldSelect = $('<select class="form-select form-select-sm"></select>');
+                queryBuilderFields.forEach(function(field) {
+                    if (!field || !field.id) {
+                        return;
+                    }
+                    var option = $('<option></option>').attr('value', field.id).text(field.label || field.id);
+                    fieldSelect.append(option);
+                });
+                fieldSelect.val(currentFilter.field);
+                fieldSelect.on('change', function() {
+                    var newField = $(this).val() ? String($(this).val()) : '';
+                    queryBuilderState.filters[index] = {
+                        field: newField,
+                        operator: 'equals',
+                        value: ''
+                    };
+                    markFiltersDirty();
+                    renderQueryBuilderFilters();
+                    updateQueryBuilderBadge();
+                });
+                fieldCol.append(fieldSelect);
+                row.append(fieldCol);
+
+                var operatorCol = $('<div class="col-3"></div>');
+                var operatorSelect = $('<select class="form-select form-select-sm"></select>');
+                var operatorChoices = getOperatorsForField(currentFilter.field);
+                if (operatorChoices.indexOf(currentFilter.operator) === -1) {
+                    currentFilter.operator = operatorChoices[0] || 'equals';
+                    queryBuilderState.filters[index].operator = currentFilter.operator;
+                }
+                operatorChoices.forEach(function(op) {
+                    var info = getOperatorInfo(op);
+                    var label = info && info.label ? info.label : op;
+                    operatorSelect.append($('<option></option>').attr('value', op).text(label));
+                });
+                operatorSelect.val(currentFilter.operator);
+                operatorSelect.on('change', function() {
+                    var newOperator = $(this).val() ? String($(this).val()) : 'equals';
+                    queryBuilderState.filters[index].operator = newOperator;
+                    if (newOperator === 'empty' || newOperator === 'not_empty') {
+                        queryBuilderState.filters[index].value = '';
+                    }
+                    markFiltersDirty();
+                    renderQueryBuilderFilters();
+                    updateQueryBuilderBadge();
+                });
+                operatorCol.append(operatorSelect);
+                row.append(operatorCol);
+
+                var valueCol = $('<div class="col-4"></div>');
+                var operatorInfo = getOperatorInfo(currentFilter.operator) || { requires_value: true, multi: false };
+                var fieldInfo = getFieldInfo(currentFilter.field) || {};
+                var needsValue = operatorInfo.requires_value !== false;
+                var valueInput;
+
+                if (!needsValue) {
+                    valueInput = $('<input type="text" class="form-control form-control-sm" disabled />');
+                } else if (fieldInfo.type === 'boolean') {
+                    valueInput = $('<select class="form-select form-select-sm"></select>');
+                    valueInput.append('<option value="">Select…</option>');
+                    valueInput.append('<option value="1">True</option>');
+                    valueInput.append('<option value="0">False</option>');
+                } else {
+                    valueInput = $('<input type="text" class="form-control form-control-sm" />');
+                    if (operatorInfo.multi) {
+                        valueInput.attr('placeholder', 'Value 1, Value 2');
+                    }
+                }
+
+                if (needsValue) {
+                    valueInput.val(currentFilter.value || '');
+                    valueInput.on('input change', function() {
+                        queryBuilderState.filters[index].value = $(this).val();
+                        markFiltersDirty();
+                    });
+                } else {
+                    valueInput.val('');
+                }
+
+                if (currentFilter._invalid) {
+                    valueInput.addClass('is-invalid');
+                    delete queryBuilderState.filters[index]._invalid;
+                }
+
+                valueCol.append(valueInput);
+                row.append(valueCol);
+
+                var actionsCol = $('<div class="col-1 text-end"></div>');
+                var removeBtn = $('<button type="button" class="btn btn-sm btn-outline-danger" aria-label="Remove filter">&times;</button>');
+                removeBtn.on('click', function() {
+                    queryBuilderState.filters.splice(index, 1);
+                    markFiltersDirty();
+                    renderQueryBuilderFilters();
+                    updateQueryBuilderBadge();
+                });
+                actionsCol.append(removeBtn);
+                row.append(actionsCol);
+
+                queryBuilderFiltersContainer.append(row);
+            });
+
+            var addBtnWrapper = $('<div class="mt-2"></div>');
+            var addBtn = $('<button type="button" class="btn btn-sm btn-outline-primary">Add Filter</button>');
+            addBtn.on('click', function() {
+                queryBuilderState.filters.push(createDefaultFilter());
+                markFiltersDirty();
+                renderQueryBuilderFilters();
+                updateQueryBuilderBadge();
+            });
+            addBtnWrapper.append(addBtn);
+            queryBuilderFiltersContainer.append(addBtnWrapper);
+        }
+
+        function renderQueryBuilderSorts() {
+            ensureQueryBuilderModal();
+            if (!queryBuilderSortsContainer || !queryBuilderSortsContainer.length) {
+                return;
+            }
+
+            queryBuilderSortsContainer.empty();
+
+            queryBuilderState.sorts.forEach(function(sort, index) {
+                var currentSort = sort || { field: '', direction: 'ASC' };
+                var row = $('<div class="row g-2 align-items-center mb-2 fastcrud-qb-sort-row"></div>');
+
+                var fieldCol = $('<div class="col-6"></div>');
+                var fieldSelect = $('<select class="form-select form-select-sm"></select>');
+                queryBuilderFields.forEach(function(field) {
+                    if (!field || !field.id) {
+                        return;
+                    }
+                    var option = $('<option></option>').attr('value', field.id).text(field.label || field.id);
+                    fieldSelect.append(option);
+                });
+                fieldSelect.val(currentSort.field);
+                fieldSelect.on('change', function() {
+                    queryBuilderState.sorts[index].field = $(this).val() ? String($(this).val()) : '';
+                    markFiltersDirty();
+                });
+                fieldCol.append(fieldSelect);
+                row.append(fieldCol);
+
+                var directionCol = $('<div class="col-4"></div>');
+                var directionSelect = $('<select class="form-select form-select-sm"></select>');
+                directionSelect.append('<option value="ASC">Ascending</option>');
+                directionSelect.append('<option value="DESC">Descending</option>');
+                directionSelect.val((currentSort.direction || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC');
+                directionSelect.on('change', function() {
+                    queryBuilderState.sorts[index].direction = $(this).val() ? String($(this).val()).toUpperCase() : 'ASC';
+                    markFiltersDirty();
+                });
+                directionCol.append(directionSelect);
+                row.append(directionCol);
+
+                var actionsCol = $('<div class="col-2 text-end"></div>');
+                var removeBtn = $('<button type="button" class="btn btn-sm btn-outline-danger" aria-label="Remove sort">&times;</button>');
+                removeBtn.on('click', function() {
+                    queryBuilderState.sorts.splice(index, 1);
+                    markFiltersDirty();
+                    renderQueryBuilderSorts();
+                });
+                actionsCol.append(removeBtn);
+                row.append(actionsCol);
+
+                queryBuilderSortsContainer.append(row);
+            });
+
+            var addBtnWrapper = $('<div class="mt-2"></div>');
+            var addBtn = $('<button type="button" class="btn btn-sm btn-outline-primary">Add Sort</button>');
+            addBtn.on('click', function() {
+                queryBuilderState.sorts.push(createDefaultSort());
+                markFiltersDirty();
+                renderQueryBuilderSorts();
+            });
+            addBtnWrapper.append(addBtn);
+            queryBuilderSortsContainer.append(addBtnWrapper);
+        }
+
+        function refreshQueryBuilderModal() {
+            ensureQueryBuilderModal();
+            renderQueryBuilderFilters();
+            renderQueryBuilderSorts();
+            if (queryBuilderLogicSelect && queryBuilderLogicSelect.length) {
+                queryBuilderLogicSelect.val(queryBuilderState.logic === 'OR' ? 'OR' : 'AND');
+            }
+        }
+
+        function openQueryBuilderModal() {
+            if (formOnlyMode) {
+                return;
+            }
+
+            ensureQueryBuilderModal();
+            syncSortStateFromOrderBy();
+            refreshQueryBuilderModal();
+
+            if (queryBuilderModal && queryBuilderModal.length) {
+                if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                    bootstrap.Modal.getOrCreateInstance(queryBuilderModal.get(0)).show();
+                } else {
+                    queryBuilderModal.removeClass('d-none').show();
+                }
+            }
+        }
+
+        function closeQueryBuilderModal() {
+            if (queryBuilderModal && queryBuilderModal.length) {
+                if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                    var instance = bootstrap.Modal.getInstance(queryBuilderModal.get(0));
+                    if (instance) {
+                        instance.hide();
+                    }
+                } else {
+                    queryBuilderModal.hide();
+                }
+            }
+        }
+
+        function clearQueryBuilderState() {
+            queryBuilderState.filters = [];
+            queryBuilderState.logic = 'AND';
+            queryBuilderState.sorts = [];
+            queryBuilderState.activeView = null;
+            viewSelect && viewSelect.val('');
+            updateViewDeleteState();
+            refreshQueryBuilderModal();
+            updateQueryBuilderBadge();
+            markFiltersDirty();
+        }
+
+        function applyQueryBuilderSelections() {
+            var validFilters = [];
+            var hasInvalid = false;
+
+            queryBuilderState.filters.forEach(function(filter, index) {
+                var payload = buildFilterPayloadForState(filter);
+                if (!payload) {
+                    queryBuilderState.filters[index]._invalid = true;
+                    hasInvalid = true;
+                } else {
+                    validFilters.push(payload);
+                }
+            });
+
+            if (hasInvalid) {
+                refreshQueryBuilderModal();
+                updateQueryBuilderBadge();
+                alert('Please complete all filter values before applying.');
+                return;
+            }
+
+            orderBy = deepClone(queryBuilderState.sorts || []);
+            clientConfig.order_by = deepClone(orderBy);
+            queryBuilderState.activeView = null;
+            if (viewSelect) {
+                viewSelect.val('');
+                updateViewDeleteState();
+            }
+
+            markFiltersDirty();
+            syncQueryBuilderToConfig();
+            updateQueryBuilderBadge();
+            updateSortIndicators();
+            closeQueryBuilderModal();
+            loadTableData(1);
+        }
+
+        function saveCurrentView() {
+            var name = window.prompt('Enter a name for this view:');
+            if (!name) {
+                return;
+            }
+            name = name.trim();
+            if (!name.length) {
+                return;
+            }
+
+            var existingIndex = savedViews.findIndex(function(view) {
+                return view && view.name === name;
+            });
+
+            var viewDefinition = {
+                name: name,
+                filters: deepClone(queryBuilderState.filters || []),
+                logic: queryBuilderState.logic === 'OR' ? 'OR' : 'AND',
+                sorts: deepClone(queryBuilderState.sorts || []),
+                searchTerm: currentSearchTerm || '',
+                searchColumn: currentSearchColumn || null
+            };
+
+            if (existingIndex >= 0) {
+                savedViews[existingIndex] = viewDefinition;
+            } else {
+                savedViews.push(viewDefinition);
+            }
+
+            persistSavedViews(savedViews);
+            queryBuilderState.activeView = name;
+            renderSavedViewsSelect();
+            updateQueryBuilderBadge();
+        }
+
+        function deleteCurrentView() {
+            if (!viewSelect) {
+                return;
+            }
+            var name = viewSelect.val();
+            if (!name) {
+                return;
+            }
+            if (!window.confirm('Delete view "' + name + '"?')) {
+                return;
+            }
+            savedViews = savedViews.filter(function(view) {
+                return view && view.name !== name;
+            });
+            persistSavedViews(savedViews);
+            queryBuilderState.activeView = null;
+            viewSelect.val('');
+            updateViewDeleteState();
+            renderSavedViewsSelect();
+            markFiltersDirty();
+        }
+
+        function applySavedViewByName(name) {
+            if (!name) {
+                queryBuilderState.activeView = null;
+                queryBuilderState.filters = [];
+                queryBuilderState.logic = 'AND';
+                queryBuilderState.sorts = [];
+                currentSearchTerm = '';
+                currentSearchColumn = null;
+                if (searchInput) {
+                    searchInput.val('');
+                }
+                if (searchSelect) {
+                    searchSelect.val('');
+                }
+                orderBy = [];
+                clientConfig.order_by = [];
+                syncQueryBuilderToConfig();
+                updateSortIndicators();
+                updateQueryBuilderBadge();
+                loadTableData(1);
+                return;
+            }
+
+            var view = savedViews.find(function(entry) {
+                return entry && entry.name === name;
+            });
+
+            if (!view) {
+                return;
+            }
+
+            queryBuilderState.activeView = view.name;
+            queryBuilderState.filters = deepClone(view.filters || []);
+            queryBuilderState.logic = view.logic === 'OR' ? 'OR' : 'AND';
+            queryBuilderState.sorts = deepClone(view.sorts || []);
+
+            if (viewSelect) {
+                viewSelect.val(view.name);
+                updateViewDeleteState();
+            }
+
+            currentSearchTerm = view.searchTerm || '';
+            currentSearchColumn = view.searchColumn || null;
+
+            if (searchInput) {
+                searchInput.val(currentSearchTerm);
+            }
+
+            if (searchSelect) {
+                searchSelect.val(currentSearchColumn || '');
+            }
+
+            orderBy = deepClone(queryBuilderState.sorts || []);
+            clientConfig.order_by = deepClone(orderBy);
+            syncQueryBuilderToConfig();
+            updateSortIndicators();
+            updateQueryBuilderBadge();
+            loadTableData(1);
+        }
+
+        function markFiltersDirty() {
+            queryBuilderState.activeView = null;
+            if (viewSelect) {
+                viewSelect.val('');
+                updateViewDeleteState();
+            }
+        }
+
+        savedViews = loadSavedViews();
         var addEnabled = true;
         var viewEnabled = true;
         var editEnabled = true;
@@ -11017,6 +12795,7 @@ CSS;
                 orderBy = [];
                 clientConfig.order_by = [];
             }
+            syncSortStateFromOrderBy();
             updateSortIndicators();
             ensureSortHandlers();
 
@@ -11061,6 +12840,10 @@ CSS;
                 : (Array.isArray(clientConfig.nested_tables) ? clientConfig.nested_tables : []);
             nestedTablesConfig = Array.isArray(nestedMeta) ? deepClone(nestedMeta) : [];
             clientConfig.nested_tables = deepClone(nestedTablesConfig);
+
+            if (meta.query_builder && typeof meta.query_builder === 'object') {
+                hydrateQueryBuilderFromMeta(meta.query_builder);
+            }
 
             renderSummaries(meta.summaries || []);
             refreshTooltips();
@@ -11108,6 +12891,7 @@ CSS;
             searchSelect.on('change', function() {
                 var val = $(this).val();
                 currentSearchColumn = val ? String(val) : undefined; // omit from request when "All"
+                markFiltersDirty();
             });
             searchGroup.append(searchSelect);
 
@@ -11134,6 +12918,7 @@ CSS;
                 if (searchInput) {
                     searchInput.val('');
                 }
+                markFiltersDirty();
                 loadTableData(1);
             });
 
@@ -11179,7 +12964,33 @@ CSS;
                 metaContainer.append(wrapper);
             }
 
+            var utilitiesWrapper = $('<div class="d-flex flex-wrap align-items-center gap-2 w-100"></div>');
+            metaContainer.append(utilitiesWrapper);
+
+            var viewControlsWrapper = $('<div class="d-flex flex-wrap align-items-center gap-2 fastcrud-view-controls"></div>');
+            utilitiesWrapper.append(viewControlsWrapper);
+
+            viewSelect = $('<select class="form-select form-select-sm" style="min-width: 12rem;"></select>');
+            viewSelect.on('change', function() {
+                applySavedViewByName($(this).val() ? String($(this).val()) : '');
+            });
+            viewControlsWrapper.append(viewSelect);
+
+            deleteViewButton = $('<button type="button" class="btn btn-sm btn-outline-danger" title="Delete selected view">Delete</button>');
+            deleteViewButton.on('click', function() {
+                deleteCurrentView();
+            });
+            viewControlsWrapper.append(deleteViewButton);
+
+            filtersButton = $('<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-open-query-builder">Filters <span class="badge bg-primary ms-2 fastcrud-filter-count d-none"></span></button>');
+            filtersButtonBadge = filtersButton.find('.fastcrud-filter-count');
+            filtersButton.on('click', function() {
+                openQueryBuilderModal();
+            });
+            utilitiesWrapper.append(filtersButton);
+
             var actionsWrapper = $('<div class="d-flex align-items-center gap-2 ms-auto"></div>');
+            utilitiesWrapper.append(actionsWrapper);
             var hasActions = false;
 
             if (allowBatchDeleteButton) {
@@ -11267,8 +13078,11 @@ CSS;
                 hasActions = true;
             }
 
+            renderSavedViewsSelect();
+            updateViewDeleteState();
+            updateQueryBuilderBadge();
+
             if (hasActions) {
-                metaContainer.append(actionsWrapper);
                 batchDeleteButton = actionsWrapper.find('.fastcrud-batch-delete-btn');
             } else {
                 batchDeleteButton = null;
@@ -11349,6 +13163,8 @@ CSS;
                 orderBy = [{ field: field, direction: dir }];
             }
             clientConfig.order_by = orderBy.slice();
+            markFiltersDirty();
+            syncSortStateFromOrderBy();
         }
 
         function updateSortIndicators() {
@@ -11725,6 +13541,7 @@ CSS;
             }
 
             currentSearchTerm = searchInput.val() || '';
+            markFiltersDirty();
             loadTableData(1);
         }
 
@@ -12969,6 +14786,8 @@ CSS;
             if (!tableHasRendered) {
                 showLoadingRow(totalColumns, loadingMessage);
             }
+
+            syncQueryBuilderToConfig();
 
             var payload = {
                 fastcrud_ajax: '1',
@@ -15727,6 +17546,7 @@ CSS;
         metaContainer.on('click', '.fastcrud-batch-delete-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
+            syncQueryBuilderToConfig();
             requestBatchDelete();
             return false;
         });
@@ -15750,6 +17570,7 @@ CSS;
                 return false;
             }
 
+            syncQueryBuilderToConfig();
             requestBulkAction(actionIndex);
             return false;
         });
@@ -15757,6 +17578,7 @@ CSS;
         metaContainer.on('click', '.fastcrud-export-csv-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
+            syncQueryBuilderToConfig();
             startExport('csv');
             return false;
         });
@@ -15764,6 +17586,7 @@ CSS;
         metaContainer.on('click', '.fastcrud-export-excel-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
+            syncQueryBuilderToConfig();
             startExport('excel');
             return false;
         });
@@ -15771,6 +17594,7 @@ CSS;
         table.on('click', '.fastcrud-delete-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
+            syncQueryBuilderToConfig();
             var pk = getPkInfoFromElement(this);
             if (!pk) { showError('Unable to determine primary key for deletion.'); return false; }
             requestDelete({ __fastcrud_primary_key: pk.column, __fastcrud_primary_value: pk.value });
@@ -15782,6 +17606,7 @@ CSS;
         table.on('click', '.fastcrud-duplicate-btn', function(event) {
             event.preventDefault();
             event.stopPropagation();
+            syncQueryBuilderToConfig();
             var pk = getPkInfoFromElement(this);
             if (!pk) { showError('Unable to determine primary key for duplication.'); return false; }
             requestDuplicate({ __fastcrud_primary_key: pk.column, __fastcrud_primary_value: pk.value });

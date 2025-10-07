@@ -32,6 +32,7 @@
 🔗 **Nested tables, relations**, and subselect support for modelling complex data  
 🪝 **Lifecycle callbacks**, custom columns, and field modifiers for fine-grained control  
 📊 **Built-in CSV/Excel export**, soft-delete helpers, and configurable action buttons  
+🔍 **Visual query builder** to compose filters & sorts with reusable saved views  
 🎨 **Global styling hooks** and upload helpers so you can align the UI with your project
 
 ## 📦 Installation
