@@ -7603,6 +7603,24 @@ HTML;
             }
         }
 
+        foreach ($this->config['relations'] as $relation) {
+            if (!is_array($relation)) {
+                continue;
+            }
+
+            $field = isset($relation['field']) ? $this->normalizeColumnReference((string) $relation['field']) : '';
+            if ($field === '' || !isset($fields[$field])) {
+                continue;
+            }
+
+            $options = $this->fetchRelationOptions($relation);
+            if ($options === []) {
+                continue;
+            }
+
+            $fields[$field]['options'] = $options;
+        }
+
         $this->queryBuilderFieldCache = $fields;
 
         return $fields;
@@ -11037,30 +11055,86 @@ CSS;
                 var valueCol = $('<div class="col-4"></div>');
                 var operatorInfo = getOperatorInfo(currentFilter.operator) || { requires_value: true, multi: false };
                 var fieldInfo = getFieldInfo(currentFilter.field) || {};
+                var fieldOptions = Array.isArray(fieldInfo.options) ? fieldInfo.options : [];
                 var needsValue = operatorInfo.requires_value !== false;
+                var optionOperators = ['equals', 'not_equals', 'in', 'not_in'];
+                var supportsOptionSelect = needsValue && fieldOptions.length && optionOperators.indexOf(currentFilter.operator) !== -1;
                 var valueInput;
 
                 if (!needsValue) {
                     valueInput = $('<input type="text" class="form-control form-control-sm" disabled />');
+                } else if (supportsOptionSelect) {
+                    valueInput = $('<select class="form-select form-select-sm"></select>');
+                    if (operatorInfo.multi) {
+                        valueInput.attr('multiple', 'multiple');
+                    } else {
+                        valueInput.append('<option value="">Select…</option>');
+                    }
+
+                    fieldOptions.forEach(function(option) {
+                        if (!option || typeof option !== 'object') {
+                            return;
+                        }
+                        var opt = $('<option></option>').attr('value', option.value).text(option.label || option.value);
+                        valueInput.append(opt);
+                    });
+
+                    if (operatorInfo.multi) {
+                        var selectedValues = [];
+                        if (currentFilter.value && typeof currentFilter.value === 'string') {
+                            selectedValues = currentFilter.value.split(',').map(function(piece) {
+                                return piece.trim();
+                            }).filter(function(piece) {
+                                return piece.length > 0;
+                            });
+                        }
+                        valueInput.val(selectedValues);
+                    } else {
+                        valueInput.val(currentFilter.value || '');
+                    }
+
+                    valueInput.on('change', function() {
+                        if (operatorInfo.multi) {
+                            var selected = $(this).val();
+                            if (Array.isArray(selected)) {
+                                var joined = selected.map(function(piece) {
+                                    return String(piece).trim();
+                                }).filter(function(piece) {
+                                    return piece.length > 0;
+                                }).join(', ');
+                                queryBuilderState.filters[index].value = joined;
+                            } else {
+                                queryBuilderState.filters[index].value = '';
+                            }
+                        } else {
+                            var selectedValue = $(this).val();
+                            queryBuilderState.filters[index].value = selectedValue ? String(selectedValue) : '';
+                        }
+                        markFiltersDirty();
+                    });
                 } else if (fieldInfo.type === 'boolean') {
                     valueInput = $('<select class="form-select form-select-sm"></select>');
                     valueInput.append('<option value="">Select…</option>');
                     valueInput.append('<option value="1">True</option>');
                     valueInput.append('<option value="0">False</option>');
+                    valueInput.val(currentFilter.value || '');
+                    valueInput.on('change', function() {
+                        queryBuilderState.filters[index].value = $(this).val();
+                        markFiltersDirty();
+                    });
                 } else {
                     valueInput = $('<input type="text" class="form-control form-control-sm" />');
                     if (operatorInfo.multi) {
                         valueInput.attr('placeholder', 'Value 1, Value 2');
                     }
-                }
-
-                if (needsValue) {
                     valueInput.val(currentFilter.value || '');
                     valueInput.on('input change', function() {
                         queryBuilderState.filters[index].value = $(this).val();
                         markFiltersDirty();
                     });
-                } else {
+                }
+
+                if (!needsValue) {
                     valueInput.val('');
                 }
 
