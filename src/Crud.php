@@ -10458,7 +10458,8 @@ CSS;
             filters: [],
             logic: queryBuilderConfig.logic === 'OR' ? 'OR' : 'AND',
             sorts: Array.isArray(queryBuilderConfig.sorts) ? deepClone(queryBuilderConfig.sorts) : [],
-            activeView: queryBuilderConfig.active_view || null
+            activeView: queryBuilderConfig.active_view || null,
+            activeViewDirty: false
         };
         if (Array.isArray(queryBuilderConfig.filters)) {
             queryBuilderState.filters = queryBuilderConfig.filters.map(function(filter) {
@@ -10788,7 +10789,11 @@ CSS;
             clientConfig.query_builder.filters = filtersPayload;
             clientConfig.query_builder.logic = queryBuilderState.logic === 'OR' ? 'OR' : 'AND';
             clientConfig.query_builder.sorts = deepClone(orderBy || []);
-            clientConfig.query_builder.active_view = queryBuilderState.activeView || null;
+            if (queryBuilderState.activeViewDirty) {
+                clientConfig.query_builder.active_view = null;
+            } else {
+                clientConfig.query_builder.active_view = queryBuilderState.activeView || null;
+            }
         }
 
         function hydrateQueryBuilderFromMeta(metaQB) {
@@ -10867,6 +10872,7 @@ CSS;
             } else {
                 queryBuilderState.activeView = null;
             }
+            queryBuilderState.activeViewDirty = false;
 
             renderSavedViewsSelect();
             updateQueryBuilderBadge();
@@ -11167,11 +11173,13 @@ CSS;
             queryBuilderState.logic = 'AND';
             queryBuilderState.sorts = [];
             queryBuilderState.activeView = null;
-            viewSelect && viewSelect.val('');
-            updateViewDeleteState();
+            queryBuilderState.activeViewDirty = false;
+            if (viewSelect) {
+                viewSelect.val('');
+                updateViewDeleteState();
+            }
             refreshQueryBuilderModal();
             updateQueryBuilderBadge();
-            markFiltersDirty();
         }
 
         function applyQueryBuilderSelections() {
@@ -11197,11 +11205,6 @@ CSS;
 
             orderBy = deepClone(queryBuilderState.sorts || []);
             clientConfig.order_by = deepClone(orderBy);
-            queryBuilderState.activeView = null;
-            if (viewSelect) {
-                viewSelect.val('');
-                updateViewDeleteState();
-            }
 
             markFiltersDirty();
             syncQueryBuilderToConfig();
@@ -11212,7 +11215,20 @@ CSS;
         }
 
         function saveCurrentView() {
-            var name = window.prompt('Enter a name for this view:');
+            var defaultName = '';
+            if (typeof queryBuilderState.activeView === 'string') {
+                var activeView = queryBuilderState.activeView.trim();
+                if (activeView.length) {
+                    var exists = savedViews.some(function(view) {
+                        return view && view.name === activeView;
+                    });
+                    if (exists) {
+                        defaultName = activeView;
+                    }
+                }
+            }
+
+            var name = window.prompt('Enter a name for this view:', defaultName);
             if (!name) {
                 return;
             }
@@ -11242,6 +11258,7 @@ CSS;
 
             persistSavedViews(savedViews);
             queryBuilderState.activeView = name;
+            queryBuilderState.activeViewDirty = false;
             renderSavedViewsSelect();
             updateQueryBuilderBadge();
         }
@@ -11262,15 +11279,16 @@ CSS;
             });
             persistSavedViews(savedViews);
             queryBuilderState.activeView = null;
+            queryBuilderState.activeViewDirty = false;
             viewSelect.val('');
             updateViewDeleteState();
             renderSavedViewsSelect();
-            markFiltersDirty();
         }
 
         function applySavedViewByName(name) {
             if (!name) {
                 queryBuilderState.activeView = null;
+                queryBuilderState.activeViewDirty = false;
                 queryBuilderState.filters = [];
                 queryBuilderState.logic = 'AND';
                 queryBuilderState.sorts = [];
@@ -11300,6 +11318,7 @@ CSS;
             }
 
             queryBuilderState.activeView = view.name;
+            queryBuilderState.activeViewDirty = false;
             queryBuilderState.filters = deepClone(view.filters || []);
             queryBuilderState.logic = view.logic === 'OR' ? 'OR' : 'AND';
             queryBuilderState.sorts = deepClone(view.sorts || []);
@@ -11329,9 +11348,14 @@ CSS;
         }
 
         function markFiltersDirty() {
-            queryBuilderState.activeView = null;
+            if (queryBuilderState.activeView) {
+                queryBuilderState.activeViewDirty = true;
+            } else {
+                queryBuilderState.activeViewDirty = false;
+            }
+
             if (viewSelect) {
-                viewSelect.val('');
+                viewSelect.val(queryBuilderState.activeView || '');
                 updateViewDeleteState();
             }
         }
