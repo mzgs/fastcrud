@@ -5779,6 +5779,12 @@ HTML;
             $globalActionClass = trim($globalActionClassRaw);
         }
 
+        $toolbarGlobalClass = '';
+        $toolbarGlobalClassRaw = CrudStyle::$toolbar_action_button_global_class ?? '';
+        if (is_string($toolbarGlobalClassRaw)) {
+            $toolbarGlobalClass = trim($toolbarGlobalClassRaw);
+        }
+
         $overrides = [
             'link_button_class'             => CrudStyle::$link_button_class ?? '',
             'panel_cancel_button_class'     => CrudStyle::$panel_cancel_button_class ?? '',
@@ -5815,21 +5821,19 @@ HTML;
                 continue;
             }
 
-            if ($defaults[$key] !== $trimmed) {
-                $defaults[$key] = $trimmed;
-                $appliedOverrides[$key] = true;
-            }
+            $defaults[$key] = $trimmed;
+            $appliedOverrides[$key] = true;
         }
 
         if ($globalActionClass !== '') {
-            $actionKeys = [
+            $rowActionKeys = [
                 'view_action_button_class',
                 'edit_action_button_class',
                 'delete_action_button_class',
                 'duplicate_action_button_class',
             ];
 
-            foreach ($actionKeys as $actionKey) {
+            foreach ($rowActionKeys as $actionKey) {
                 if (!array_key_exists($actionKey, $defaults)) {
                     continue;
                 }
@@ -5842,7 +5846,33 @@ HTML;
             }
         }
 
+        if ($toolbarGlobalClass !== '') {
+            $toolbarActionKeys = [
+                'add_button_class',
+                'link_button_class',
+                'batch_delete_button_class',
+                'bulk_apply_button_class',
+                'export_csv_button_class',
+                'export_excel_button_class',
+                'search_button_class',
+                'search_clear_button_class',
+            ];
+
+            foreach ($toolbarActionKeys as $actionKey) {
+                if (!array_key_exists($actionKey, $defaults)) {
+                    continue;
+                }
+
+                if (!empty($appliedOverrides[$actionKey])) {
+                    continue;
+                }
+
+                $defaults[$actionKey] = $toolbarGlobalClass;
+            }
+        }
+
         $defaults['action_button_global_class'] = $globalActionClass;
+        $defaults['toolbar_action_button_global_class'] = $toolbarGlobalClass;
 
         return $defaults;
     }
@@ -11230,7 +11260,7 @@ CSS;
                     .addClass('fastcrud-add-btn')
                     .attr('title', 'Add new record')
                     .attr('aria-label', 'Add new record')
-                    .append('<span class="me-1">+</span>')
+                    .append('<i class="fas fa-plus"></i> ')
                     .append(document.createTextNode('Add'));
 
                 actionsWrapper.append(addButton);

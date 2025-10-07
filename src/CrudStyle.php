@@ -13,55 +13,58 @@ namespace FastCrud;
 class CrudStyle
 {
     /** @var string Default classes applied to the optional link button. */
-    public static string $link_button_class = 'btn btn-sm btn-outline-secondary';
+    public static string $link_button_class = '';
 
     /** @var string Default cancel button classes in the edit offcanvas panel. */
-    public static string $panel_cancel_button_class = 'btn btn-outline-secondary';
+    public static string $panel_cancel_button_class = '';
 
     /** @var string Default submit button classes in the edit offcanvas panel. */
-    public static string $panel_save_button_class = 'btn btn-primary';
+    public static string $panel_save_button_class = '';
 
     /** @var string Default button classes for the top toolbar search button. */
-    public static string $search_button_class = 'btn btn-outline-primary';
+    public static string $search_button_class = '';
 
     /** @var string Default button classes for the top toolbar clear button. */
-    public static string $search_clear_button_class = 'btn btn-outline-secondary';
+    public static string $search_clear_button_class = '';
 
     /** @var string Default button classes for the batch delete toolbar button. */
-    public static string $batch_delete_button_class = 'btn btn-sm btn-danger';
+    public static string $batch_delete_button_class = '';
 
     /** @var string Default button classes for the bulk apply toolbar button. */
-    public static string $bulk_apply_button_class = 'btn btn-sm btn-outline-primary';
+    public static string $bulk_apply_button_class = '';
 
     /** @var string Default button classes for the export CSV toolbar button. */
-    public static string $export_csv_button_class = 'btn btn-sm btn-outline-secondary';
+    public static string $export_csv_button_class = '';
 
     /** @var string Default button classes for the export Excel toolbar button. */
-    public static string $export_excel_button_class = 'btn btn-sm btn-outline-secondary';
+    public static string $export_excel_button_class = '';
 
     /** @var string Default button classes for the add record toolbar button. */
-    public static string $add_button_class = 'btn btn-sm btn-success';
+    public static string $add_button_class = '';
 
-    /** @var string Classes applied to all action buttons when set globally. */
+    /** @var string Classes applied to row action buttons when set globally. */
     public static string $action_button_global_class = '';
 
+    /** @var string Classes applied to toolbar action buttons when set globally. */
+    public static string $toolbar_action_button_global_class = '';
+
     /** @var string Default classes for the duplicate action button in table rows. */
-    public static string $duplicate_action_button_class = 'btn btn-sm btn-info';
+    public static string $duplicate_action_button_class = '';
 
     /** @var string Default classes for the view action button in table rows. */
-    public static string $view_action_button_class = 'btn btn-sm btn-secondary';
+    public static string $view_action_button_class = '';
 
     /** @var string Default classes for the edit action button in table rows. */
-    public static string $edit_action_button_class = 'btn btn-sm btn-primary';
+    public static string $edit_action_button_class = '';
 
     /** @var string Default classes for the delete action button in table rows. */
-    public static string $delete_action_button_class = 'btn btn-sm btn-danger';
+    public static string $delete_action_button_class = '';
 
     /** @var string Extra classes appended to the nested toggle buttons. */
-    public static string $nested_toggle_button_classes = 'btn btn-link p-0';
+    public static string $nested_toggle_button_classes = '';
 
     /** @var string Table row highlight class applied while editing or viewing. */
-    public static string $edit_view_row_highlight_class = 'table-active';
+    public static string $edit_view_row_highlight_class = '';
 
     /** @var string Accent color for boolean switches rendered in the grid. */
     public static string $bools_in_grid_color = 'primary';

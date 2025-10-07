@@ -77,10 +77,14 @@ Crud::init([
 ]);
 
 CrudStyle::$bools_in_grid_color = 'success';
- 
+
 CrudStyle::$action_button_global_class = "btn btn-secondary";
-CrudStyle::$edit_action_button_class = "btn btn-success";
- 
+CrudStyle::$toolbar_action_button_global_class = "btn btn-sm btn-outline-info";
+CrudStyle::$batch_delete_button_class = "btn btn-sm btn-danger";
+CrudStyle::$delete_action_button_class = "btn btn-danger";
+CrudStyle::$add_button_class = "btn btn-sm btn-success";
+// CrudStyle::$edit_action_button_class = "btn btn-success";
+
 
 DatabseEditor::init();
  
@@ -223,7 +227,7 @@ DatabseEditor::init();
                     // ->column_width('title', '30%')
                     ->column_cut('content', 30)
                     ->setPanelWidth('30%')
-                    ->link_button('example.com?id={id}', 'fas fa-user', '', 'btn btn-success', ['target' => '_blank', 'class' => 'me-2'] )
+                    ->link_button('example.com?id={id}', 'fas fa-user', '', 'btn btn-info text-white', ['target' => '_blank', 'class' => 'me-2'] )
                     // ->change_type('title', 'textarea','',['rows' => 12])
                   
                     // ->highlight('id', 'equals', 32, 'bg-info')

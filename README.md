@@ -982,6 +982,7 @@ Customize default CSS classes for buttons, rows, and components throughout FastC
 #### 🔘 Toolbar & Action Buttons
 
 - **`CrudStyle::$add_button_class`** – Add new record button (default: `'btn btn-sm btn-success'`)
+- **`CrudStyle::$toolbar_action_button_global_class`** – Apply the same classes to all toolbar action buttons (default: `''`, values override individual toolbar buttons unless explicitly customised)
 - **`CrudStyle::$link_button_class`** – Custom link buttons added via `link_button()` (default: `'btn btn-sm btn-outline-secondary'`)
 - **`CrudStyle::$search_button_class`** – Search form submit button (default: `'btn btn-outline-primary'`)
 - **`CrudStyle::$search_clear_button_class`** – Search form clear button (default: `'btn btn-outline-secondary'`)
@@ -998,7 +999,7 @@ Customize default CSS classes for buttons, rows, and components throughout FastC
 - **`CrudStyle::$delete_action_button_class`** – Delete record button (default: `'btn btn-sm btn-danger'`)
 - **`CrudStyle::$duplicate_action_button_class`** – Duplicate record button (default: `'btn btn-sm btn-info'`)
 
-> Tip: Set `CrudStyle::$action_button_global_class` to apply the same classes to all row action buttons while still allowing per-button overrides.
+> Tip: Use `CrudStyle::$action_button_global_class` for row action buttons and `CrudStyle::$toolbar_action_button_global_class` for top toolbar actions while still allowing per-button overrides. Setting a toolbar button property to any non-empty string (even the documented default) keeps the global toolbar class from applying to that button.
 
 #### 🗂️ Panel & Form Buttons
 
