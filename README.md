@@ -992,10 +992,13 @@ Customize default CSS classes for buttons, rows, and components throughout FastC
 
 #### 🎯 Row Action Buttons
 
+- **`CrudStyle::$action_button_global_class`** – Apply the same classes to all row action buttons (default: `''`, values override individual buttons unless explicitly customised)
 - **`CrudStyle::$view_action_button_class`** – View/read record button (default: `'btn btn-sm btn-secondary'`)
 - **`CrudStyle::$edit_action_button_class`** – Edit record button (default: `'btn btn-sm btn-primary'`)
 - **`CrudStyle::$delete_action_button_class`** – Delete record button (default: `'btn btn-sm btn-danger'`)
 - **`CrudStyle::$duplicate_action_button_class`** – Duplicate record button (default: `'btn btn-sm btn-info'`)
+
+> Tip: Set `CrudStyle::$action_button_global_class` to apply the same classes to all row action buttons while still allowing per-button overrides.
 
 #### 🗂️ Panel & Form Buttons
 

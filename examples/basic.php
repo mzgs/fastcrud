@@ -77,6 +77,10 @@ Crud::init([
 ]);
 
 CrudStyle::$bools_in_grid_color = 'success';
+ 
+CrudStyle::$action_button_global_class = "btn btn-secondary";
+CrudStyle::$edit_action_button_class = "btn btn-success";
+ 
 
 DatabseEditor::init();
  

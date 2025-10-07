@@ -42,6 +42,9 @@ class CrudStyle
     /** @var string Default button classes for the add record toolbar button. */
     public static string $add_button_class = 'btn btn-sm btn-success';
 
+    /** @var string Classes applied to all action buttons when set globally. */
+    public static string $action_button_global_class = '';
+
     /** @var string Default classes for the duplicate action button in table rows. */
     public static string $duplicate_action_button_class = 'btn btn-sm btn-info';
 

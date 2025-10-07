@@ -5773,6 +5773,12 @@ HTML;
             'bools_in_grid_color'           => 'primary',
         ];
 
+        $globalActionClass = '';
+        $globalActionClassRaw = CrudStyle::$action_button_global_class ?? '';
+        if (is_string($globalActionClassRaw)) {
+            $globalActionClass = trim($globalActionClassRaw);
+        }
+
         $overrides = [
             'link_button_class'             => CrudStyle::$link_button_class ?? '',
             'panel_cancel_button_class'     => CrudStyle::$panel_cancel_button_class ?? '',
@@ -5793,6 +5799,8 @@ HTML;
             'bools_in_grid_color'           => CrudStyle::$bools_in_grid_color ?? '',
         ];
 
+        $appliedOverrides = [];
+
         foreach ($overrides as $key => $value) {
             if (!array_key_exists($key, $defaults)) {
                 continue;
@@ -5803,15 +5811,41 @@ HTML;
             }
 
             $trimmed = trim($value);
-            if ($trimmed !== '') {
+            if ($trimmed === '') {
+                continue;
+            }
+
+            if ($defaults[$key] !== $trimmed) {
                 $defaults[$key] = $trimmed;
+                $appliedOverrides[$key] = true;
             }
         }
 
+        if ($globalActionClass !== '') {
+            $actionKeys = [
+                'view_action_button_class',
+                'edit_action_button_class',
+                'delete_action_button_class',
+                'duplicate_action_button_class',
+            ];
+
+            foreach ($actionKeys as $actionKey) {
+                if (!array_key_exists($actionKey, $defaults)) {
+                    continue;
+                }
+
+                if (!empty($appliedOverrides[$actionKey])) {
+                    continue;
+                }
+
+                $defaults[$actionKey] = $globalActionClass;
+            }
+        }
+
+        $defaults['action_button_global_class'] = $globalActionClass;
+
         return $defaults;
     }
-
-    
 
     private function generateId(): string
     {
