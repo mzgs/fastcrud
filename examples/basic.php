@@ -241,7 +241,7 @@ DatabseEditor::init();
                  
                 ?>
                 <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-primary text-white">
+                    <div class="card-header bg-primary">
                         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
                             <div>
                                 <h2 class="h5 mb-1">Posts Table Preview</h2>
