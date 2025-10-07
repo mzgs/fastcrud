@@ -27,6 +27,9 @@ class CrudStyle
     /** @var string Default button classes for the top toolbar clear button. */
     public static string $search_clear_button_class = '';
 
+    /** @var string Default button classes for the toolbar Filters toggle. */
+    public static string $filters_button_class = '';
+
     /** @var string Default button classes for the batch delete toolbar button. */
     public static string $batch_delete_button_class = '';
 
@@ -89,4 +92,7 @@ class CrudStyle
 
     /** @var string Font size for action button icons. */
     public static string $action_icon_size = '1.05rem';
+
+    /** @var string Icon class used for generic dismiss/remove buttons. */
+    public static string $x_icon_class = 'fas fa-xmark';
 }

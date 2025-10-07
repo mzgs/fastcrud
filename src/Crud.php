@@ -5823,6 +5823,7 @@ HTML;
             'panel_save_button_class'       => 'btn btn-primary',
             'search_button_class'           => 'btn btn-outline-primary',
             'search_clear_button_class'     => 'btn btn-outline-secondary',
+            'filters_button_class'          => 'btn btn-sm btn-outline-secondary',
             'batch_delete_button_class'     => 'btn btn-sm btn-danger',
             'bulk_apply_button_class'       => 'btn btn-sm btn-outline-primary',
             'export_csv_button_class'       => 'btn btn-sm btn-outline-secondary',
@@ -5835,6 +5836,7 @@ HTML;
             'nested_toggle_button_classes'  => 'btn btn-link p-0',
             'edit_view_row_highlight_class' => 'table-active',
             'bools_in_grid_color'           => 'primary',
+            'x_icon_class'                  => 'fas fa-xmark',
         ];
 
         $globalActionClass = '';
@@ -5855,6 +5857,7 @@ HTML;
             'panel_save_button_class'       => CrudStyle::$panel_save_button_class ?? '',
             'search_button_class'           => CrudStyle::$search_button_class ?? '',
             'search_clear_button_class'     => CrudStyle::$search_clear_button_class ?? '',
+            'filters_button_class'          => CrudStyle::$filters_button_class ?? '',
             'batch_delete_button_class'     => CrudStyle::$batch_delete_button_class ?? '',
             'bulk_apply_button_class'       => CrudStyle::$bulk_apply_button_class ?? '',
             'export_csv_button_class'       => CrudStyle::$export_csv_button_class ?? '',
@@ -5867,6 +5870,7 @@ HTML;
             'nested_toggle_button_classes'  => CrudStyle::$nested_toggle_button_classes ?? '',
             'edit_view_row_highlight_class' => CrudStyle::$edit_view_row_highlight_class ?? '',
             'bools_in_grid_color'           => CrudStyle::$bools_in_grid_color ?? '',
+            'x_icon_class'                  => CrudStyle::$x_icon_class ?? '',
         ];
 
         $appliedOverrides = [];
@@ -5920,6 +5924,7 @@ HTML;
                 'export_excel_button_class',
                 'search_button_class',
                 'search_clear_button_class',
+                'filters_button_class',
             ];
 
             foreach ($toolbarActionKeys as $actionKey) {
@@ -6252,8 +6257,23 @@ CSS;
     gap: 1.5rem;
 }
 
-#{$containerId} .fastcrud-view-controls .form-select-sm {
+#{$containerId} .fastcrud-view-controls .fastcrud-view-select {
     min-width: 12rem;
+    width: auto;
+}
+
+#{$containerId} .fastcrud-view-controls .fastcrud-saved-view-group {
+    flex: 0 0 auto;
+    width: auto;
+}
+
+#{$containerId} .fastcrud-view-controls .fastcrud-saved-view-group .btn {
+    flex: 0 0 auto;
+}
+
+#{$containerId} .fastcrud-view-controls .fastcrud-open-query-builder {
+    display: inline-flex;
+    align-items: center;
 }
 
 .fastcrud-query-builder .modal-body h6 {
@@ -10381,6 +10401,7 @@ CSS;
         var tableId = '$id';
         var styleDefaults = {$styleJson};
         var editViewHighlightClass = getStyleClass('edit_view_row_highlight_class', 'table-warning');
+        var dismissIconClass = getStyleClass('x_icon_class', 'fas fa-xmark');
         var table = $('#' + tableId);
         try { if (window.console && console.log) console.log('FastCrud init for table', tableId); } catch (e) {}
         var tableName = table.data('table');
@@ -11038,7 +11059,8 @@ CSS;
                 row.append(valueCol);
 
                 var actionsCol = $('<div class="col-1 text-end"></div>');
-                var removeBtn = $('<button type="button" class="btn btn-sm btn-outline-danger" aria-label="Remove filter">&times;</button>');
+                var removeBtn = $('<button type="button" class="btn btn-sm btn-outline-danger" aria-label="Remove filter"></button>');
+                removeBtn.append($('<i aria-hidden="true"></i>').addClass(dismissIconClass));
                 removeBtn.on('click', function() {
                     queryBuilderState.filters.splice(index, 1);
                     markFiltersDirty();
@@ -11105,7 +11127,8 @@ CSS;
                 row.append(directionCol);
 
                 var actionsCol = $('<div class="col-2 text-end"></div>');
-                var removeBtn = $('<button type="button" class="btn btn-sm btn-outline-danger" aria-label="Remove sort">&times;</button>');
+                var removeBtn = $('<button type="button" class="btn btn-sm btn-outline-danger" aria-label="Remove sort"></button>');
+                removeBtn.append($('<i aria-hidden="true"></i>').addClass(dismissIconClass));
                 removeBtn.on('click', function() {
                     queryBuilderState.sorts.splice(index, 1);
                     markFiltersDirty();
@@ -12991,27 +13014,31 @@ CSS;
             var utilitiesWrapper = $('<div class="d-flex flex-wrap align-items-center gap-2 w-100"></div>');
             metaContainer.append(utilitiesWrapper);
 
-            var viewControlsWrapper = $('<div class="d-flex flex-wrap align-items-center gap-2 fastcrud-view-controls"></div>');
+            var viewControlsWrapper = $('<div class="d-flex flex-wrap align-items-stretch gap-2 fastcrud-view-controls"></div>');
             utilitiesWrapper.append(viewControlsWrapper);
 
-            viewSelect = $('<select class="form-select form-select-sm" style="min-width: 12rem;"></select>');
+            var savedViewGroup = $('<div class="input-group input-group-sm fastcrud-saved-view-group"></div>');
+            viewControlsWrapper.append(savedViewGroup);
+
+            viewSelect = $('<select class="form-select fastcrud-view-select" aria-label="Saved views"></select>');
             viewSelect.on('change', function() {
                 applySavedViewByName($(this).val() ? String($(this).val()) : '');
             });
-            viewControlsWrapper.append(viewSelect);
+            savedViewGroup.append(viewSelect);
 
-            deleteViewButton = $('<button type="button" class="btn btn-sm btn-outline-danger" title="Delete selected view">Delete</button>');
+            deleteViewButton = $('<button type="button" class="btn btn-outline-danger" title="Delete selected view" aria-label="Delete selected view">Delete</button>');
             deleteViewButton.on('click', function() {
                 deleteCurrentView();
             });
-            viewControlsWrapper.append(deleteViewButton);
+            savedViewGroup.append(deleteViewButton);
 
-            filtersButton = $('<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-open-query-builder">Filters <span class="badge bg-primary ms-2 fastcrud-filter-count d-none"></span></button>');
+            filtersButton = $('<button type="button" class="fastcrud-open-query-builder align-self-stretch">Filters <span class="badge bg-primary ms-2 fastcrud-filter-count d-none"></span></button>');
+            filtersButton.addClass(getStyleClass('filters_button_class', 'btn btn-sm btn-outline-secondary'));
             filtersButtonBadge = filtersButton.find('.fastcrud-filter-count');
             filtersButton.on('click', function() {
                 openQueryBuilderModal();
             });
-            utilitiesWrapper.append(filtersButton);
+            viewControlsWrapper.append(filtersButton);
 
             var actionsWrapper = $('<div class="d-flex align-items-center gap-2 ms-auto"></div>');
             utilitiesWrapper.append(actionsWrapper);
