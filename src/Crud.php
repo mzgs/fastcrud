@@ -10988,10 +10988,14 @@ CSS;
         function renderQueryBuilderFilters() {
             ensureQueryBuilderModal();
             if (!queryBuilderFiltersContainer || !queryBuilderFiltersContainer.length) {
-                return;
-            }
+            return;
+        }
 
-            queryBuilderFiltersContainer.empty();
+        if (select2Enabled) {
+            destroySelect2(queryBuilderFiltersContainer);
+        }
+
+        queryBuilderFiltersContainer.empty();
 
             if (!queryBuilderFields.length) {
                 queryBuilderFiltersContainer.append('<div class="text-muted small">No filterable fields available.</div>');
@@ -11003,7 +11007,7 @@ CSS;
                 var row = $('<div class="row g-2 align-items-center mb-2 fastcrud-qb-filter-row"></div>');
 
                 var fieldCol = $('<div class="col-4"></div>');
-                var fieldSelect = $('<select class="form-select form-select-sm"></select>');
+                var fieldSelect = $('<select class="form-select form-select-sm" data-fastcrud-type="select"></select>');
                 queryBuilderFields.forEach(function(field) {
                     if (!field || !field.id) {
                         return;
@@ -11067,8 +11071,11 @@ CSS;
                     valueInput = $('<select class="form-select form-select-sm"></select>');
                     if (operatorInfo.multi) {
                         valueInput.attr('multiple', 'multiple');
+                        valueInput.attr('data-fastcrud-type', 'multiselect');
                     } else {
                         valueInput.append('<option value="">Select…</option>');
+                        valueInput.attr('data-fastcrud-type', 'select');
+                        valueInput.attr('data-placeholder', 'Select…');
                     }
 
                     fieldOptions.forEach(function(option) {
@@ -11113,7 +11120,7 @@ CSS;
                         markFiltersDirty();
                     });
                 } else if (fieldInfo.type === 'boolean') {
-                    valueInput = $('<select class="form-select form-select-sm"></select>');
+                    valueInput = $('<select class="form-select form-select-sm" data-fastcrud-type="select"></select>');
                     valueInput.append('<option value="">Select…</option>');
                     valueInput.append('<option value="1">True</option>');
                     valueInput.append('<option value="0">False</option>');
@@ -11171,12 +11178,20 @@ CSS;
             });
             addBtnWrapper.append(addBtn);
             queryBuilderFiltersContainer.append(addBtnWrapper);
+
+            if (select2Enabled) {
+                initializeSelect2(queryBuilderFiltersContainer);
+            }
         }
 
         function renderQueryBuilderSorts() {
             ensureQueryBuilderModal();
             if (!queryBuilderSortsContainer || !queryBuilderSortsContainer.length) {
                 return;
+            }
+
+            if (select2Enabled) {
+                destroySelect2(queryBuilderSortsContainer);
             }
 
             queryBuilderSortsContainer.empty();
@@ -11186,7 +11201,7 @@ CSS;
                 var row = $('<div class="row g-2 align-items-center mb-2 fastcrud-qb-sort-row"></div>');
 
                 var fieldCol = $('<div class="col-6"></div>');
-                var fieldSelect = $('<select class="form-select form-select-sm"></select>');
+                var fieldSelect = $('<select class="form-select form-select-sm" data-fastcrud-type="select"></select>');
                 queryBuilderFields.forEach(function(field) {
                     if (!field || !field.id) {
                         return;
@@ -11237,6 +11252,10 @@ CSS;
             });
             addBtnWrapper.append(addBtn);
             queryBuilderSortsContainer.append(addBtnWrapper);
+
+            if (select2Enabled) {
+                initializeSelect2(queryBuilderSortsContainer);
+            }
         }
 
         function refreshQueryBuilderModal() {
