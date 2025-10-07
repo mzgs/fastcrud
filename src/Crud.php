@@ -13026,7 +13026,9 @@ CSS;
             });
             savedViewGroup.append(viewSelect);
 
-            deleteViewButton = $('<button type="button" class="btn btn-outline-danger" title="Delete selected view" aria-label="Delete selected view">Delete</button>');
+            deleteViewButton = $('<button type="button" class="btn btn-outline-danger" title="Delete selected view" aria-label="Delete selected view"></button>');
+            deleteViewButton.append($('<i aria-hidden="true"></i>').addClass(dismissIconClass));
+            deleteViewButton.append('<span class="visually-hidden">Delete</span>');
             deleteViewButton.on('click', function() {
                 deleteCurrentView();
             });
