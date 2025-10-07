@@ -147,6 +147,7 @@ DatabseEditor::init();
                     // ->enable_edit(true, 'user_id', '=', '1')
                     // ->enable_delete(true, 'user_id', '=', '1')
                     ->enable_duplicate(true)  
+                    ->enable_filters()
                     ->order_by('id', 'desc')
                     ->relation('user_id', 'users', 'id', 'username')
                     ->enable_batch_delete(true)

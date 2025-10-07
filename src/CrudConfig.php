@@ -22,6 +22,9 @@ class CrudConfig
     // enable select2 widgets globally unless overridden per Crud instance
     public static bool $enable_select2 = false;
 
+    // show query builder filters controls by default
+    public static bool $enable_filters = false;
+
     // For default CSS classes and colours refer to CrudStyle::$* properties.
 
     /**

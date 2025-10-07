@@ -157,6 +157,7 @@ class Crud
         'field_labels' => [],
         'panel_width' => null,
         'select2' => false,
+        'filters_enabled' => true,
         'primary_key' => 'id',
         'query_builder' => [
             'filters' => [],
@@ -212,6 +213,7 @@ class Crud
         $this->id         = $this->generateId();
 
         $this->config['select2'] = CrudConfig::$enable_select2;
+        $this->config['filters_enabled'] = CrudConfig::$enable_filters;
     }
 
     public function getTable(): string
@@ -3056,6 +3058,13 @@ class Crud
     public function enable_select2(bool $enabled = true): self
     {
         $this->config['select2'] = (bool) $enabled;
+
+        return $this;
+    }
+
+    public function enable_filters(bool $enabled = true): self
+    {
+        $this->config['filters_enabled'] = (bool) $enabled;
 
         return $this;
     }
@@ -7373,6 +7382,7 @@ HTML;
                 'upload_path' => CrudConfig::getUploadPath(),
             ],
             'select2'           => (bool) ($this->config['select2'] ?? false),
+            'filters_enabled'   => (bool) ($this->config['filters_enabled'] ?? true),
             'query_builder'     => $this->buildQueryBuilderClientPayload(),
         ];
     }
@@ -10420,6 +10430,10 @@ CSS;
             }
         }
         var select2Enabled = !!(clientConfig && clientConfig.select2);
+        var filtersEnabled = true;
+        if (clientConfig && Object.prototype.hasOwnProperty.call(clientConfig, 'filters_enabled')) {
+            filtersEnabled = !!clientConfig.filters_enabled;
+        }
         var richEditorConfig = clientConfig.rich_editor || {};
         var paginationContainer = $('#' + tableId + '-pagination');
         var currentPage = 1;
@@ -11161,7 +11175,7 @@ CSS;
         }
 
         function openQueryBuilderModal() {
-            if (formOnlyMode) {
+            if (formOnlyMode || !filtersEnabled) {
                 return;
             }
 
@@ -13014,33 +13028,36 @@ CSS;
             var utilitiesWrapper = $('<div class="d-flex flex-wrap align-items-center gap-2 w-100"></div>');
             metaContainer.append(utilitiesWrapper);
 
-            var viewControlsWrapper = $('<div class="d-flex flex-wrap align-items-stretch gap-2 fastcrud-view-controls"></div>');
-            utilitiesWrapper.append(viewControlsWrapper);
+            var viewControlsWrapper = null;
+            if (filtersEnabled) {
+                viewControlsWrapper = $('<div class="d-flex flex-wrap align-items-stretch gap-2 fastcrud-view-controls"></div>');
+                utilitiesWrapper.append(viewControlsWrapper);
 
-            var savedViewGroup = $('<div class="input-group input-group-sm fastcrud-saved-view-group"></div>');
-            viewControlsWrapper.append(savedViewGroup);
+                var savedViewGroup = $('<div class="input-group input-group-sm fastcrud-saved-view-group"></div>');
+                viewControlsWrapper.append(savedViewGroup);
 
-            viewSelect = $('<select class="form-select fastcrud-view-select" aria-label="Saved views"></select>');
-            viewSelect.on('change', function() {
-                applySavedViewByName($(this).val() ? String($(this).val()) : '');
-            });
-            savedViewGroup.append(viewSelect);
+                viewSelect = $('<select class="form-select fastcrud-view-select" aria-label="Saved views"></select>');
+                viewSelect.on('change', function() {
+                    applySavedViewByName($(this).val() ? String($(this).val()) : '');
+                });
+                savedViewGroup.append(viewSelect);
 
-            deleteViewButton = $('<button type="button" class="btn btn-outline-danger" title="Delete selected view" aria-label="Delete selected view"></button>');
-            deleteViewButton.append($('<i aria-hidden="true"></i>').addClass(dismissIconClass));
-            deleteViewButton.append('<span class="visually-hidden">Delete</span>');
-            deleteViewButton.on('click', function() {
-                deleteCurrentView();
-            });
-            savedViewGroup.append(deleteViewButton);
+                deleteViewButton = $('<button type="button" class="btn btn-outline-danger" title="Delete selected view" aria-label="Delete selected view"></button>');
+                deleteViewButton.append($('<i aria-hidden="true"></i>').addClass(dismissIconClass));
+                deleteViewButton.append('<span class="visually-hidden">Delete</span>');
+                deleteViewButton.on('click', function() {
+                    deleteCurrentView();
+                });
+                savedViewGroup.append(deleteViewButton);
 
-            filtersButton = $('<button type="button" class="fastcrud-open-query-builder align-self-stretch">Filters <span class="badge bg-primary ms-2 fastcrud-filter-count d-none"></span></button>');
-            filtersButton.addClass(getStyleClass('filters_button_class', 'btn btn-sm btn-outline-secondary'));
-            filtersButtonBadge = filtersButton.find('.fastcrud-filter-count');
-            filtersButton.on('click', function() {
-                openQueryBuilderModal();
-            });
-            viewControlsWrapper.append(filtersButton);
+                filtersButton = $('<button type="button" class="fastcrud-open-query-builder align-self-stretch">Filters <span class="badge bg-primary ms-2 fastcrud-filter-count d-none"></span></button>');
+                filtersButton.addClass(getStyleClass('filters_button_class', 'btn btn-sm btn-outline-secondary'));
+                filtersButtonBadge = filtersButton.find('.fastcrud-filter-count');
+                filtersButton.on('click', function() {
+                    openQueryBuilderModal();
+                });
+                viewControlsWrapper.append(filtersButton);
+            }
 
             var actionsWrapper = $('<div class="d-flex align-items-center gap-2 ms-auto"></div>');
             utilitiesWrapper.append(actionsWrapper);
