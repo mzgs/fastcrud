@@ -6,6 +6,11 @@
    — Works with [data-bs-theme] switch
    ================================ */
 
+:root,
+html {
+  scrollbar-gutter: stable both-edges;
+}
+
 /* ----- LIGHT THEME ----- */
 :root,
 [data-bs-theme="light"] {
@@ -434,5 +439,4 @@ input[type="checkbox"]::before {
 .shadow-soft { box-shadow: var(--shadow); }
 .ring        { box-shadow: var(--ring); }
 .radius      { border-radius: var(--radius); }
-
 
