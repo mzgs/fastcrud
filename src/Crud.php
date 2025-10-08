@@ -11858,6 +11858,7 @@ CSS;
         var editSuccess = $('#' + tableId + '-edit-success');
         var editLabel = $('#' + tableId + '-edit-label');
         var editOffcanvasElement = $('#' + tableId + '-edit-panel');
+        moveOffcanvasToBody(editOffcanvasElement);
         editForm.data('mode', 'edit');
         var editOffcanvasInstance = null;
         if (editOffcanvasElement.length) {
@@ -11874,6 +11875,7 @@ CSS;
         }
 
         var viewOffcanvasElement = $('#' + tableId + '-view-panel');
+        moveOffcanvasToBody(viewOffcanvasElement);
         var viewContentContainer = $('#' + tableId + '-view-content');
         var viewEmptyNotice = $('#' + tableId + '-view-empty');
         var viewHeading = $('#' + tableId + '-view-label');
@@ -11881,6 +11883,25 @@ CSS;
         if (viewOffcanvasElement.length) {
             viewOffcanvasElement.on('hide.bs.offcanvas', function() {
                 clearRowHighlight();
+            });
+        }
+
+        if (!formOnlyMode && container.length && !container.data('fastcrud-offcanvas-cleanup')) {
+            container.data('fastcrud-offcanvas-cleanup', true);
+            container.on('remove.fastcrudOffcanvasCleanup', function() {
+                var panels = [editOffcanvasElement, viewOffcanvasElement];
+                panels.forEach(function(panel) {
+                    if (!panel || !panel.length) {
+                        return;
+                    }
+                    var instance = panel.data('bs.offcanvas');
+                    if (instance && typeof instance.dispose === 'function') {
+                        try {
+                            instance.dispose();
+                        } catch (error) {}
+                    }
+                    panel.remove();
+                });
             });
         }
         var summaryFooter = $('#' + tableId + '-summary');
@@ -12538,6 +12559,57 @@ CSS;
                     }
                 }
             };
+        }
+
+        function moveOffcanvasToBody(offcanvasElement) {
+            if (formOnlyMode) {
+                return;
+            }
+
+            if (!offcanvasElement || !offcanvasElement.length) {
+                return;
+            }
+
+            var node = offcanvasElement.get(0);
+            if (!node || node.parentNode === document.body || !document.body) {
+                return;
+            }
+
+            var resolvedTheme = (function() {
+                if (container && typeof container.attr === 'function') {
+                    var directTheme = container.attr('data-bs-theme');
+                    if (typeof directTheme === 'string' && directTheme.length) {
+                        return directTheme;
+                    }
+
+                    var themedAncestor = container.closest('[data-bs-theme]');
+                    if (themedAncestor.length) {
+                        var ancestorTheme = themedAncestor.attr('data-bs-theme');
+                        if (typeof ancestorTheme === 'string' && ancestorTheme.length) {
+                            return ancestorTheme;
+                        }
+                    }
+                }
+
+                var bodyTheme = $('body').attr('data-bs-theme');
+                if (typeof bodyTheme === 'string' && bodyTheme.length) {
+                    return bodyTheme;
+                }
+
+                var htmlTheme = $('html').attr('data-bs-theme');
+                if (typeof htmlTheme === 'string' && htmlTheme.length) {
+                    return htmlTheme;
+                }
+
+                return null;
+            }());
+
+            if (resolvedTheme && !offcanvasElement.attr('data-bs-theme')) {
+                offcanvasElement.attr('data-bs-theme', resolvedTheme);
+            }
+
+            offcanvasElement.attr('data-fastcrud-owner', tableId);
+            document.body.appendChild(node);
         }
 
         function getEditOffcanvasInstance() {

@@ -164,7 +164,7 @@
 * { accent-color: var(--accent); }
 :root, [data-bs-theme] { color-scheme: light dark; }
 
-.card, .dropdown-menu, .offcanvas, .modal-content, .toast {
+.card, .dropdown-menu,  .modal-content, .toast {
   border-radius: var(--radius) !important;
   box-shadow: var(--shadow);
   border: 1px solid var(--bs-border-color);
