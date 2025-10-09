@@ -7,7 +7,7 @@ require __DIR__ . '/../vendor/autoload.php';
 use FastCrud\Crud;
 use FastCrud\CrudConfig;
 use FastCrud\CrudStyle;
-use FastCrud\DatabseEditor;
+use FastCrud\DatabaseEditor;
 
 function fc_before_create_defaults(array $fields, array $context, Crud $crud): array
 {
@@ -86,7 +86,7 @@ CrudStyle::$add_button_class = "btn btn-sm btn-success";
 // CrudStyle::$edit_action_button_class = "btn btn-success";
 
 
-DatabseEditor::init();
+DatabaseEditor::init();
  
 
   
@@ -130,7 +130,7 @@ DatabseEditor::init();
                         </div>  
                 </div>
 
-                <?= DatabseEditor::render(true); ?>
+                <?= DatabaseEditor::render(true); ?>
 
                 <br>
                 <br>
