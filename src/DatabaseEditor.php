@@ -8,7 +8,7 @@ use PDO;
 use PDOException;
 use RuntimeException;
 
-class DatabseEditor
+class DatabaseEditor
 {
     private static bool $initialized = false;
     /**

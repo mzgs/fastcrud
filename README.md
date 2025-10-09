@@ -154,10 +154,10 @@ FastCRUD includes a visual Database Editor that provides a web-based interface f
 <?php
 require __DIR__ . '/vendor/autoload.php';
 
-use FastCrud\DatabseEditor;
+use FastCrud\DatabaseEditor;
 
 // Initialize with database connection
-DatabseEditor::init([
+DatabaseEditor::init([
     'driver' => 'mysql',
     'host' => '127.0.0.1',
     'database' => 'your_database',
@@ -166,9 +166,11 @@ DatabseEditor::init([
 ]);
 
 // Render the database editor interface
-echo DatabseEditor::render();
+echo DatabaseEditor::render();
 ?>
 ```
+
+> **Note:** Previous releases referenced this class as `DatabseEditor`. Update any legacy imports to use `DatabaseEditor` when upgrading.
 
 ### 💡 Complete HTML Example
 
@@ -192,10 +194,10 @@ echo DatabseEditor::render();
             <div class="card-body">
                 <?php
                 require __DIR__ . '/vendor/autoload.php';
-                use FastCrud\DatabseEditor;
-                
-                DatabseEditor::init(['database' => 'your_db', 'username' => 'user', 'password' => 'pass']);
-                echo DatabseEditor::render();
+                use FastCrud\DatabaseEditor;
+
+                DatabaseEditor::init(['database' => 'your_db', 'username' => 'user', 'password' => 'pass']);
+                echo DatabaseEditor::render();
                 ?>
             </div>
         </div>
@@ -210,9 +212,9 @@ echo DatabseEditor::render();
 #### Database Editor Class
 
 ##### Initialization
-- **`DatabseEditor::init(?array $dbConfig = null): void`** – Initialize the database editor with connection settings
+- **`DatabaseEditor::init(?array $dbConfig = null): void`** – Initialize the database editor with connection settings
   ```php
-  DatabseEditor::init([
+  DatabaseEditor::init([
       'driver' => 'mysql',        // mysql, pgsql, sqlite
       'host' => 'localhost',
       'database' => 'my_app',
@@ -222,9 +224,9 @@ echo DatabseEditor::render();
   ```
 
 ##### Rendering
-- **`DatabseEditor::render(bool $showHeader = true): string`** – Generate and return the complete database editor HTML interface. Pass `false` to omit the hero header block.
+- **`DatabaseEditor::render(bool $showHeader = true): string`** – Generate and return the complete database editor HTML interface. Pass `false` to omit the hero header block.
   ```php
-  $editorHtml = DatabseEditor::render();
+  $editorHtml = DatabaseEditor::render();
   echo $editorHtml;
   ```
 
