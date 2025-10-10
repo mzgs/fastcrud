@@ -103,7 +103,8 @@ DatabaseEditor::init();
 
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%230d6efd'/%3E%3Ctext x='8' y='11' fill='%23ffffff' font-family='Arial' font-size='8' text-anchor='middle'%3EFc%3C/text%3E%3C/svg%3E">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
-    <link href="https://site-assets.fontawesome.com/releases/v7.0.0/css/all.css" rel="stylesheet"  >
+    <link href="https://mzgs.github.io/fa7/css/all.css" rel="stylesheet"  >
+  
     <link href="style.css" rel="stylesheet" crossorigin="anonymous" >
 
 </head>
@@ -126,7 +127,7 @@ DatabaseEditor::init();
 
                 <div class="card mb-5">
                     <div class="card-body">
-                        <p class="mb-0"><i class="fa-light fa-gear-complex"></i> Thisasddasdasd <i class="far fa-database"></i></p>
+                        <p class="mb-0"><i class="fas fa-gear-complex"></i> Thisasddasdasd <i class="far fa-database"></i>  </p>
                         </div>  
                 </div>
 
