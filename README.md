@@ -4,7 +4,7 @@
 
 **A fast and simple CRUD operations library for PHP with built-in pagination and AJAX support**
 
-[![PHP Version](https://img.shields.io/badge/PHP-7.4%2B-blue?style=for-the-badge&logo=php)](https://php.net)
+[![PHP Version](https://img.shields.io/badge/PHP-8.0%2B-blue?style=for-the-badge&logo=php)](https://php.net)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 [![Packagist](https://img.shields.io/badge/Packagist-fastcrud-orange?style=for-the-badge&logo=packagist)](https://packagist.org/packages/mzgs/fastcrud)
 [![Bootstrap](https://img.shields.io/badge/Bootstrap-5.x-purple?style=for-the-badge&logo=bootstrap)](https://getbootstrap.com)
@@ -17,13 +17,13 @@
 
 ## 📚 Table of Contents
 
-- [🎆 Features](#-features)
-- [📦 Installation](#-installation)
-- [🚀 Quick Start](#-quick-start)
-- [🔧 Configuration](#-configuration)
-- [🗃️ Database Editor](#️-database-editor)
-- [📜 API Reference & Customization](#-api-reference--customization)
-- [📝 License](#-license)
+- [🎆 Features](#features)
+- [📦 Installation](#installation)
+- [🚀 Quick Start](#quick-start)
+- [🔧 Configuration](#configuration)
+- [🗃️ Database Editor](#database-editor)
+- [📜 API Reference & Customization](#api-reference--customization)
+- [📝 License](#license)
 
 ## 🎆 Features
 
@@ -44,7 +44,7 @@ composer require mzgs/fastcrud
 
 ### 📋 Requirements
 
-✅ **PHP** 7.4 or higher  
+✅ **PHP** 8.0 or higher  
 ✅ **PDO** extension  
 ✅ **Database** - MySQL, PostgreSQL, SQLite, etc.  
 ✅ **Bootstrap** 5 for styling  
@@ -170,7 +170,6 @@ echo DatabaseEditor::render();
 ?>
 ```
 
-> **Note:** Previous releases referenced this class as `DatabseEditor`. Update any legacy imports to use `DatabaseEditor` when upgrading.
 
 ### 💡 Complete HTML Example
 
@@ -828,6 +827,10 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 - **`order_by(string|array $fields, string $direction = 'asc'): self`** – Define default ordering for query results; direction must be `'asc'` or `'desc'` (case-insensitive).
   ```php
   $crud->order_by(['status' => 'asc', 'created_at' => 'desc']);
+  ```
+- **`enable_filters(bool $enabled = true): self`** – Show or hide the Query Builder filters UI in the toolbar.
+  ```php
+  $crud->enable_filters(); // enable filters UI
   ```
 - **`disable_sort(string|array $columns): self`** – Prevent UI sorting on columns.
   ```php
