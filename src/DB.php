@@ -17,7 +17,7 @@ class DB
      */
     public static function connection(): PDO
     {
-        if (self::$connection instanceof PDO) {
+        if (self::$connection !== null) {
             return self::$connection;
         }
 

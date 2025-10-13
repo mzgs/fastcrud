@@ -127,11 +127,7 @@ DatabaseEditor::init();
                     <p class="lead mt-2">Dynamically rendered records for the configured table.</p>
                 </div>
 
-                <div class="card mb-5">
-                    <div class="card-body">
-                        <p class="mb-0"><i class="fas fa-gear-complex"></i> Thisasddasdasd <i class="far fa-database"></i>  </p>
-                        </div>  
-                </div>
+                 
 
                 <?= DatabaseEditor::render(true); ?>
 
