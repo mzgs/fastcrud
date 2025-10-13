@@ -935,6 +935,8 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 ### ⚙️ FastCrud\CrudConfig - Configuration Manager
 
+#### Database Configuration
+
 - **`CrudConfig::setDbConfig(array $configuration): void`** – Store PDO connection settings (`driver` may be `'mysql'`, `'pgsql'`, or `'sqlite'`, with optional `'host'`, `'port'`, `'database'`, `'username'`, `'password'`, and PDO `'options'`).
   ```php
   CrudConfig::setDbConfig([
@@ -949,9 +951,36 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $config = CrudConfig::getDbConfig();
   ```
+
+#### Global Settings
+
 - **`CrudConfig::getUploadPath(): string`** – Resolve the base directory for uploads (defaults to `'public/uploads'` when unset).
   ```php
   $path = CrudConfig::getUploadPath();
+  ```
+- **`CrudConfig::$upload_path`** – Set the default upload directory for file operations (default: `'public/uploads'`).
+  ```php
+  CrudConfig::$upload_path = 'assets/uploads';
+  ```
+- **`CrudConfig::$images_in_grid`** – Enable/disable image thumbnails in grid view (default: `true`).
+  ```php
+  CrudConfig::$images_in_grid = false; // Hide images in grid
+  ```
+- **`CrudConfig::$images_in_grid_height`** – Set thumbnail height in pixels for grid images (default: `55`).
+  ```php
+  CrudConfig::$images_in_grid_height = 80; // Larger thumbnails
+  ```
+- **`CrudConfig::$bools_in_grid`** – Display boolean fields as toggle switches in grid cells (default: `true`).
+  ```php
+  CrudConfig::$bools_in_grid = false; // Show as text instead
+  ```
+- **`CrudConfig::$enable_select2`** – Enable Select2 widgets globally for all dropdowns (default: `false`).
+  ```php
+  CrudConfig::$enable_select2 = true; // Use Select2 by default
+  ```
+- **`CrudConfig::$enable_filters`** – Show query builder filter controls in toolbar by default (default: `false`).
+  ```php
+  CrudConfig::$enable_filters = true; // Enable filters globally
   ```
 
 ---
@@ -967,6 +996,7 @@ Customize default CSS classes for buttons, rows, and components throughout FastC
 - **`CrudStyle::$link_button_class`** – Custom link buttons added via `link_button()` (default: `'btn btn-sm btn-outline-secondary'`)
 - **`CrudStyle::$search_button_class`** – Search form submit button (default: `'btn btn-outline-primary'`)
 - **`CrudStyle::$search_clear_button_class`** – Search form clear button (default: `'btn btn-outline-secondary'`)
+- **`CrudStyle::$filters_button_class`** – Query builder filters toggle button (default: `'btn btn-sm btn-outline-secondary'`)
 - **`CrudStyle::$batch_delete_button_class`** – Bulk delete button (default: `'btn btn-sm btn-danger'`)
 - **`CrudStyle::$bulk_apply_button_class`** – Bulk actions apply button (default: `'btn btn-sm btn-outline-primary'`)
 - **`CrudStyle::$export_csv_button_class`** – CSV export button (default: `'btn btn-sm btn-outline-secondary'`)
@@ -992,6 +1022,17 @@ Customize default CSS classes for buttons, rows, and components throughout FastC
 - **`CrudStyle::$nested_toggle_button_classes`** – Expand/collapse buttons for nested tables (default: `'btn btn-link p-0'`)
 - **`CrudStyle::$edit_view_row_highlight_class`** – Table row highlight while editing/viewing (default: `'table-active'`)
 - **`CrudStyle::$bools_in_grid_color`** – Color variant for boolean switches in grid cells (default: `'primary'`)
+
+#### 🎯 Action Button Icons
+
+- **`CrudStyle::$view_action_icon`** – Icon class for view/read action buttons (default: `'fas fa-eye'`)
+- **`CrudStyle::$edit_action_icon`** – Icon class for edit action buttons (default: `'fas fa-edit'`)
+- **`CrudStyle::$delete_action_icon`** – Icon class for delete action buttons (default: `'fas fa-trash'`)
+- **`CrudStyle::$duplicate_action_icon`** – Icon class for duplicate action buttons (default: `'far fa-copy'`)
+- **`CrudStyle::$expand_action_icon`** – Icon class for expanding nested records (default: `'fas fa-chevron-down'`)
+- **`CrudStyle::$collapse_action_icon`** – Icon class for collapsing nested records (default: `'fas fa-chevron-up'`)
+- **`CrudStyle::$x_icon_class`** – Icon class for dismiss/remove buttons (default: `'fas fa-xmark'`)
+- **`CrudStyle::$action_icon_size`** – Font size for action button icons (default: `'1.05rem'`)
 
 #### 💡 Usage Examples
 
@@ -1022,6 +1063,21 @@ CrudStyle::$panel_cancel_button_class = 'btn btn-lg btn-secondary';
 
 // 🌲 Customize nested table styling
 CrudStyle::$nested_toggle_button_classes = 'btn btn-outline-primary btn-sm';
+
+// 🎯 Customize action icons
+CrudStyle::$view_action_icon = 'fas fa-search';
+CrudStyle::$edit_action_icon = 'fas fa-pencil';
+CrudStyle::$delete_action_icon = 'fas fa-times';
+CrudStyle::$duplicate_action_icon = 'fas fa-clone';
+CrudStyle::$expand_action_icon = 'fas fa-plus';
+CrudStyle::$collapse_action_icon = 'fas fa-minus';
+CrudStyle::$action_icon_size = '1.2rem';
+
+// 🌐 Using different icon libraries (Bootstrap Icons)
+CrudStyle::$view_action_icon = 'bi bi-eye';
+CrudStyle::$edit_action_icon = 'bi bi-pencil';
+CrudStyle::$delete_action_icon = 'bi bi-trash';
+CrudStyle::$duplicate_action_icon = 'bi bi-files';
 
 // 💼 Using custom CSS framework (Tailwind CSS example)
 CrudStyle::$add_button_class = 'bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded';
