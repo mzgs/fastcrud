@@ -150,6 +150,38 @@ FastCRUD includes a visual Database Editor that provides a web-based interface f
 - **Real-time Updates** - AJAX-powered interface with instant feedback
 - **Type-safe Operations** - Built-in validation prevents invalid schema changes
 
+### 🚀 Quick Start
+
+```php
+<?php
+require __DIR__ . '/vendor/autoload.php';
+
+use FastCrud\DatabaseEditor;
+
+// Initialize with database connection
+DatabaseEditor::init([
+    'driver' => 'mysql',
+    'host' => '127.0.0.1',
+    'database' => 'your_database',
+    'username' => 'your_username',
+    'password' => 'your_password',
+]);
+
+// Render the database editor interface
+echo DatabaseEditor::render();
+?>
+```
+
+> Tip: If you have already called `Crud::init([...])` earlier in your bootstrap, you can omit the config here and simply call `DatabaseEditor::init()` — it will reuse the existing DB config/connection.
+```php
+use FastCrud\Crud;
+use FastCrud\DatabaseEditor;
+
+Crud::init(['database' => 'app', 'username' => 'user', 'password' => 'secret']);
+DatabaseEditor::init(); // reuses previously set config
+echo DatabaseEditor::render();
+```
+
  
 
 ### 🛠️ API Reference
