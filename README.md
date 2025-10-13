@@ -236,27 +236,22 @@ echo DatabaseEditor::render();
 
 ### 💾 Database Export
 
-The Database Editor includes a built-in export feature that generates complete SQL dumps:
-
-- **One-click Export** - Download entire database structure and data
-- **Timestamped Files** - Automatic filename with creation date
-- **Complete Dumps** - Includes CREATE statements and INSERT data
-- **Multi-database Support** - Optimized export for each database type
+- **One-click Export** - Complete SQL dumps with data
+- **Timestamped Files** - Auto-generated filenames
+- **Multi-database Support** - Works with MySQL, PostgreSQL, SQLite
 
 ### 🔒 Security Features
 
-- **Input Validation** - All identifiers validated against SQL injection
-- **Type Safety** - Column types validated for safety
-- **Identifier Quoting** - Proper escaping for database identifiers
-- **Error Handling** - Graceful error messages with recovery options
+- **SQL Injection Protection** - Input validation and identifier quoting
+- **Type Safety** - Column type validation
+- **Error Handling** - Graceful error recovery
 
 ### 💡 Usage Tips
 
-1. **Backup First** - Always backup your database before making structural changes
-2. **Test Changes** - Use on development databases before production
-3. **Column Reordering** - MySQL-only feature for organizing table structure
-4. **Keyboard Navigation** - Use Tab/Enter for quick form navigation
-5. **Bulk Operations** - Export entire database or work table by table
+- **Backup First** - Always backup before structural changes
+- **Test on Dev** - Use development databases before production
+- **Column Reordering** - MySQL-only feature
+- **Keyboard Navigation** - Tab/Enter for quick navigation
 
 ---
 
