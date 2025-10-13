@@ -76,6 +76,8 @@ Crud::init([
     'password' => '1',
 ]);
 
+
+
 CrudStyle::$bools_in_grid_color = 'success';
 
 CrudStyle::$action_button_global_class = "btn btn-secondary";

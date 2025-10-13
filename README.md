@@ -794,6 +794,11 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $crud->link_button('/reports', 'fas fa-file-alt', 'Reports', 'btn btn-sm btn-outline-info', ['target' => '_blank']);
   ```
+- **`enable_select2(bool $enabled = true): self`** – Enable or disable Select2 widgets for dropdown fields on this CRUD instance, overriding the global `CrudConfig::$enable_select2` setting.
+  ```php
+  $crud->enable_select2(true); // Use Select2 for this table
+  $crud->enable_select2(false); // Disable Select2 for this table
+  ```
 
 ---
 
