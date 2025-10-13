@@ -170,6 +170,16 @@ echo DatabaseEditor::render();
 ?>
 ```
 
+> Tip: If you have already called `Crud::init([...])` earlier in your bootstrap, you can omit the config here and simply call `DatabaseEditor::init()` — it will reuse the existing DB config/connection.
+```php
+use FastCrud\Crud;
+use FastCrud\DatabaseEditor;
+
+Crud::init(['database' => 'app', 'username' => 'user', 'password' => 'secret']);
+DatabaseEditor::init(); // reuses previously set config
+echo DatabaseEditor::render();
+```
+
 
 ### 💡 Complete HTML Example
 
@@ -221,6 +231,8 @@ echo DatabaseEditor::render();
       'password' => 'db_password',
   ]);
   ```
+  - If `Crud::init([...])` has already been called, `DatabaseEditor::init()` can be invoked without arguments to reuse the existing DB config/connection.
+  - Passing a config to `DatabaseEditor::init([...])` overrides the previously set config and resets the cached PDO connection.
 
 ##### Rendering
 - **`DatabaseEditor::render(bool $showHeader = true): string`** – Generate and return the complete database editor HTML interface. Pass `false` to omit the hero header block.
