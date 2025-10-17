@@ -185,12 +185,14 @@ class Crud
     /**
      * Initialize Crud and handle AJAX requests automatically.
      * Call this method early in your application bootstrap.
-     * 
-     * @param array<string, mixed>|null $dbConfig Optional database configuration
+     *
+     * @param PDO|array<string, mixed>|null $dbConfig Optional PDO instance or database configuration
      */
-    public static function init(?array $dbConfig = null): void
+    public static function init(PDO|array|null $dbConfig = null): void
     {
-        if ($dbConfig !== null) {
+        if ($dbConfig instanceof PDO) {
+            DB::setConnection($dbConfig);
+        } elseif ($dbConfig !== null) {
             CrudConfig::setDbConfig($dbConfig);
         }
 
