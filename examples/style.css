@@ -6,10 +6,6 @@
    — Works with [data-bs-theme] switch
    ================================ */
 
-:root,
-html {
-  scrollbar-gutter: stable both-edges;
-}
 
 /* ----- LIGHT THEME ----- */
 :root,

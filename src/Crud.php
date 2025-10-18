@@ -134,9 +134,10 @@ class Crud
         'link_button' => null,
         'inline_edit' => [],
         'table_meta' => [
-            'name'    => null,
+            'title'   => null,
             'tooltip' => null,
             'icon'    => null,
+            'hide_title' => false,
             'add' => true,
             'view' => true,
             'view_condition' => null,
@@ -223,11 +224,11 @@ class Crud
         return $this->table;
     }
 
-    private function getConfiguredTableName(): string
+    private function getConfiguredTableTitle(): string
     {
         $tableMeta = $this->config['table_meta'] ?? [];
-        if (isset($tableMeta['name']) && is_string($tableMeta['name']) && $tableMeta['name'] !== '') {
-            return $tableMeta['name'];
+        if (isset($tableMeta['title']) && is_string($tableMeta['title']) && $tableMeta['title'] !== '') {
+            return $tableMeta['title'];
         }
 
         return $this->makeTitle($this->table);
@@ -2537,14 +2538,21 @@ class Crud
         return $this;
     }
 
-    public function table_name(string $name): self
+    public function table_title(string $title): self
     {
-        $name = trim($name);
-        if ($name === '') {
+        $title = trim($title);
+        if ($title === '') {
             throw new InvalidArgumentException('Table name cannot be empty.');
         }
 
-        $this->config['table_meta']['name'] = $name;
+        $this->config['table_meta']['title'] = $title;
+
+        return $this;
+    }
+
+    public function hide_table_title(bool $hidden = true): self
+    {
+        $this->config['table_meta']['hide_title'] = (bool) $hidden;
 
         return $this;
     }
@@ -6674,8 +6682,8 @@ HTML;
         $tableMeta = $this->config['table_meta'];
         $batchDeleteConfigured = isset($tableMeta['batch_delete']) ? (bool) $tableMeta['batch_delete'] : false;
         $tableMeta['batch_delete_button'] = $batchDeleteConfigured;
-        $tableName = isset($tableMeta['name']) && is_string($tableMeta['name']) && $tableMeta['name'] !== ''
-            ? $tableMeta['name']
+        $tableTitle = isset($tableMeta['title']) && is_string($tableMeta['title']) && $tableMeta['title'] !== ''
+            ? $tableMeta['title']
             : $this->makeTitle($this->table);
 
         $inline = array_values(array_keys(array_filter($this->config['inline_edit'] ?? [], static fn($v) => (bool) $v)));
@@ -6713,9 +6721,10 @@ HTML;
         return [
             'table' => [
                 'key'       => $this->table,
-                'name'      => $tableName,
+                'title'     => $tableTitle,
                 'tooltip'   => $tableMeta['tooltip'] ?? null,
                 'icon'      => $tableMeta['icon'] ?? null,
+                'hide_title' => isset($tableMeta['hide_title']) ? (bool) $tableMeta['hide_title'] : false,
                 'add'       => isset($tableMeta['add']) ? (bool) $tableMeta['add'] : true,
                 'view'      => isset($tableMeta['view']) ? (bool) $tableMeta['view'] : true,
                 'view_condition' => isset($tableMeta['view_condition']) && is_array($tableMeta['view_condition'])
@@ -7228,7 +7237,7 @@ HTML;
                 'parent_column_raw' => $entry['parent_column_raw'],
                 'foreign_column'    => $entry['foreign_column'],
                 'table'             => $child->getTable(),
-                'label'             => $child->getConfiguredTableName(),
+                'label'             => $child->getConfiguredTableTitle(),
                 'config'            => $child->buildClientConfigPayload(),
             ];
         }
@@ -8204,10 +8213,18 @@ HTML;
 
         if (isset($payload['table_meta']) && is_array($payload['table_meta'])) {
             $meta = $payload['table_meta'];
+            $title = null;
+            if (isset($meta['title']) && is_string($meta['title'])) {
+                $title = $meta['title'];
+            } elseif (isset($meta['name']) && is_string($meta['name'])) {
+                $title = $meta['name'];
+            }
+
             $this->config['table_meta'] = [
-                'name'    => isset($meta['name']) && is_string($meta['name']) ? $meta['name'] : null,
+                'title'   => $title,
                 'tooltip' => isset($meta['tooltip']) && is_string($meta['tooltip']) ? $meta['tooltip'] : null,
                 'icon'    => isset($meta['icon']) && is_string($meta['icon']) ? $meta['icon'] : null,
+                'hide_title' => isset($meta['hide_title']) ? (bool) $meta['hide_title'] : false,
                 'add'     => isset($meta['add']) ? (bool) $meta['add'] : true,
                 'view'    => isset($meta['view']) ? (bool) $meta['view'] : true,
                 'view_condition' => isset($meta['view_condition']) && is_array($meta['view_condition'])
@@ -13171,7 +13188,8 @@ CSS;
 
             metaContainer.empty();
 
-            var hasMeta = tableMeta && (tableMeta.name || tableMeta.icon || tableMeta.tooltip);
+            var hideTitle = !!(tableMeta && tableMeta.hide_title);
+            var hasMeta = !hideTitle && tableMeta && (tableMeta.title || tableMeta.icon || tableMeta.tooltip);
             if (hasMeta) {
                 var wrapper = $('<div class="d-flex align-items-center gap-2"></div>');
 
@@ -13179,8 +13197,8 @@ CSS;
                     wrapper.append($('<i></i>').addClass(tableMeta.icon));
                 }
 
-                if (tableMeta.name) {
-                    var title = $('<h5 class="mb-0"></h5>').text(tableMeta.name);
+                if (tableMeta.title) {
+                    var title = $('<h5 class="mb-0"></h5>').text(tableMeta.title);
                     if (tableMeta.tooltip) {
                         title.attr('title', tableMeta.tooltip).attr('data-bs-toggle', 'tooltip');
                     }

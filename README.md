@@ -713,9 +713,13 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 ### ⚙️ Actions & Toolbar
 
-- **`table_name(string $name): self`** – Set the headline shown above the table.
+- **`table_title(string $title): self`** – Set the headline shown above the table.
   ```php
-  $crud->table_name('Customer Accounts');
+  $crud->table_title('Customer Accounts');
+  ```
+- **`hide_table_title(bool $hidden = true): self`** – Hide or show the table title row.
+  ```php
+  $crud->hide_table_title();
   ```
 - **`table_tooltip(string $tooltip): self`** – Provide a tooltip for the table header.
   ```php

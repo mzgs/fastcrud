@@ -146,6 +146,8 @@ DatabaseEditor::init();
                     // ->enable_edit(true, 'user_id', '=', '1')
                     // ->enable_delete(true, 'user_id', '=', '1')
                     ->enable_duplicate(true)  
+                    ->table_title('Posts')
+                    // ->hide_table_title()
                     ->enable_filters()
                     ->order_by('id', 'desc')
                     ->relation('user_id', 'users', 'id', 'username')
@@ -232,7 +234,7 @@ DatabaseEditor::init();
                   
                     // ->highlight('id', 'equals', 32, 'bg-info')
                     // ->highlight_row('id', 'equals', 23, 'table-info')
-                    ->table_name('Posts Overview')
+                    ->table_title('Posts Overview')
                     // ->highlight_row('title', 'contains', 'we', 'table-info')
                     // ->table_tooltip('FastCRUD live preview of posts')
                     ->table_icon('fas fa-newspaper');
@@ -270,7 +272,7 @@ DatabaseEditor::init();
                 ->table_icon('fas fa-users')
                     ->nested_table('posts', 'id', 'posts', 'user_id', static function (Crud $nested): void {
                         $nested
-                            ->table_name('Posts')
+                            ->table_title('Posts')
                             ->columns('title,content,created_at')
                             ->setPerPage(5)
                             ->change_type('content', 'rich_editor', '', ['rows' => 4])
