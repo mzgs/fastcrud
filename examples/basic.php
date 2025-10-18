@@ -146,7 +146,7 @@ DatabaseEditor::init();
                     // ->enable_edit(true, 'user_id', '=', '1')
                     // ->enable_delete(true, 'user_id', '=', '1')
                     ->enable_duplicate(true)  
-                    ->table_title('Posts')
+                    ->table_title('')
                     // ->hide_table_title()
                     ->enable_filters()
                     ->order_by('id', 'desc')

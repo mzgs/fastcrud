@@ -2054,9 +2054,15 @@ class Crud
             throw new InvalidArgumentException('Column name cannot be empty when setting labels.');
         }
 
+        if ($label === null) {
+            unset($this->config['column_labels'][$column]);
+            return $this;
+        }
+
         $resolvedLabel = trim((string) $label);
         if ($resolvedLabel === '') {
-            throw new InvalidArgumentException('Column label cannot be empty.');
+            $this->config['column_labels'][$column] = '';
+            return $this;
         }
 
         $this->config['column_labels'][$column] = $resolvedLabel;
@@ -2540,12 +2546,7 @@ class Crud
 
     public function table_title(string $title): self
     {
-        $title = trim($title);
-        if ($title === '') {
-            throw new InvalidArgumentException('Table name cannot be empty.');
-        }
-
-        $this->config['table_meta']['title'] = $title;
+        $this->config['table_meta']['title'] = trim($title);
 
         return $this;
     }
