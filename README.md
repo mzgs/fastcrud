@@ -497,7 +497,15 @@ All customization options are available through the main `FastCrud\Crud` class m
   
   // JSON editor with syntax highlighting
   $crud->change_type('metadata', 'json', '{}');
+
+  // Password input; hashes with password_hash (defaults to PASSWORD_BCRYPT)
+  $crud->change_type('password', 'password', '', [
+      'placeholder' => 'Set a password',
+      'algorithm' => PASSWORD_BCRYPT, // optional, accepts PASSWORD_* constants or aliases
+      'cost' => 12,                    // optional password_hash option shortcut
+  ]);
   ```
+- Password inputs render blank when editing existing rows; entering a new value hashes it automatically before persistence, leaving the field empty keeps the stored hash untouched.
 - **`getChangeTypeDefinition(string $field): ?array`** – Inspect previously configured type overrides.
   ```php
   $definition = $crud->getChangeTypeDefinition('avatar');

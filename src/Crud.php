@@ -662,6 +662,113 @@ class Crud
     }
 
     /**
+     * @param array<string, mixed> $data
+     * @param array<string, mixed> $source
+     * @return array<string, mixed>
+     */
+    private function applyPasswordFieldTransformations(array $data, array $source): array
+    {
+        foreach (array_keys($data) as $column) {
+            $definition = $this->getChangeTypeDefinition($column);
+            if ($definition === null) {
+                continue;
+            }
+
+            $type = isset($definition['type']) ? strtolower((string) $definition['type']) : '';
+            if ($type !== 'password') {
+                continue;
+            }
+
+            if (!array_key_exists($column, $source)) {
+                continue;
+            }
+
+            $raw = $source[$column];
+            if ($raw === null || $raw === '') {
+                unset($data[$column]);
+                continue;
+            }
+
+            if (!is_string($raw)) {
+                $raw = (string) $raw;
+            }
+
+            $params = [];
+            if (isset($definition['params']) && is_array($definition['params'])) {
+                $params = $definition['params'];
+            }
+
+            $algorithmCandidate = $params['algorithm'] ?? $params['algo'] ?? ($definition['default'] ?? null);
+            $algorithm = $this->normalizePasswordAlgorithm($algorithmCandidate);
+
+            $options = [];
+            if (isset($params['options']) && is_array($params['options'])) {
+                $options = $params['options'];
+            }
+
+            if (isset($params['cost']) && !isset($options['cost']) && is_numeric($params['cost'])) {
+                $options['cost'] = (int) $params['cost'];
+            }
+
+            try {
+                $hash = password_hash($raw, $algorithm, $options);
+            } catch (\ValueError $error) {
+                throw new RuntimeException(
+                    sprintf('Failed to hash password for field "%s": %s', $column, $error->getMessage()),
+                    0,
+                    $error
+                );
+            }
+
+            if ($hash === false) {
+                throw new RuntimeException(sprintf('Failed to hash password for field "%s".', $column));
+            }
+
+            $data[$column] = $hash;
+        }
+
+        return $data;
+    }
+
+    private function normalizePasswordAlgorithm(mixed $algorithm): string|int
+    {
+        if (is_int($algorithm)) {
+            return $algorithm;
+        }
+
+        if (is_string($algorithm)) {
+            $candidate = strtolower(trim($algorithm));
+            if ($candidate === '' || $candidate === 'default' || $candidate === 'password_default') {
+                return PASSWORD_DEFAULT;
+            }
+
+            if (in_array($candidate, ['bcrypt', 'password_bcrypt', '2y', '2b'], true)) {
+                return PASSWORD_BCRYPT;
+            }
+
+            if (in_array($candidate, ['argon2', 'password_argon2'], true)) {
+                if (defined('PASSWORD_ARGON2ID')) {
+                    return PASSWORD_ARGON2ID;
+                }
+
+                if (defined('PASSWORD_ARGON2I')) {
+                    return PASSWORD_ARGON2I;
+                }
+            }
+
+            if (in_array($candidate, ['argon2i', 'password_argon2i'], true) && defined('PASSWORD_ARGON2I')) {
+                return PASSWORD_ARGON2I;
+            }
+
+            if (in_array($candidate, ['argon2id', 'password_argon2id'], true) && defined('PASSWORD_ARGON2ID')) {
+                return PASSWORD_ARGON2ID;
+            }
+        }
+
+        return PASSWORD_BCRYPT;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function gatherBehaviourForMode(string $key, string $mode): array
@@ -8836,8 +8943,6 @@ HTML;
             }
         }
 
-        $context = array_merge($context, $filtered);
-
         $passVars = $this->gatherBehaviourForMode('pass_var', 'create');
         foreach ($passVars as $column => $value) {
             if (!in_array($column, $columns, true)) {
@@ -8847,6 +8952,8 @@ HTML;
             $filtered[$column] = $this->renderTemplateValue($value, $context);
             $context[$column] = $filtered[$column];
         }
+
+        $filtered = $this->applyPasswordFieldTransformations($filtered, $fields);
 
         $context = array_merge($context, $filtered);
 
@@ -9137,6 +9244,7 @@ HTML;
 
             if ($needsDefault) {
                 $filtered[$column] = $this->renderTemplateValue($value, $context);
+                $context[$column] = $filtered[$column];
             }
         }
 
@@ -9147,7 +9255,10 @@ HTML;
             }
 
             $filtered[$column] = $this->renderTemplateValue($value, $context);
+            $context[$column] = $filtered[$column];
         }
+
+        $filtered = $this->applyPasswordFieldTransformations($filtered, $fields);
 
         $context = array_merge($currentRow, $fields, $filtered);
 
