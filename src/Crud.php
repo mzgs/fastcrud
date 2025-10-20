@@ -15490,6 +15490,8 @@ CSS;
                 var colorPicker = null; // used when changeType === 'color'
                 var dataType = changeType;
                 var normalizedValue = currentValue;
+                var hasExistingPassword = false;
+                var applyNativeRequired = true;
 
                 if (changeType === 'textarea') {
                     input = $('<textarea class="form-control"></textarea>')
@@ -15858,6 +15860,10 @@ CSS;
                         .attr('id', fieldId)
                         .val('');
                     dataType = 'password';
+                    if (formMode !== 'create' && normalizedValue !== null && normalizedValue !== '') {
+                        hasExistingPassword = true;
+                        input.attr('data-fastcrud-password-existing', '1');
+                    }
                 } else if (changeType === 'bool' || changeType === 'checkbox' || changeType === 'switch') {
                     group.removeClass('mb-3').addClass('form-check mb-3');
                     input = $('<input type="checkbox" class="form-check-input" />')
@@ -15948,7 +15954,10 @@ CSS;
 
                 if (behaviours.validation_required) {
                     input.attr('data-fastcrud-required', behaviours.validation_required);
-                    if (!input.is(':checkbox')) {
+                    if (changeType === 'password' && hasExistingPassword && formMode !== 'create') {
+                        applyNativeRequired = false;
+                    }
+                    if (applyNativeRequired && !input.is(':checkbox')) {
                         input.attr('required', 'required');
                     }
                 }
@@ -17024,6 +17033,22 @@ CSS;
                                     valueForField = jsonCandidate;
                                     lengthForValidation = jsonCandidate.length;
                                 }
+                            }
+                        }
+                    } else if (type === 'password') {
+                        rawValue = input.val();
+                        var hasExistingPassword = String(input.attr('data-fastcrud-password-existing') || '').trim() === '1';
+                        if (rawValue === null || typeof rawValue === 'undefined') {
+                            valueForField = null;
+                            lengthForValidation = hasExistingPassword ? Number.MAX_SAFE_INTEGER : 0;
+                        } else {
+                            var passwordCandidate = String(rawValue).trim();
+                            if (passwordCandidate === '') {
+                                valueForField = null;
+                                lengthForValidation = hasExistingPassword ? Number.MAX_SAFE_INTEGER : 0;
+                            } else {
+                                valueForField = passwordCandidate;
+                                lengthForValidation = passwordCandidate.length;
                             }
                         }
                     } else {
