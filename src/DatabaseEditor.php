@@ -7,6 +7,7 @@ use LogicException;
 use PDO;
 use PDOException;
 use RuntimeException;
+use Throwable;
 
 class DatabaseEditor
 {
@@ -31,6 +32,7 @@ class DatabaseEditor
         }
 
         self::$initialized = true;
+        self::maybeHandleAjaxEarly();
         self::maybeHandleDownloadEarly();
     }
 
@@ -153,6 +155,24 @@ class DatabaseEditor
         } catch (RuntimeException $exception) {
             self::$errors[] = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         }
+    }
+
+    private static function maybeHandleAjaxEarly(): void
+    {
+        if (!self::isAjaxInvocation()) {
+            return;
+        }
+
+        try {
+            $html = self::render();
+        } catch (Throwable $exception) {
+            $message = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $html = '<div class="fastcrud-db-editor"><div class="alert alert-danger" role="alert">' . $message . '</div></div>';
+            self::respondHtmlAndExit($html, 500);
+            return;
+        }
+
+        self::respondHtmlAndExit($html);
     }
 
     private static function markJsonResponseIfNeeded(string $action): void
@@ -1242,7 +1262,7 @@ SQL;
                 $columnSummary = $columnCount === 1 ? '1 column' : $columnCount . ' columns';
                 $html .= '<div class="tab-pane fade' . $isActive . '" id="' . $tabId . '" role="tabpanel" aria-labelledby="tab-' . $tabId . '">';
                 $html .= '<div class="card">';
-                $html .= '<div class="fc-db-table">';
+                $html .= '<div class="fc-db-table fastcrud-db-editor__columns">';
                 $html .= '<div class="fc-db-table__header border-bottom p-4 d-flex flex-column flex-lg-row align-items-lg-center gap-3">';
                 $html .= '<div class="d-flex align-items-center gap-3">';
                 $html .= '<div data-fc-inline-container="name" class="fc-db-inline">';
@@ -2063,7 +2083,6 @@ SQL;
         }
 
         var formData = new FormData(form);
-
         fetch(action, {
             method: method,
             body: formData,
@@ -2598,6 +2617,25 @@ HTML;
         return $value !== '' && preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) === 1;
     }
 
+    private static function isAjaxInvocation(): bool
+    {
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            return false;
+        }
+
+        $action = $_POST['fc_db_editor_action'] ?? null;
+        if (is_string($action) && trim($action) !== '') {
+            return true;
+        }
+
+        $headerFlag = $_SERVER['HTTP_X_FASTCRUD_DB_EDITOR'] ?? null;
+        if (is_string($headerFlag) && trim($headerFlag) !== '') {
+            return true;
+        }
+
+        return false;
+    }
+
     private static function quoteIdentifier(string $identifier, string $driver): string
     {
         if (!self::isValidIdentifier($identifier)) {
@@ -2624,5 +2662,18 @@ HTML;
         while (ob_get_level() > 0) {
             ob_end_clean();
         }
+    }
+
+    private static function respondHtmlAndExit(string $html, int $status = 200): void
+    {
+        self::clearOutputBuffers();
+        http_response_code($status);
+
+        if (!headers_sent()) {
+            header('Content-Type: text/html; charset=utf-8');
+        }
+
+        echo $html;
+        exit;
     }
 }

@@ -10535,7 +10535,6 @@ CSS;
         return <<<SCRIPT
 <script>
 (function() {
-    try { if (window.console && console.log) console.log('FastCrud bootstrap script running'); } catch (e) {}
     function FastCrudInit($) {
         $(document).ready(function() {
         function deepClone(value) {
@@ -10562,7 +10561,6 @@ CSS;
         var editViewHighlightClass = getStyleClass('edit_view_row_highlight_class', 'table-warning');
         var dismissIconClass = getStyleClass('x_icon_class', 'fas fa-xmark');
         var table = $('#' + tableId);
-        try { if (window.console && console.log) console.log('FastCrud init for table', tableId); } catch (e) {}
         var tableName = table.data('table');
         var perPage = parseInt(table.data('per-page'), 10);
         if (isNaN(perPage) || perPage < 1) {
@@ -13065,8 +13063,6 @@ CSS;
                 clientConfig.inline_edit = inlineArr.slice();
             }
             inlineArr.forEach(function(f){ if (f) { inlineEditFields[String(f)] = true; } });
-            try { if (window.console && console.log) console.log('FastCrud inline_edit fields:', Object.keys(inlineEditFields)); } catch (e) {}
-
             if (Array.isArray(formConfig.all_columns) && formConfig.all_columns.length) {
                 baseColumns = formConfig.all_columns.slice();
             } else {
@@ -17262,7 +17258,6 @@ CSS;
             var column = String(cell.attr('data-fastcrud-column') || '');
             var baseKey = column.indexOf('__') !== -1 ? column.split('__').pop() : column;
             if (!column || (!inlineEditFields[column] && !inlineEditFields[baseKey])) {
-                try { if (window.console && console.log) console.log('FastCrud inline skip: not enabled for', column); } catch (e) {}
                 return;
             }
             if (cell.closest('td').hasClass('fastcrud-actions-cell')) { return; }
@@ -17270,7 +17265,9 @@ CSS;
             if (cell.data('fastcrudEditing')) { return; }
 
             var pk = getPkInfoFromElement(cell);
-            if (!pk) { try { if (window.console && console.log) console.log('FastCrud inline skip: missing PK', cell.get(0)); } catch (e) {} return; }
+            if (!pk) {
+                return;
+            }
 
             cell.data('fastcrudEditing', true);
             var originalHtml = cell.html();
@@ -17477,7 +17474,6 @@ CSS;
             if (target.is('a,button,input,select,textarea') || target.closest('.btn, .dropdown, .fastcrud-actions-cell').length) {
                 return;
             }
-            try { if (window.console && console.log) console.log('FastCrud inline click on', $(this).attr('data-fastcrud-column')); } catch (e) {}
             startInlineEdit(this);
         });
 
