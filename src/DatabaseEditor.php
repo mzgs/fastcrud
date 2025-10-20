@@ -24,11 +24,10 @@ class DatabaseEditor
     private static ?string $activeTable = null;
     private static bool $downloadHandled = false;
 
-    public static function init(?array $dbConfig = null): void
+    public static function init(?PDO $pdo = null): void
     {
-        if ($dbConfig !== null) {
-            CrudConfig::setDbConfig($dbConfig);
-            DB::disconnect();
+        if ($pdo !== null) {
+            DB::setConnection($pdo);
         }
 
         self::$initialized = true;
@@ -42,7 +41,7 @@ class DatabaseEditor
         }
 
         $connection = DB::connection();
-        $driver = self::detectDriver();
+        $driver = self::detectDriver($connection);
         self::handleRequest($connection, $driver);
 
         $tables = self::fetchTables($connection, $driver);
@@ -52,18 +51,28 @@ class DatabaseEditor
         }
 
         $activeTable = self::resolveActiveTable($tables);
+        $dbConfig = CrudConfig::getDbConfig();
 
-        return self::renderHtml($tables, $tableColumns, $driver, $activeTable, $showHeader);
+        return self::renderHtml($connection, $tables, $tableColumns, $driver, $dbConfig, $activeTable, $showHeader);
     }
 
-    private static function detectDriver(): string
+    private static function detectDriver(PDO $connection): string
     {
-        $driver = CrudConfig::getDbConfig()['driver'] ?? 'mysql';
-        if (!is_string($driver) || $driver === '') {
+        try {
+            $driver = $connection->getAttribute(PDO::ATTR_DRIVER_NAME);
+            if (is_string($driver) && $driver !== '') {
+                return strtolower($driver);
+            }
+        } catch (PDOException) {
+            // Fall back to configuration below if discovery via PDO fails.
+        }
+
+        $configuredDriver = CrudConfig::getDbConfig()['driver'] ?? 'mysql';
+        if (!is_string($configuredDriver) || $configuredDriver === '') {
             return 'mysql';
         }
 
-        return strtolower($driver);
+        return strtolower($configuredDriver);
     }
 
     private static function handleRequest(PDO $connection, string $driver): void
@@ -136,7 +145,7 @@ class DatabaseEditor
 
         try {
             $connection = DB::connection();
-            $driver = self::detectDriver();
+            $driver = self::detectDriver($connection);
             self::$downloadHandled = true;
             self::handleDownloadDatabase($connection, $driver);
         } catch (PDOException $exception) {
@@ -952,7 +961,117 @@ SQL;
         return self::$activeTable;
     }
 
-    private static function renderHtml(array $tables, array $tableColumns, string $driver, ?string $activeTable, bool $showHeader): string
+    private static function extractConfiguredDatabaseName(array $dbConfig, string $driver): string
+    {
+        foreach (['database', 'dbname', 'name'] as $key) {
+            if (!isset($dbConfig[$key])) {
+                continue;
+            }
+
+            $value = $dbConfig[$key];
+            if (!is_string($value)) {
+                continue;
+            }
+
+            $trimmed = trim($value);
+            if ($trimmed === '') {
+                continue;
+            }
+
+            if ($driver === 'sqlite' && strpbrk($trimmed, '\\/') !== false) {
+                return \basename($trimmed);
+            }
+
+            return $trimmed;
+        }
+
+        if ($driver === 'sqlite') {
+            $path = $dbConfig['path'] ?? null;
+            if (is_string($path)) {
+                $trimmed = trim($path);
+                if ($trimmed !== '') {
+                    return \basename($trimmed);
+                }
+            }
+        }
+
+        return '';
+    }
+
+    private static function resolveDatabaseHeading(PDO $connection, string $driver, array $dbConfig): string
+    {
+        try {
+            switch ($driver) {
+                case 'mysql':
+                    $statement = $connection->query('SELECT DATABASE()');
+                    if ($statement !== false) {
+                        $value = $statement->fetchColumn();
+                        $statement->closeCursor();
+                        if (is_string($value)) {
+                            $trimmed = trim($value);
+                            if ($trimmed !== '') {
+                                return $trimmed;
+                            }
+                        }
+                    }
+                    break;
+                case 'pgsql':
+                    $statement = $connection->query('SELECT current_database()');
+                    if ($statement !== false) {
+                        $value = $statement->fetchColumn();
+                        $statement->closeCursor();
+                        if (is_string($value)) {
+                            $trimmed = trim($value);
+                            if ($trimmed !== '') {
+                                return $trimmed;
+                            }
+                        }
+                    }
+                    break;
+                case 'sqlite':
+                    $statement = $connection->query('PRAGMA database_list');
+                    if ($statement !== false) {
+                        $fallback = '';
+                        while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
+                            $file = isset($row['file']) && is_string($row['file']) ? trim($row['file']) : '';
+                            if ($file !== '') {
+                                $basename = \basename($file);
+                                if ($basename !== '') {
+                                    $statement->closeCursor();
+                                    return $basename;
+                                }
+                            }
+
+                            $name = isset($row['name']) && is_string($row['name']) ? trim($row['name']) : '';
+                            if ($name !== '') {
+                                $fallback = $name;
+                            }
+                        }
+                        $statement->closeCursor();
+
+                        if ($fallback !== '') {
+                            return $fallback;
+                        }
+                    }
+                    break;
+            }
+        } catch (PDOException) {
+            // Ignore lookup errors; fall back to configuration values below.
+        }
+
+        $configured = self::extractConfiguredDatabaseName($dbConfig, $driver);
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        if ($driver === 'sqlite') {
+            return 'SQLite';
+        }
+
+        return 'Database';
+    }
+
+    private static function renderHtml(PDO $connection, array $tables, array $tableColumns, string $driver, array $dbConfig, ?string $activeTable, bool $showHeader): string
     {
         if ($activeTable !== null && !in_array($activeTable, $tables, true)) {
             $activeTable = null;
@@ -962,11 +1081,12 @@ SQL;
             $activeTable = $tables[0] ?? null;
         }
 
-        $dbConfig = CrudConfig::getDbConfig();
-        $databaseName = $dbConfig['database'] ?? ($dbConfig['dbname'] ?? '');
-        $databaseName = is_string($databaseName) ? trim($databaseName) : '';
-        $databaseHeading = $databaseName !== '' ? $databaseName : 'Database';
-        $databaseHeading = htmlspecialchars($databaseHeading, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $databaseName = self::extractConfiguredDatabaseName($dbConfig, $driver);
+        $databaseHeading = htmlspecialchars(
+            self::resolveDatabaseHeading($connection, $driver, $dbConfig),
+            ENT_QUOTES | ENT_SUBSTITUTE,
+            'UTF-8'
+        );
 
         $driverLabel = strtoupper($driver);
         $tableCount = count($tables);

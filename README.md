@@ -158,21 +158,16 @@ require __DIR__ . '/vendor/autoload.php';
 
 use FastCrud\DatabaseEditor;
 
-// Initialize with database connection
-DatabaseEditor::init([
-    'driver' => 'mysql',
-    'host' => '127.0.0.1',
-    'database' => 'your_database',
-    'username' => 'your_username',
-    'password' => 'your_password',
-]);
+// Initialize with an existing PDO instance
+$pdo = new PDO('mysql:host=127.0.0.1;dbname=your_database', 'your_username', 'your_password');
+DatabaseEditor::init($pdo);
 
 // Render the database editor interface
 echo DatabaseEditor::render();
 ?>
 ```
 
-> Tip: If you have already called `Crud::init([...])` earlier in your bootstrap, you can omit the config here and simply call `DatabaseEditor::init()` — it will reuse the existing DB config/connection.
+> Tip: If you have already called `Crud::init([...])` (or otherwise configured `CrudConfig`) earlier in your bootstrap, you can simply call `DatabaseEditor::init()` — it will reuse the existing DB config/connection.
 ```php
 use FastCrud\Crud;
 use FastCrud\DatabaseEditor;
@@ -189,18 +184,13 @@ echo DatabaseEditor::render();
 #### Database Editor Class
 
 ##### Initialization
-- **`DatabaseEditor::init(?array $dbConfig = null): void`** – Initialize the database editor with connection settings
+- **`DatabaseEditor::init(?PDO $pdo = null): void`** – Initialize the database editor with an optional PDO instance
   ```php
-  DatabaseEditor::init([
-      'driver' => 'mysql',        // mysql, pgsql, sqlite
-      'host' => 'localhost',
-      'database' => 'my_app',
-      'username' => 'db_user',
-      'password' => 'db_password',
-  ]);
+  $pdo = new PDO('mysql:host=localhost;dbname=my_app', 'db_user', 'db_password');
+  DatabaseEditor::init($pdo);
   ```
-  - If `Crud::init([...])` has already been called, `DatabaseEditor::init()` can be invoked without arguments to reuse the existing DB config/connection.
-  - Passing a config to `DatabaseEditor::init([...])` overrides the previously set config and resets the cached PDO connection.
+  - If `Crud::init([...])` (or `CrudConfig::setDbConfig([...])`) has already been called, `DatabaseEditor::init()` can be invoked without arguments to reuse the existing configuration and connection.
+  - Supplying a `PDO` instance lets you share an existing connection without reconfiguring `CrudConfig`.
 
 ##### Rendering
 - **`DatabaseEditor::render(bool $showHeader = true): string`** – Generate and return the complete database editor HTML interface. Pass `false` to omit the hero header block.
@@ -265,7 +255,7 @@ All customization options are available through the main `FastCrud\Crud` class m
 
 #### 🚀 Setup & Bootstrap
 
-- **`Crud::init(?array $dbConfig = null): void`** – Configure the connection defaults (keys like `driver`, `host`, `port`, `database`, `username`, `password`, `options`) and auto-handle AJAX requests.
+- **`Crud::init(PDO|array|null $dbConfig = null): void`** – Configure the connection defaults (keys like `driver`, `host`, `port`, `database`, `username`, `password`, `options`) or inject an existing PDO instance, and auto-handle AJAX requests.
   ```php
   Crud::init([
       'database' => 'app',
