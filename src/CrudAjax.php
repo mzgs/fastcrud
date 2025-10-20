@@ -7,6 +7,7 @@ use Exception;
 use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
+use Throwable;
 
 class CrudAjax
 {
@@ -17,6 +18,12 @@ class CrudAjax
     {
         try {
             $request = self::getRequestData();
+
+            if (self::isDatabaseEditorRequest($request)) {
+                self::handleDatabaseEditor();
+                return;
+            }
+
             $action = $request['action'] ?? 'fetch';
             
             switch ($action) {
@@ -992,9 +999,13 @@ class CrudAjax
     {
         $flag = $_GET['fastcrud_ajax'] ?? $_POST['fastcrud_ajax'] ?? null;
 
-        return $flag === '1';
+        if ($flag === '1') {
+            return true;
+        }
+
+        return self::isDatabaseEditorRequest(is_array($_POST) ? $_POST : []);
     }
-    
+
     /**
      * Auto-handle AJAX requests if detected.
      * Call this early in your application bootstrap.
@@ -1018,6 +1029,44 @@ class CrudAjax
         }
 
         return $_GET;
+    }
+
+    /**
+     * Determine whether the current POST payload targets the Database Editor.
+     *
+     * @param array<string, mixed> $request
+     */
+    private static function isDatabaseEditorRequest(array $request): bool
+    {
+        if (strtoupper($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            return false;
+        }
+
+        $action = $request['fc_db_editor_action'] ?? null;
+        if (is_string($action) && trim($action) !== '') {
+            return true;
+        }
+
+        $headerFlag = $_SERVER['HTTP_X_FASTCRUD_DB_EDITOR'] ?? null;
+        if (is_string($headerFlag) && trim($headerFlag) !== '') {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static function handleDatabaseEditor(): void
+    {
+        try {
+            $html = DatabaseEditor::render();
+        } catch (Throwable $exception) {
+            $message = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $html = '<div class="fastcrud-db-editor"><div class="alert alert-danger" role="alert">' . $message . '</div></div>';
+            self::respondHtml($html, 500);
+            return;
+        }
+
+        self::respondHtml($html);
     }
 
     private static function detectMimeType(string $path): ?string
@@ -1538,6 +1587,22 @@ class CrudAjax
         }
 
         return strncmp($haystack, $needle, strlen($needle)) === 0;
+    }
+
+    private static function respondHtml(string $html, int $status = 200): void
+    {
+        if (ob_get_level() > 0) {
+            @ob_clean();
+        }
+
+        http_response_code($status);
+
+        if (!headers_sent()) {
+            header('Content-Type: text/html; charset=utf-8');
+        }
+
+        echo $html;
+        exit;
     }
 
     /**
