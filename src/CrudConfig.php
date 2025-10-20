@@ -25,6 +25,9 @@ class CrudConfig
     // show query builder filters controls by default
     public static bool $enable_filters = false;
 
+    // hide table title block globally
+    public static bool $hide_table_title = false;
+
     // For default CSS classes and colours refer to CrudStyle::$* properties.
 
     /**

@@ -217,6 +217,7 @@ class Crud
 
         $this->config['select2'] = CrudConfig::$enable_select2;
         $this->config['filters_enabled'] = CrudConfig::$enable_filters;
+        $this->config['table_meta']['hide_title'] = CrudConfig::$hide_table_title;
     }
 
     public function getTable(): string
@@ -6832,7 +6833,9 @@ HTML;
                 'title'     => $tableTitle,
                 'tooltip'   => $tableMeta['tooltip'] ?? null,
                 'icon'      => $tableMeta['icon'] ?? null,
-                'hide_title' => isset($tableMeta['hide_title']) ? (bool) $tableMeta['hide_title'] : false,
+                'hide_title' => isset($tableMeta['hide_title'])
+                    ? (bool) $tableMeta['hide_title']
+                    : CrudConfig::$hide_table_title,
                 'add'       => isset($tableMeta['add']) ? (bool) $tableMeta['add'] : true,
                 'view'      => isset($tableMeta['view']) ? (bool) $tableMeta['view'] : true,
                 'view_condition' => isset($tableMeta['view_condition']) && is_array($tableMeta['view_condition'])
@@ -8332,7 +8335,9 @@ HTML;
                 'title'   => $title,
                 'tooltip' => isset($meta['tooltip']) && is_string($meta['tooltip']) ? $meta['tooltip'] : null,
                 'icon'    => isset($meta['icon']) && is_string($meta['icon']) ? $meta['icon'] : null,
-                'hide_title' => isset($meta['hide_title']) ? (bool) $meta['hide_title'] : false,
+                'hide_title' => isset($meta['hide_title'])
+                    ? (bool) $meta['hide_title']
+                    : CrudConfig::$hide_table_title,
                 'add'     => isset($meta['add']) ? (bool) $meta['add'] : true,
                 'view'    => isset($meta['view']) ? (bool) $meta['view'] : true,
                 'view_condition' => isset($meta['view_condition']) && is_array($meta['view_condition'])

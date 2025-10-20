@@ -989,6 +989,10 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   CrudConfig::$enable_filters = true; // Enable filters globally
   ```
+- **`CrudConfig::$hide_table_title`** – Hide the table header block (title, icon, tooltip) by default (default: `false`).
+  ```php
+  CrudConfig::$hide_table_title = true; // Remove table titles globally
+  ```
 
 ---
 
