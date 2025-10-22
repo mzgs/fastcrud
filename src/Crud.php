@@ -2006,7 +2006,8 @@ class Crud
             }
 
             if ($callable !== null && is_callable($callable)) {
-                $result = call_user_func($callable, $value, $row, $column, $display);
+                $formattedValue = $html !== null ? $html : $display;
+                $result = call_user_func($callable, $value, $row, $column, $formattedValue);
 
                 if ($result !== null) {
                     $stringResult = $this->stringifyValue($result);

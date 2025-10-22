@@ -27,7 +27,7 @@ function fc_before_edit(array $fields, array $context, Crud $crud): array
 
 function content_callback(?string $value, array $row, string $column, string $formatted): string
 {
-    return '<strong class="text-primary">' .  $formatted . $row['id'] . ' ...</strong>';
+    return "test: " .$formatted;
 }
 
 function fc_render_user_role(?string $value, array $row, string $column, string $formatted): string
@@ -173,7 +173,7 @@ DatabaseEditor::init();
                     
                     // ->join('user_id', 'users', 'id','user')
                     // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
-                    // ->columns('user_id,title,is_featured,,cats,file,status_label,content,image,color')
+                    ->columns('user_id,title,is_featured,,cats,file,status_label,content,image,color')
                     ->fields('user_id,status,title,is_featured,json_field,image,gallery_images,file,color,content,created_at', false, 'Post Details' )
                     ->fields('slug,status_note,cats,radio_field', false, 'Post Summary' )
                     // ->fields('slug,content',false,'Content' )
@@ -230,6 +230,7 @@ DatabaseEditor::init();
                     ])
                     ->enable_select2()
                     ->column_pattern('slug', '<strong>{value} - {id} | {status}</strong>')
+                   ->column_pattern('content', 'pattern content| {value}')
                     ->column_callback('content', 'content_callback')
                     // Add a custom, computed column that isn't stored in the database
                     ->custom_column('status_label', 'render_status_badge')
@@ -238,15 +239,7 @@ DatabaseEditor::init();
                     // ->column_width('title', '30%')
                     ->column_cut('content', 30)
                     ->setPanelWidth('30%')
-                    ->add_multi_link_button([
-                        'icon' => 'fas fa-gears',
-                        'label' => 'More',
-                        'button_class' => 'btn btn-sm btn-outline-secondary'
-                    ], [
-                        ['url' => '/customers/{id}/invoices', 'label' => 'Invoices', 'icon' => 'fas fa-file-invoice'],
-                        ['url' => '/customers/{id}/support', 'label' => 'Support Tickets', 'icon' => 'fas fa-life-ring']
-                    ])
-                    ->add_link_button('example.com?id={id}', 'fas fa-user', '', 'btn btn-info text-white', ['target' => '_blank', 'class' => 'me-2'] )
+                    
                     ->add_link_button('example.com?id={id}', 'fas fa-user', '', 'btn btn-info text-white', ['target' => '_blank', 'class' => 'me-2'] )
                   
                     // ->change_type('title', 'textarea','',['rows' => 12])
