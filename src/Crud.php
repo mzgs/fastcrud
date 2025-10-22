@@ -431,6 +431,7 @@ class Crud
         }
 
         $items = [];
+        $hasActionItem = false;
         foreach ($itemsRaw as $entry) {
             if (!is_array($entry)) {
                 continue;
@@ -457,6 +458,56 @@ class Crud
                 $items[] = [
                     'type' => 'divider',
                 ];
+                continue;
+            }
+
+            if ($entryType === 'duplicate') {
+                $label = 'Duplicate';
+                if (array_key_exists('label', $entry) && $entry['label'] !== null) {
+                    $labelCandidate = trim((string) $entry['label']);
+                    if ($labelCandidate !== '') {
+                        $label = $labelCandidate;
+                    }
+                }
+
+                $icon = null;
+                $defaultIcon = $this->normalizeCssClassList((string) (CrudStyle::$duplicate_action_icon ?? ''));
+                if ($defaultIcon !== '') {
+                    $icon = $defaultIcon;
+                }
+                if (array_key_exists('icon', $entry) && $entry['icon'] !== null) {
+                    $iconRaw = (string) $entry['icon'];
+                    $iconClass = $this->normalizeCssClassList($iconRaw);
+                    if ($iconClass !== '') {
+                        $icon = $iconClass;
+                    }
+                }
+
+                $itemOptions = [];
+                if (isset($entry['options']) && is_array($entry['options'])) {
+                    foreach ($entry['options'] as $key => $value) {
+                        if (!is_string($key)) {
+                            continue;
+                        }
+
+                        $normalizedKey = trim($key);
+                        if ($normalizedKey === '') {
+                            continue;
+                        }
+
+                        if (is_scalar($value)) {
+                            $itemOptions[$normalizedKey] = (string) $value;
+                        }
+                    }
+                }
+
+                $items[] = [
+                    'type'    => 'duplicate',
+                    'label'   => $label,
+                    'icon'    => $icon,
+                    'options' => $itemOptions,
+                ];
+                $hasActionItem = true;
                 continue;
             }
 
@@ -505,9 +556,10 @@ class Crud
                 'icon'    => $icon,
                 'options' => $itemOptions,
             ];
+            $hasActionItem = true;
         }
 
-        if ($items === []) {
+        if ($items === [] || !$hasActionItem) {
             return null;
         }
 
@@ -1839,7 +1891,9 @@ class Crud
             }
 
             $items = [];
-            $hasLinkItem = false;
+            $hasActionItem = false;
+            $duplicateActionEnabled = $this->isActionEnabled('duplicate');
+            $duplicateAllowedForRow = null;
             foreach ($config['items'] as $item) {
                 $itemType = 'link';
                 if (isset($item['type'])) {
@@ -1858,6 +1912,61 @@ class Crud
                             $items[] = ['type' => 'divider'];
                         }
                     }
+                    continue;
+                }
+
+                if ($itemType === 'duplicate') {
+                    if (!$duplicateActionEnabled) {
+                        continue;
+                    }
+
+                    if ($duplicateAllowedForRow === null) {
+                        $duplicateAllowedForRow = $this->isActionAllowedForRow('duplicate', $row);
+                    }
+
+                    if (!$duplicateAllowedForRow) {
+                        continue;
+                    }
+
+                    $resolvedLabel = trim($this->applyPattern((string) $item['label'], '', null, 'multi_link_button', $row));
+                    if ($resolvedLabel === '') {
+                        continue;
+                    }
+
+                    $resolvedOptions = [];
+                    if (isset($item['options']) && is_array($item['options'])) {
+                        foreach ($item['options'] as $key => $value) {
+                            if (!is_string($key)) {
+                                continue;
+                            }
+
+                            $optionValue = trim($this->applyPattern($value, '', null, 'multi_link_button', $row));
+                            if ($optionValue === '') {
+                                continue;
+                            }
+
+                            $resolvedOptions[$key] = $optionValue;
+                        }
+                    }
+
+                    $resolvedIcon = null;
+                    if (isset($item['icon']) && is_string($item['icon']) && $item['icon'] !== '') {
+                        $iconCandidate = trim($this->applyPattern($item['icon'], '', null, 'multi_link_button', $row));
+                        if ($iconCandidate !== '') {
+                            $normalizedIcon = $this->normalizeCssClassList($iconCandidate);
+                            if ($normalizedIcon !== '') {
+                                $resolvedIcon = $normalizedIcon;
+                            }
+                        }
+                    }
+
+                    $items[] = [
+                        'type'    => 'duplicate',
+                        'label'   => $resolvedLabel,
+                        'icon'    => $resolvedIcon,
+                        'options' => $resolvedOptions,
+                    ];
+                    $hasActionItem = true;
                     continue;
                 }
 
@@ -1909,7 +2018,7 @@ class Crud
                     'icon'    => $resolvedIcon,
                     'options' => $resolvedOptions,
                 ];
-                $hasLinkItem = true;
+                $hasActionItem = true;
             }
 
             if ($items !== []) {
@@ -1923,7 +2032,7 @@ class Crud
                 }
             }
 
-            if (!$hasLinkItem || $items === []) {
+            if (!$hasActionItem || $items === []) {
                 continue;
             }
 
@@ -15156,6 +15265,106 @@ CSS;
 
                         if (itemType === 'divider') {
                             dropdownItems.push('<li><hr class="dropdown-divider fastcrud-multi-link-divider" role="separator"></li>');
+                            return;
+                        }
+
+                        if (itemType === 'duplicate') {
+                            if (!duplicateEnabled) {
+                                return;
+                            }
+
+                            var allowDuplicate = true;
+                            if (rowMeta && Object.prototype.hasOwnProperty.call(rowMeta, 'duplicate_allowed')) {
+                                allowDuplicate = !!rowMeta.duplicate_allowed;
+                            }
+                            if (!allowDuplicate) {
+                                return;
+                            }
+
+                            var duplicateLabelRaw = typeof item.label === 'string' ? item.label : '';
+                            var duplicateLabel = duplicateLabelRaw.trim();
+                            if (!duplicateLabel) {
+                                duplicateLabel = 'Duplicate';
+                            }
+
+                            var duplicateClassParts = ['dropdown-item', 'fastcrud-multi-link-item', 'fastcrud-duplicate-btn'];
+                            var duplicateOptions = item.options && typeof item.options === 'object'
+                                ? Object.assign({}, item.options)
+                                : {};
+                            var duplicateOptionClassRaw = '';
+                            if (Object.prototype.hasOwnProperty.call(duplicateOptions, 'class')) {
+                                duplicateOptionClassRaw = String(duplicateOptions['class'] || '').trim();
+                                delete duplicateOptions['class'];
+                            }
+                            if (duplicateOptionClassRaw) {
+                                duplicateOptionClassRaw.split(/\s+/).forEach(function(extra) {
+                                    if (!extra) { return; }
+                                    if (duplicateClassParts.indexOf(extra) === -1) {
+                                        duplicateClassParts.push(extra);
+                                    }
+                                });
+                            }
+
+                            var duplicateAttrString = '';
+                            var duplicateHasTitle = false;
+                            var duplicateHasAria = false;
+                            var duplicateHasRole = false;
+
+                            Object.keys(duplicateOptions).forEach(function(optionKey) {
+                                if (!Object.prototype.hasOwnProperty.call(duplicateOptions, optionKey)) {
+                                    return;
+                                }
+                                var attrName = String(optionKey);
+                                if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
+                                    return;
+                                }
+                                var lowerName = attrName.toLowerCase();
+                                if (lowerName === 'href' || lowerName === 'class') {
+                                    return;
+                                }
+                                if (lowerName === 'title') {
+                                    duplicateHasTitle = true;
+                                } else if (lowerName === 'aria-label') {
+                                    duplicateHasAria = true;
+                                } else if (lowerName === 'role') {
+                                    duplicateHasRole = true;
+                                }
+                                var attrValue = duplicateOptions[optionKey];
+                                if (attrValue === null || typeof attrValue === 'undefined') {
+                                    return;
+                                }
+                                duplicateAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
+                            });
+
+                            if (!duplicateHasAria) {
+                                duplicateAttrString += ' aria-label="' + escapeHtml(duplicateLabel) + '"';
+                            }
+                            if (!duplicateHasTitle) {
+                                duplicateAttrString += ' title="' + escapeHtml(duplicateLabel) + '"';
+                            }
+                            if (!duplicateHasRole) {
+                                duplicateAttrString += ' role="menuitem"';
+                            }
+
+                            var uniqueDuplicateClassParts = [];
+                            duplicateClassParts.forEach(function(part) {
+                                if (!part) { return; }
+                                if (uniqueDuplicateClassParts.indexOf(part) === -1) {
+                                    uniqueDuplicateClassParts.push(part);
+                                }
+                            });
+
+                            var duplicateClassAttr = uniqueDuplicateClassParts.join(' ');
+                            var duplicateIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
+                            var duplicateContent;
+                            if (duplicateIconClass) {
+                                var duplicateIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(duplicateIconClass) + '"></i>';
+                                duplicateContent = duplicateIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(duplicateLabel) + '</span>';
+                            } else {
+                                duplicateContent = escapeHtml(duplicateLabel);
+                            }
+
+                            dropdownItems.push('<li><button type="button" class="' + escapeHtml(duplicateClassAttr) + '"' + duplicateAttrString + '>' + duplicateContent + '</button></li>');
                             return;
                         }
 

@@ -798,7 +798,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   $crud->add_link_button('/reports', 'fas fa-file-alt', 'Reports', 'btn btn-sm btn-outline-info', ['target' => '_blank']);
   $crud->add_link_button('/reports/export', 'fas fa-download', 'Export', 'btn btn-sm btn-secondary');
   ```
-- **`add_multi_link_button(array $mainButton = [], array $items = []): self`** – Append a dropdown button that expands into multiple links. Supply at least one entry in `$items`, each with `'url'` and `'label'` plus optional `'icon'` and `'options'` for per-link attributes (placeholders like `{id}` are resolved per-row). To insert a divider between links, either pass an empty array or `['type' => 'divider']` as an item. `$mainButton` configures the trigger with keys such as `'icon'`, `'label'`, `'button_class'`, `'menu_class'`, `'container_class'`, and `'options'`; omit any key to fall back to sensible defaults. Invoke this repeatedly to add more dropdown clusters.
+- **`add_multi_link_button(array $mainButton = [], array $items = []): self`** – Append a dropdown button that expands into multiple links. Supply at least one actionable entry in `$items`, each with `'url'` and `'label'` plus optional `'icon'` and `'options'` for per-link attributes (placeholders like `{id}` are resolved per-row). To insert a divider between links, either pass an empty array or `['type' => 'divider']` as an item. You can also push the built-in duplicate action into the dropdown via `['type' => 'duplicate', 'label' => 'Clone']`, which inherits the standard duplicate permissions/styling and uses the existing duplicate handler. `$mainButton` configures the trigger with keys such as `'icon'`, `'label'`, `'button_class'`, `'menu_class'`, `'container_class'`, and `'options'`; omit any key to fall back to sensible defaults. Invoke this repeatedly to add more dropdown clusters.
   ```php
   $crud->add_multi_link_button([
       'icon' => 'fas fa-ellipsis-h',
@@ -807,7 +807,9 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
       'container_class' => 'btn-group dropstart'
   ], [
       ['url' => '/customers/{id}', 'label' => 'Profile', 'icon' => 'fas fa-user'],
-      ['url' => '/customers/{id}/orders', 'label' => 'Orders', 'icon' => 'fas fa-receipt', 'options' => ['target' => '_blank']]
+      ['url' => '/customers/{id}/orders', 'label' => 'Orders', 'icon' => 'fas fa-receipt', 'options' => ['target' => '_blank']],
+      ['type' => 'divider'],
+      ['type' => 'duplicate', 'label' => 'Clone']
   ]);
   ```
 - **`enable_select2(bool $enabled = true): self`** – Enable or disable Select2 widgets for dropdown fields on this CRUD instance, overriding the global `CrudConfig::$enable_select2` setting.
