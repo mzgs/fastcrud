@@ -162,6 +162,8 @@ DatabaseEditor::init();
                         'button_class' => 'btn btn-sm btn-success'
                     ], [
                         ['url' => '/customers/{id}', 'label' => 'Profile', 'icon' => 'fas fa-user'],
+                        ['url' => '/customers/{id}', 'label' => 'Profile', 'icon' => 'fas fa-user'],
+                        [],
                         ['url' => '/customers/{id}/orders', 'label' => 'Orders', 'icon' => 'fas fa-receipt', 'options' => ['target' => '_blank']]
                     ])
                    
