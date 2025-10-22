@@ -1838,13 +1838,38 @@ class Crud
             }
 
             $items = [];
+            $hasLinkItem = false;
             foreach ($config['items'] as $item) {
-                $resolvedUrl = trim($this->applyPattern($item['url'], '', null, 'multi_link_button', $row));
+                $itemType = 'link';
+                if (isset($item['type'])) {
+                    $typeCandidate = strtolower(trim((string) $item['type']));
+                    if ($typeCandidate !== '') {
+                        $itemType = $typeCandidate;
+                    }
+                }
+
+                if ($itemType === 'divider') {
+                    if ($items !== []) {
+                        $lastIndex = array_key_last($items);
+                        $lastItem = $lastIndex !== null ? $items[$lastIndex] : null;
+                        $lastType = is_array($lastItem) && isset($lastItem['type']) ? strtolower((string) $lastItem['type']) : null;
+                        if ($lastType !== 'divider') {
+                            $items[] = ['type' => 'divider'];
+                        }
+                    }
+                    continue;
+                }
+
+                if (!isset($item['url'], $item['label'])) {
+                    continue;
+                }
+
+                $resolvedUrl = trim($this->applyPattern((string) $item['url'], '', null, 'multi_link_button', $row));
                 if ($resolvedUrl === '') {
                     continue;
                 }
 
-                $resolvedLabel = trim($this->applyPattern($item['label'], '', null, 'multi_link_button', $row));
+                $resolvedLabel = trim($this->applyPattern((string) $item['label'], '', null, 'multi_link_button', $row));
                 if ($resolvedLabel === '') {
                     continue;
                 }
@@ -1869,19 +1894,35 @@ class Crud
                 if (isset($item['icon']) && is_string($item['icon']) && $item['icon'] !== '') {
                     $iconCandidate = trim($this->applyPattern($item['icon'], '', null, 'multi_link_button', $row));
                     if ($iconCandidate !== '') {
-                        $resolvedIcon = $this->normalizeCssClassList($iconCandidate);
+                        $normalizedIcon = $this->normalizeCssClassList($iconCandidate);
+                        if ($normalizedIcon !== '') {
+                            $resolvedIcon = $normalizedIcon;
+                        }
                     }
                 }
 
                 $items[] = [
+                    'type'    => 'link',
                     'url'     => $resolvedUrl,
                     'label'   => $resolvedLabel,
                     'icon'    => $resolvedIcon,
                     'options' => $resolvedOptions,
                 ];
+                $hasLinkItem = true;
             }
 
-            if ($items === []) {
+            if ($items !== []) {
+                $lastIndex = array_key_last($items);
+                if ($lastIndex !== null) {
+                    $lastItem = $items[$lastIndex];
+                    $lastType = isset($lastItem['type']) ? strtolower((string) $lastItem['type']) : null;
+                    if ($lastType === 'divider') {
+                        array_pop($items);
+                    }
+                }
+            }
+
+            if (!$hasLinkItem || $items === []) {
                 continue;
             }
 
