@@ -9506,6 +9506,8 @@ HTML;
                 } elseif (is_numeric($value)) {
                     $stringValue = (string) $value;
                     $length = function_exists('mb_strlen') ? mb_strlen($stringValue) : strlen($stringValue);
+                } elseif (is_bool($value)) {
+                    $length = 1;
                 }
             }
 
@@ -9813,6 +9815,8 @@ HTML;
                 } elseif (is_numeric($value)) {
                     $stringValue = (string) $value;
                     $length = function_exists('mb_strlen') ? mb_strlen($stringValue) : strlen($stringValue);
+                } elseif (is_bool($value)) {
+                    $length = 1;
                 }
             }
 
