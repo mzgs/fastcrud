@@ -12225,7 +12225,7 @@ CSS;
                 var message = $('<div class="fastcrud-loading-message"></div>');
                 var spinner = $('<span class="spinner-border spinner-border-sm" role="status"></span>');
                 spinner.append('<span class="visually-hidden">Loading...</span>');
-                var text = $('<span class="fastcrud-loading-text"></span>').text('Refreshing...');
+                var text = $('<span class="fastcrud-loading-text"></span>').text('Loading...');
                 message.append(spinner).append(text);
                 overlay.append(message);
                 target.append(overlay);
@@ -12242,7 +12242,7 @@ CSS;
             if (!text.length) {
                 return;
             }
-            text.text(message || 'Refreshing...');
+            text.text(message || 'Loading...');
         }
 
         function beginLoadingState() {
@@ -15940,10 +15940,7 @@ CSS;
 
             var tbody = table.find('tbody');
             var totalColumns = table.find('thead th').length || 1;
-            var loadingMessage = tableHasRendered ? 'Refreshing data...' : 'Loading data...';
-
-            updateLoadingMessage(loadingMessage);
-            beginLoadingState();
+            var loadingMessage = 'Loading data...';
 
             if (!tableHasRendered) {
                 showLoadingRow(totalColumns, loadingMessage);
