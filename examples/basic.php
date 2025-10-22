@@ -155,6 +155,14 @@ DatabaseEditor::init();
                         'fields' => ['is_featured' => 1],
                         'confirm' => 'Flag all chosen records?',
                     ])
+
+                    ->multi_link_button([
+                        'icon' => 'fas fa-globe',
+                        'label' => 'Actions'
+                    ], [
+                        ['url' => '/customers/{id}', 'label' => 'Profile', 'icon' => 'fas fa-user'],
+                        ['url' => '/customers/{id}/orders', 'label' => 'Orders', 'icon' => 'fas fa-receipt', 'options' => ['target' => '_blank']]
+                    ])
                    
                     ->enable_export_csv()
                     ->enable_export_excel()
@@ -228,6 +236,7 @@ DatabaseEditor::init();
                     ->column_cut('content', 30)
                     ->setPanelWidth('30%')
                     ->link_button('example.com?id={id}', 'fas fa-user', '', 'btn btn-info text-white', ['target' => '_blank', 'class' => 'me-2'] )
+                  
                     // ->change_type('title', 'textarea','',['rows' => 12])
                   
                     // ->highlight('id', 'equals', 32, 'bg-info')

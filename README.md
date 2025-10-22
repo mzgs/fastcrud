@@ -796,6 +796,18 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $crud->link_button('/reports', 'fas fa-file-alt', 'Reports', 'btn btn-sm btn-outline-info', ['target' => '_blank']);
   ```
+- **`multi_link_button(array $mainButton = [], array $items = []): self`** – Add a dropdown button that expands into multiple links. Supply at least one entry in `$items`, each with `'url'` and `'label'` plus optional `'icon'` and `'options'` for per-link attributes (placeholders like `{id}` are resolved per-row). `$mainButton` configures the trigger with keys such as `'icon'`, `'label'`, `'button_class'`, `'menu_class'`, `'container_class'`, and `'options'`; omit any key to fall back to sensible defaults.
+  ```php
+  $crud->multi_link_button([
+      'icon' => 'fas fa-ellipsis-h',
+      'label' => 'More Actions',
+      'options' => ['data-bs-auto-close' => 'outside'],
+      'container_class' => 'btn-group dropstart'
+  ], [
+      ['url' => '/customers/{id}', 'label' => 'Profile', 'icon' => 'fas fa-user'],
+      ['url' => '/customers/{id}/orders', 'label' => 'Orders', 'icon' => 'fas fa-receipt', 'options' => ['target' => '_blank']]
+  ]);
+  ```
 - **`enable_select2(bool $enabled = true): self`** – Enable or disable Select2 widgets for dropdown fields on this CRUD instance, overriding the global `CrudConfig::$enable_select2` setting.
   ```php
   $crud->enable_select2(true); // Use Select2 for this table

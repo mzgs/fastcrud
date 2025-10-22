@@ -76,6 +76,9 @@ class Crud
     private const SUPPORTED_FORM_MODES = ['all', 'create', 'edit', 'view'];
     private const DEFAULT_FORM_MODE = 'all';
     private const SUPPORTED_SOFT_DELETE_MODES = ['timestamp', 'literal', 'expression'];
+    private const DEFAULT_MULTI_LINK_BUTTON_CLASS = 'btn btn-sm btn-outline-secondary dropdown-toggle';
+    private const DEFAULT_MULTI_LINK_MENU_CLASS = 'dropdown-menu dropdown-menu-end';
+    private const DEFAULT_MULTI_LINK_CONTAINER_CLASS = 'btn-group';
     private const LIFECYCLE_EVENTS = [
         'before_insert',
         'after_insert',
@@ -132,6 +135,7 @@ class Crud
         'column_highlights' => [],
         'row_highlights' => [],
         'link_button' => null,
+        'multi_link_button' => null,
         'inline_edit' => [],
         'table_meta' => [
             'title'   => null,
@@ -416,6 +420,152 @@ class Crud
         ];
     }
 
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function normalizeMultiLinkButtonConfigPayload(array $payload): ?array
+    {
+        $itemsRaw = $payload['items'] ?? null;
+        if (!is_array($itemsRaw) || $itemsRaw === []) {
+            return null;
+        }
+
+        $items = [];
+        foreach ($itemsRaw as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $url = isset($entry['url']) ? trim((string) $entry['url']) : '';
+            if ($url === '') {
+                continue;
+            }
+
+            $labelRaw = isset($entry['label']) ? (string) $entry['label'] : '';
+            $label = trim($labelRaw);
+            if ($label === '') {
+                continue;
+            }
+
+            $icon = null;
+            if (array_key_exists('icon', $entry) && $entry['icon'] !== null) {
+                $iconRaw = (string) $entry['icon'];
+                $iconClass = $this->normalizeCssClassList($iconRaw);
+                if ($iconClass !== '') {
+                    $icon = $iconClass;
+                }
+            }
+
+            $itemOptions = [];
+            if (isset($entry['options']) && is_array($entry['options'])) {
+                foreach ($entry['options'] as $key => $value) {
+                    if (!is_string($key)) {
+                        continue;
+                    }
+
+                    $normalizedKey = trim($key);
+                    if ($normalizedKey === '') {
+                        continue;
+                    }
+
+                    if (is_scalar($value)) {
+                        $itemOptions[$normalizedKey] = (string) $value;
+                    }
+                }
+            }
+
+            $items[] = [
+                'url'     => $url,
+                'label'   => $label,
+                'icon'    => $icon,
+                'options' => $itemOptions,
+            ];
+        }
+
+        if ($items === []) {
+            return null;
+        }
+
+        $buttonRaw = [];
+        if (isset($payload['button']) && is_array($payload['button'])) {
+            $buttonRaw = $payload['button'];
+        }
+
+        $buttonIcon = '';
+        if (array_key_exists('icon', $buttonRaw) && $buttonRaw['icon'] !== null) {
+            $iconCandidate = (string) $buttonRaw['icon'];
+            $normalizedIcon = $this->normalizeCssClassList($iconCandidate);
+            if ($normalizedIcon !== '') {
+                $buttonIcon = $normalizedIcon;
+            }
+        }
+
+        $buttonLabel = null;
+        if (array_key_exists('label', $buttonRaw) && $buttonRaw['label'] !== null) {
+            $labelCandidate = trim((string) $buttonRaw['label']);
+            if ($labelCandidate !== '') {
+                $buttonLabel = $labelCandidate;
+            }
+        }
+
+        $buttonClass = null;
+        if (array_key_exists('button_class', $buttonRaw) && $buttonRaw['button_class'] !== null) {
+            $buttonClassRaw = (string) $buttonRaw['button_class'];
+            $normalizedButton = $this->normalizeCssClassList($buttonClassRaw);
+            if ($normalizedButton !== '') {
+                $buttonClass = $normalizedButton;
+            }
+        }
+
+        $menuClass = null;
+        if (array_key_exists('menu_class', $buttonRaw) && $buttonRaw['menu_class'] !== null) {
+            $menuClassRaw = (string) $buttonRaw['menu_class'];
+            $normalizedMenu = $this->normalizeCssClassList($menuClassRaw);
+            if ($normalizedMenu !== '') {
+                $menuClass = $normalizedMenu;
+            }
+        }
+
+        $containerClass = null;
+        if (array_key_exists('container_class', $buttonRaw) && $buttonRaw['container_class'] !== null) {
+            $containerClassRaw = (string) $buttonRaw['container_class'];
+            $normalizedContainer = $this->normalizeCssClassList($containerClassRaw);
+            if ($normalizedContainer !== '') {
+                $containerClass = $normalizedContainer;
+            }
+        }
+
+        $buttonOptions = [];
+        if (isset($buttonRaw['options']) && is_array($buttonRaw['options'])) {
+            foreach ($buttonRaw['options'] as $key => $value) {
+                if (!is_string($key)) {
+                    continue;
+                }
+
+                $normalizedKey = trim($key);
+                if ($normalizedKey === '') {
+                    continue;
+                }
+
+                if (is_scalar($value)) {
+                    $buttonOptions[$normalizedKey] = (string) $value;
+                }
+            }
+        }
+
+        return [
+            'button' => [
+                'icon'             => $buttonIcon,
+                'label'            => $buttonLabel,
+                'button_class'     => $buttonClass ?? self::DEFAULT_MULTI_LINK_BUTTON_CLASS,
+                'menu_class'       => $menuClass ?? self::DEFAULT_MULTI_LINK_MENU_CLASS,
+                'container_class'  => $containerClass ?? self::DEFAULT_MULTI_LINK_CONTAINER_CLASS,
+                'options'          => $buttonOptions,
+            ],
+            'items' => $items,
+        ];
+    }
+
     private function getNormalizedLinkButtonConfig(): ?array
     {
         $config = $this->config['link_button'] ?? null;
@@ -426,6 +576,21 @@ class Crud
         $normalized = $this->normalizeLinkButtonConfigPayload($config);
         if ($normalized !== null) {
             $this->config['link_button'] = $normalized;
+        }
+
+        return $normalized;
+    }
+
+    private function getNormalizedMultiLinkButtonConfig(): ?array
+    {
+        $config = $this->config['multi_link_button'] ?? null;
+        if (!is_array($config)) {
+            return null;
+        }
+
+        $normalized = $this->normalizeMultiLinkButtonConfigPayload($config);
+        if ($normalized !== null) {
+            $this->config['multi_link_button'] = $normalized;
         }
 
         return $normalized;
@@ -1420,6 +1585,11 @@ class Crud
             $meta['link_button'] = $linkButton;
         }
 
+        $multiLinkButton = $this->buildMultiLinkButtonMetaForRow($sourceRow);
+        if ($multiLinkButton !== null) {
+            $meta['multi_link_button'] = $multiLinkButton;
+        }
+
         $meta['view_allowed'] = $this->isActionAllowedForRow('view', $sourceRow);
         $meta['duplicate_allowed'] = $this->isActionAllowedForRow('duplicate', $sourceRow);
         $meta['edit_allowed'] = $this->isActionAllowedForRow('edit', $sourceRow);
@@ -1582,6 +1752,126 @@ class Crud
             'icon'         => $config['icon'],
             'button_class' => $config['button_class'],
             'options'      => $config['options'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function buildMultiLinkButtonMetaForRow(array $row): ?array
+    {
+        $config = $this->getNormalizedMultiLinkButtonConfig();
+        if ($config === null) {
+            return null;
+        }
+
+        $buttonConfig = $config['button'];
+
+        $triggerIcon = null;
+        if (isset($buttonConfig['icon']) && is_string($buttonConfig['icon']) && $buttonConfig['icon'] !== '') {
+            $iconResult = trim($this->applyPattern($buttonConfig['icon'], '', null, 'multi_link_button', $row));
+            if ($iconResult !== '') {
+                $normalizedIcon = $this->normalizeCssClassList($iconResult);
+                if ($normalizedIcon !== '') {
+                    $triggerIcon = $normalizedIcon;
+                }
+            }
+        }
+
+        $items = [];
+        foreach ($config['items'] as $item) {
+            $resolvedUrl = trim($this->applyPattern($item['url'], '', null, 'multi_link_button', $row));
+            if ($resolvedUrl === '') {
+                continue;
+            }
+
+            $resolvedLabel = trim($this->applyPattern($item['label'], '', null, 'multi_link_button', $row));
+            if ($resolvedLabel === '') {
+                continue;
+            }
+
+            $resolvedOptions = [];
+            if (isset($item['options']) && is_array($item['options'])) {
+                foreach ($item['options'] as $key => $value) {
+                    if (!is_string($key)) {
+                        continue;
+                    }
+
+                    $optionValue = trim($this->applyPattern($value, '', null, 'multi_link_button', $row));
+                    if ($optionValue === '') {
+                        continue;
+                    }
+
+                    $resolvedOptions[$key] = $optionValue;
+                }
+            }
+
+            $resolvedIcon = null;
+            if (isset($item['icon']) && is_string($item['icon']) && $item['icon'] !== '') {
+                $iconCandidate = trim($this->applyPattern($item['icon'], '', null, 'multi_link_button', $row));
+                if ($iconCandidate !== '') {
+                    $resolvedIcon = $this->normalizeCssClassList($iconCandidate);
+                }
+            }
+
+            $items[] = [
+                'url'     => $resolvedUrl,
+                'label'   => $resolvedLabel,
+                'icon'    => $resolvedIcon,
+                'options' => $resolvedOptions,
+            ];
+        }
+
+        if ($items === []) {
+            return null;
+        }
+
+        $resolvedLabel = null;
+        if (isset($buttonConfig['label']) && is_string($buttonConfig['label']) && $buttonConfig['label'] !== '') {
+            $labelResult = trim($this->applyPattern($buttonConfig['label'], '', null, 'multi_link_button', $row));
+            if ($labelResult !== '') {
+                $resolvedLabel = $labelResult;
+            }
+        }
+
+        $resolvedOptions = [];
+        if (isset($buttonConfig['options']) && is_array($buttonConfig['options'])) {
+            foreach ($buttonConfig['options'] as $key => $value) {
+                $optionValue = trim($this->applyPattern($value, '', null, 'multi_link_button', $row));
+                if ($optionValue === '' || !is_string($key)) {
+                    continue;
+                }
+
+                $resolvedOptions[$key] = $optionValue;
+            }
+        }
+
+        return [
+            'button' => [
+                'label'   => $resolvedLabel,
+                'icon'    => $triggerIcon,
+                'options' => $resolvedOptions,
+            ],
+            'items'   => $items,
+        ];
+    }
+
+    private function buildMultiLinkButtonConfig(): ?array
+    {
+        $config = $this->getNormalizedMultiLinkButtonConfig();
+        if ($config === null) {
+            return null;
+        }
+
+        return [
+            'button' => [
+                'icon'            => $config['button']['icon'],
+                'label'           => $config['button']['label'],
+                'button_class'    => $config['button']['button_class'],
+                'menu_class'      => $config['button']['menu_class'],
+                'container_class' => $config['button']['container_class'],
+                'options'         => $config['button']['options'],
+            ],
         ];
     }
 
@@ -3206,6 +3496,26 @@ class Crud
         }
 
         $this->config['link_button'] = $normalized;
+
+        return $this;
+    }
+
+    /**
+     * @param array<string, mixed> $mainButton
+     * @param array<int, array<string, mixed>> $items
+     */
+    public function multi_link_button(array $mainButton = [], array $items = []): self
+    {
+        $normalized = $this->normalizeMultiLinkButtonConfigPayload([
+            'button' => $mainButton,
+            'items'  => $items,
+        ]);
+
+        if ($normalized === null) {
+            throw new InvalidArgumentException('Multi link button requires at least one item with both label and URL.');
+        }
+
+        $this->config['multi_link_button'] = $normalized;
 
         return $this;
     }
@@ -6427,16 +6737,21 @@ CSS;
 }
 
 #{$containerId} table thead th.fastcrud-actions {
-    z-index: 3;
+    z-index: 1056;
     text-align: right;
     white-space: nowrap;
 }
 
 #{$containerId} table tbody td.fastcrud-actions-cell,
 #{$containerId} table tfoot td.fastcrud-actions-cell {
-    z-index: 2;
+    z-index: 1055;
     box-shadow: -6px 0 6px -6px rgba(0, 0, 0, 0.2);
     white-space: nowrap;
+}
+
+#{$containerId} table tbody td.fastcrud-actions-cell.fastcrud-actions-open,
+#{$containerId} table tfoot td.fastcrud-actions-cell.fastcrud-actions-open {
+    z-index: 1062;
 }
 
 #{$containerId} table tbody td.fastcrud-actions-cell .btn,
@@ -6475,6 +6790,35 @@ CSS;
 
 #{$containerId} .fastcrud-link-btn-text {
     line-height: 1.25rem;
+}
+
+#{$containerId} .fastcrud-multi-link-icon {
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+#{$containerId} .fastcrud-multi-link-text {
+    line-height: 1.25rem;
+}
+
+#{$containerId} .fastcrud-multi-link-item-icon {
+    width: 1.1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.35rem;
+}
+
+#{$containerId} .fastcrud-multi-link-item-text {
+    line-height: 1.25rem;
+}
+
+#{$containerId} .fastcrud-multi-link-btn {
+    position: relative;
+}
+
+#{$containerId} .fastcrud-multi-link-btn .dropdown-menu {
+    z-index: 1070;
 }
 
 /* Align boolean switches neatly inside cells */
@@ -6863,6 +7207,7 @@ HTML;
                 'export_excel' => isset($tableMeta['export_excel']) ? (bool) $tableMeta['export_excel'] : false,
             ],
             'link_button'    => $this->buildLinkButtonConfig(),
+            'multi_link_button' => $this->buildMultiLinkButtonConfig(),
             'primary_key'    => $this->getPrimaryKeyColumn(),
             'columns'        => $columns,
             'labels'         => $filterColumns($this->config['column_labels']),
@@ -7492,6 +7837,7 @@ HTML;
             'column_highlights' => $this->config['column_highlights'],
             'row_highlights'    => $this->config['row_highlights'],
             'link_button'       => $this->config['link_button'],
+            'multi_link_button' => $this->config['multi_link_button'],
             'table_meta'        => $this->config['table_meta'],
             'column_summaries'  => $this->config['column_summaries'],
             'field_labels'      => $this->config['field_labels'],
@@ -8390,6 +8736,16 @@ HTML;
                 $this->config['link_button'] = $normalizedLink;
             } elseif ($linkConfig === null) {
                 $this->config['link_button'] = null;
+            }
+        }
+
+        if (array_key_exists('multi_link_button', $payload)) {
+            $multiLinkConfig = $payload['multi_link_button'];
+            if (is_array($multiLinkConfig)) {
+                $normalizedMulti = $this->normalizeMultiLinkButtonConfigPayload($multiLinkConfig);
+                $this->config['multi_link_button'] = $normalizedMulti;
+            } elseif ($multiLinkConfig === null) {
+                $this->config['multi_link_button'] = null;
             }
         }
 
@@ -10581,6 +10937,25 @@ CSS;
                 clientConfig = {};
             }
         }
+
+        function toggleActionsCellZIndex(element, isOpen) {
+            var cellEl = $(element).closest('td.fastcrud-actions-cell');
+            if (!cellEl.length) {
+                cellEl = $(element).closest('.fastcrud-actions-cell');
+            }
+            if (!cellEl.length) {
+                return;
+            }
+            cellEl.toggleClass('fastcrud-actions-open', !!isOpen);
+        }
+
+        table.on('shown.bs.dropdown', '.fastcrud-multi-link-trigger, .fastcrud-multi-link-btn', function() {
+            toggleActionsCellZIndex(this, true);
+        });
+
+        table.on('hidden.bs.dropdown', '.fastcrud-multi-link-trigger, .fastcrud-multi-link-btn', function() {
+            toggleActionsCellZIndex(this, false);
+        });
         var select2Enabled = !!(clientConfig && clientConfig.select2);
         var filtersEnabled = true;
         if (clientConfig && Object.prototype.hasOwnProperty.call(clientConfig, 'filters_enabled')) {
@@ -11632,6 +12007,7 @@ CSS;
         var duplicateEnabled = false;
         var deleteConfirm = true;
         var linkButtonConfig = null;
+        var multiLinkButtonConfig = null;
         var sortDisabled = {};
         var inlineEditFields = {};
         var batchDeleteEnabled = false;
@@ -13136,6 +13512,72 @@ CSS;
                 linkButtonConfig = null;
             }
 
+            var metaMultiLinkButton = meta.multi_link_button;
+            if (metaMultiLinkButton && typeof metaMultiLinkButton === 'object') {
+                var buttonSeed = metaMultiLinkButton.button && typeof metaMultiLinkButton.button === 'object'
+                    ? metaMultiLinkButton.button
+                    : metaMultiLinkButton;
+                var buttonClassValue = buttonSeed && typeof buttonSeed.button_class === 'string'
+                    ? buttonSeed.button_class
+                    : '';
+                var menuClassValue = buttonSeed && typeof buttonSeed.menu_class === 'string'
+                    ? buttonSeed.menu_class
+                    : '';
+                var containerClassValue = buttonSeed && typeof buttonSeed.container_class === 'string'
+                    ? buttonSeed.container_class
+                    : '';
+                var iconValue = buttonSeed && typeof buttonSeed.icon === 'string'
+                    ? buttonSeed.icon.trim()
+                    : '';
+                var labelValue = buttonSeed && typeof buttonSeed.label === 'string'
+                    ? buttonSeed.label.trim()
+                    : '';
+                var buttonOptionsValue = {};
+
+                if (buttonSeed && buttonSeed.options && typeof buttonSeed.options === 'object') {
+                    Object.keys(buttonSeed.options).forEach(function(optionKey) {
+                        if (!Object.prototype.hasOwnProperty.call(buttonSeed.options, optionKey)) {
+                            return;
+                        }
+                        var normalizedKey = String(optionKey);
+                        if (!/^[A-Za-z0-9_:-]+$/.test(normalizedKey)) {
+                            return;
+                        }
+                        var optionValue = buttonSeed.options[optionKey];
+                        if (optionValue === null || typeof optionValue === 'undefined') {
+                            return;
+                        }
+                        buttonOptionsValue[normalizedKey] = String(optionValue);
+                    });
+                }
+
+                buttonClassValue = String(buttonClassValue || '').trim();
+                if (!buttonClassValue) {
+                    buttonClassValue = 'btn btn-sm btn-outline-secondary dropdown-toggle';
+                }
+
+                menuClassValue = String(menuClassValue || '').trim();
+                if (!menuClassValue) {
+                    menuClassValue = 'dropdown-menu dropdown-menu-end';
+                }
+
+                containerClassValue = String(containerClassValue || '').trim();
+                if (!containerClassValue) {
+                    containerClassValue = 'btn-group';
+                }
+
+                multiLinkButtonConfig = {
+                    icon: iconValue,
+                    label: labelValue,
+                    button_class: buttonClassValue,
+                    options: buttonOptionsValue,
+                    menu_class: menuClassValue,
+                    container_class: containerClassValue
+                };
+            } else {
+                multiLinkButtonConfig = null;
+            }
+
             updateMetaContainer(tableMeta);
             updateBatchDeleteButtonState();
             refreshSelectAllState();
@@ -14617,6 +15059,318 @@ CSS;
 
                     var classAttr = classParts.join(' ');
                     fragments.push('<a href="' + escapeHtml(href) + '" class="' + escapeHtml(classAttr) + '"' + attrString + '>' + contentHtml + '</a>');
+                }
+            }
+
+            if (multiLinkButtonConfig && rowMeta && rowMeta.multi_link_button) {
+                var multiMeta = rowMeta.multi_link_button;
+                var buttonMeta = multiMeta.button && typeof multiMeta.button === 'object'
+                    ? multiMeta.button
+                    : (typeof multiMeta === 'object' && !Array.isArray(multiMeta) ? multiMeta : {});
+                var multiItems = Array.isArray(multiMeta.items) ? multiMeta.items : [];
+                if (!Array.isArray(multiItems) || !multiItems.length) {
+                    multiItems = Array.isArray(multiMeta) ? multiMeta : [];
+                }
+                if (!Array.isArray(multiItems) || !multiItems.length) {
+                    multiItems = [];
+                }
+
+                var dropdownItems = [];
+                multiItems.forEach(function(item) {
+                    if (!item || typeof item !== 'object') {
+                        return;
+                    }
+
+                    var itemHref = String(item.url || '').trim();
+                    var itemLabelRaw = typeof item.label === 'string' ? item.label : '';
+                    var itemLabel = itemLabelRaw.trim();
+                    if (!itemHref || !itemLabel) {
+                        return;
+                    }
+
+                    var itemClassParts = ['dropdown-item', 'fastcrud-multi-link-item'];
+                    var itemOptions = item.options && typeof item.options === 'object'
+                        ? Object.assign({}, item.options)
+                        : {};
+                    var itemOptionClassRaw = '';
+                    if (Object.prototype.hasOwnProperty.call(itemOptions, 'class')) {
+                        itemOptionClassRaw = String(itemOptions['class'] || '').trim();
+                        delete itemOptions['class'];
+                    }
+                    if (itemOptionClassRaw) {
+                        itemOptionClassRaw.split(/\s+/).forEach(function(extra) {
+                            if (!extra) { return; }
+                            if (itemClassParts.indexOf(extra) === -1) {
+                                itemClassParts.push(extra);
+                            }
+                        });
+                    }
+
+                    var itemAttrString = '';
+                    var itemHasTitle = false;
+                    var itemHasAria = false;
+                    var itemHasRole = false;
+
+                    Object.keys(itemOptions).forEach(function(optionKey) {
+                        if (!Object.prototype.hasOwnProperty.call(itemOptions, optionKey)) {
+                            return;
+                        }
+                        var attrName = String(optionKey);
+                        if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
+                            return;
+                        }
+                        var lowerName = attrName.toLowerCase();
+                        if (lowerName === 'href' || lowerName === 'class') {
+                            return;
+                        }
+                        if (lowerName === 'title') {
+                            itemHasTitle = true;
+                        } else if (lowerName === 'aria-label') {
+                            itemHasAria = true;
+                        } else if (lowerName === 'role') {
+                            itemHasRole = true;
+                        }
+                        var attrValue = itemOptions[optionKey];
+                        if (attrValue === null || typeof attrValue === 'undefined') {
+                            return;
+                        }
+                        itemAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
+                    });
+
+                    if (!itemHasAria) {
+                        itemAttrString += ' aria-label="' + escapeHtml(itemLabel) + '"';
+                    }
+                    if (!itemHasTitle) {
+                        itemAttrString += ' title="' + escapeHtml(itemLabel) + '"';
+                    }
+                    if (!itemHasRole) {
+                        itemAttrString += ' role="menuitem"';
+                    }
+
+                    var itemClassAttr = itemClassParts.join(' ');
+                    var itemIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
+                    var itemContent;
+                    if (itemIconClass) {
+                        var itemIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(itemIconClass) + '"></i>';
+                        itemContent = itemIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(itemLabel) + '</span>';
+                    } else {
+                        itemContent = escapeHtml(itemLabel);
+                    }
+
+                    dropdownItems.push('<li><a href="' + escapeHtml(itemHref) + '" class="' + escapeHtml(itemClassAttr) + '"' + itemAttrString + '>' + itemContent + '</a></li>');
+                });
+
+                if (dropdownItems.length) {
+                    var triggerClassSource = String(multiLinkButtonConfig.button_class || '').trim();
+                    var triggerClassParts = triggerClassSource ? triggerClassSource.split(/\s+/) : [];
+                    if (triggerClassParts.indexOf('btn') === -1) { triggerClassParts.unshift('btn'); }
+                    var hasSizeClass = triggerClassParts.some(function(part) {
+                        return /^btn-(?:sm|md|lg|xl)$/i.test(part);
+                    });
+                    if (!hasSizeClass) {
+                        triggerClassParts.push('btn-sm');
+                    }
+                    if (triggerClassParts.indexOf('dropdown-toggle') === -1) { triggerClassParts.push('dropdown-toggle'); }
+                    if (triggerClassParts.indexOf('fastcrud-action-button') === -1) { triggerClassParts.push('fastcrud-action-button'); }
+                    if (triggerClassParts.indexOf('fastcrud-multi-link-trigger') === -1) { triggerClassParts.push('fastcrud-multi-link-trigger'); }
+
+                    var triggerOptions = {};
+                    if (multiLinkButtonConfig.options && typeof multiLinkButtonConfig.options === 'object') {
+                        Object.keys(multiLinkButtonConfig.options).forEach(function(optionKey) {
+                            if (!Object.prototype.hasOwnProperty.call(multiLinkButtonConfig.options, optionKey)) {
+                                return;
+                            }
+                            var normalizedKey = String(optionKey);
+                            if (!/^[A-Za-z0-9_:-]+$/.test(normalizedKey)) {
+                                return;
+                            }
+                            var optionValue = multiLinkButtonConfig.options[optionKey];
+                            if (optionValue === null || typeof optionValue === 'undefined') {
+                                return;
+                            }
+                            triggerOptions[normalizedKey] = String(optionValue);
+                        });
+                    }
+                    if (buttonMeta && buttonMeta.options && typeof buttonMeta.options === 'object') {
+                        Object.keys(buttonMeta.options).forEach(function(optionKey) {
+                            if (!Object.prototype.hasOwnProperty.call(buttonMeta.options, optionKey)) {
+                                return;
+                            }
+                            var normalizedKey = String(optionKey);
+                            if (!/^[A-Za-z0-9_:-]+$/.test(normalizedKey)) {
+                                return;
+                            }
+                            var optionValue = buttonMeta.options[optionKey];
+                            if (optionValue === null || typeof optionValue === 'undefined') {
+                                return;
+                            }
+                            triggerOptions[normalizedKey] = String(optionValue);
+                        });
+                    }
+                    var triggerOptionClassRaw = '';
+                    if (Object.prototype.hasOwnProperty.call(triggerOptions, 'class')) {
+                        triggerOptionClassRaw = String(triggerOptions['class'] || '').trim();
+                        delete triggerOptions['class'];
+                    }
+                    if (triggerOptionClassRaw) {
+                        triggerOptionClassRaw.split(/\s+/).forEach(function(extra) {
+                            if (!extra) { return; }
+                            if (triggerClassParts.indexOf(extra) === -1) {
+                                triggerClassParts.push(extra);
+                            }
+                        });
+                    }
+
+                    var triggerAttrString = '';
+                    var triggerHasTitle = false;
+                    var triggerHasAria = false;
+                    var triggerHasRole = false;
+                    var triggerHasToggle = false;
+                    var triggerHasExpanded = false;
+                    var triggerHasHaspopup = false;
+
+                    Object.keys(triggerOptions).forEach(function(optionKey) {
+                        if (!Object.prototype.hasOwnProperty.call(triggerOptions, optionKey)) {
+                            return;
+                        }
+                        var attrName = String(optionKey);
+                        if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
+                            return;
+                        }
+                        var lowerName = attrName.toLowerCase();
+                        if (lowerName === 'class' || lowerName === 'href') {
+                            return;
+                        }
+                        if (lowerName === 'title') {
+                            triggerHasTitle = true;
+                        } else if (lowerName === 'aria-label') {
+                            triggerHasAria = true;
+                        } else if (lowerName === 'role') {
+                            triggerHasRole = true;
+                        } else if (lowerName === 'data-bs-toggle') {
+                            triggerHasToggle = true;
+                        } else if (lowerName === 'aria-expanded') {
+                            triggerHasExpanded = true;
+                        } else if (lowerName === 'aria-haspopup') {
+                            triggerHasHaspopup = true;
+                        }
+                        var attrValue = triggerOptions[optionKey];
+                        if (attrValue === null || typeof attrValue === 'undefined') {
+                            return;
+                        }
+                        triggerAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
+                    });
+
+                    var uniqueTriggerClassParts = [];
+                    triggerClassParts.forEach(function(part) {
+                        if (!part) {
+                            return;
+                        }
+                        if (uniqueTriggerClassParts.indexOf(part) === -1) {
+                            uniqueTriggerClassParts.push(part);
+                        }
+                    });
+                    triggerClassParts = uniqueTriggerClassParts;
+
+                    var triggerLabel = '';
+                    if (buttonMeta && typeof buttonMeta.label === 'string') {
+                        triggerLabel = buttonMeta.label.trim();
+                    }
+                    if (!triggerLabel && typeof multiLinkButtonConfig.label === 'string') {
+                        triggerLabel = String(multiLinkButtonConfig.label || '').trim();
+                    }
+
+                    if (!triggerHasAria) {
+                        var triggerAriaLabel = triggerLabel ? triggerLabel : 'Open menu';
+                        triggerAttrString += ' aria-label="' + escapeHtml(triggerAriaLabel) + '"';
+                    }
+                    if (!triggerHasTitle && triggerLabel) {
+                        triggerAttrString += ' title="' + escapeHtml(triggerLabel) + '"';
+                    }
+                    if (!triggerHasRole) {
+                        triggerAttrString += ' role="button"';
+                    }
+                    if (!triggerHasToggle) {
+                        triggerAttrString += ' data-bs-toggle="dropdown"';
+                    }
+                    if (!triggerHasExpanded) {
+                        triggerAttrString += ' aria-expanded="false"';
+                    }
+                    if (!triggerHasHaspopup) {
+                        triggerAttrString += ' aria-haspopup="true"';
+                    }
+
+                    var triggerClassAttr = triggerClassParts.join(' ');
+                    var triggerIconClass = '';
+                    if (buttonMeta && typeof buttonMeta.icon === 'string') {
+                        triggerIconClass = buttonMeta.icon.trim();
+                    }
+                    if (!triggerIconClass && typeof multiLinkButtonConfig.icon === 'string') {
+                        triggerIconClass = multiLinkButtonConfig.icon.trim();
+                    }
+                    var triggerIconHtml = triggerIconClass
+                        ? '<i class="fastcrud-multi-link-icon ' + escapeHtml(triggerIconClass) + '"></i>'
+                        : '';
+                    var triggerContent;
+                    if (triggerIconHtml && triggerLabel) {
+                        triggerContent = triggerIconHtml + '<span class="fastcrud-multi-link-text ms-1">' + escapeHtml(triggerLabel) + '</span>';
+                    } else if (triggerIconHtml) {
+                        triggerContent = triggerIconHtml;
+                    } else if (triggerLabel) {
+                        triggerContent = escapeHtml(triggerLabel);
+                    } else {
+                        triggerContent = '<span class="visually-hidden">Open menu</span>';
+                    }
+
+                    var menuClassSource = String(multiLinkButtonConfig.menu_class || '').trim();
+                    var menuClassParts = menuClassSource ? menuClassSource.split(/\s+/) : [];
+                    if (menuClassParts.indexOf('dropdown-menu') === -1) {
+                        menuClassParts.unshift('dropdown-menu');
+                    }
+                    if (menuClassParts.indexOf('fastcrud-multi-link-menu') === -1) {
+                        menuClassParts.push('fastcrud-multi-link-menu');
+                    }
+                    var uniqueMenuClassParts = [];
+                    menuClassParts.forEach(function(part) {
+                        if (!part) {
+                            return;
+                        }
+                        if (uniqueMenuClassParts.indexOf(part) === -1) {
+                            uniqueMenuClassParts.push(part);
+                        }
+                    });
+                    var menuClassAttr = uniqueMenuClassParts.join(' ');
+
+                    var containerClassSource = String(multiLinkButtonConfig.container_class || '').trim();
+                    var containerClassParts = containerClassSource ? containerClassSource.split(/\s+/) : [];
+                    if (containerClassParts.indexOf('fastcrud-action-button-group') === -1) {
+                        containerClassParts.push('fastcrud-action-button-group');
+                    }
+                    if (containerClassParts.indexOf('fastcrud-multi-link-btn') === -1) {
+                        containerClassParts.push('fastcrud-multi-link-btn');
+                    }
+                    var hasWrapperClass = containerClassParts.some(function(part) {
+                        var lower = part.toLowerCase();
+                        return lower === 'btn-group' || lower === 'dropdown' || lower === 'dropup' || lower === 'dropend' || lower === 'dropstart';
+                    });
+                    if (!hasWrapperClass) {
+                        containerClassParts.unshift('btn-group');
+                    }
+                    var uniqueContainerClassParts = [];
+                    containerClassParts.forEach(function(part) {
+                        if (!part) {
+                            return;
+                        }
+                        if (uniqueContainerClassParts.indexOf(part) === -1) {
+                            uniqueContainerClassParts.push(part);
+                        }
+                    });
+                    var containerClassAttr = uniqueContainerClassParts.join(' ');
+
+                    var triggerHtml = '<button type="button" class="' + escapeHtml(triggerClassAttr) + '"' + triggerAttrString + '>' + triggerContent + '</button>';
+                    var menuHtml = '<ul class="' + escapeHtml(menuClassAttr) + '" role="menu">' + dropdownItems.join('') + '</ul>';
+
+                    fragments.push('<div class="' + escapeHtml(containerClassAttr) + '">' + triggerHtml + menuHtml + '</div>');
                 }
             }
 
