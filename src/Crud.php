@@ -436,6 +436,30 @@ class Crud
                 continue;
             }
 
+            $entryType = null;
+            if (isset($entry['type'])) {
+                $entryTypeCandidate = strtolower(trim((string) $entry['type']));
+                if ($entryTypeCandidate !== '') {
+                    $entryType = $entryTypeCandidate;
+                }
+            }
+
+            $isDivider = false;
+            if ($entryType === 'divider') {
+                $isDivider = true;
+            } elseif (array_key_exists('divider', $entry) && $entry['divider']) {
+                $isDivider = true;
+            } elseif ($entry === [] || ($entryType === null && !isset($entry['url']) && !isset($entry['label']))) {
+                $isDivider = true;
+            }
+
+            if ($isDivider) {
+                $items[] = [
+                    'type' => 'divider',
+                ];
+                continue;
+            }
+
             $url = isset($entry['url']) ? trim((string) $entry['url']) : '';
             if ($url === '') {
                 continue;
@@ -475,6 +499,7 @@ class Crud
             }
 
             $items[] = [
+                'type'    => 'link',
                 'url'     => $url,
                 'label'   => $label,
                 'icon'    => $icon,
@@ -15066,6 +15091,17 @@ CSS;
                     var dropdownItems = [];
                     multiItems.forEach(function(item) {
                         if (!item || typeof item !== 'object') {
+                            return;
+                        }
+
+                        var itemTypeRaw = typeof item.type === 'string' ? item.type : '';
+                        var itemType = itemTypeRaw ? itemTypeRaw.trim().toLowerCase() : '';
+                        if (!itemType) {
+                            itemType = 'link';
+                        }
+
+                        if (itemType === 'divider') {
+                            dropdownItems.push('<li><hr class="dropdown-divider fastcrud-multi-link-divider" role="separator"></li>');
                             return;
                         }
 
