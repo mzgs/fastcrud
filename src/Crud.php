@@ -432,6 +432,8 @@ class Crud
 
         $items = [];
         $hasActionItem = false;
+        $hasDuplicateItem = false;
+        $hasDeleteItem = false;
         foreach ($itemsRaw as $entry) {
             if (!is_array($entry)) {
                 continue;
@@ -508,6 +510,58 @@ class Crud
                     'options' => $itemOptions,
                 ];
                 $hasActionItem = true;
+                $hasDuplicateItem = true;
+                continue;
+            }
+
+            if ($entryType === 'delete') {
+                $label = 'Delete';
+                if (array_key_exists('label', $entry) && $entry['label'] !== null) {
+                    $labelCandidate = trim((string) $entry['label']);
+                    if ($labelCandidate !== '') {
+                        $label = $labelCandidate;
+                    }
+                }
+
+                $icon = null;
+                $defaultIcon = $this->normalizeCssClassList((string) (CrudStyle::$delete_action_icon ?? ''));
+                if ($defaultIcon !== '') {
+                    $icon = $defaultIcon;
+                }
+                if (array_key_exists('icon', $entry) && $entry['icon'] !== null) {
+                    $iconRaw = (string) $entry['icon'];
+                    $iconClass = $this->normalizeCssClassList($iconRaw);
+                    if ($iconClass !== '') {
+                        $icon = $iconClass;
+                    }
+                }
+
+                $itemOptions = [];
+                if (isset($entry['options']) && is_array($entry['options'])) {
+                    foreach ($entry['options'] as $key => $value) {
+                        if (!is_string($key)) {
+                            continue;
+                        }
+
+                        $normalizedKey = trim($key);
+                        if ($normalizedKey === '') {
+                            continue;
+                        }
+
+                        if (is_scalar($value)) {
+                            $itemOptions[$normalizedKey] = (string) $value;
+                        }
+                    }
+                }
+
+                $items[] = [
+                    'type'    => 'delete',
+                    'label'   => $label,
+                    'icon'    => $icon,
+                    'options' => $itemOptions,
+                ];
+                $hasActionItem = true;
+                $hasDeleteItem = true;
                 continue;
             }
 
@@ -561,6 +615,14 @@ class Crud
 
         if ($items === [] || !$hasActionItem) {
             return null;
+        }
+
+        if ($hasDuplicateItem) {
+            $this->config['__fastcrud_duplicate_override'] = true;
+        }
+
+        if ($hasDeleteItem) {
+            $this->config['__fastcrud_delete_override'] = true;
         }
 
         $buttonRaw = [];
@@ -705,6 +767,40 @@ class Crud
         $this->config['multi_link_buttons'] = $normalizedList;
 
         return $normalizedList;
+    }
+
+    private function hasActionOverride(string $action): bool
+    {
+        $action = strtolower($action);
+        if ($action === '') {
+            return false;
+        }
+
+        $flagKey = '__fastcrud_' . $action . '_override';
+        if (!empty($this->config[$flagKey])) {
+            return true;
+        }
+
+        $normalized = $this->getNormalizedMultiLinkButtonsConfig();
+        foreach ($normalized as $entry) {
+            if (!is_array($entry) || !isset($entry['items']) || !is_array($entry['items'])) {
+                continue;
+            }
+
+            foreach ($entry['items'] as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+
+                $type = isset($item['type']) ? strtolower((string) $item['type']) : 'link';
+                if ($type === $action) {
+                    $this->config[$flagKey] = true;
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function normalizeCallable(string|array $callback): string
@@ -1442,8 +1538,14 @@ class Crud
             'add'       => isset($meta['add']) ? (bool) $meta['add'] : true,
             'view'      => isset($meta['view']) ? (bool) $meta['view'] : true,
             'edit'      => isset($meta['edit']) ? (bool) $meta['edit'] : true,
-            'delete'    => isset($meta['delete']) ? (bool) $meta['delete'] : true,
-            'duplicate' => isset($meta['duplicate']) ? (bool) $meta['duplicate'] : false,
+            'delete'    => (
+                (isset($meta['delete']) ? (bool) $meta['delete'] : true)
+                || $this->hasActionOverride('delete')
+            ),
+            'duplicate' => (
+                (isset($meta['duplicate']) ? (bool) $meta['duplicate'] : false)
+                || $this->hasActionOverride('duplicate')
+            ),
             default     => false,
         };
     }
@@ -1892,8 +1994,6 @@ class Crud
 
             $items = [];
             $hasActionItem = false;
-            $duplicateActionEnabled = $this->isActionEnabled('duplicate');
-            $duplicateAllowedForRow = null;
             foreach ($config['items'] as $item) {
                 $itemType = 'link';
                 if (isset($item['type'])) {
@@ -1916,18 +2016,6 @@ class Crud
                 }
 
                 if ($itemType === 'duplicate') {
-                    if (!$duplicateActionEnabled) {
-                        continue;
-                    }
-
-                    if ($duplicateAllowedForRow === null) {
-                        $duplicateAllowedForRow = $this->isActionAllowedForRow('duplicate', $row);
-                    }
-
-                    if (!$duplicateAllowedForRow) {
-                        continue;
-                    }
-
                     $resolvedLabel = trim($this->applyPattern((string) $item['label'], '', null, 'multi_link_button', $row));
                     if ($resolvedLabel === '') {
                         continue;
@@ -1962,6 +2050,49 @@ class Crud
 
                     $items[] = [
                         'type'    => 'duplicate',
+                        'label'   => $resolvedLabel,
+                        'icon'    => $resolvedIcon,
+                        'options' => $resolvedOptions,
+                    ];
+                    $hasActionItem = true;
+                    continue;
+                }
+
+                if ($itemType === 'delete') {
+                    $resolvedLabel = trim($this->applyPattern((string) $item['label'], '', null, 'multi_link_button', $row));
+                    if ($resolvedLabel === '') {
+                        continue;
+                    }
+
+                    $resolvedOptions = [];
+                    if (isset($item['options']) && is_array($item['options'])) {
+                        foreach ($item['options'] as $key => $value) {
+                            if (!is_string($key)) {
+                                continue;
+                            }
+
+                            $optionValue = trim($this->applyPattern($value, '', null, 'multi_link_button', $row));
+                            if ($optionValue === '') {
+                                continue;
+                            }
+
+                            $resolvedOptions[$key] = $optionValue;
+                        }
+                    }
+
+                    $resolvedIcon = null;
+                    if (isset($item['icon']) && is_string($item['icon']) && $item['icon'] !== '') {
+                        $iconCandidate = trim($this->applyPattern($item['icon'], '', null, 'multi_link_button', $row));
+                        if ($iconCandidate !== '') {
+                            $normalizedIcon = $this->normalizeCssClassList($iconCandidate);
+                            if ($normalizedIcon !== '') {
+                                $resolvedIcon = $normalizedIcon;
+                            }
+                        }
+                    }
+
+                    $items[] = [
+                        'type'    => 'delete',
                         'label'   => $resolvedLabel,
                         'icon'    => $resolvedIcon,
                         'options' => $resolvedOptions,
@@ -15269,18 +15400,6 @@ CSS;
                         }
 
                         if (itemType === 'duplicate') {
-                            if (!duplicateEnabled) {
-                                return;
-                            }
-
-                            var allowDuplicate = true;
-                            if (rowMeta && Object.prototype.hasOwnProperty.call(rowMeta, 'duplicate_allowed')) {
-                                allowDuplicate = !!rowMeta.duplicate_allowed;
-                            }
-                            if (!allowDuplicate) {
-                                return;
-                            }
-
                             var duplicateLabelRaw = typeof item.label === 'string' ? item.label : '';
                             var duplicateLabel = duplicateLabelRaw.trim();
                             if (!duplicateLabel) {
@@ -15365,6 +15484,94 @@ CSS;
                             }
 
                             dropdownItems.push('<li><button type="button" class="' + escapeHtml(duplicateClassAttr) + '"' + duplicateAttrString + '>' + duplicateContent + '</button></li>');
+                            return;
+                        }
+
+                        if (itemType === 'delete') {
+                            var deleteLabelRaw = typeof item.label === 'string' ? item.label : '';
+                            var deleteLabel = deleteLabelRaw.trim();
+                            if (!deleteLabel) {
+                                deleteLabel = 'Delete';
+                            }
+
+                            var deleteClassParts = ['dropdown-item', 'fastcrud-multi-link-item', 'fastcrud-delete-btn'];
+                            var deleteOptions = item.options && typeof item.options === 'object'
+                                ? Object.assign({}, item.options)
+                                : {};
+                            var deleteOptionClassRaw = '';
+                            if (Object.prototype.hasOwnProperty.call(deleteOptions, 'class')) {
+                                deleteOptionClassRaw = String(deleteOptions['class'] || '').trim();
+                                delete deleteOptions['class'];
+                            }
+                            if (deleteOptionClassRaw) {
+                                deleteOptionClassRaw.split(/\s+/).forEach(function(extra) {
+                                    if (!extra) { return; }
+                                    if (deleteClassParts.indexOf(extra) === -1) {
+                                        deleteClassParts.push(extra);
+                                    }
+                                });
+                            }
+
+                            var deleteAttrString = '';
+                            var deleteHasTitle = false;
+                            var deleteHasAria = false;
+                            var deleteHasRole = false;
+
+                            Object.keys(deleteOptions).forEach(function(optionKey) {
+                                if (!Object.prototype.hasOwnProperty.call(deleteOptions, optionKey)) {
+                                    return;
+                                }
+                                var attrName = String(optionKey);
+                                if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
+                                    return;
+                                }
+                                var lowerName = attrName.toLowerCase();
+                                if (lowerName === 'href' || lowerName === 'class') {
+                                    return;
+                                }
+                                if (lowerName === 'title') {
+                                    deleteHasTitle = true;
+                                } else if (lowerName === 'aria-label') {
+                                    deleteHasAria = true;
+                                } else if (lowerName === 'role') {
+                                    deleteHasRole = true;
+                                }
+                                var attrValue = deleteOptions[optionKey];
+                                if (attrValue === null || typeof attrValue === 'undefined') {
+                                    return;
+                                }
+                                deleteAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
+                            });
+
+                            if (!deleteHasAria) {
+                                deleteAttrString += ' aria-label="' + escapeHtml(deleteLabel) + '"';
+                            }
+                            if (!deleteHasTitle) {
+                                deleteAttrString += ' title="' + escapeHtml(deleteLabel) + '"';
+                            }
+                            if (!deleteHasRole) {
+                                deleteAttrString += ' role="menuitem"';
+                            }
+
+                            var uniqueDeleteClassParts = [];
+                            deleteClassParts.forEach(function(part) {
+                                if (!part) { return; }
+                                if (uniqueDeleteClassParts.indexOf(part) === -1) {
+                                    uniqueDeleteClassParts.push(part);
+                                }
+                            });
+
+                            var deleteClassAttr = uniqueDeleteClassParts.join(' ');
+                            var deleteIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
+                            var deleteContent;
+                            if (deleteIconClass) {
+                                var deleteIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(deleteIconClass) + '"></i>';
+                                deleteContent = deleteIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(deleteLabel) + '</span>';
+                            } else {
+                                deleteContent = escapeHtml(deleteLabel);
+                            }
+
+                            dropdownItems.push('<li><button type="button" class="' + escapeHtml(deleteClassAttr) + '"' + deleteAttrString + '>' + deleteContent + '</button></li>');
                             return;
                         }
 

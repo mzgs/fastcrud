@@ -164,7 +164,10 @@ DatabaseEditor::init();
                         ['url' => '/customers/{id}', 'label' => 'Profile', 'icon' => 'fas fa-user'],
                         ['url' => '/customers/{id}', 'label' => 'Profile', 'icon' => 'fas fa-user'],
                         [],
-                        ['url' => '/customers/{id}/orders', 'label' => 'Orders', 'icon' => 'fas fa-receipt', 'options' => ['target' => '_blank']]
+                        ['url' => '/customers/{id}/orders', 'label' => 'Orders', 'icon' => 'fas fa-receipt', 'options' => ['target' => '_blank']],
+                        ['type' => 'divider'],
+                        ['type' => 'duplicate', 'label' => 'Clone'],
+                        ['type' => 'delete', 'label' => 'Remove']
                     ])
                    
                     ->enable_export_csv()
