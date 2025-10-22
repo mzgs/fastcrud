@@ -313,7 +313,7 @@ input[type="checkbox"]::before {
   --tbl-row-hover: color-mix(in srgb, var(--bs-border-color) 18%, transparent);
   border-color: var(--bs-table-border-color);
  
-  overflow: hidden;
+  
  
 }
 
@@ -355,7 +355,7 @@ input[type="checkbox"]::before {
 /* Compact, tidy look */
 .table > :not(caption) > * > * {
   padding-block: .75rem;
-  background-color: transparent;
+   
 }
 
 /* Dark theme adjustments for table headers */
