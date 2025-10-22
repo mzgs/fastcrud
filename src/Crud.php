@@ -9721,10 +9721,13 @@ HTML;
         $disabled = $this->gatherBehaviourForMode('disabled', $mode);
 
         $filtered = [];
+        $payloadColumns = [];
         foreach ($fields as $column => $value) {
             if (!is_string($column)) {
                 continue;
             }
+
+            $payloadColumns[$column] = true;
 
             if ($column === $primaryKeyColumn) {
                 continue;
@@ -9803,6 +9806,10 @@ HTML;
         $required = $this->gatherBehaviourForMode('validation_required', $mode);
         foreach ($required as $column => $minLength) {
             if (!in_array($column, $columns, true)) {
+                continue;
+            }
+
+            if (!array_key_exists($column, $filtered) && !isset($payloadColumns[$column])) {
                 continue;
             }
 
