@@ -170,7 +170,7 @@ DatabaseEditor::init();
                     ->enable_export_csv()
                     ->enable_export_excel()
                   
-                    
+                    // sdsd
                     // ->join('user_id', 'users', 'id','user')
                     // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
                     ->columns('user_id,title,is_featured,,cats,file,is_slide,status_label,content,image,color')
