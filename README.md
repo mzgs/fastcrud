@@ -322,11 +322,12 @@ All customization options are available through the main `FastCrud\Crud` class m
 
 ### 📊 Column Presentation
 
-- **`column_pattern(string|array $columns, string $pattern): self`** – Render column values with template tokens like `{value}`, `{raw}`, `{column}`, `{label}`, and any column name from the row.
+- **`column_pattern(string|array $columns, string $pattern): self`** – Render column values with template tokens like `{value}`, `{formatted}`, `{raw}`, `{column}`, `{label}`, and any column name from the row.
   ```php
   $crud->column_pattern('email', '<a href="mailto:{raw}">{value}</a>');
   $crud->column_pattern('name', '<strong>{first_name} {last_name}</strong> ({id})');
   ```
+  Use `{formatted}` to reference the truncated display produced by helpers like `column_cut()`, while `{value}` preserves the original string.
 - **`column_callback(string|array $columns, string|array $callback): self`** – Pass values through a formatter callback (use a named function `'function_name'`, `'Class::method'`, or `[ClassName::class, 'method']`).
   ```php
   // Using a named function (function must accept 4 params: $value, $row, $column, $display)

@@ -230,7 +230,8 @@ DatabaseEditor::init();
                     ])
                     ->enable_select2()
                     ->column_pattern('slug', '<strong>{value} - {id} | {status}</strong>')
-                   ->column_pattern('content', 'pattern content| {value}')
+                   ->column_cut('content', 30)
+                    ->column_pattern('content', 'pattern content| {value}')
                     ->column_callback('content', 'content_callback')
                     // Add a custom, computed column that isn't stored in the database
                     ->custom_column('status_label', 'render_status_badge')

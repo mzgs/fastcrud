@@ -1536,15 +1536,16 @@ class Crud
 
     private const PATTERN_TOKEN_REGEX = '/\{([A-Za-z0-9_]+)\}/';
 
-    private function applyPattern(string $pattern, string $display, mixed $raw, string $column, array $row): string
+    private function applyPattern(string $pattern, string $display, mixed $raw, string $column, array $row, ?string $formatted = null): string
     {
         return preg_replace_callback(
             self::PATTERN_TOKEN_REGEX,
-            function (array $matches) use ($display, $raw, $column, $row): string {
+            function (array $matches) use ($display, $raw, $column, $row, $formatted): string {
                 $token = strtolower($matches[1]);
 
                 return match ($token) {
                     'value'  => $display,
+                    'formatted' => $formatted ?? $display,
                     'raw'    => $this->stringifyValue($raw),
                     'column' => $column,
                     'label'  => $this->resolveColumnLabel($column),
@@ -1970,6 +1971,13 @@ class Crud
     {
         $display = $this->stringifyValue($value);
         $displayOriginal = $display;
+        $formattedDisplay = $display;
+
+        $cut = $this->config['column_cuts'][$column] ?? null;
+        if (is_array($cut) && isset($cut['length'])) {
+            $suffix = isset($cut['suffix']) ? (string) $cut['suffix'] : '…';
+            $formattedDisplay = $this->truncateString($formattedDisplay, (int) $cut['length'], $suffix);
+        }
 
         $html = null;
 
@@ -1977,19 +1985,12 @@ class Crud
         if ($patternEntry !== null) {
             $patternTemplate = trim((string) $patternEntry);
             if ($patternTemplate !== '') {
-                $patternOutput = $this->applyPattern($patternTemplate, $display, $value, $column, $row);
+                $patternOutput = $this->applyPattern($patternTemplate, $displayOriginal, $value, $column, $row, $formattedDisplay);
                 $html = $patternOutput;
-                $display = $displayOriginal;
             }
         }
 
-        if (isset($this->config['column_cuts'][$column])) {
-            $cut = $this->config['column_cuts'][$column];
-            if (is_array($cut) && isset($cut['length'])) {
-                $suffix = isset($cut['suffix']) ? (string) $cut['suffix'] : '…';
-                $display = $this->truncateString($display, (int) $cut['length'], $suffix);
-            }
-        }
+        $display = $formattedDisplay;
 
         $tooltip = null;
         $attributes = [];
