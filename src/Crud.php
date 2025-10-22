@@ -134,8 +134,8 @@ class Crud
         'column_cuts' => [],
         'column_highlights' => [],
         'row_highlights' => [],
-        'link_button' => null,
-        'multi_link_button' => null,
+        'link_buttons' => [],
+        'multi_link_buttons' => [],
         'inline_edit' => [],
         'table_meta' => [
             'title'   => null,
@@ -566,34 +566,68 @@ class Crud
         ];
     }
 
-    private function getNormalizedLinkButtonConfig(): ?array
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function getNormalizedLinkButtonsConfig(): array
     {
-        $config = $this->config['link_button'] ?? null;
-        if (!is_array($config)) {
-            return null;
+        $stored = $this->config['link_buttons'] ?? [];
+        if (!is_array($stored)) {
+            $stored = [];
         }
 
-        $normalized = $this->normalizeLinkButtonConfigPayload($config);
-        if ($normalized !== null) {
-            $this->config['link_button'] = $normalized;
+        if (isset($this->config['link_button']) && is_array($this->config['link_button'])) {
+            $stored[] = $this->config['link_button'];
+            unset($this->config['link_button']);
         }
 
-        return $normalized;
+        $normalizedList = [];
+        foreach ($stored as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $normalized = $this->normalizeLinkButtonConfigPayload($entry);
+            if ($normalized !== null) {
+                $normalizedList[] = $normalized;
+            }
+        }
+
+        $this->config['link_buttons'] = $normalizedList;
+
+        return $normalizedList;
     }
 
-    private function getNormalizedMultiLinkButtonConfig(): ?array
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function getNormalizedMultiLinkButtonsConfig(): array
     {
-        $config = $this->config['multi_link_button'] ?? null;
-        if (!is_array($config)) {
-            return null;
+        $stored = $this->config['multi_link_buttons'] ?? [];
+        if (!is_array($stored)) {
+            $stored = [];
         }
 
-        $normalized = $this->normalizeMultiLinkButtonConfigPayload($config);
-        if ($normalized !== null) {
-            $this->config['multi_link_button'] = $normalized;
+        if (isset($this->config['multi_link_button']) && is_array($this->config['multi_link_button'])) {
+            $stored[] = $this->config['multi_link_button'];
+            unset($this->config['multi_link_button']);
         }
 
-        return $normalized;
+        $normalizedList = [];
+        foreach ($stored as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $normalized = $this->normalizeMultiLinkButtonConfigPayload($entry);
+            if ($normalized !== null) {
+                $normalizedList[] = $normalized;
+            }
+        }
+
+        $this->config['multi_link_buttons'] = $normalizedList;
+
+        return $normalizedList;
     }
 
     private function normalizeCallable(string|array $callback): string
@@ -1580,14 +1614,14 @@ class Crud
             $meta['row_class'] = implode(' ', $rowClasses);
         }
 
-        $linkButton = $this->buildLinkButtonMetaForRow($sourceRow);
-        if ($linkButton !== null) {
-            $meta['link_button'] = $linkButton;
+        $linkButtons = $this->buildLinkButtonsMetaForRow($sourceRow);
+        if ($linkButtons !== []) {
+            $meta['link_buttons'] = $linkButtons;
         }
 
-        $multiLinkButton = $this->buildMultiLinkButtonMetaForRow($sourceRow);
-        if ($multiLinkButton !== null) {
-            $meta['multi_link_button'] = $multiLinkButton;
+        $multiLinkButtons = $this->buildMultiLinkButtonsMetaForRow($sourceRow);
+        if ($multiLinkButtons !== []) {
+            $meta['multi_link_buttons'] = $multiLinkButtons;
         }
 
         $meta['view_allowed'] = $this->isActionAllowedForRow('view', $sourceRow);
@@ -1714,91 +1748,131 @@ class Crud
 
     /**
      * @param array<string, mixed> $row
+     * @return array<int, array<string, mixed>>
      */
-    private function buildLinkButtonMetaForRow(array $row): ?array
+    private function buildLinkButtonsMetaForRow(array $row): array
     {
-        $config = $this->getNormalizedLinkButtonConfig();
-        if ($config === null) {
-            return null;
+        $configs = $this->getNormalizedLinkButtonsConfig();
+        if ($configs === []) {
+            return [];
         }
 
-        $resolvedUrl = trim($this->applyPattern($config['url'], '', null, 'link_button', $row));
-        if ($resolvedUrl === '') {
-            return null;
-        }
+        $result = [];
 
-        $resolvedLabel = null;
-        if (isset($config['label']) && is_string($config['label']) && $config['label'] !== '') {
-            $labelResult = trim($this->applyPattern($config['label'], '', null, 'link_button', $row));
-            if ($labelResult !== '') {
-                $resolvedLabel = $labelResult;
-            }
-        }
-
-        return [
-            'url'   => $resolvedUrl,
-            'label' => $resolvedLabel,
-        ];
-    }
-
-    private function buildLinkButtonConfig(): ?array
-    {
-        $config = $this->getNormalizedLinkButtonConfig();
-        if ($config === null) {
-            return null;
-        }
-
-        return [
-            'icon'         => $config['icon'],
-            'button_class' => $config['button_class'],
-            'options'      => $config['options'],
-        ];
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     */
-    private function buildMultiLinkButtonMetaForRow(array $row): ?array
-    {
-        $config = $this->getNormalizedMultiLinkButtonConfig();
-        if ($config === null) {
-            return null;
-        }
-
-        $buttonConfig = $config['button'];
-
-        $triggerIcon = null;
-        if (isset($buttonConfig['icon']) && is_string($buttonConfig['icon']) && $buttonConfig['icon'] !== '') {
-            $iconResult = trim($this->applyPattern($buttonConfig['icon'], '', null, 'multi_link_button', $row));
-            if ($iconResult !== '') {
-                $normalizedIcon = $this->normalizeCssClassList($iconResult);
-                if ($normalizedIcon !== '') {
-                    $triggerIcon = $normalizedIcon;
-                }
-            }
-        }
-
-        $items = [];
-        foreach ($config['items'] as $item) {
-            $resolvedUrl = trim($this->applyPattern($item['url'], '', null, 'multi_link_button', $row));
+        foreach ($configs as $config) {
+            $resolvedUrl = trim($this->applyPattern($config['url'], '', null, 'link_button', $row));
             if ($resolvedUrl === '') {
                 continue;
             }
 
-            $resolvedLabel = trim($this->applyPattern($item['label'], '', null, 'multi_link_button', $row));
-            if ($resolvedLabel === '') {
+            $resolvedLabel = null;
+            if (isset($config['label']) && is_string($config['label']) && $config['label'] !== '') {
+                $labelResult = trim($this->applyPattern($config['label'], '', null, 'link_button', $row));
+                if ($labelResult !== '') {
+                    $resolvedLabel = $labelResult;
+                }
+            }
+
+            $result[] = [
+                'url'          => $resolvedUrl,
+                'label'        => $resolvedLabel,
+                'icon'         => $config['icon'],
+                'button_class' => $config['button_class'],
+                'options'      => $config['options'],
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildMultiLinkButtonsMetaForRow(array $row): array
+    {
+        $configs = $this->getNormalizedMultiLinkButtonsConfig();
+        if ($configs === []) {
+            return [];
+        }
+
+        $result = [];
+
+        foreach ($configs as $config) {
+            $buttonConfig = $config['button'];
+
+            $triggerIcon = null;
+            if (isset($buttonConfig['icon']) && is_string($buttonConfig['icon']) && $buttonConfig['icon'] !== '') {
+                $iconResult = trim($this->applyPattern($buttonConfig['icon'], '', null, 'multi_link_button', $row));
+                if ($iconResult !== '') {
+                    $normalizedIcon = $this->normalizeCssClassList($iconResult);
+                    if ($normalizedIcon !== '') {
+                        $triggerIcon = $normalizedIcon;
+                    }
+                }
+            }
+
+            $items = [];
+            foreach ($config['items'] as $item) {
+                $resolvedUrl = trim($this->applyPattern($item['url'], '', null, 'multi_link_button', $row));
+                if ($resolvedUrl === '') {
+                    continue;
+                }
+
+                $resolvedLabel = trim($this->applyPattern($item['label'], '', null, 'multi_link_button', $row));
+                if ($resolvedLabel === '') {
+                    continue;
+                }
+
+                $resolvedOptions = [];
+                if (isset($item['options']) && is_array($item['options'])) {
+                    foreach ($item['options'] as $key => $value) {
+                        if (!is_string($key)) {
+                            continue;
+                        }
+
+                        $optionValue = trim($this->applyPattern($value, '', null, 'multi_link_button', $row));
+                        if ($optionValue === '') {
+                            continue;
+                        }
+
+                        $resolvedOptions[$key] = $optionValue;
+                    }
+                }
+
+                $resolvedIcon = null;
+                if (isset($item['icon']) && is_string($item['icon']) && $item['icon'] !== '') {
+                    $iconCandidate = trim($this->applyPattern($item['icon'], '', null, 'multi_link_button', $row));
+                    if ($iconCandidate !== '') {
+                        $resolvedIcon = $this->normalizeCssClassList($iconCandidate);
+                    }
+                }
+
+                $items[] = [
+                    'url'     => $resolvedUrl,
+                    'label'   => $resolvedLabel,
+                    'icon'    => $resolvedIcon,
+                    'options' => $resolvedOptions,
+                ];
+            }
+
+            if ($items === []) {
                 continue;
             }
 
-            $resolvedOptions = [];
-            if (isset($item['options']) && is_array($item['options'])) {
-                foreach ($item['options'] as $key => $value) {
-                    if (!is_string($key)) {
-                        continue;
-                    }
+            $resolvedLabel = null;
+            if (isset($buttonConfig['label']) && is_string($buttonConfig['label']) && $buttonConfig['label'] !== '') {
+                $labelResult = trim($this->applyPattern($buttonConfig['label'], '', null, 'multi_link_button', $row));
+                if ($labelResult !== '') {
+                    $resolvedLabel = $labelResult;
+                }
+            }
 
+            $resolvedOptions = [];
+            if (isset($buttonConfig['options']) && is_array($buttonConfig['options'])) {
+                foreach ($buttonConfig['options'] as $key => $value) {
                     $optionValue = trim($this->applyPattern($value, '', null, 'multi_link_button', $row));
-                    if ($optionValue === '') {
+                    if ($optionValue === '' || !is_string($key)) {
                         continue;
                     }
 
@@ -1806,73 +1880,20 @@ class Crud
                 }
             }
 
-            $resolvedIcon = null;
-            if (isset($item['icon']) && is_string($item['icon']) && $item['icon'] !== '') {
-                $iconCandidate = trim($this->applyPattern($item['icon'], '', null, 'multi_link_button', $row));
-                if ($iconCandidate !== '') {
-                    $resolvedIcon = $this->normalizeCssClassList($iconCandidate);
-                }
-            }
-
-            $items[] = [
-                'url'     => $resolvedUrl,
-                'label'   => $resolvedLabel,
-                'icon'    => $resolvedIcon,
-                'options' => $resolvedOptions,
+            $result[] = [
+                'button' => [
+                    'label'           => $resolvedLabel,
+                    'icon'            => $triggerIcon,
+                    'options'         => $resolvedOptions,
+                    'button_class'    => $buttonConfig['button_class'],
+                    'menu_class'      => $buttonConfig['menu_class'],
+                    'container_class' => $buttonConfig['container_class'],
+                ],
+                'items'  => $items,
             ];
         }
 
-        if ($items === []) {
-            return null;
-        }
-
-        $resolvedLabel = null;
-        if (isset($buttonConfig['label']) && is_string($buttonConfig['label']) && $buttonConfig['label'] !== '') {
-            $labelResult = trim($this->applyPattern($buttonConfig['label'], '', null, 'multi_link_button', $row));
-            if ($labelResult !== '') {
-                $resolvedLabel = $labelResult;
-            }
-        }
-
-        $resolvedOptions = [];
-        if (isset($buttonConfig['options']) && is_array($buttonConfig['options'])) {
-            foreach ($buttonConfig['options'] as $key => $value) {
-                $optionValue = trim($this->applyPattern($value, '', null, 'multi_link_button', $row));
-                if ($optionValue === '' || !is_string($key)) {
-                    continue;
-                }
-
-                $resolvedOptions[$key] = $optionValue;
-            }
-        }
-
-        return [
-            'button' => [
-                'label'   => $resolvedLabel,
-                'icon'    => $triggerIcon,
-                'options' => $resolvedOptions,
-            ],
-            'items'   => $items,
-        ];
-    }
-
-    private function buildMultiLinkButtonConfig(): ?array
-    {
-        $config = $this->getNormalizedMultiLinkButtonConfig();
-        if ($config === null) {
-            return null;
-        }
-
-        return [
-            'button' => [
-                'icon'            => $config['button']['icon'],
-                'label'           => $config['button']['label'],
-                'button_class'    => $config['button']['button_class'],
-                'menu_class'      => $config['button']['menu_class'],
-                'container_class' => $config['button']['container_class'],
-                'options'         => $config['button']['options'],
-            ],
-        ];
+        return $result;
     }
 
     /**
@@ -3481,7 +3502,7 @@ class Crud
     /**
      * @param array<string, bool|float|int|string> $options
      */
-    public function link_button(string $url, string $iconClass, ?string $label = null, ?string $buttonClass = null, array $options = []): self
+    public function add_link_button(string $url, string $iconClass, ?string $label = null, ?string $buttonClass = null, array $options = []): self
     {
         $normalized = $this->normalizeLinkButtonConfigPayload([
             'url'          => $url,
@@ -3495,16 +3516,29 @@ class Crud
             throw new InvalidArgumentException('Link button requires a non-empty URL and icon class.');
         }
 
-        $this->config['link_button'] = $normalized;
+        if (!isset($this->config['link_buttons']) || !is_array($this->config['link_buttons'])) {
+            $this->config['link_buttons'] = [];
+        }
+
+        $this->config['link_buttons'][] = $normalized;
 
         return $this;
+    }
+
+    /**
+     * @deprecated Use add_link_button() instead.
+     * @param array<string, bool|float|int|string> $options
+     */
+    public function link_button(string $url, string $iconClass, ?string $label = null, ?string $buttonClass = null, array $options = []): self
+    {
+        return $this->add_link_button($url, $iconClass, $label, $buttonClass, $options);
     }
 
     /**
      * @param array<string, mixed> $mainButton
      * @param array<int, array<string, mixed>> $items
      */
-    public function multi_link_button(array $mainButton = [], array $items = []): self
+    public function add_multi_link_button(array $mainButton = [], array $items = []): self
     {
         $normalized = $this->normalizeMultiLinkButtonConfigPayload([
             'button' => $mainButton,
@@ -3515,9 +3549,23 @@ class Crud
             throw new InvalidArgumentException('Multi link button requires at least one item with both label and URL.');
         }
 
-        $this->config['multi_link_button'] = $normalized;
+        if (!isset($this->config['multi_link_buttons']) || !is_array($this->config['multi_link_buttons'])) {
+            $this->config['multi_link_buttons'] = [];
+        }
+
+        $this->config['multi_link_buttons'][] = $normalized;
 
         return $this;
+    }
+
+    /**
+     * @deprecated Use add_multi_link_button() instead.
+     * @param array<string, mixed> $mainButton
+     * @param array<int, array<string, mixed>> $items
+     */
+    public function multi_link_button(array $mainButton = [], array $items = []): self
+    {
+        return $this->add_multi_link_button($mainButton, $items);
     }
 
 
@@ -7206,8 +7254,8 @@ HTML;
                 'export_csv' => isset($tableMeta['export_csv']) ? (bool) $tableMeta['export_csv'] : false,
                 'export_excel' => isset($tableMeta['export_excel']) ? (bool) $tableMeta['export_excel'] : false,
             ],
-            'link_button'    => $this->buildLinkButtonConfig(),
-            'multi_link_button' => $this->buildMultiLinkButtonConfig(),
+            'link_buttons'    => $this->getNormalizedLinkButtonsConfig(),
+            'multi_link_buttons' => $this->getNormalizedMultiLinkButtonsConfig(),
             'primary_key'    => $this->getPrimaryKeyColumn(),
             'columns'        => $columns,
             'labels'         => $filterColumns($this->config['column_labels']),
@@ -7836,8 +7884,8 @@ HTML;
             'column_cuts'     => $this->config['column_cuts'],
             'column_highlights' => $this->config['column_highlights'],
             'row_highlights'    => $this->config['row_highlights'],
-            'link_button'       => $this->config['link_button'],
-            'multi_link_button' => $this->config['multi_link_button'],
+            'link_buttons'       => $this->config['link_buttons'],
+            'multi_link_buttons' => $this->config['multi_link_buttons'],
             'table_meta'        => $this->config['table_meta'],
             'column_summaries'  => $this->config['column_summaries'],
             'field_labels'      => $this->config['field_labels'],
@@ -8729,23 +8777,55 @@ HTML;
             }
         }
 
-        if (array_key_exists('link_button', $payload)) {
+        if (array_key_exists('link_buttons', $payload)) {
+            $linkButtonsPayload = $payload['link_buttons'];
+            $normalizedButtons = [];
+            if (is_array($linkButtonsPayload)) {
+                foreach ($linkButtonsPayload as $entry) {
+                    if (!is_array($entry)) {
+                        continue;
+                    }
+
+                    $normalized = $this->normalizeLinkButtonConfigPayload($entry);
+                    if ($normalized !== null) {
+                        $normalizedButtons[] = $normalized;
+                    }
+                }
+            }
+            $this->config['link_buttons'] = $normalizedButtons;
+        } elseif (array_key_exists('link_button', $payload)) {
             $linkConfig = $payload['link_button'];
             if (is_array($linkConfig)) {
                 $normalizedLink = $this->normalizeLinkButtonConfigPayload($linkConfig);
-                $this->config['link_button'] = $normalizedLink;
+                $this->config['link_buttons'] = $normalizedLink !== null ? [$normalizedLink] : [];
             } elseif ($linkConfig === null) {
-                $this->config['link_button'] = null;
+                $this->config['link_buttons'] = [];
             }
         }
 
-        if (array_key_exists('multi_link_button', $payload)) {
+        if (array_key_exists('multi_link_buttons', $payload)) {
+            $multiPayload = $payload['multi_link_buttons'];
+            $normalizedMultiButtons = [];
+            if (is_array($multiPayload)) {
+                foreach ($multiPayload as $entry) {
+                    if (!is_array($entry)) {
+                        continue;
+                    }
+
+                    $normalized = $this->normalizeMultiLinkButtonConfigPayload($entry);
+                    if ($normalized !== null) {
+                        $normalizedMultiButtons[] = $normalized;
+                    }
+                }
+            }
+            $this->config['multi_link_buttons'] = $normalizedMultiButtons;
+        } elseif (array_key_exists('multi_link_button', $payload)) {
             $multiLinkConfig = $payload['multi_link_button'];
             if (is_array($multiLinkConfig)) {
                 $normalizedMulti = $this->normalizeMultiLinkButtonConfigPayload($multiLinkConfig);
-                $this->config['multi_link_button'] = $normalizedMulti;
+                $this->config['multi_link_buttons'] = $normalizedMulti !== null ? [$normalizedMulti] : [];
             } elseif ($multiLinkConfig === null) {
-                $this->config['multi_link_button'] = null;
+                $this->config['multi_link_buttons'] = [];
             }
         }
 
@@ -12006,8 +12086,6 @@ CSS;
         var deleteEnabled = true;
         var duplicateEnabled = false;
         var deleteConfirm = true;
-        var linkButtonConfig = null;
-        var multiLinkButtonConfig = null;
         var sortDisabled = {};
         var inlineEditFields = {};
         var batchDeleteEnabled = false;
@@ -12250,7 +12328,8 @@ CSS;
                         available: Array.isArray(clientConfig.search_columns) ? clientConfig.search_columns.slice() : []
                     },
                     nested_tables: Array.isArray(clientConfig.nested_tables) ? clientConfig.nested_tables.slice() : [],
-                    link_button: clientConfig.link_button || null,
+                    link_buttons: Array.isArray(clientConfig.link_buttons) ? clientConfig.link_buttons.slice() : [],
+                    multi_link_buttons: Array.isArray(clientConfig.multi_link_buttons) ? clientConfig.multi_link_buttons.slice() : [],
                     soft_delete: clientConfig.soft_delete || null,
                     labels: clientConfig.column_labels || {},
                     column_classes: clientConfig.column_classes || {},
@@ -13473,110 +13552,12 @@ CSS;
                 clearSelection();
             }
 
-            var metaLinkButton = meta.link_button;
-            if (metaLinkButton && typeof metaLinkButton === 'object') {
-                var iconValue = typeof metaLinkButton.icon === 'string' ? metaLinkButton.icon : '';
-                var buttonClassValue = typeof metaLinkButton.button_class === 'string' ? metaLinkButton.button_class : '';
-                var optionsValue = {};
-                if (metaLinkButton.options && typeof metaLinkButton.options === 'object') {
-                    Object.keys(metaLinkButton.options).forEach(function(optionKey) {
-                        if (!Object.prototype.hasOwnProperty.call(metaLinkButton.options, optionKey)) {
-                            return;
-                        }
-                        var normalizedKey = String(optionKey);
-                        if (!/^[A-Za-z0-9_:-]+$/.test(normalizedKey)) {
-                            return;
-                        }
-                        var optionValue = metaLinkButton.options[optionKey];
-                        if (optionValue === null || typeof optionValue === 'undefined') {
-                            return;
-                        }
-                        optionsValue[normalizedKey] = String(optionValue);
-                    });
-                }
-
-                if (iconValue) {
-                    buttonClassValue = String(buttonClassValue || '').trim();
-                    if (!buttonClassValue) {
-                        buttonClassValue = getStyleClass('link_button_class', 'btn btn-sm btn-outline-secondary');
-                    }
-                    linkButtonConfig = {
-                        icon: iconValue,
-                        button_class: buttonClassValue,
-                        options: optionsValue
-                    };
-                } else {
-                    linkButtonConfig = null;
-                }
-            } else {
-                linkButtonConfig = null;
-            }
-
-            var metaMultiLinkButton = meta.multi_link_button;
-            if (metaMultiLinkButton && typeof metaMultiLinkButton === 'object') {
-                var buttonSeed = metaMultiLinkButton.button && typeof metaMultiLinkButton.button === 'object'
-                    ? metaMultiLinkButton.button
-                    : metaMultiLinkButton;
-                var buttonClassValue = buttonSeed && typeof buttonSeed.button_class === 'string'
-                    ? buttonSeed.button_class
-                    : '';
-                var menuClassValue = buttonSeed && typeof buttonSeed.menu_class === 'string'
-                    ? buttonSeed.menu_class
-                    : '';
-                var containerClassValue = buttonSeed && typeof buttonSeed.container_class === 'string'
-                    ? buttonSeed.container_class
-                    : '';
-                var iconValue = buttonSeed && typeof buttonSeed.icon === 'string'
-                    ? buttonSeed.icon.trim()
-                    : '';
-                var labelValue = buttonSeed && typeof buttonSeed.label === 'string'
-                    ? buttonSeed.label.trim()
-                    : '';
-                var buttonOptionsValue = {};
-
-                if (buttonSeed && buttonSeed.options && typeof buttonSeed.options === 'object') {
-                    Object.keys(buttonSeed.options).forEach(function(optionKey) {
-                        if (!Object.prototype.hasOwnProperty.call(buttonSeed.options, optionKey)) {
-                            return;
-                        }
-                        var normalizedKey = String(optionKey);
-                        if (!/^[A-Za-z0-9_:-]+$/.test(normalizedKey)) {
-                            return;
-                        }
-                        var optionValue = buttonSeed.options[optionKey];
-                        if (optionValue === null || typeof optionValue === 'undefined') {
-                            return;
-                        }
-                        buttonOptionsValue[normalizedKey] = String(optionValue);
-                    });
-                }
-
-                buttonClassValue = String(buttonClassValue || '').trim();
-                if (!buttonClassValue) {
-                    buttonClassValue = 'btn btn-sm btn-outline-secondary dropdown-toggle';
-                }
-
-                menuClassValue = String(menuClassValue || '').trim();
-                if (!menuClassValue) {
-                    menuClassValue = 'dropdown-menu dropdown-menu-end';
-                }
-
-                containerClassValue = String(containerClassValue || '').trim();
-                if (!containerClassValue) {
-                    containerClassValue = 'btn-group';
-                }
-
-                multiLinkButtonConfig = {
-                    icon: iconValue,
-                    label: labelValue,
-                    button_class: buttonClassValue,
-                    options: buttonOptionsValue,
-                    menu_class: menuClassValue,
-                    container_class: containerClassValue
-                };
-            } else {
-                multiLinkButtonConfig = null;
-            }
+            clientConfig.link_buttons = Array.isArray(meta.link_buttons)
+                ? deepClone(meta.link_buttons)
+                : [];
+            clientConfig.multi_link_buttons = Array.isArray(meta.multi_link_buttons)
+                ? deepClone(meta.multi_link_buttons)
+                : [];
 
             updateMetaContainer(tableMeta);
             updateBatchDeleteButtonState();
@@ -14964,11 +14945,17 @@ CSS;
             var editActionClass = getStyleClass('edit_action_button_class', 'btn btn-sm btn-primary');
             var deleteActionClass = getStyleClass('delete_action_button_class', 'btn btn-sm btn-danger');
 
-            if (linkButtonConfig && rowMeta && rowMeta.link_button && rowMeta.link_button.url) {
-                var linkMeta = rowMeta.link_button;
-                var href = String(linkMeta.url || '').trim();
-                if (href.length) {
-                    var classSource = String(linkButtonConfig.button_class || '').trim();
+            if (rowMeta && Array.isArray(rowMeta.link_buttons)) {
+                rowMeta.link_buttons.forEach(function(linkMeta) {
+                    if (!linkMeta || typeof linkMeta !== 'object') {
+                        return;
+                    }
+
+                    var href = String(linkMeta.url || '').trim();
+                    if (!href.length) {
+                        return;
+                    }
+                    var classSource = String(linkMeta.button_class || '').trim();
                     var classParts = classSource.length ? classSource.split(/\s+/) : [];
                     if (classParts.indexOf('btn') === -1) {
                         classParts.unshift('btn');
@@ -14984,8 +14971,8 @@ CSS;
                     }
                     var labelRaw = typeof linkMeta.label === 'string' ? linkMeta.label : '';
                     var labelText = labelRaw.trim();
-                    var options = linkButtonConfig.options && typeof linkButtonConfig.options === 'object'
-                        ? Object.assign({}, linkButtonConfig.options)
+                    var options = linkMeta.options && typeof linkMeta.options === 'object'
+                        ? Object.assign({}, linkMeta.options)
                         : {};
                     var attrString = '';
                     var hasTitleAttr = false;
@@ -15044,7 +15031,7 @@ CSS;
                         attrString += ' role="button"';
                     }
 
-                    var iconClass = (linkButtonConfig.icon || '').trim();
+                    var iconClass = typeof linkMeta.icon === 'string' ? linkMeta.icon.trim() : '';
                     var iconHtml = iconClass ? '<i class="fastcrud-link-icon ' + escapeHtml(iconClass) + '"></i>' : '';
                     var contentHtml;
                     if (iconHtml && labelText) {
@@ -15059,109 +15046,121 @@ CSS;
 
                     var classAttr = classParts.join(' ');
                     fragments.push('<a href="' + escapeHtml(href) + '" class="' + escapeHtml(classAttr) + '"' + attrString + '>' + contentHtml + '</a>');
-                }
+                });
             }
 
-            if (multiLinkButtonConfig && rowMeta && rowMeta.multi_link_button) {
-                var multiMeta = rowMeta.multi_link_button;
-                var buttonMeta = multiMeta.button && typeof multiMeta.button === 'object'
-                    ? multiMeta.button
-                    : (typeof multiMeta === 'object' && !Array.isArray(multiMeta) ? multiMeta : {});
-                var multiItems = Array.isArray(multiMeta.items) ? multiMeta.items : [];
-                if (!Array.isArray(multiItems) || !multiItems.length) {
-                    multiItems = Array.isArray(multiMeta) ? multiMeta : [];
-                }
-                if (!Array.isArray(multiItems) || !multiItems.length) {
-                    multiItems = [];
-                }
-
-                var dropdownItems = [];
-                multiItems.forEach(function(item) {
-                    if (!item || typeof item !== 'object') {
+            if (rowMeta && Array.isArray(rowMeta.multi_link_buttons)) {
+                rowMeta.multi_link_buttons.forEach(function(multiMeta) {
+                    if (!multiMeta || typeof multiMeta !== 'object') {
                         return;
                     }
 
-                    var itemHref = String(item.url || '').trim();
-                    var itemLabelRaw = typeof item.label === 'string' ? item.label : '';
-                    var itemLabel = itemLabelRaw.trim();
-                    if (!itemHref || !itemLabel) {
-                        return;
-                    }
-
-                    var itemClassParts = ['dropdown-item', 'fastcrud-multi-link-item'];
-                    var itemOptions = item.options && typeof item.options === 'object'
-                        ? Object.assign({}, item.options)
+                    var buttonMeta = multiMeta.button && typeof multiMeta.button === 'object'
+                        ? multiMeta.button
                         : {};
-                    var itemOptionClassRaw = '';
-                    if (Object.prototype.hasOwnProperty.call(itemOptions, 'class')) {
-                        itemOptionClassRaw = String(itemOptions['class'] || '').trim();
-                        delete itemOptions['class'];
+                    var multiItems = Array.isArray(multiMeta.items) ? multiMeta.items : [];
+                    if (!multiItems.length) {
+                        return;
                     }
-                    if (itemOptionClassRaw) {
-                        itemOptionClassRaw.split(/\s+/).forEach(function(extra) {
-                            if (!extra) { return; }
-                            if (itemClassParts.indexOf(extra) === -1) {
-                                itemClassParts.push(extra);
+
+                    var dropdownItems = [];
+                    multiItems.forEach(function(item) {
+                        if (!item || typeof item !== 'object') {
+                            return;
+                        }
+
+                        var itemHref = String(item.url || '').trim();
+                        var itemLabelRaw = typeof item.label === 'string' ? item.label : '';
+                        var itemLabel = itemLabelRaw.trim();
+                        if (!itemHref || !itemLabel) {
+                            return;
+                        }
+
+                        var itemClassParts = ['dropdown-item', 'fastcrud-multi-link-item'];
+                        var itemOptions = item.options && typeof item.options === 'object'
+                            ? Object.assign({}, item.options)
+                            : {};
+                        var itemOptionClassRaw = '';
+                        if (Object.prototype.hasOwnProperty.call(itemOptions, 'class')) {
+                            itemOptionClassRaw = String(itemOptions['class'] || '').trim();
+                            delete itemOptions['class'];
+                        }
+                        if (itemOptionClassRaw) {
+                            itemOptionClassRaw.split(/\s+/).forEach(function(extra) {
+                                if (!extra) { return; }
+                                if (itemClassParts.indexOf(extra) === -1) {
+                                    itemClassParts.push(extra);
+                                }
+                            });
+                        }
+
+                        var itemAttrString = '';
+                        var itemHasTitle = false;
+                        var itemHasAria = false;
+                        var itemHasRole = false;
+
+                        Object.keys(itemOptions).forEach(function(optionKey) {
+                            if (!Object.prototype.hasOwnProperty.call(itemOptions, optionKey)) {
+                                return;
+                            }
+                            var attrName = String(optionKey);
+                            if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
+                                return;
+                            }
+                            var lowerName = attrName.toLowerCase();
+                            if (lowerName === 'href' || lowerName === 'class') {
+                                return;
+                            }
+                            if (lowerName === 'title') {
+                                itemHasTitle = true;
+                            } else if (lowerName === 'aria-label') {
+                                itemHasAria = true;
+                            } else if (lowerName === 'role') {
+                                itemHasRole = true;
+                            }
+                            var attrValue = itemOptions[optionKey];
+                            if (attrValue === null || typeof attrValue === 'undefined') {
+                                return;
+                            }
+                            itemAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
+                        });
+
+                        if (!itemHasAria) {
+                            itemAttrString += ' aria-label="' + escapeHtml(itemLabel) + '"';
+                        }
+                        if (!itemHasTitle) {
+                            itemAttrString += ' title="' + escapeHtml(itemLabel) + '"';
+                        }
+                        if (!itemHasRole) {
+                            itemAttrString += ' role="menuitem"';
+                        }
+
+                        var uniqueItemClassParts = [];
+                        itemClassParts.forEach(function(part) {
+                            if (!part) { return; }
+                            if (uniqueItemClassParts.indexOf(part) === -1) {
+                                uniqueItemClassParts.push(part);
                             }
                         });
-                    }
 
-                    var itemAttrString = '';
-                    var itemHasTitle = false;
-                    var itemHasAria = false;
-                    var itemHasRole = false;
+                        var itemClassAttr = uniqueItemClassParts.join(' ');
+                        var itemIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
+                        var itemContent;
+                        if (itemIconClass) {
+                            var itemIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(itemIconClass) + '"></i>';
+                            itemContent = itemIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(itemLabel) + '</span>';
+                        } else {
+                            itemContent = escapeHtml(itemLabel);
+                        }
 
-                    Object.keys(itemOptions).forEach(function(optionKey) {
-                        if (!Object.prototype.hasOwnProperty.call(itemOptions, optionKey)) {
-                            return;
-                        }
-                        var attrName = String(optionKey);
-                        if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
-                            return;
-                        }
-                        var lowerName = attrName.toLowerCase();
-                        if (lowerName === 'href' || lowerName === 'class') {
-                            return;
-                        }
-                        if (lowerName === 'title') {
-                            itemHasTitle = true;
-                        } else if (lowerName === 'aria-label') {
-                            itemHasAria = true;
-                        } else if (lowerName === 'role') {
-                            itemHasRole = true;
-                        }
-                        var attrValue = itemOptions[optionKey];
-                        if (attrValue === null || typeof attrValue === 'undefined') {
-                            return;
-                        }
-                        itemAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
+                        dropdownItems.push('<li><a href="' + escapeHtml(itemHref) + '" class="' + escapeHtml(itemClassAttr) + '"' + itemAttrString + '>' + itemContent + '</a></li>');
                     });
 
-                    if (!itemHasAria) {
-                        itemAttrString += ' aria-label="' + escapeHtml(itemLabel) + '"';
-                    }
-                    if (!itemHasTitle) {
-                        itemAttrString += ' title="' + escapeHtml(itemLabel) + '"';
-                    }
-                    if (!itemHasRole) {
-                        itemAttrString += ' role="menuitem"';
+                    if (!dropdownItems.length) {
+                        return;
                     }
 
-                    var itemClassAttr = itemClassParts.join(' ');
-                    var itemIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
-                    var itemContent;
-                    if (itemIconClass) {
-                        var itemIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(itemIconClass) + '"></i>';
-                        itemContent = itemIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(itemLabel) + '</span>';
-                    } else {
-                        itemContent = escapeHtml(itemLabel);
-                    }
-
-                    dropdownItems.push('<li><a href="' + escapeHtml(itemHref) + '" class="' + escapeHtml(itemClassAttr) + '"' + itemAttrString + '>' + itemContent + '</a></li>');
-                });
-
-                if (dropdownItems.length) {
-                    var triggerClassSource = String(multiLinkButtonConfig.button_class || '').trim();
+                    var triggerClassSource = String(buttonMeta.button_class || '').trim();
                     var triggerClassParts = triggerClassSource ? triggerClassSource.split(/\s+/) : [];
                     if (triggerClassParts.indexOf('btn') === -1) { triggerClassParts.unshift('btn'); }
                     var hasSizeClass = triggerClassParts.some(function(part) {
@@ -15174,39 +15173,9 @@ CSS;
                     if (triggerClassParts.indexOf('fastcrud-action-button') === -1) { triggerClassParts.push('fastcrud-action-button'); }
                     if (triggerClassParts.indexOf('fastcrud-multi-link-trigger') === -1) { triggerClassParts.push('fastcrud-multi-link-trigger'); }
 
-                    var triggerOptions = {};
-                    if (multiLinkButtonConfig.options && typeof multiLinkButtonConfig.options === 'object') {
-                        Object.keys(multiLinkButtonConfig.options).forEach(function(optionKey) {
-                            if (!Object.prototype.hasOwnProperty.call(multiLinkButtonConfig.options, optionKey)) {
-                                return;
-                            }
-                            var normalizedKey = String(optionKey);
-                            if (!/^[A-Za-z0-9_:-]+$/.test(normalizedKey)) {
-                                return;
-                            }
-                            var optionValue = multiLinkButtonConfig.options[optionKey];
-                            if (optionValue === null || typeof optionValue === 'undefined') {
-                                return;
-                            }
-                            triggerOptions[normalizedKey] = String(optionValue);
-                        });
-                    }
-                    if (buttonMeta && buttonMeta.options && typeof buttonMeta.options === 'object') {
-                        Object.keys(buttonMeta.options).forEach(function(optionKey) {
-                            if (!Object.prototype.hasOwnProperty.call(buttonMeta.options, optionKey)) {
-                                return;
-                            }
-                            var normalizedKey = String(optionKey);
-                            if (!/^[A-Za-z0-9_:-]+$/.test(normalizedKey)) {
-                                return;
-                            }
-                            var optionValue = buttonMeta.options[optionKey];
-                            if (optionValue === null || typeof optionValue === 'undefined') {
-                                return;
-                            }
-                            triggerOptions[normalizedKey] = String(optionValue);
-                        });
-                    }
+                    var triggerOptions = buttonMeta.options && typeof buttonMeta.options === 'object'
+                        ? Object.assign({}, buttonMeta.options)
+                        : {};
                     var triggerOptionClassRaw = '';
                     if (Object.prototype.hasOwnProperty.call(triggerOptions, 'class')) {
                         triggerOptionClassRaw = String(triggerOptions['class'] || '').trim();
@@ -15272,13 +15241,7 @@ CSS;
                     });
                     triggerClassParts = uniqueTriggerClassParts;
 
-                    var triggerLabel = '';
-                    if (buttonMeta && typeof buttonMeta.label === 'string') {
-                        triggerLabel = buttonMeta.label.trim();
-                    }
-                    if (!triggerLabel && typeof multiLinkButtonConfig.label === 'string') {
-                        triggerLabel = String(multiLinkButtonConfig.label || '').trim();
-                    }
+                    var triggerLabel = typeof buttonMeta.label === 'string' ? buttonMeta.label.trim() : '';
 
                     if (!triggerHasAria) {
                         var triggerAriaLabel = triggerLabel ? triggerLabel : 'Open menu';
@@ -15301,13 +15264,7 @@ CSS;
                     }
 
                     var triggerClassAttr = triggerClassParts.join(' ');
-                    var triggerIconClass = '';
-                    if (buttonMeta && typeof buttonMeta.icon === 'string') {
-                        triggerIconClass = buttonMeta.icon.trim();
-                    }
-                    if (!triggerIconClass && typeof multiLinkButtonConfig.icon === 'string') {
-                        triggerIconClass = multiLinkButtonConfig.icon.trim();
-                    }
+                    var triggerIconClass = typeof buttonMeta.icon === 'string' ? buttonMeta.icon.trim() : '';
                     var triggerIconHtml = triggerIconClass
                         ? '<i class="fastcrud-multi-link-icon ' + escapeHtml(triggerIconClass) + '"></i>'
                         : '';
@@ -15322,7 +15279,10 @@ CSS;
                         triggerContent = '<span class="visually-hidden">Open menu</span>';
                     }
 
-                    var menuClassSource = String(multiLinkButtonConfig.menu_class || '').trim();
+                    var menuClassSource = String(buttonMeta.menu_class || '').trim();
+                    if (!menuClassSource) {
+                        menuClassSource = 'dropdown-menu dropdown-menu-end';
+                    }
                     var menuClassParts = menuClassSource ? menuClassSource.split(/\s+/) : [];
                     if (menuClassParts.indexOf('dropdown-menu') === -1) {
                         menuClassParts.unshift('dropdown-menu');
@@ -15341,7 +15301,10 @@ CSS;
                     });
                     var menuClassAttr = uniqueMenuClassParts.join(' ');
 
-                    var containerClassSource = String(multiLinkButtonConfig.container_class || '').trim();
+                    var containerClassSource = String(buttonMeta.container_class || '').trim();
+                    if (!containerClassSource) {
+                        containerClassSource = 'btn-group';
+                    }
                     var containerClassParts = containerClassSource ? containerClassSource.split(/\s+/) : [];
                     if (containerClassParts.indexOf('fastcrud-action-button-group') === -1) {
                         containerClassParts.push('fastcrud-action-button-group');
@@ -15371,7 +15334,7 @@ CSS;
                     var menuHtml = '<ul class="' + escapeHtml(menuClassAttr) + '" role="menu">' + dropdownItems.join('') + '</ul>';
 
                     fragments.push('<div class="' + escapeHtml(containerClassAttr) + '">' + triggerHtml + menuHtml + '</div>');
-                }
+                });
             }
 
             if (duplicateEnabled) {

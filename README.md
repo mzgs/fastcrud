@@ -792,13 +792,14 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $crud->enable_export_excel();
   ```
-- **`link_button(string $url, string $iconClass, ?string $label = null, ?string $buttonClass = null, array $options = []): self`** – Add a custom toolbar button; the `$options` array lets you set HTML attributes like `['target' => '_blank']`.
+- **`add_link_button(string $url, string $iconClass, ?string $label = null, ?string $buttonClass = null, array $options = []): self`** – Append a custom toolbar button; call it multiple times to stack more buttons. The `$options` array lets you set arbitrary HTML attributes like `['target' => '_blank']`.
   ```php
-  $crud->link_button('/reports', 'fas fa-file-alt', 'Reports', 'btn btn-sm btn-outline-info', ['target' => '_blank']);
+  $crud->add_link_button('/reports', 'fas fa-file-alt', 'Reports', 'btn btn-sm btn-outline-info', ['target' => '_blank']);
+  $crud->add_link_button('/reports/export', 'fas fa-download', 'Export', 'btn btn-sm btn-secondary');
   ```
-- **`multi_link_button(array $mainButton = [], array $items = []): self`** – Add a dropdown button that expands into multiple links. Supply at least one entry in `$items`, each with `'url'` and `'label'` plus optional `'icon'` and `'options'` for per-link attributes (placeholders like `{id}` are resolved per-row). `$mainButton` configures the trigger with keys such as `'icon'`, `'label'`, `'button_class'`, `'menu_class'`, `'container_class'`, and `'options'`; omit any key to fall back to sensible defaults.
+- **`add_multi_link_button(array $mainButton = [], array $items = []): self`** – Append a dropdown button that expands into multiple links. Supply at least one entry in `$items`, each with `'url'` and `'label'` plus optional `'icon'` and `'options'` for per-link attributes (placeholders like `{id}` are resolved per-row). `$mainButton` configures the trigger with keys such as `'icon'`, `'label'`, `'button_class'`, `'menu_class'`, `'container_class'`, and `'options'`; omit any key to fall back to sensible defaults. Invoke this repeatedly to add more dropdown clusters.
   ```php
-  $crud->multi_link_button([
+  $crud->add_multi_link_button([
       'icon' => 'fas fa-ellipsis-h',
       'label' => 'More Actions',
       'options' => ['data-bs-auto-close' => 'outside'],
@@ -1016,7 +1017,7 @@ Customize default CSS classes for buttons, rows, and components throughout FastC
 
 - **`CrudStyle::$add_button_class`** – Add new record button (default: `'btn btn-sm btn-success'`)
 - **`CrudStyle::$toolbar_action_button_global_class`** – Apply the same classes to all toolbar action buttons (default: `''`, values override individual toolbar buttons unless explicitly customised)
-- **`CrudStyle::$link_button_class`** – Custom link buttons added via `link_button()` (default: `'btn btn-sm btn-outline-secondary'`)
+- **`CrudStyle::$link_button_class`** – Custom link buttons added via `add_link_button()` (default: `'btn btn-sm btn-outline-secondary'`)
 - **`CrudStyle::$search_button_class`** – Search form submit button (default: `'btn btn-outline-primary'`)
 - **`CrudStyle::$search_clear_button_class`** – Search form clear button (default: `'btn btn-outline-secondary'`)
 - **`CrudStyle::$filters_button_class`** – Query builder filters toggle button (default: `'btn btn-sm btn-outline-secondary'`)

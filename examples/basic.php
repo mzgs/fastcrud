@@ -156,7 +156,7 @@ DatabaseEditor::init();
                         'confirm' => 'Flag all chosen records?',
                     ])
 
-                    ->multi_link_button([
+                    ->add_multi_link_button([
                         'icon' => 'fas fa-globe',
                         'label' => 'Actions'
                     ], [
@@ -235,7 +235,16 @@ DatabaseEditor::init();
                     // ->column_width('title', '30%')
                     ->column_cut('content', 30)
                     ->setPanelWidth('30%')
-                    ->link_button('example.com?id={id}', 'fas fa-user', '', 'btn btn-info text-white', ['target' => '_blank', 'class' => 'me-2'] )
+                    ->add_multi_link_button([
+                        'icon' => 'fas fa-gears',
+                        'label' => 'More',
+                        'button_class' => 'btn btn-sm btn-outline-secondary'
+                    ], [
+                        ['url' => '/customers/{id}/invoices', 'label' => 'Invoices', 'icon' => 'fas fa-file-invoice'],
+                        ['url' => '/customers/{id}/support', 'label' => 'Support Tickets', 'icon' => 'fas fa-life-ring']
+                    ])
+                    ->add_link_button('example.com?id={id}', 'fas fa-user', '', 'btn btn-info text-white', ['target' => '_blank', 'class' => 'me-2'] )
+                    ->add_link_button('example.com?id={id}', 'fas fa-user', '', 'btn btn-info text-white', ['target' => '_blank', 'class' => 'me-2'] )
                   
                     // ->change_type('title', 'textarea','',['rows' => 12])
                   
