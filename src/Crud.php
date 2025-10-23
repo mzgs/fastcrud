@@ -196,7 +196,7 @@ class Crud
     public static function init(PDO|array|null $dbConfig = null): void
     {
         if ($dbConfig instanceof PDO) {
-            DB::setConnection($dbConfig);
+            Database::setConnection($dbConfig);
         } elseif ($dbConfig !== null) {
             CrudConfig::setDbConfig($dbConfig);
         }
@@ -216,7 +216,7 @@ class Crud
         }
 
         $this->table      = $table;
-        $this->connection = $connection ?? DB::connection();
+        $this->connection = $connection ?? Database::connection();
         $this->id         = $this->generateId();
 
         $this->config['select2'] = CrudConfig::$enable_select2;

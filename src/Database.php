@@ -8,7 +8,7 @@ use PDO;
 use PDOException;
 use RuntimeException;
 
-class DB
+class Database
 {
     private static ?PDO $connection = null;
 

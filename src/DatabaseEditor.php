@@ -28,7 +28,7 @@ class DatabaseEditor
     public static function init(?PDO $pdo = null): void
     {
         if ($pdo !== null) {
-            DB::setConnection($pdo);
+            Database::setConnection($pdo);
         }
 
         self::$initialized = true;
@@ -42,7 +42,7 @@ class DatabaseEditor
             self::init();
         }
 
-        $connection = DB::connection();
+        $connection = Database::connection();
         $driver = self::detectDriver($connection);
         self::handleRequest($connection, $driver);
 
@@ -146,7 +146,7 @@ class DatabaseEditor
         }
 
         try {
-            $connection = DB::connection();
+            $connection = Database::connection();
             $driver = self::detectDriver($connection);
             self::$downloadHandled = true;
             self::handleDownloadDatabase($connection, $driver);
