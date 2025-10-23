@@ -10981,7 +10981,7 @@ HTML;
      *
      * @return array<string, mixed>|null
      */
-    private function findRowByPrimaryKey(string $primaryKeyColumn, mixed $primaryKeyValue): ?array
+    private function findRowByPrimaryKey(string $primaryKeyColumn, mixed $primaryKeyValue, string $mode = 'edit'): ?array
     {
         $primaryKeySql = $this->quotePrimaryKeyColumnName($primaryKeyColumn);
         $sql       = sprintf('SELECT * FROM %s WHERE %s = :pk LIMIT 1', $this->table, $primaryKeySql);
@@ -11007,7 +11007,12 @@ HTML;
         $row['__fastcrud_primary_key'] = $primaryKey;
         $row['__fastcrud_primary_value'] = $row[$primaryKey] ?? null;
 
-        return $this->applyFieldCallbacksToRow($row, 'edit');
+        $resolvedMode = $this->normalizeRenderMode($mode) ?? 'edit';
+
+        $row = $this->applyFieldCallbacksToRow($row, $resolvedMode);
+        $row['__fastcrud_render_mode'] = $resolvedMode;
+
+        return $row;
     }
 
     /**
@@ -11015,12 +11020,14 @@ HTML;
      *
      * @return array<string, mixed>|null
      */
-    public function getRecord(string $primaryKeyColumn, mixed $primaryKeyValue): ?array
+    public function getRecord(string $primaryKeyColumn, mixed $primaryKeyValue, string $mode = 'edit'): ?array
     {
         $primaryKeyColumn = trim($primaryKeyColumn);
         if ($primaryKeyColumn === '') {
             throw new InvalidArgumentException('Primary key column is required.');
         }
+
+        $resolvedMode = $this->normalizeRenderMode($mode) ?? 'edit';
 
         // Validate against base table columns (not just visible columns)
         $columns = $this->getTableColumnsFor($this->table);
@@ -11032,6 +11039,7 @@ HTML;
         $beforePayload = [
             'primary_key_column' => $primaryKeyColumn,
             'primary_key_value'  => $primaryKeyValue,
+            'mode'               => $resolvedMode,
         ];
 
         $beforeContext = [
@@ -11039,6 +11047,7 @@ HTML;
             'stage'     => 'before',
             'table'     => $this->table,
             'id'        => $this->id,
+            'mode'      => $resolvedMode,
         ];
 
         $beforeRead = $this->dispatchLifecycleEvent('before_read', $beforePayload, $beforeContext, true);
@@ -11067,12 +11076,20 @@ HTML;
             $primaryKeyValue = $resolvedBeforePayload['primary_key_value'];
         }
 
-        $row = $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
+        if (isset($resolvedBeforePayload['mode'])) {
+            $candidateMode = $this->normalizeRenderMode((string) $resolvedBeforePayload['mode']);
+            if ($candidateMode !== null) {
+                $resolvedMode = $candidateMode;
+            }
+        }
+
+        $row = $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue, $resolvedMode);
 
         $afterPayload = [
             'row'                => $row,
             'primary_key_column' => $primaryKeyColumn,
             'primary_key_value'  => $primaryKeyValue,
+            'mode'               => $resolvedMode,
         ];
 
         $afterContext = [
@@ -11081,6 +11098,7 @@ HTML;
             'table'     => $this->table,
             'id'        => $this->id,
             'found'     => $row !== null,
+            'mode'      => $resolvedMode,
         ];
 
         $afterRead = $this->dispatchLifecycleEvent('after_read', $afterPayload, $afterContext, true);
@@ -11091,7 +11109,12 @@ HTML;
             }
         }
 
-        return is_array($row) ? $row : null;
+        $row = is_array($row) ? $row : null;
+        if ($row !== null) {
+            $row['__fastcrud_render_mode'] = $resolvedMode;
+        }
+
+        return $row;
     }
 
     /**
@@ -16306,7 +16329,7 @@ CSS;
             loadingNotice.append($('<span></span>').text('Fetching nested records...'));
             wrapper.append(loadingNotice);
 
-            fetchRowByPk(pkInfo.column, pkInfo.value).then(function(rowData) {
+            fetchRowByPk(pkInfo.column, pkInfo.value, 'edit').then(function(rowData) {
                 wrapper.empty();
                 renderNestedSections(wrapper, nestedTablesConfig, rowData, pkInfo, rowKey);
             }).catch(function(error) {
@@ -18441,13 +18464,20 @@ CSS;
             return { column: pkCol, value: pkVal };
         }
 
-        function rowCacheKey(pkCol, pkVal) {
-            return tableId + '::' + String(pkCol) + '::' + String(pkVal);
+        function rowCacheKey(pkCol, pkVal, mode) {
+            return tableId + '::' + String(pkCol) + '::' + String(pkVal) + '::' + String(mode || 'edit');
         }
 
-        function fetchRowByPk(pkCol, pkVal) {
-            var key = rowCacheKey(pkCol, pkVal);
-            if (rowCache[key]) { return Promise.resolve(rowCache[key]); }
+        function fetchRowByPk(pkCol, pkVal, mode) {
+            var normalizedMode = typeof mode === 'string' ? mode.toLowerCase() : '';
+            if (['create', 'edit', 'view'].indexOf(normalizedMode) === -1) {
+                normalizedMode = 'edit';
+            }
+
+            var key = rowCacheKey(pkCol, pkVal, normalizedMode);
+            if (rowCache[key]) {
+                return Promise.resolve(deepClone(rowCache[key]));
+            }
             return new Promise(function(resolve, reject) {
                 $.ajax({
                     url: window.location.pathname,
@@ -18460,12 +18490,17 @@ CSS;
                         id: tableId,
                         primary_key_column: pkCol,
                         primary_key_value: pkVal,
+                        render_mode: normalizedMode,
                         config: JSON.stringify(clientConfig)
                     },
                     success: function(response) {
                         if (response && response.success && response.row) {
-                            rowCache[key] = response.row;
-                            resolve(response.row);
+                            var row = response.row;
+                            if (row && typeof row === 'object') {
+                                row.__fastcrud_render_mode = normalizedMode;
+                            }
+                            rowCache[key] = row;
+                            resolve(deepClone(row));
                         } else {
                             reject(new Error(response && response.error ? response.error : 'Record not found'));
                         }
@@ -18577,7 +18612,7 @@ CSS;
             var committing = false;
             var skipInitialCommit = true;
 
-            fetchRowByPk(pk.column, pk.value).then(function(row){
+            fetchRowByPk(pk.column, pk.value, 'edit').then(function(row){
                 var startValue = row && Object.prototype.hasOwnProperty.call(row, fieldKey) ? (row[fieldKey] == null ? '' : String(row[fieldKey])) : '';
                 if (changeType === 'color') {
                     input.val(ensureColor(startValue)).focus();
@@ -18741,7 +18776,7 @@ CSS;
             if (!pk) { showError('Unable to determine primary key for viewing.'); return false; }
             var tr = $(this).closest('tr');
             highlightRow(tr);
-            fetchRowByPk(pk.column, pk.value)
+            fetchRowByPk(pk.column, pk.value, 'view')
                 .then(function(row){
                     showViewPanel(row || {});
                     highlightRow(tr);
@@ -18758,7 +18793,7 @@ CSS;
             highlightRow(tr);
             var pk = getPkInfoFromElement(this);
             if (!pk) { showError('Unable to determine primary key for editing.'); return false; }
-            fetchRowByPk(pk.column, pk.value)
+            fetchRowByPk(pk.column, pk.value, 'edit')
                 .then(function(row){
                     showEditForm(row || {});
                     highlightRow(tr);
@@ -19275,7 +19310,7 @@ CSS;
             }
 
             if (initialMode === 'view') {
-                fetchRowByPk(resolvedPrimary, initialPrimaryKeyValue)
+                fetchRowByPk(resolvedPrimary, initialPrimaryKeyValue, 'view')
                     .then(function(row) {
                         showViewPanel(row || {});
                     })
@@ -19286,7 +19321,7 @@ CSS;
             }
 
             editForm.data('mode', 'edit');
-            fetchRowByPk(resolvedPrimary, initialPrimaryKeyValue)
+            fetchRowByPk(resolvedPrimary, initialPrimaryKeyValue, 'edit')
                 .then(function(row) {
                     showEditForm(row || {});
                 })

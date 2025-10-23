@@ -50,18 +50,26 @@ function render_status_badge(array $row): string
 
 function create_color_picker($field, $value, $row, $mode)
 {
- 
     $value = htmlspecialchars($value ?? '#000000');
+
+    if ($mode === 'view') {
+        $hexDisplay = strtoupper($value);
+
+        return <<<HTML
+            <div style="color:red">  test </div>
+        HTML;
+    }
+
     return <<<HTML
-          <input
-              type="color"
-              class="form-control form-control-color"
-              name="{$field}"
-              data-fastcrud-field="{$field}"
-              value="{$value}"
-              title="Choose your color"
-          >
-      HTML;
+        <input
+            type="color"
+            class="form-control form-control-color"
+            name="{$field}"
+            data-fastcrud-field="{$field}"
+            value="{$value}"
+            title="Choose your color"
+        >
+    HTML;
 }
 
 function render_status_note_field(string $field, mixed $value, array $row, string $formType): string
@@ -238,7 +246,8 @@ DatabaseEditor::init();
                     ->column_callback('content', 'content_callback')
                     // Add a custom, computed column that isn't stored in the database
                     ->custom_column('status_label', 'render_status_badge')
-                    // ->field_callback('color', 'create_color_picker')
+                    // Render a color swatch in view mode while keeping color picker for forms
+                    ->field_callback('color', 'create_color_picker')
                     ->column_class('user_id', 'text-muted')
                     // ->column_width('title', '30%')
                     ->column_cut('content', 30)

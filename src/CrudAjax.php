@@ -190,13 +190,44 @@ class CrudAjax
             $request['config'] ?? null
         );
 
-        $row = $crud->getRecord((string) $request['primary_key_column'], $request['primary_key_value']);
+        $mode = 'edit';
+        foreach (['render_mode', 'mode'] as $modeKey) {
+            if (!isset($request[$modeKey]) || !is_string($request[$modeKey])) {
+                continue;
+            }
+
+            $candidate = strtolower(trim($request[$modeKey]));
+            if ($candidate === '') {
+                continue;
+            }
+
+            switch ($candidate) {
+                case 'create':
+                case 'add':
+                case 'insert':
+                    $mode = 'create';
+                    break 2;
+                case 'view':
+                case 'read':
+                    $mode = 'view';
+                    break 2;
+                case 'edit':
+                case 'update':
+                    $mode = 'edit';
+                    break 2;
+                default:
+                    break;
+            }
+        }
+
+        $row = $crud->getRecord((string) $request['primary_key_column'], $request['primary_key_value'], $mode);
 
         self::respond([
             'success' => $row !== null,
             'row' => $row,
             'columns' => $row !== null ? array_keys($row) : [],
             'id' => $request['id'] ?? null,
+            'mode' => $mode,
         ], $row !== null ? 200 : 404);
     }
 
