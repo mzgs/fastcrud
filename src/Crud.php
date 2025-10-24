@@ -17021,6 +17021,15 @@ CSS;
 
             destroyRichEditors(editFieldsContainer);
             destroySelect2(editFieldsContainer);
+
+            var editSectionRegistry = editFieldsContainer.data('fastcrud-section-keys');
+            if (Array.isArray(editSectionRegistry)) {
+                editSectionRegistry.forEach(function(key) {
+                    editFieldsContainer.removeData(key);
+                });
+            }
+            editFieldsContainer.removeData('fastcrud-section-keys');
+
             editFieldsContainer.empty();
             editForm.find('input[type="hidden"][data-fastcrud-field]').remove();
 
@@ -17143,7 +17152,22 @@ CSS;
                 var dataKey = 'fastcrud-section-' + sectionId;
                 var cached = parentContainer.data(dataKey);
                 if (cached && cached.body && cached.body.length) {
-                    return cached.body;
+                    if (cached.wrapper && cached.wrapper.length
+                        && parentContainer.length
+                        && parentContainer[0]
+                        && $.contains(parentContainer[0], cached.wrapper[0])) {
+                        return cached.body;
+                    }
+
+                    parentContainer.removeData(dataKey);
+                    var registry = parentContainer.data('fastcrud-section-keys');
+                    if (Array.isArray(registry)) {
+                        var index = registry.indexOf(dataKey);
+                        if (index !== -1) {
+                            registry.splice(index, 1);
+                            parentContainer.data('fastcrud-section-keys', registry);
+                        }
+                    }
                 }
 
                 var meta = getSectionMeta(sectionId) || { id: sectionId };
@@ -17202,6 +17226,15 @@ CSS;
 
                 parentContainer.append(wrapper);
                 parentContainer.data(dataKey, { wrapper: wrapper, body: body });
+
+                var registry = parentContainer.data('fastcrud-section-keys');
+                if (!Array.isArray(registry)) {
+                    registry = [];
+                }
+                if (registry.indexOf(dataKey) === -1) {
+                    registry.push(dataKey);
+                    parentContainer.data('fastcrud-section-keys', registry);
+                }
 
                 return body;
             }
@@ -18425,6 +18458,14 @@ CSS;
                 return;
             }
 
+            var viewSectionRegistry = viewContentContainer.data('fastcrud-view-section-keys');
+            if (Array.isArray(viewSectionRegistry)) {
+                viewSectionRegistry.forEach(function(key) {
+                    viewContentContainer.removeData(key);
+                });
+            }
+            viewContentContainer.removeData('fastcrud-view-section-keys');
+
             viewContentContainer.empty();
             viewEmptyNotice.addClass('d-none').text('No record selected.');
 
@@ -18585,7 +18626,22 @@ CSS;
                 var dataKey = 'fastcrud-view-section-' + effectiveSection;
                 var cached = parentContainer.data(dataKey);
                 if (cached && cached.list && cached.list.length) {
-                    return cached.list;
+                    if (cached.wrapper && cached.wrapper.length
+                        && parentContainer.length
+                        && parentContainer[0]
+                        && $.contains(parentContainer[0], cached.wrapper[0])) {
+                        return cached.list;
+                    }
+
+                    parentContainer.removeData(dataKey);
+                    var viewRegistry = parentContainer.data('fastcrud-view-section-keys');
+                    if (Array.isArray(viewRegistry)) {
+                        var idx = viewRegistry.indexOf(dataKey);
+                        if (idx !== -1) {
+                            viewRegistry.splice(idx, 1);
+                            parentContainer.data('fastcrud-view-section-keys', viewRegistry);
+                        }
+                    }
                 }
 
                 var meta = getViewSectionMeta(effectiveSection) || { id: effectiveSection };
@@ -18646,6 +18702,15 @@ CSS;
 
                 parentContainer.append(wrapper);
                 parentContainer.data(dataKey, { wrapper: wrapper, list: list });
+
+                var viewRegistry = parentContainer.data('fastcrud-view-section-keys');
+                if (!Array.isArray(viewRegistry)) {
+                    viewRegistry = [];
+                }
+                if (viewRegistry.indexOf(dataKey) === -1) {
+                    viewRegistry.push(dataKey);
+                    parentContainer.data('fastcrud-view-section-keys', viewRegistry);
+                }
 
                 return list;
             }
