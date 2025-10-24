@@ -184,6 +184,7 @@ class Crud
                 'unique' => [],
             ],
             'all_columns' => [],
+            'sections' => [],
         ],
     ];
 
@@ -909,6 +910,23 @@ class Crud
         return array_keys($normalized);
     }
 
+    private function normalizeSectionIdentifier(string $identifier): string
+    {
+        $trimmed = trim($identifier);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $normalized = preg_replace('/[^A-Za-z0-9_-]+/', '_', $trimmed);
+        if (!is_string($normalized)) {
+            $normalized = $trimmed;
+        }
+
+        $normalized = strtolower(trim($normalized, '_-'));
+
+        return $normalized;
+    }
+
     private function ensureFormLayoutBuckets(): void
     {
         if (!isset($this->config['form']['layouts']) || !is_array($this->config['form']['layouts'])) {
@@ -923,6 +941,23 @@ class Crud
 
         if (!isset($this->config['form']['layouts']['all']) || !is_array($this->config['form']['layouts']['all'])) {
             $this->config['form']['layouts']['all'] = [];
+        }
+    }
+
+    private function ensureFormSectionBuckets(): void
+    {
+        if (!isset($this->config['form']['sections']) || !is_array($this->config['form']['sections'])) {
+            $this->config['form']['sections'] = [];
+        }
+
+        foreach (self::SUPPORTED_FORM_MODES as $mode) {
+            if (!isset($this->config['form']['sections'][$mode]) || !is_array($this->config['form']['sections'][$mode])) {
+                $this->config['form']['sections'][$mode] = [];
+            }
+        }
+
+        if (!isset($this->config['form']['sections']['all']) || !is_array($this->config['form']['sections']['all'])) {
+            $this->config['form']['sections']['all'] = [];
         }
     }
 
@@ -967,7 +1002,7 @@ class Crud
         }
     }
 
-    private function storeLayoutEntry(array $fields, bool $reverse, ?string $tab, array $modes): void
+    private function storeLayoutEntry(array $fields, bool $reverse, ?string $tab, array $modes, ?string $section = null): void
     {
         $this->ensureFormLayoutBuckets();
 
@@ -976,6 +1011,10 @@ class Crud
             'reverse' => $reverse,
             'tab'     => $tab,
         ];
+
+        if ($section !== null && $section !== '') {
+            $entry['section'] = $section;
+        }
 
         foreach ($modes as $mode) {
             $bucket = $mode === 'all' ? 'all' : $mode;
@@ -1201,6 +1240,7 @@ class Crud
     private function mergeFormConfig(array $form): void
     {
         $this->ensureFormLayoutBuckets();
+        $this->ensureFormSectionBuckets();
         $this->ensureFormBehaviourBuckets();
         $this->ensureDefaultTabBuckets();
 
@@ -1247,14 +1287,106 @@ class Crud
                         $tab = $tabCandidate === '' ? null : $tabCandidate;
                     }
 
+                    $section = null;
+                    if (isset($entry['section']) && is_string($entry['section'])) {
+                        $sectionCandidate = $this->normalizeSectionIdentifier($entry['section']);
+                        $section = $sectionCandidate === '' ? null : $sectionCandidate;
+                    }
+
                     $normalizedEntries[] = [
                         'fields'  => array_values(array_unique($fields)),
                         'reverse' => $reverse,
                         'tab'     => $tab,
+                        'section' => $section,
                     ];
                 }
 
                 $this->config['form']['layouts'][$bucket] = $normalizedEntries;
+            }
+        }
+
+        if (isset($form['sections']) && is_array($form['sections'])) {
+            foreach ($form['sections'] as $mode => $entries) {
+                if (!is_string($mode) || !is_array($entries)) {
+                    continue;
+                }
+
+                $bucket = strtolower(trim($mode));
+                if ($bucket === '') {
+                    continue;
+                }
+
+                $normalizedSections = [];
+                foreach ($entries as $key => $entry) {
+                    if (!is_array($entry)) {
+                        continue;
+                    }
+
+                    $rawId = null;
+                    if (isset($entry['id']) && is_string($entry['id'])) {
+                        $rawId = $entry['id'];
+                    } elseif (is_string($key)) {
+                        $rawId = $key;
+                    }
+
+                    $sectionId = $rawId !== null ? $this->normalizeSectionIdentifier($rawId) : '';
+                    if ($sectionId === '') {
+                        continue;
+                    }
+
+                    $rawFields = $entry['fields'] ?? [];
+                    $fieldList = [];
+                    if (is_string($rawFields) || is_array($rawFields)) {
+                        $fieldList = $this->normalizeList($rawFields);
+                    }
+
+                    if ($fieldList === []) {
+                        continue;
+                    }
+
+                    $normalizedFields = [];
+                    foreach ($fieldList as $field) {
+                        $normalizedField = $this->normalizeColumnReference($field);
+                        if ($normalizedField !== '') {
+                            $normalizedFields[] = $normalizedField;
+                        }
+                    }
+
+                    if ($normalizedFields === []) {
+                        continue;
+                    }
+
+                    $title = null;
+                    if (isset($entry['title']) && is_string($entry['title'])) {
+                        $trimmedTitle = trim($entry['title']);
+                        $title = $trimmedTitle === '' ? null : $trimmedTitle;
+                    }
+
+                    $description = null;
+                    if (isset($entry['description']) && is_string($entry['description'])) {
+                        $trimmedDescription = trim($entry['description']);
+                        $description = $trimmedDescription === '' ? null : $trimmedDescription;
+                    }
+
+                    $collapsible = !empty($entry['collapsible']);
+                    $collapsed = false;
+                    if (isset($entry['collapsed'])) {
+                        $collapsed = (bool) $entry['collapsed'];
+                    } elseif (isset($entry['start_collapsed'])) {
+                        $collapsed = (bool) $entry['start_collapsed'];
+                    }
+
+                    $normalizedSections[$sectionId] = [
+                        'id'          => $sectionId,
+                        'title'       => $title,
+                        'description' => $description,
+                        'fields'      => array_values(array_unique($normalizedFields)),
+                        'collapsible' => $collapsible,
+                        'collapsed'   => $collapsible ? $collapsed : false,
+                    ];
+                }
+
+                $this->config['form']['sections'][$bucket] = $normalizedSections;
             }
         }
 
@@ -3926,7 +4058,13 @@ class Crud
      * @param string|array<int, string> $fields
      * @param string|array<int, string>|false $mode
      */
-    public function fields(string|array $fields, bool $reverse = false, string|false $tab = false, string|array|false $mode = false): self
+    public function fields(
+        string|array $fields,
+        bool $reverse = false,
+        string|false $tab = false,
+        string|array|false $mode = false,
+        string|false $section = false
+    ): self
     {
         $list = $this->normalizeList($fields);
         if ($list === []) {
@@ -3951,8 +4089,104 @@ class Crud
             $tabName = $candidate === '' ? null : $candidate;
         }
 
+        $sectionName = null;
+        if ($section !== false) {
+            $sectionCandidate = $this->normalizeSectionIdentifier((string) $section);
+            $sectionName = $sectionCandidate === '' ? null : $sectionCandidate;
+        }
+
         $modes = $this->normalizeFormModes($mode);
-        $this->storeLayoutEntry($normalizedFields, $reverse, $tabName, $modes);
+        $this->storeLayoutEntry($normalizedFields, $reverse, $tabName, $modes, $sectionName);
+
+        return $this;
+    }
+
+    /**
+     * Define a named section for form rendering.
+     *
+     * @param array<string, mixed> $definition
+     * @param string|array<int, string>|false $mode
+     */
+    public function form_section(string $identifier, array $definition, string|array|false $mode = false): self
+    {
+        $sectionId = $this->normalizeSectionIdentifier($identifier);
+        if ($sectionId === '') {
+            throw new InvalidArgumentException('Section identifier cannot be empty.');
+        }
+
+        if (!isset($definition['fields'])) {
+            throw new InvalidArgumentException('Section definition must include a "fields" entry.');
+        }
+
+        $fields = $this->normalizeList($definition['fields']);
+        if ($fields === []) {
+            throw new InvalidArgumentException(sprintf('Section "%s" requires at least one field.', $sectionId));
+        }
+
+        $normalizedFields = [];
+        foreach ($fields as $field) {
+            $normalized = $this->normalizeColumnReference($field);
+            if ($normalized !== '') {
+                $normalizedFields[] = $normalized;
+            }
+        }
+
+        if ($normalizedFields === []) {
+            throw new InvalidArgumentException(sprintf('Section "%s" requires at least one valid field.', $sectionId));
+        }
+
+        $title = null;
+        if (isset($definition['title']) && is_string($definition['title'])) {
+            $trimmedTitle = trim($definition['title']);
+            $title = $trimmedTitle === '' ? null : $trimmedTitle;
+        }
+
+        $description = null;
+        if (isset($definition['description']) && is_string($definition['description'])) {
+            $trimmedDescription = trim($definition['description']);
+            $description = $trimmedDescription === '' ? null : $trimmedDescription;
+        }
+
+        $collapsible = !empty($definition['collapsible']);
+        $collapsed = false;
+        if (isset($definition['collapsed'])) {
+            $collapsed = (bool) $definition['collapsed'];
+        } elseif (isset($definition['start_collapsed'])) {
+            $collapsed = (bool) $definition['start_collapsed'];
+        }
+
+        $modes = $this->normalizeFormModes($definition['mode'] ?? $mode);
+
+        $this->ensureFormSectionBuckets();
+
+        $sectionEntry = [
+            'id'          => $sectionId,
+            'title'       => $title,
+            'description' => $description,
+            'fields'      => array_values(array_unique($normalizedFields)),
+            'collapsible' => $collapsible,
+            'collapsed'   => $collapsible ? $collapsed : false,
+        ];
+
+        foreach ($modes as $targetMode) {
+            $bucket = $targetMode === 'all' ? 'all' : $targetMode;
+            if (!isset($this->config['form']['sections'][$bucket]) || !is_array($this->config['form']['sections'][$bucket])) {
+                $this->config['form']['sections'][$bucket] = [];
+            }
+            $this->config['form']['sections'][$bucket][$sectionId] = $sectionEntry;
+        }
+
+        $this->storeLayoutEntry($normalizedFields, false, null, $modes, $sectionId);
+
+        if (!isset($this->config['form']['all_columns']) || !is_array($this->config['form']['all_columns'])) {
+            $this->config['form']['all_columns'] = [];
+        }
+
+        foreach ($normalizedFields as $field) {
+            if (!in_array($field, $this->config['form']['all_columns'], true)) {
+                $this->config['form']['all_columns'][] = $field;
+            }
+        }
 
         return $this;
     }
@@ -7622,17 +7856,102 @@ HTML;
                         continue;
                     }
 
+                    $section = null;
+                    if (isset($entry['section']) && is_string($entry['section'])) {
+                        $sectionCandidate = $this->normalizeSectionIdentifier($entry['section']);
+                        if ($sectionCandidate !== '') {
+                            $section = $sectionCandidate;
+                        }
+                    }
+
                     $normalizedEntries[] = [
                         'fields'  => $fields,
                         'reverse' => !empty($entry['reverse']),
                         'tab'     => isset($entry['tab']) && is_string($entry['tab']) && $entry['tab'] !== ''
                             ? $entry['tab']
                             : null,
+                        'section' => $section,
                     ];
                 }
 
                 if ($normalizedEntries !== []) {
                     $layouts[$mode] = $normalizedEntries;
+                }
+            }
+        }
+
+        $sections = [];
+        if (isset($this->config['form']['sections']) && is_array($this->config['form']['sections'])) {
+            foreach ($this->config['form']['sections'] as $mode => $entries) {
+                if (!is_array($entries)) {
+                    continue;
+                }
+
+                $normalizedSections = [];
+                foreach ($entries as $entry) {
+                    if (!is_array($entry)) {
+                        continue;
+                    }
+
+                    $sectionId = null;
+                    if (isset($entry['id']) && is_string($entry['id'])) {
+                        $candidate = $this->normalizeSectionIdentifier($entry['id']);
+                        if ($candidate !== '') {
+                            $sectionId = $candidate;
+                        }
+                    }
+
+                    if ($sectionId === null && isset($entry['section']) && is_string($entry['section'])) {
+                        $candidate = $this->normalizeSectionIdentifier($entry['section']);
+                        if ($candidate !== '') {
+                            $sectionId = $candidate;
+                        }
+                    }
+
+                    if ($sectionId === null) {
+                        continue;
+                    }
+
+                    $fields = [];
+                    if (isset($entry['fields']) && is_array($entry['fields'])) {
+                        foreach ($entry['fields'] as $field) {
+                            if (is_string($field) && isset($columnLookup[$field])) {
+                                $fields[] = $field;
+                            }
+                        }
+                    }
+
+                    if ($fields === []) {
+                        continue;
+                    }
+
+                    $title = null;
+                    if (isset($entry['title']) && is_string($entry['title'])) {
+                        $trimmedTitle = trim($entry['title']);
+                        $title = $trimmedTitle === '' ? null : $trimmedTitle;
+                    }
+
+                    $description = null;
+                    if (isset($entry['description']) && is_string($entry['description'])) {
+                        $trimmedDescription = trim($entry['description']);
+                        $description = $trimmedDescription === '' ? null : $trimmedDescription;
+                    }
+
+                    $collapsible = !empty($entry['collapsible']);
+                    $collapsed = $collapsible && !empty($entry['collapsed']);
+
+                    $normalizedSections[] = [
+                        'id'          => $sectionId,
+                        'title'       => $title,
+                        'description' => $description,
+                        'fields'      => array_values(array_unique($fields)),
+                        'collapsible' => $collapsible,
+                        'collapsed'   => $collapsed,
+                    ];
+                }
+
+                if ($normalizedSections !== []) {
+                    $sections[$mode] = $normalizedSections;
                 }
             }
         }
@@ -7792,6 +8111,7 @@ HTML;
 
         return [
             'layouts'      => $layouts,
+            'sections'     => $sections,
             'default_tabs' => $defaultTabs,
             'behaviours'   => $behaviours,
             'labels'       => $fieldLabels,
@@ -12442,6 +12762,7 @@ CSS;
             behaviours: {},
             labels: {},
             all_columns: [],
+            sections: {},
             templates: {}
         };
         var formTemplates = {};
@@ -13763,6 +14084,7 @@ CSS;
                         behaviours: meta.form.behaviours && typeof meta.form.behaviours === 'object' ? meta.form.behaviours : {},
                         labels: meta.form.labels && typeof meta.form.labels === 'object' ? meta.form.labels : {},
                         all_columns: Array.isArray(meta.form.all_columns) ? meta.form.all_columns.slice() : [],
+                        sections: meta.form.sections && typeof meta.form.sections === 'object' ? meta.form.sections : {},
                         templates: templates
                     };
                     formTemplates = templates;
@@ -13833,6 +14155,7 @@ CSS;
                     behaviours: meta.form.behaviours && typeof meta.form.behaviours === 'object' ? meta.form.behaviours : {},
                     labels: meta.form.labels && typeof meta.form.labels === 'object' ? meta.form.labels : {},
                     all_columns: Array.isArray(meta.form.all_columns) ? meta.form.all_columns : [],
+                    sections: meta.form.sections && typeof meta.form.sections === 'object' ? meta.form.sections : {},
                     templates: liveTemplates
                 };
                 formTemplates = liveTemplates;
@@ -13850,6 +14173,7 @@ CSS;
                     behaviours: {},
                     labels: {},
                     all_columns: [],
+                    sections: {},
                     templates: {}
                 };
                 delete clientConfig.form;
@@ -14761,6 +15085,126 @@ CSS;
             return behaviours;
         }
 
+        function resolveSectionsForMode(mode, availableFields) {
+            var sections = [];
+            var indexLookup = {};
+            var ordering = Array.isArray(availableFields) ? availableFields.slice() : [];
+            var availableLookup = {};
+
+            ordering.forEach(function(field) {
+                availableLookup[field] = true;
+            });
+
+            function listify(source) {
+                if (!source) {
+                    return [];
+                }
+                if (Array.isArray(source)) {
+                    return source.slice();
+                }
+                if (typeof source === 'object') {
+                    return Object.keys(source).map(function(key) {
+                        return source[key];
+                    });
+                }
+                return [];
+            }
+
+            function normalizeId(rawId) {
+                if (typeof rawId !== 'string') {
+                    return '';
+                }
+                var trimmed = rawId.trim();
+                if (!trimmed.length) {
+                    return '';
+                }
+                return trimmed.replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^[_-]+|[_-]+$/g, '').toLowerCase();
+            }
+
+            function collect(entries) {
+                listify(entries).forEach(function(entry) {
+                    if (!entry || typeof entry !== 'object') {
+                        return;
+                    }
+
+                    var rawId = entry.id || entry.section;
+                    var sectionId = normalizeId(rawId || '');
+                    if (!sectionId.length) {
+                        return;
+                    }
+
+                    var rawFields = Array.isArray(entry.fields) ? entry.fields.slice() : [];
+                    if (!rawFields.length) {
+                        return;
+                    }
+
+                    var filteredFields = [];
+                    rawFields.forEach(function(field) {
+                        if (typeof field !== 'string' || !field.length) {
+                            return;
+                        }
+                        if (ordering.length && !availableLookup[field]) {
+                            return;
+                        }
+                        if (filteredFields.indexOf(field) === -1) {
+                            filteredFields.push(field);
+                        }
+                    });
+
+                    if (!filteredFields.length) {
+                        return;
+                    }
+
+                    var title = null;
+                    if (typeof entry.title === 'string') {
+                        var trimmedTitle = entry.title.trim();
+                        title = trimmedTitle.length ? trimmedTitle : null;
+                    }
+
+                    var description = null;
+                    if (typeof entry.description === 'string') {
+                        var trimmedDescription = entry.description.trim();
+                        description = trimmedDescription.length ? trimmedDescription : null;
+                    }
+
+                    var collapsible = !!entry.collapsible;
+                    var collapsed = collapsible && !!entry.collapsed;
+
+                    var normalized = {
+                        id: sectionId,
+                        title: title,
+                        description: description,
+                        fields: filteredFields,
+                        collapsible: collapsible,
+                        collapsed: collapsed
+                    };
+
+                    if (Object.prototype.hasOwnProperty.call(indexLookup, sectionId)) {
+                        sections[indexLookup[sectionId]] = normalized;
+                    } else {
+                        indexLookup[sectionId] = sections.length;
+                        sections.push(normalized);
+                    }
+                });
+            }
+
+            if (formConfig.sections && typeof formConfig.sections === 'object') {
+                collect(formConfig.sections.all);
+                if (mode && Object.prototype.hasOwnProperty.call(formConfig.sections, mode)) {
+                    collect(formConfig.sections[mode]);
+                }
+            }
+
+            var fieldMap = {};
+            sections.forEach(function(section) {
+                section.fields.forEach(function(field) {
+                    fieldMap[field] = section.id;
+                });
+            });
+
+            return { list: sections, map: fieldMap };
+        }
+
         function buildFormLayout(mode) {
             mode = mode || 'edit';
 
@@ -14778,6 +15222,7 @@ CSS;
             var whitelistOrder = [];
             var hiddenFields = {};
             var fieldTabMap = {};
+            var fieldSectionHints = {};
             var tabOrder = [];
             var columnUniverse = baseColumns.length ? baseColumns.slice() : columnsCache.slice();
             var columnLookup = {};
@@ -14791,6 +15236,7 @@ CSS;
                 }
 
                 var tabName = entry.tab && String(entry.tab).length ? String(entry.tab) : null;
+                var sectionName = entry.section && String(entry.section).length ? String(entry.section) : null;
                 var resolvedFields = entry.fields.filter(function(field) {
                     return columnUniverse.length === 0 || columnLookup[field];
                 });
@@ -14819,6 +15265,9 @@ CSS;
                     } else if (!Object.prototype.hasOwnProperty.call(fieldTabMap, field)) {
                         fieldTabMap[field] = null;
                     }
+                    if (sectionName) {
+                        fieldSectionHints[field] = sectionName;
+                    }
                 });
             });
 
@@ -14846,11 +15295,50 @@ CSS;
                 }
             }
 
+            var sectionsInfo = resolveSectionsForMode(mode, ordering);
+            var sectionMetaMap = {};
+            sectionsInfo.list.forEach(function(section) {
+                sectionMetaMap[section.id] = section;
+            });
+
+            Object.keys(fieldSectionHints).forEach(function(field) {
+                if (!columnLookup[field]) {
+                    return;
+                }
+                var sectionId = fieldSectionHints[field];
+                if (!sectionId) {
+                    return;
+                }
+                if (!Object.prototype.hasOwnProperty.call(sectionMetaMap, sectionId)) {
+                    sectionMetaMap[sectionId] = {
+                        id: sectionId,
+                        title: makeLabel(sectionId),
+                        description: null,
+                        fields: [],
+                        collapsible: false,
+                        collapsed: false
+                    };
+                    sectionsInfo.list.push(sectionMetaMap[sectionId]);
+                }
+                if (sectionMetaMap[sectionId].fields.indexOf(field) === -1) {
+                    sectionMetaMap[sectionId].fields.push(field);
+                }
+                sectionsInfo.map[field] = sectionId;
+            });
+
+            sectionsInfo.list = sectionsInfo.list.filter(function(section) {
+                section.fields = ordering.filter(function(field) {
+                    return sectionsInfo.map[field] === section.id;
+                });
+                return section.fields.length > 0;
+            });
+
             var hasTabs = tabOrder.length > 0;
             var normalizedFields = ordering.map(function(field) {
                 return {
                     name: field,
-                    tab: fieldTabMap[field] || null
+                    tab: fieldTabMap[field] || null,
+                    section: sectionsInfo.map[field] || null
                 };
             });
 
@@ -14880,7 +15368,8 @@ CSS;
             return {
                 fields: normalizedFields,
                 tabs: tabOrder.filter(function(tab) { return !!tab; }),
-                defaultTab: defaultTab
+                defaultTab: defaultTab,
+                sections: sectionsInfo.list
             };
         }
 
@@ -16558,7 +17047,17 @@ CSS;
                 var fallbackColumns = baseColumns.length ? baseColumns : columnsCache;
                 fields = fallbackColumns
                     .filter(function(column) { return column !== rowPrimaryKeyColumn; })
-                    .map(function(column) { return { name: column, tab: null }; });
+                    .map(function(column) { return { name: column, tab: null, section: null }; });
+            }
+
+            var sectionMetaMap = {};
+            if (layout && Array.isArray(layout.sections)) {
+                layout.sections.forEach(function(section) {
+                    if (!section || typeof section !== 'object' || !section.id) {
+                        return;
+                    }
+                    sectionMetaMap[section.id] = section;
+                });
             }
 
             var visibleFields = [];
@@ -16615,6 +17114,96 @@ CSS;
 
                 tabEntries[tabName] = { nav: navButton, pane: pane };
                 return tabEntries[tabName];
+            }
+
+            function getSectionMeta(sectionId) {
+                if (!sectionId) {
+                    return null;
+                }
+                if (Object.prototype.hasOwnProperty.call(sectionMetaMap, sectionId)) {
+                    return sectionMetaMap[sectionId];
+                }
+                var fallback = {
+                    id: sectionId,
+                    title: makeLabel(sectionId),
+                    description: null,
+                    fields: [],
+                    collapsible: false,
+                    collapsed: false
+                };
+                sectionMetaMap[sectionId] = fallback;
+                return fallback;
+            }
+
+            function ensureSectionContainer(parentContainer, sectionId) {
+                if (!sectionId || !parentContainer || !parentContainer.length) {
+                    return parentContainer;
+                }
+
+                var dataKey = 'fastcrud-section-' + sectionId;
+                var cached = parentContainer.data(dataKey);
+                if (cached && cached.body && cached.body.length) {
+                    return cached.body;
+                }
+
+                var meta = getSectionMeta(sectionId) || { id: sectionId };
+                var title = typeof meta.title === 'string' && meta.title.length ? meta.title : makeLabel(sectionId);
+                var description = typeof meta.description === 'string' && meta.description.length ? meta.description : null;
+                var collapsible = !!meta.collapsible;
+                var collapsed = collapsible && !!meta.collapsed;
+
+                var wrapper = $('<div class="fastcrud-form-section mb-4"></div>')
+                    .attr('data-fastcrud-section', sectionId);
+
+                var header = null;
+                if (title) {
+                    header = $('<div class="d-flex align-items-center justify-content-between mb-2 fastcrud-form-section-header"></div>');
+                    header.append($('<h5 class="mb-0"></h5>').text(title));
+                    wrapper.append(header);
+                }
+
+                if (description) {
+                    wrapper.append($('<p class="text-muted mb-3"></p>').text(description));
+                }
+
+                var body = $('<div class="fastcrud-form-section-body"></div>');
+                wrapper.append(body);
+
+                if (collapsible && header) {
+                    var toggle = $('<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-section-toggle" aria-expanded="true"></button>')
+                        .html(collapsed ? actionIcons.expand : actionIcons.collapse)
+                        .attr('aria-expanded', collapsed ? 'false' : 'true')
+                        .attr('aria-label', collapsed ? 'Expand section' : 'Collapse section');
+                    header.append(toggle);
+
+                    if (collapsed) {
+                        body.addClass('d-none');
+                        wrapper.addClass('fastcrud-form-section-collapsed');
+                        toggle.attr('aria-expanded', 'false');
+                    }
+
+                    toggle.on('click', function() {
+                        var isCollapsed = body.hasClass('d-none');
+                        if (isCollapsed) {
+                            body.removeClass('d-none');
+                            wrapper.removeClass('fastcrud-form-section-collapsed');
+                            toggle.attr('aria-expanded', 'true')
+                                .attr('aria-label', 'Collapse section')
+                                .html(actionIcons.collapse);
+                        } else {
+                            body.addClass('d-none');
+                            wrapper.addClass('fastcrud-form-section-collapsed');
+                            toggle.attr('aria-expanded', 'false')
+                                .attr('aria-label', 'Expand section')
+                                .html(actionIcons.expand);
+                        }
+                    });
+                }
+
+                parentContainer.append(wrapper);
+                parentContainer.data(dataKey, { wrapper: wrapper, body: body });
+
+                return body;
             }
 
             if (useTabs) {
@@ -16679,6 +17268,12 @@ CSS;
                     }
                 }
 
+                var sectionId = field.section || null;
+                var targetContainer = container;
+                if (sectionId) {
+                    targetContainer = ensureSectionContainer(container, sectionId);
+                }
+
                 if (typeof customFieldHtml[column] !== 'undefined') {
                     var customContainer = $('<div class="mb-3"></div>').attr('data-fastcrud-group', column);
                     var htmlContent = customFieldHtml[column];
@@ -16710,7 +17305,7 @@ CSS;
                     } else {
                         customContainer.append(htmlContent);
                     }
-                    container.append(customContainer);
+                    targetContainer.append(customContainer);
 
                     // Sync value attributes inside custom markup with the resolved current value
                     var valueHolders = customContainer.find('[data-fastcrud-field="' + column + '"]');
@@ -17273,7 +17868,7 @@ CSS;
                     input.attr('data-fastcrud-unique', '1');
                 }
 
-                container.append(group);
+                targetContainer.append(group);
 
                 if (changeType === 'image' || changeType === 'images') {
                     // Initialize FilePond after appending to DOM
@@ -17870,10 +18465,20 @@ CSS;
                 : {};
 
             var viewLayout = buildFormLayout('view');
+            var viewSections = Array.isArray(viewLayout.sections) ? viewLayout.sections.slice() : [];
+            var viewSectionMetaMap = {};
+            viewSections.forEach(function(section) {
+                if (!section || typeof section !== 'object' || !section.id) {
+                    return;
+                }
+                viewSectionMetaMap[section.id] = section;
+            });
+            var VIEW_UNSECTIONED_ID = '__fastcrud_unsectioned__';
+            var viewHasSections = viewSections.length > 0;
             var viewFields = viewLayout.fields.length
                 ? viewLayout.fields.slice()
                 : columnsCache.map(function(column) {
-                    return { name: column, tab: null };
+                    return { name: column, tab: null, section: null };
                 });
 
             var viewVisibleFields = [];
@@ -17899,8 +18504,10 @@ CSS;
                 viewTabsNav = $('<ul class="nav nav-tabs mb-3" role="tablist"></ul>');
                 viewTabsContent = $('<div class="tab-content"></div>');
                 viewContentContainer.append(viewTabsNav).append(viewTabsContent);
-            } else {
+            } else if (!viewHasSections) {
                 viewContentContainer.addClass('list-group list-group-flush');
+            } else {
+                viewContentContainer.addClass('fastcrud-view-section-container');
             }
 
             function ensureViewTab(tabName) {
@@ -17931,12 +18538,116 @@ CSS;
                 var pane = $('<div class="tab-pane fade" role="tabpanel"></div>')
                     .attr('id', tabId)
                     .attr('aria-labelledby', tabId + '-tab');
-                var paneList = $('<div class="list-group list-group-flush"></div>');
-                pane.append(paneList);
+                var paneContainer = viewHasSections
+                    ? $('<div class="fastcrud-view-section-container"></div>')
+                    : $('<div class="list-group list-group-flush"></div>');
+                pane.append(paneContainer);
                 viewTabsContent.append(pane);
 
-                viewTabEntries[tabName] = { nav: navButton, pane: pane, list: paneList };
+                viewTabEntries[tabName] = { nav: navButton, pane: pane, container: paneContainer, list: paneContainer };
                 return viewTabEntries[tabName];
+            }
+
+            function getViewSectionMeta(sectionId) {
+                if (!sectionId) {
+                    return null;
+                }
+                if (Object.prototype.hasOwnProperty.call(viewSectionMetaMap, sectionId)) {
+                    return viewSectionMetaMap[sectionId];
+                }
+
+                var fallback = {
+                    id: sectionId,
+                    title: sectionId === VIEW_UNSECTIONED_ID ? null : makeLabel(sectionId),
+                    description: null,
+                    fields: [],
+                    collapsible: false,
+                    collapsed: false
+                };
+                viewSectionMetaMap[sectionId] = fallback;
+                return fallback;
+            }
+
+            function ensureViewSectionContainer(parentContainer, sectionId) {
+                if (!parentContainer || !parentContainer.length) {
+                    return parentContainer;
+                }
+
+                var effectiveSection = sectionId;
+                if (!effectiveSection && viewHasSections) {
+                    effectiveSection = VIEW_UNSECTIONED_ID;
+                }
+
+                if (!effectiveSection) {
+                    return parentContainer;
+                }
+
+                var dataKey = 'fastcrud-view-section-' + effectiveSection;
+                var cached = parentContainer.data(dataKey);
+                if (cached && cached.list && cached.list.length) {
+                    return cached.list;
+                }
+
+                var meta = getViewSectionMeta(effectiveSection) || { id: effectiveSection };
+                var title = typeof meta.title === 'string' && meta.title.length
+                    ? meta.title
+                    : (meta.title === null ? null : makeLabel(effectiveSection));
+                var description = typeof meta.description === 'string' && meta.description.length ? meta.description : null;
+                var collapsible = !!meta.collapsible;
+                var collapsed = collapsible && !!meta.collapsed;
+
+                var wrapper = $('<div class="fastcrud-view-section mb-4"></div>')
+                    .attr('data-fastcrud-section', effectiveSection);
+
+                var header = null;
+                if (title) {
+                    header = $('<div class="d-flex align-items-center justify-content-between mb-2 fastcrud-view-section-header"></div>');
+                    header.append($('<h6 class="mb-0 text-uppercase text-muted"></h6>').text(title));
+                    wrapper.append(header);
+                }
+
+                if (description) {
+                    wrapper.append($('<p class="text-muted small mb-3"></p>').text(description));
+                }
+
+                var list = $('<div class="list-group list-group-flush"></div>');
+                wrapper.append(list);
+
+                if (collapsible && header) {
+                    var toggle = $('<button type="button" class="btn btn-sm btn-outline-secondary fastcrud-section-toggle" aria-expanded="true"></button>')
+                        .html(collapsed ? actionIcons.expand : actionIcons.collapse)
+                        .attr('aria-expanded', collapsed ? 'false' : 'true')
+                        .attr('aria-label', collapsed ? 'Expand section' : 'Collapse section');
+                    header.append(toggle);
+
+                    if (collapsed) {
+                        list.addClass('d-none');
+                        wrapper.addClass('fastcrud-view-section-collapsed');
+                        toggle.attr('aria-expanded', 'false');
+                    }
+
+                    toggle.on('click', function() {
+                        var isCollapsed = list.hasClass('d-none');
+                        if (isCollapsed) {
+                            list.removeClass('d-none');
+                            wrapper.removeClass('fastcrud-view-section-collapsed');
+                            toggle.attr('aria-expanded', 'true')
+                                .attr('aria-label', 'Collapse section')
+                                .html(actionIcons.collapse);
+                        } else {
+                            list.addClass('d-none');
+                            wrapper.addClass('fastcrud-view-section-collapsed');
+                            toggle.attr('aria-expanded', 'false')
+                                .attr('aria-label', 'Expand section')
+                                .html(actionIcons.expand);
+                        }
+                    });
+                }
+
+                parentContainer.append(wrapper);
+                parentContainer.data(dataKey, { wrapper: wrapper, list: list });
+
+                return list;
             }
 
             var viewHasContent = false;
@@ -17955,6 +18666,9 @@ CSS;
                         }
                     }
                 }
+
+                var sectionId = field.section || null;
+                var targetContainer = ensureViewSectionContainer(container, sectionId);
 
                 var label = resolveFieldLabel(column);
                 var value = row[column];
@@ -17993,7 +18707,7 @@ CSS;
                         valueElem.append(viewHtml);
                     }
                     item.append(valueElem);
-                    container.append(item);
+                    targetContainer.append(item);
                     viewHasContent = true;
                     return;
                 }
@@ -18076,7 +18790,7 @@ CSS;
                     valueElem.text(displayValue);
                 }
                 item.append(valueElem);
-                container.append(item);
+                targetContainer.append(item);
                 viewHasContent = true;
             });
 

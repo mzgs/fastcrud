@@ -358,6 +358,9 @@ input[type="checkbox"]::before {
    
 }
 
+hr { border-color: color-mix(in srgb, var(--bs-border-color) 80%, transparent); }
+
+
 /* Dark theme adjustments for table headers */
 [data-bs-theme="dark"] .table thead th {
   background: var(--surface-elev);
