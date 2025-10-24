@@ -7954,6 +7954,12 @@ HTML;
                     $collapsible = !empty($entry['collapsible']);
                     $collapsed = $collapsible && !empty($entry['collapsed']);
 
+                    $icon = null;
+                    if (isset($entry['icon']) && is_string($entry['icon'])) {
+                        $iconCandidate = $this->normalizeCssClassList($entry['icon']);
+                        $icon = $iconCandidate === '' ? null : $iconCandidate;
+                    }
+
                     $normalizedSections[] = [
                         'id'          => $sectionId,
                         'title'       => $title,
@@ -7961,6 +7967,7 @@ HTML;
                         'fields'      => array_values(array_unique($fields)),
                         'collapsible' => $collapsible,
                         'collapsed'   => $collapsed,
+                        'icon'        => $icon,
                     ];
                 }
 
@@ -18632,7 +18639,8 @@ CSS;
                     description: null,
                     fields: [],
                     collapsible: false,
-                    collapsed: false
+                    collapsed: false,
+                    icon: null
                 };
                 viewSectionMetaMap[sectionId] = fallback;
                 return fallback;
@@ -18680,6 +18688,7 @@ CSS;
                 var description = typeof meta.description === 'string' && meta.description.length ? meta.description : null;
                 var collapsible = !!meta.collapsible;
                 var collapsed = collapsible && !!meta.collapsed;
+                var iconClass = typeof meta.icon === 'string' && meta.icon.length ? meta.icon : null;
 
                 var wrapper = $('<div class="fastcrud-view-section mb-4"></div>')
                     .attr('data-fastcrud-section', effectiveSection);
@@ -18687,7 +18696,12 @@ CSS;
                 var header = null;
                 if (title) {
                     header = $('<div class="d-flex align-items-center justify-content-between mb-2 fastcrud-view-section-header"></div>');
-                    header.append($('<h6 class="mb-0 text-uppercase text-muted"></h6>').text(title));
+                    var heading = $('<h6 class="mb-0 text-uppercase text-muted d-flex align-items-center"></h6>');
+                    if (iconClass) {
+                        heading.append($('<i class="fastcrud-form-section-icon me-2"></i>').addClass(iconClass));
+                    }
+                    heading.append($('<span></span>').text(title));
+                    header.append(heading);
                     wrapper.append(header);
                 }
 
