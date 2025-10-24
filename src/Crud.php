@@ -1368,6 +1368,12 @@ class Crud
                         $description = $trimmedDescription === '' ? null : $trimmedDescription;
                     }
 
+                    $icon = null;
+                    if (isset($entry['icon']) && is_string($entry['icon'])) {
+                        $iconCandidate = $this->normalizeCssClassList($entry['icon']);
+                        $icon = $iconCandidate === '' ? null : $iconCandidate;
+                    }
+
                     $collapsible = !empty($entry['collapsible']);
                     $collapsed = false;
                     if (isset($entry['collapsed'])) {
@@ -1383,6 +1389,7 @@ class Crud
                         'fields'      => array_values(array_unique($normalizedFields)),
                         'collapsible' => $collapsible,
                         'collapsed'   => $collapsible ? $collapsed : false,
+                        'icon'        => $icon,
                     ];
                 }
 
@@ -4147,6 +4154,12 @@ class Crud
             $description = $trimmedDescription === '' ? null : $trimmedDescription;
         }
 
+        $icon = null;
+        if (isset($definition['icon']) && is_string($definition['icon'])) {
+            $iconCandidate = $this->normalizeCssClassList($definition['icon']);
+            $icon = $iconCandidate === '' ? null : $iconCandidate;
+        }
+
         $collapsible = !empty($definition['collapsible']);
         $collapsed = false;
         if (isset($definition['collapsed'])) {
@@ -4166,6 +4179,7 @@ class Crud
             'fields'      => array_values(array_unique($normalizedFields)),
             'collapsible' => $collapsible,
             'collapsed'   => $collapsible ? $collapsed : false,
+            'icon'        => $icon,
         ];
 
         foreach ($modes as $targetMode) {
@@ -15170,13 +15184,20 @@ CSS;
                     var collapsible = !!entry.collapsible;
                     var collapsed = collapsible && !!entry.collapsed;
 
+                    var icon = null;
+                    if (typeof entry.icon === 'string') {
+                        var trimmedIcon = entry.icon.trim();
+                        icon = trimmedIcon.length ? trimmedIcon : null;
+                    }
+
                     var normalized = {
                         id: sectionId,
                         title: title,
                         description: description,
                         fields: filteredFields,
                         collapsible: collapsible,
-                        collapsed: collapsed
+                        collapsed: collapsed,
+                        icon: icon
                     };
 
                     if (Object.prototype.hasOwnProperty.call(indexLookup, sectionId)) {
@@ -15316,7 +15337,8 @@ CSS;
                         description: null,
                         fields: [],
                         collapsible: false,
-                        collapsed: false
+                        collapsed: false,
+                        icon: null
                     };
                     sectionsInfo.list.push(sectionMetaMap[sectionId]);
                 }
@@ -17138,7 +17160,8 @@ CSS;
                     description: null,
                     fields: [],
                     collapsible: false,
-                    collapsed: false
+                    collapsed: false,
+                    icon: null
                 };
                 sectionMetaMap[sectionId] = fallback;
                 return fallback;
@@ -17175,6 +17198,7 @@ CSS;
                 var description = typeof meta.description === 'string' && meta.description.length ? meta.description : null;
                 var collapsible = !!meta.collapsible;
                 var collapsed = collapsible && !!meta.collapsed;
+                var iconClass = typeof meta.icon === 'string' && meta.icon.length ? meta.icon : null;
 
                 var wrapper = $('<div class="fastcrud-form-section mb-4"></div>')
                     .attr('data-fastcrud-section', sectionId);
@@ -17182,7 +17206,12 @@ CSS;
                 var header = null;
                 if (title) {
                     header = $('<div class="d-flex align-items-center justify-content-between mb-2 fastcrud-form-section-header"></div>');
-                    header.append($('<h5 class="mb-0"></h5>').text(title));
+                    var titleHeading = $('<h5 class="mb-0 d-flex align-items-center"></h5>');
+                    if (iconClass) {
+                        titleHeading.append($('<i class="fastcrud-form-section-icon me-2"></i>').addClass(iconClass));
+                    }
+                    titleHeading.append($('<span></span>').text(title));
+                    header.append(titleHeading);
                     wrapper.append(header);
                 }
 

@@ -196,6 +196,7 @@ DatabaseEditor::init();
                         'title'       => 'General',
                         'description' => 'Basic account metadata',
                         'fields'      => ['title', 'slug'],
+                        'icon'        => 'fas fa-user',
                     ])
                     ->form_section('details', [
                         'title'  => 'Details',
