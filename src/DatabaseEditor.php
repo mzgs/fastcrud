@@ -1368,21 +1368,20 @@ SQL;
                     }
                     
                     // Add new column row
+                    $addColumnFormId = 'fc-db-add-column-form-' . $index;
+
                     $html .= '<tr class="fc-db-add-column-row bg-body-tertiary">';
-                    $html .= '<form method="post" data-fc-db-editor-form>';
-                    $html .= '<input type="hidden" name="fc_db_editor_action" value="add_column">';
-                    $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
-                    
+
                     if ($reorderEnabled) {
                         $html .= '<td class="text-center"><i class="fas fa-plus text-muted"></i></td>';
                     }
-                    
+
                     $html .= '<td>';
-                    $html .= '<input type="text" name="column_name" class="form-control form-control-sm" required pattern="[A-Za-z0-9_]+" placeholder="Column name">';
+                    $html .= '<input type="text" name="column_name" class="form-control form-control-sm" required pattern="[A-Za-z0-9_]+" placeholder="Column name" form="' . $addColumnFormId . '">';
                     $html .= '</td>';
-                    
+
                     $html .= '<td>';
-                    $html .= '<select name="column_type" class="form-select form-select-sm" required>';
+                    $html .= '<select name="column_type" class="form-select form-select-sm" required form="' . $addColumnFormId . '">';
                     foreach ($typeOptions as $option) {
                         $escapedOption = htmlspecialchars($option, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                         $selected = $option === 'VARCHAR(255)' ? ' selected' : '';
@@ -1390,19 +1389,22 @@ SQL;
                     }
                     $html .= '</select>';
                     $html .= '</td>';
-                    
+
                     $html .= '<td class="text-center">—</td>';
                     $html .= '<td>—</td>';
                     $html .= '<td>—</td>';
-                    
+
                     $html .= '<td class="text-end">';
-                    $html .= '<button type="submit" class="btn btn-success btn-sm"><i class="fas fa-plus me-1"></i>Add</button>';
+                    $html .= '<button type="submit" class="btn btn-success btn-sm" form="' . $addColumnFormId . '"><i class="fas fa-plus me-1"></i>Add</button>';
                     $html .= '</td>';
-                    
-                    $html .= '</form>';
+
                     $html .= '</tr>';
-                    
+
                     $html .= '</tbody></table>';
+                    $html .= '<form method="post" data-fc-db-editor-form id="' . $addColumnFormId . '" class="d-none">';
+                    $html .= '<input type="hidden" name="fc_db_editor_action" value="add_column">';
+                    $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
+                    $html .= '</form>';
                     if ($reorderEnabled) {
                         $html .= '<form method="post" class="d-none" data-fc-db-editor-form data-fc-db-reorder-form>';
                         $html .= '<input type="hidden" name="fc_db_editor_action" value="reorder_columns">';
