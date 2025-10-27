@@ -810,9 +810,18 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $crud->enable_export_excel();
   ```
-- **`add_link_button(string $url, string $iconClass, ?string $label = null, ?string $buttonClass = null, array $options = []): self`** – Append a custom toolbar button; call it multiple times to stack more buttons. The `$options` array lets you set arbitrary HTML attributes like `['target' => '_blank']`.
+- **`add_link_button(string|array $urlOrConfig, ?string $iconClass = null, ?string $label = null, ?string $buttonClass = null, array $options = []): self`** – Append a custom toolbar button; call it multiple times to stack more buttons. You can keep the legacy positional arguments or pass a full array payload (keys such as `'url'`, `'icon'`, `'label'`, `'button_class'`, `'options'`) for consistency with other configuration helpers. The `$options` array lets you set arbitrary HTML attributes like `['target' => '_blank']`.
   ```php
-  $crud->add_link_button('/reports', 'fas fa-file-alt', 'Reports', 'btn btn-sm btn-outline-info', ['target' => '_blank']);
+  // Array payload for better readability
+  $crud->add_link_button([
+      'url' => '/reports',
+      'icon' => 'fas fa-file-alt',
+      'label' => 'Reports',
+      'button_class' => 'btn btn-sm btn-outline-info',
+      'options' => ['target' => '_blank']
+  ]);
+
+  // Legacy positional signature remains supported
   $crud->add_link_button('/reports/export', 'fas fa-download', 'Export', 'btn btn-sm btn-secondary');
   ```
 - **`add_multi_link_button(array $mainButton = [], array $items = []): self`** – Append a dropdown button that expands into multiple links. Supply at least one actionable entry in `$items`, each with `'url'` and `'label'` plus optional `'icon'` and `'options'` for per-link attributes (placeholders like `{id}` are resolved per-row). To insert a divider between links, either pass an empty array or `['type' => 'divider']` as an item. You can also push built-in destructive utilities into the dropdown via entries such as `['type' => 'duplicate', 'label' => 'Clone']` or `['type' => 'delete', 'label' => 'Remove']`; these menu items stay visible even when `enable_duplicate(false)` / `enable_delete(false)` or action conditions hide the stock row buttons, while still reusing the existing handlers (rows that fail their condition will be rejected when clicked). `$mainButton` configures the trigger with keys such as `'icon'`, `'label'`, `'button_class'`, `'menu_class'`, `'container_class'`, and `'options'`; omit any key to fall back to sensible defaults. Invoke this repeatedly to add more dropdown clusters.

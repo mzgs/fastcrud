@@ -3947,17 +3947,48 @@ class Crud
     }
 
     /**
+     * @param string|array<string, mixed> $urlOrConfig
      * @param array<string, bool|float|int|string> $options
      */
-    public function add_link_button(string $url, string $iconClass, ?string $label = null, ?string $buttonClass = null, array $options = []): self
+    public function add_link_button(string|array $urlOrConfig, ?string $iconClass = null, ?string $label = null, ?string $buttonClass = null, array $options = []): self
     {
-        $normalized = $this->normalizeLinkButtonConfigPayload([
-            'url'          => $url,
-            'icon'         => $iconClass,
-            'label'        => $label,
-            'button_class' => $buttonClass,
-            'options'      => $options,
-        ]);
+        if (is_array($urlOrConfig)) {
+            $payload = $urlOrConfig;
+
+            if ($iconClass !== null && !array_key_exists('icon', $payload)) {
+                $payload['icon'] = $iconClass;
+            }
+
+            if ($label !== null && !array_key_exists('label', $payload)) {
+                $payload['label'] = $label;
+            }
+
+            if ($buttonClass !== null && !array_key_exists('button_class', $payload)) {
+                $payload['button_class'] = $buttonClass;
+            }
+
+            if ($options !== []) {
+                if (!isset($payload['options']) || !is_array($payload['options'])) {
+                    $payload['options'] = $options;
+                } else {
+                    $payload['options'] = array_merge($payload['options'], $options);
+                }
+            }
+        } else {
+            if ($iconClass === null) {
+                throw new InvalidArgumentException('Link button requires both a URL and icon class when using the legacy signature.');
+            }
+
+            $payload = [
+                'url'          => $urlOrConfig,
+                'icon'         => $iconClass,
+                'label'        => $label,
+                'button_class' => $buttonClass,
+                'options'      => $options,
+            ];
+        }
+
+        $normalized = $this->normalizeLinkButtonConfigPayload($payload);
 
         if ($normalized === null) {
             throw new InvalidArgumentException('Link button requires a non-empty URL and icon class.');
@@ -3970,15 +4001,6 @@ class Crud
         $this->config['link_buttons'][] = $normalized;
 
         return $this;
-    }
-
-    /**
-     * @deprecated Use add_link_button() instead.
-     * @param array<string, bool|float|int|string> $options
-     */
-    public function link_button(string $url, string $iconClass, ?string $label = null, ?string $buttonClass = null, array $options = []): self
-    {
-        return $this->add_link_button($url, $iconClass, $label, $buttonClass, $options);
     }
 
     /**
@@ -4003,16 +4025,6 @@ class Crud
         $this->config['multi_link_buttons'][] = $normalized;
 
         return $this;
-    }
-
-    /**
-     * @deprecated Use add_multi_link_button() instead.
-     * @param array<string, mixed> $mainButton
-     * @param array<int, array<string, mixed>> $items
-     */
-    public function multi_link_button(array $mainButton = [], array $items = []): self
-    {
-        return $this->add_multi_link_button($mainButton, $items);
     }
 
 
