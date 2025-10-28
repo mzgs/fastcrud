@@ -4584,22 +4584,16 @@ class Crud
         return $this;
     }
 
-    /**
-     * @param string|array<int, string>|array<string, mixed> $fields
-     */
-    public function where(string|array $fields, mixed $whereValue = false, string $glue = 'AND'): self
+    public function where(string $condition): self
     {
-        $this->addWhereCondition($fields, $whereValue, $glue);
+        $this->addWhereCondition($condition, 'AND');
 
         return $this;
     }
 
-    /**
-     * @param string|array<int, string>|array<string, mixed> $fields
-     */
-    public function or_where(string|array $fields, mixed $whereValue = false): self
+    public function or_where(string $condition): self
     {
-        $this->addWhereCondition($fields, $whereValue, 'OR');
+        $this->addWhereCondition($condition, 'OR');
 
         return $this;
     }
@@ -4773,53 +4767,22 @@ class Crud
         return $child;
     }
 
-    /**
-     * @param string|array<int, string>|array<string, mixed> $fields
-     */
-    private function addWhereCondition(string|array $fields, mixed $whereValue, string $glue): void
+    private function addWhereCondition(string $condition, string $glue): void
     {
-        $glue = strtoupper($glue) === 'OR' ? 'OR' : 'AND';
+        $normalizedGlue = strtoupper($glue) === 'OR' ? 'OR' : 'AND';
+        $trimmed = trim($condition);
 
-        if (is_array($fields) && $this->isAssociativeArray($fields)) {
-            foreach ($fields as $expression => $value) {
-                if (!is_string($expression)) {
-                    continue;
-                }
-
-                $this->config['where'][] = $this->buildWhereEntry($expression, $value, $glue);
-            }
-
-            return;
+        if ($trimmed === '') {
+            throw new InvalidArgumentException('Condition expression cannot be empty.');
         }
 
-        if (is_array($fields)) {
-            foreach ($fields as $field) {
-                if (!is_string($field)) {
-                    continue;
-                }
-
-                $this->config['where'][] = $this->buildWhereEntry($field, $whereValue, $glue);
-            }
-
-            return;
-        }
-
-        if ($whereValue === false) {
-            $raw = trim($fields);
-            if ($raw !== '') {
-                $this->config['where'][] = [
-                    'glue'     => $glue,
-                    'raw'      => $raw,
-                    'column'   => null,
-                    'operator' => null,
-                    'value'    => null,
-                ];
-            }
-
-            return;
-        }
-
-        $this->config['where'][] = $this->buildWhereEntry($fields, $whereValue, $glue);
+        $this->config['where'][] = [
+            'glue'     => $normalizedGlue,
+            'raw'      => $trimmed,
+            'column'   => null,
+            'operator' => null,
+            'value'    => null,
+        ];
     }
 
     private function isAssociativeArray(array $array): bool
@@ -4831,50 +4794,6 @@ class Crud
         }
 
         return false;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function buildWhereEntry(string $expression, mixed $value, string $glue): array
-    {
-        [$column, $operator] = $this->parseCondition($expression, $value);
-
-        return [
-            'glue'     => $glue,
-            'column'   => $column,
-            'operator' => $operator,
-            'value'    => $value,
-        ];
-    }
-
-    /**
-     * @return array{0: string, 1: string}
-     */
-    private function parseCondition(string $expression, mixed $value): array
-    {
-        $trimmed = trim($expression);
-        if ($trimmed === '') {
-            throw new InvalidArgumentException('Condition expression cannot be empty.');
-        }
-
-        $pattern = '/\s*(IS NOT NULL|IS NULL|NOT LIKE|LIKE|NOT IN|IN|>=|<=|<>|!=|=|>|<|!)$/i';
-        if (!preg_match($pattern, $trimmed, $matches)) {
-            return [$trimmed, '='];
-        }
-
-        $operator = strtoupper($matches[1]);
-        $column   = trim(substr($trimmed, 0, -strlen($matches[0])));
-
-        if ($column === '') {
-            $column = $trimmed;
-        }
-
-        if ($operator === '!') {
-            $operator = is_array($value) ? 'NOT IN' : '!=';
-        }
-
-        return [$column, $operator];
     }
 
     /**

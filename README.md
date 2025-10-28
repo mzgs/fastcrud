@@ -868,13 +868,13 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $crud->no_quotes('JSON_EXTRACT(meta, "$.flag")');
   ```
-- **`where(string|array $fields, mixed $whereValue = false, string $glue = 'AND'): self`** – Add `AND`-joined conditions via associative arrays (`['status' => 'active']`), field lists with a shared value, or raw SQL strings when `$whereValue === false`.
+- **`where(string $condition): self`** – Add an `AND`-joined raw SQL condition. Provide the complete SQL snippet you want to append.
   ```php
-  $crud->where('status = ?', 'active');
+  $crud->where('status = "active"');
   ```
-- **`or_where(string|array $fields, mixed $whereValue = false): self`** – Add `OR`-joined conditions using the same shapes as `where()`.
+- **`or_where(string $condition): self`** – Add an `OR`-joined raw SQL condition.
   ```php
-  $crud->or_where(['role' => 'admin']);
+  $crud->or_where('role = "admin"');
   ```
 - **`join(string|array $fields, string $joinTable, string $joinField, string|array|false $alias = false, bool $notInsert = false): self`** – Join related tables for display; `$alias` may be `false`, a single alias, or an array of aliases matching each field.
   ```php

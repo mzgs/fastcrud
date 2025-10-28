@@ -154,7 +154,7 @@ class CrudAjax
         if ($isNull) {
             $crud->where(sprintf('%s IS NULL', $foreignColumn));
         } else {
-            $crud->where([$foreignColumn => $parentValue]);
+            $crud->where(self::buildEqualityCondition($foreignColumn, $parentValue));
         }
 
         $html = $crud->render();
@@ -163,6 +163,32 @@ class CrudAjax
             'success' => true,
             'html' => $html,
         ]);
+    }
+
+    private static function buildEqualityCondition(string $column, mixed $value): string
+    {
+        if ($value === null) {
+            return sprintf('%s IS NULL', $column);
+        }
+
+        if (is_bool($value)) {
+            return sprintf('%s = %d', $column, $value ? 1 : 0);
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return sprintf('%s = %s', $column, (string) $value);
+        }
+
+        if (!is_string($value)) {
+            throw new InvalidArgumentException('Parent value must be a scalar or null.');
+        }
+
+        $quoted = Database::connection()->quote($value);
+        if ($quoted === false) {
+            throw new RuntimeException('Failed to quote parent value.');
+        }
+
+        return sprintf('%s = %s', $column, $quoted);
     }
 
     /**
