@@ -79,10 +79,6 @@ class Crud
     private const DEFAULT_MULTI_LINK_BUTTON_CLASS = 'btn btn-sm btn-outline-secondary dropdown-toggle';
     private const DEFAULT_MULTI_LINK_MENU_CLASS = 'dropdown-menu dropdown-menu-end';
     private const DEFAULT_MULTI_LINK_CONTAINER_CLASS = 'btn-group';
-    /**
-     * @var array<int, callable(array<string, mixed>):array<string, mixed>|void>
-     */
-    private static array $beforeAjaxCallbacks = [];
     private const LIFECYCLE_EVENTS = [
         'before_insert',
         'after_insert',
@@ -208,34 +204,6 @@ class Crud
         }
 
         CrudAjax::autoHandle();
-    }
-
-    /**
-     * Register or execute callbacks that should run before any AJAX request is handled.
-     *
-     * When called with a callable, the callback is stored. When called with a request payload,
-     * all stored callbacks are executed in order. A callback may return a modified request array,
-     * which will be passed to subsequent callbacks and returned to the caller.
-     *
-     * @param callable(array<string, mixed>):array<string, mixed>|void|array<string, mixed> $argument
-     * @return array<string, mixed>|null
-     */
-    public static function beforeAjax(callable|array $argument): ?array
-    {
-        if (is_callable($argument)) {
-            self::$beforeAjaxCallbacks[] = $argument;
-            return null;
-        }
-
-        $request = $argument;
-        foreach (self::$beforeAjaxCallbacks as $callback) {
-            $result = call_user_func_array($callback, [&$request]);
-            if (is_array($result)) {
-                $request = $result;
-            }
-        }
-
-        return $request;
     }
 
     public function __construct(string $table, ?PDO $connection = null)
