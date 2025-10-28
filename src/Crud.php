@@ -8582,6 +8582,7 @@ HTML;
                 'upload_path' => CrudConfig::getUploadPath(),
             ],
             'select2'           => (bool) ($this->config['select2'] ?? false),
+            'debug'           => (bool) CrudConfig::$debug,
             'filters_enabled'   => (bool) ($this->config['filters_enabled'] ?? true),
             'numbers_enabled'   => (bool) ($this->config['numbers_enabled'] ?? false),
             'query_builder'     => $this->buildQueryBuilderClientPayload(),
@@ -11719,6 +11720,39 @@ CSS;
             return value;
         }
 
+        function extractAjaxErrorMessage(jqXHR, fallback) {
+            if (jqXHR && jqXHR.responseJSON && typeof jqXHR.responseJSON.error === 'string') {
+                var jsonError = jqXHR.responseJSON.error.trim();
+                if (jsonError) {
+                    return jsonError;
+                }
+            }
+            if (jqXHR && typeof jqXHR.responseText === 'string') {
+                var raw = jqXHR.responseText.trim();
+                if (raw) {
+                    try {
+                        var parsed = JSON.parse(raw);
+                        if (parsed && typeof parsed.error === 'string') {
+                            var parsedError = parsed.error.trim();
+                            if (parsedError) {
+                                return parsedError;
+                            }
+                        }
+                    } catch (ignored) {
+                    }
+                    var textContent = $('<div>').html(raw).text().trim();
+                    if (textContent) {
+                        return textContent;
+                    }
+                    return raw;
+                }
+            }
+            if (typeof fallback === 'string' && fallback.trim() !== '') {
+                return fallback;
+            }
+            return 'Failed to load data';
+        }
+
         var tableId = '$id';
         var styleDefaults = {$styleJson};
         var editViewHighlightClass = getStyleClass('edit_view_row_highlight_class', 'table-warning');
@@ -11739,6 +11773,7 @@ CSS;
                 clientConfig = {};
             }
         }
+        var debugEnabled = !!(clientConfig && clientConfig.debug);
 
         function toggleActionsCellZIndex(element, isOpen) {
             var cellEl = $(element).closest('td.fastcrud-actions-cell');
@@ -17050,12 +17085,18 @@ CSS;
                         showError('Error: ' + errorMessage);
                     }
                 },
-                error: function(_, textStatus, error) {
+                error: function(jqXHR, textStatus, errorThrown) {
                     if (textStatus === 'abort') {
                         return;
                     }
-                    var message = error || 'Failed to load data';
-                    showError('Failed to load table data: ' + message);
+                    var fallbackMessage = typeof errorThrown === 'string' && errorThrown !== ''
+                        ? errorThrown
+                        : 'Failed to load data';
+                    if (debugEnabled) {
+                        showError(extractAjaxErrorMessage(jqXHR, fallbackMessage));
+                    } else {
+                        showError('Failed to load table data: ' + fallbackMessage);
+                    }
                 },
                 complete: function(jqXHR) {
                     if (activeFetchRequest === jqXHR) {

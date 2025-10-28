@@ -25,6 +25,9 @@ class CrudConfig
     // show query builder filters controls by default
     public static bool $enable_filters = false;
 
+    // surface detailed error information for debugging (avoid enabling in production)
+    public static bool $debug = false;
+
     // prepend a numbered column to grid listings unless overridden per Crud instance
     public static bool $enable_numbers = false;
 
