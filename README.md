@@ -21,7 +21,7 @@
 - [📦 Installation](#installation)
 - [🚀 Quick Start](#quick-start)
 - [🔧 Configuration](#configuration)
-- [🛡️ AJAX Hooks](#-ajax-hooks)
+- [🛡️ AJAX Hooks](#ajax-hooks)
 - [🗃️ Database Editor](#database-editor)
 - [📜 API Reference & Customization](#api-reference--customization)
 - [📝 License](#license)
@@ -136,18 +136,12 @@ echo $orders->render();
 
 
 
-## 🛡️ AJAX Hooks
+## AJAX Hooks
 
-Global AJAX hooks let you inspect or adjust every FastCRUD request before the built-in router takes over. Register your callbacks during bootstrap (ideally right after `Crud::init()`):
+Global AJAX hooks let you inspect or adjust every FastCRUD request before the built-in router takes over. Register your callbacks during bootstrap **before** calling `Crud::init()` (or disable auto-handling and trigger it manually later):
 
 ```php
 use FastCrud\Crud;
-
-Crud::init([
-    'database' => 'app',
-    'username' => 'user',
-    'password' => 'secret',
-]);
 
 Crud::beforeAjax(static function (array &$request): array {
     // Replace Auth::* with your project's authentication helper
@@ -167,6 +161,23 @@ Crud::beforeAjax(static function (array &$request): array {
 - Register multiple callbacks; they run in the order added.
 - Modify the request array by reference or return a new array to be used downstream.
 - Throw an exception (or return an error response) to cancel the request gracefully.
+
+```php
+// When you're ready for FastCRUD to handle the request:
+Crud::init([
+    'database' => 'app',
+    'username' => 'user',
+    'password' => 'secret',
+]);
+```
+
+Need to attach callbacks **after** initialization? Disable automatic handling and trigger it manually once everything is registered:
+
+```php
+Crud::init($config, autoHandle: false);
+Crud::beforeAjax($callback);
+Crud::autoHandleAjax();
+```
 
 
 
@@ -290,13 +301,18 @@ All customization options are available through the main `FastCrud\Crud` class m
 
 #### 🚀 Setup & Bootstrap
 
-- **`Crud::init(PDO|array|null $dbConfig = null): void`** – Configure the connection defaults (keys like `driver`, `host`, `port`, `database`, `username`, `password`, `options`) or inject an existing PDO instance, and auto-handle AJAX requests.
+- **`Crud::init(PDO|array|null $dbConfig = null, bool $autoHandle = true): void`** – Configure the connection defaults (keys like `driver`, `host`, `port`, `database`, `username`, `password`, `options`) or inject an existing PDO instance, and (optionally) auto-handle AJAX requests.
   ```php
   Crud::init([
       'database' => 'app',
       'username' => 'root',
       'password' => 'secret',
   ]);
+  ```
+  - Pass `false` as the second argument if you need to register AJAX hooks (or perform other setup) before processing the request, then call `Crud::autoHandleAjax()` manually.
+- **`Crud::autoHandleAjax(): void`** – Run the AJAX dispatcher on demand (equivalent to the automatic call when `Crud::init()` uses the default `$autoHandle = true`).
+  ```php
+  Crud::autoHandleAjax();
   ```
 - **`Crud::fromAjax(string $table, ?string $id, array|string|null $configPayload, ?PDO $connection = null): self`** – Rehydrate an instance from data posted by the FastCRUD frontend.
   ```php

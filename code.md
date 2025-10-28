@@ -28,7 +28,7 @@ graph TD
 ```
 
 ## Critical Workflows
-- **Bootstrap** – Call `Crud::init($dbConfig)` early. Optional array updates `CrudConfig`, then `CrudAjax::autoHandle()` intercepts requests with `fastcrud_ajax=1`.
+- **Bootstrap** – Call `Crud::init($dbConfig, $autoHandle = true)` early. Optional array updates `CrudConfig`; when auto-handling is enabled, `CrudAjax::autoHandle()` intercepts requests with `fastcrud_ajax=1`.
 - **Rendering a table** – Instantiate `new Crud('table_name')`, chain configuration (columns, fields, behaviours), then call `render()`. The method emits table HTML and embeds the JS runtime with serialized config.
 - **AJAX fetch cycle** – Client script calls back with `action=fetch`, primary key, pagination, search, and `config` JSON. `Crud::fromAjax()` reconstructs server-side state, applies allow-listed client overrides, runs `getTableData()`, and returns rows + metadata.
 - **Record lifecycle** – `CrudAjax::handleUpdate()` decodes incoming field map, calls `Crud::updateRecord()` (validation, formatting, DB update). `deleteRecord()` and `duplicateRecord()` follow similar flows; `ValidationException` bubbles field-level errors.
