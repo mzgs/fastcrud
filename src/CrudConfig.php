@@ -25,6 +25,9 @@ class CrudConfig
     // show query builder filters controls by default
     public static bool $enable_filters = false;
 
+    // prepend a numbered column to grid listings unless overridden per Crud instance
+    public static bool $enable_numbers = false;
+
     // hide table title block globally
     public static bool $hide_table_title = false;
 

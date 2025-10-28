@@ -163,6 +163,7 @@ class Crud
         'panel_width' => null,
         'select2' => false,
         'filters_enabled' => true,
+        'numbers_enabled' => false,
         'primary_key' => 'id',
         'query_builder' => [
             'filters' => [],
@@ -222,6 +223,7 @@ class Crud
 
         $this->config['select2'] = CrudConfig::$enable_select2;
         $this->config['filters_enabled'] = CrudConfig::$enable_filters;
+        $this->config['numbers_enabled'] = CrudConfig::$enable_numbers;
         $this->config['table_meta']['hide_title'] = CrudConfig::$hide_table_title;
     }
 
@@ -3932,6 +3934,13 @@ class Crud
         return $this;
     }
 
+    public function enable_numbers(bool $enabled = true): self
+    {
+        $this->config['numbers_enabled'] = (bool) $enabled;
+
+        return $this;
+    }
+
     public function enable_select2(bool $enabled = true): self
     {
         $this->config['select2'] = (bool) $enabled;
@@ -6540,7 +6549,8 @@ SQL;
         $clientConfigPayload = $this->buildClientConfigPayload();
         $script     = $this->generateAjaxScript();
         $styles     = $this->buildActionColumnStyles($rawId, $formOnly);
-        $colspan    = $this->escapeHtml((string) (count($columns) + 1 + ($batchDeleteEnabled ? 1 : 0) + ($this->hasNestedTables() ? 1 : 0)));
+        $numbersEnabled = !empty($this->config['numbers_enabled']);
+        $colspan    = $this->escapeHtml((string) (count($columns) + 1 + ($batchDeleteEnabled ? 1 : 0) + ($this->hasNestedTables() ? 1 : 0) + ($numbersEnabled ? 1 : 0)));
         $offcanvas  = $this->buildEditOffcanvas($rawId, $formOnly) . $this->buildViewOffcanvas($rawId, $formOnly);
         $queryBuilderModal = $this->buildQueryBuilderModal($rawId, $formOnly);
 
@@ -6788,6 +6798,10 @@ HTML;
 
         if ($this->isBatchDeleteEnabled()) {
             $cells[] = '            <th scope="col" class="text-center fastcrud-select fastcrud-select-header"><input type="checkbox" class="form-check-input fastcrud-select-all" aria-label="Select all rows"></th>';
+        }
+
+        if (!empty($this->config['numbers_enabled'])) {
+            $cells[] = '            <th scope="col" class="text-center fastcrud-number fastcrud-number-header">#</th>';
         }
 
         foreach ($columns as $column) {
@@ -7275,6 +7289,14 @@ CSS;
 #{$containerId} table thead th.fastcrud-nested,
 #{$containerId} table tbody td.fastcrud-nested-cell,
 #{$containerId} table tfoot td.fastcrud-nested-cell {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    text-align: center;
+}
+
+#{$containerId} table thead th.fastcrud-number,
+#{$containerId} table tbody td.fastcrud-number-cell,
+#{$containerId} table tfoot td.fastcrud-number-cell {
     width: 2.75rem;
     min-width: 2.75rem;
     text-align: center;
@@ -7846,6 +7868,7 @@ HTML;
             'sort_disabled'  => $sortDisabled,
             'form' => $formMeta,
             'inline_edit' => $inline,
+            'numbers_enabled' => (bool) ($this->config['numbers_enabled'] ?? false),
             'nested_tables' => $this->buildNestedTablesClientConfigPayload(),
             'soft_delete'   => $this->config['soft_delete'],
             'query_builder' => $this->buildQueryBuilderClientPayload(),
@@ -8560,6 +8583,7 @@ HTML;
             ],
             'select2'           => (bool) ($this->config['select2'] ?? false),
             'filters_enabled'   => (bool) ($this->config['filters_enabled'] ?? true),
+            'numbers_enabled'   => (bool) ($this->config['numbers_enabled'] ?? false),
             'query_builder'     => $this->buildQueryBuilderClientPayload(),
         ];
     }
@@ -9376,6 +9400,9 @@ HTML;
             $this->config['select2'] = (bool) $payload['select2'];
         }
 
+        if (array_key_exists('numbers_enabled', $payload)) {
+            $this->config['numbers_enabled'] = (bool) $payload['numbers_enabled'];
+        }
 
         if (isset($payload['table_meta']) && is_array($payload['table_meta'])) {
             $meta = $payload['table_meta'];
@@ -11736,6 +11763,9 @@ CSS;
         if (clientConfig && Object.prototype.hasOwnProperty.call(clientConfig, 'filters_enabled')) {
             filtersEnabled = !!clientConfig.filters_enabled;
         }
+        var numbersEnabled = !!(clientConfig && Object.prototype.hasOwnProperty.call(clientConfig, 'numbers_enabled')
+            ? clientConfig.numbers_enabled
+            : false);
         var richEditorConfig = clientConfig.rich_editor || {};
         var paginationContainer = $('#' + tableId + '-pagination');
         var currentPage = 1;
@@ -14094,6 +14124,13 @@ CSS;
 
             metaConfig = meta;
 
+            if (Object.prototype.hasOwnProperty.call(metaConfig, 'numbers_enabled')) {
+                numbersEnabled = !!metaConfig.numbers_enabled;
+            } else if (clientConfig && Object.prototype.hasOwnProperty.call(clientConfig, 'numbers_enabled')) {
+                numbersEnabled = !!clientConfig.numbers_enabled;
+            }
+            clientConfig.numbers_enabled = numbersEnabled;
+
             if (formOnlyMode) {
                 if (Array.isArray(meta.columns) && meta.columns.length) {
                     columnsCache = meta.columns.slice();
@@ -14588,7 +14625,7 @@ CSS;
         }
 
         function applyHeaderMetadata() {
-            var headerCells = table.find('thead th').not('.fastcrud-actions, .fastcrud-select-header, .fastcrud-nested');
+            var headerCells = table.find('thead th').not('.fastcrud-actions, .fastcrud-select-header, .fastcrud-nested, .fastcrud-number-header');
             headerCells.each(function(index) {
                 var column = columnsCache[index];
                 if (!column) {
@@ -14658,7 +14695,7 @@ CSS;
         }
 
         function updateSortIndicators() {
-            var headerCells = table.find('thead th').not('.fastcrud-actions, .fastcrud-select-header, .fastcrud-nested');
+            var headerCells = table.find('thead th').not('.fastcrud-actions, .fastcrud-select-header, .fastcrud-nested, .fastcrud-number-header');
             headerCells.each(function(index) {
                 var cell = $(this);
                 var column = columnsCache[index];
@@ -14771,6 +14808,18 @@ CSS;
                 var renderedValue = summary.value === null || typeof summary.value === 'undefined' || summary.value === ''
                     ? '—'
                     : String(summary.value);
+
+                if (hasNestedTablesConfigured()) {
+                    row.append('<td class="fastcrud-nested-cell">&nbsp;</td>');
+                }
+
+                if (batchDeleteEnabled) {
+                    row.append('<td class="text-center fastcrud-select-cell">&nbsp;</td>');
+                }
+
+                if (numbersEnabled) {
+                    row.append('<td class="fastcrud-number-cell">&nbsp;</td>');
+                }
 
                 $.each(columnsCache, function(columnIndex, column) {
                     var cell = $('<td></td>');
@@ -16445,9 +16494,11 @@ CSS;
             return '<td class="text-end fastcrud-actions-cell"><div class="fastcrud-actions-stack">' + buttonsHtml + '</div></td>';
         }
 
-        function populateTableRows(rows) {
+        function populateTableRows(rows, pagination) {
             var tbody = table.find('tbody');
             var totalColumns = table.find('thead th').length || 1;
+
+            rows = Array.isArray(rows) ? rows : [];
 
             if (!rows || rows.length === 0) {
                 tbody.html('');
@@ -16460,8 +16511,24 @@ CSS;
             var html = '';
             var expandQueue = [];
             var hasNested = hasNestedTablesConfigured();
+            var paginationInfo = (pagination && typeof pagination === 'object') ? pagination : null;
+            var numbersPerPage = perPage;
+            if (paginationInfo && typeof paginationInfo.per_page === 'number') {
+                numbersPerPage = paginationInfo.per_page;
+            }
+            if (!numbersPerPage || numbersPerPage < 1) {
+                numbersPerPage = rows.length;
+            }
+            var numbersPage = currentPage;
+            if (paginationInfo && typeof paginationInfo.current_page === 'number' && paginationInfo.current_page > 0) {
+                numbersPage = paginationInfo.current_page;
+            }
+            if (!numbersPage || numbersPage < 1) {
+                numbersPage = 1;
+            }
+            var numberOffset = numbersEnabled ? Math.max(0, (numbersPage - 1) * numbersPerPage) : 0;
 
-            $.each(rows, function(_, row) {
+            $.each(rows, function(rowIndex, row) {
                 var rowMeta = row.__fastcrud || {};
                 var cellsMeta = rowMeta.cells || {};
                 var rawValues = rowMeta.raw || {};
@@ -16578,6 +16645,15 @@ CSS;
                     }
 
                     cells += '<td class="text-center fastcrud-select-cell"><input ' + checkboxAttrs.join(' ') + '></td>';
+                }
+
+                if (numbersEnabled) {
+                    var numericIndex = typeof rowIndex === 'number' ? rowIndex : parseInt(rowIndex, 10);
+                    if (isNaN(numericIndex)) {
+                        numericIndex = 0;
+                    }
+                    var rowNumber = numberOffset + numericIndex + 1;
+                    cells += '<td class="text-center fastcrud-number-cell">' + escapeHtml(String(rowNumber)) + '</td>';
                 }
 
                 $.each(columnsCache, function(colIndex, column) {
@@ -16960,7 +17036,7 @@ CSS;
                             primaryKeyColumn = findPrimaryKey(columnsCache);
                         }
 
-                        populateTableRows(response.data || []);
+                        populateTableRows(response.data || [], response.pagination || null);
                         refreshTooltips();
                         renderSummaries(metaConfig.summaries || []);
 
