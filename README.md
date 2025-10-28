@@ -21,6 +21,7 @@
 - [📦 Installation](#installation)
 - [🚀 Quick Start](#quick-start)
 - [🔧 Configuration](#configuration)
+- [🛡️ AJAX Hooks](#-ajax-hooks)
 - [🗃️ Database Editor](#database-editor)
 - [📜 API Reference & Customization](#api-reference--customization)
 - [📝 License](#license)
@@ -132,6 +133,40 @@ $orders = (new Crud('orders'))->setPerPage(10)->order_by('created_at', 'desc');
 echo $users->render();
 echo $orders->render();
 ```
+
+
+
+## 🛡️ AJAX Hooks
+
+Global AJAX hooks let you inspect or adjust every FastCRUD request before the built-in router takes over. Register your callbacks during bootstrap (ideally right after `Crud::init()`):
+
+```php
+use FastCrud\Crud;
+
+Crud::init([
+    'database' => 'app',
+    'username' => 'user',
+    'password' => 'secret',
+]);
+
+Crud::beforeAjax(static function (array &$request): array {
+    // Replace Auth::* with your project's authentication helper
+    if (!Auth::check()) {
+        throw new \RuntimeException('Unauthorized');
+    }
+
+    if (($request['table'] ?? null) === 'orders' && !Auth::user()->isAdmin()) {
+        // Scope non-admins to their own orders before FastCRUD handles the request
+        $request['config']['where'][] = ['created_by' => Auth::id()];
+    }
+
+    return $request;
+});
+```
+
+- Register multiple callbacks; they run in the order added.
+- Modify the request array by reference or return a new array to be used downstream.
+- Throw an exception (or return an error response) to cancel the request gracefully.
 
 
 

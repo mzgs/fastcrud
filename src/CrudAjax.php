@@ -18,6 +18,11 @@ class CrudAjax
         try {
             $request = self::getRequestData();
 
+            $processed = Crud::beforeAjax($request);
+            if (is_array($processed)) {
+                $request = $processed;
+            }
+
             $action = $request['action'] ?? 'fetch';
             
             switch ($action) {
