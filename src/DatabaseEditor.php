@@ -1260,6 +1260,30 @@ SQL;
                 $columns = $tableColumns[$table] ?? [];
                 $columnCount = count($columns);
                 $columnSummary = $columnCount === 1 ? '1 column' : $columnCount . ' columns';
+
+                // Generate schema string
+                $schemaLines = [];
+                $schemaLines[] = 'CREATE TABLE ' . $table . ' (';
+                foreach ($columns as $idx => $column) {
+                    $line = '  ' . $column['name'] . ' ' . $column['type'];
+                    if (!$column['nullable']) {
+                        $line .= ' NOT NULL';
+                    }
+                    if (isset($column['default']) && $column['default'] !== null && $column['default'] !== '') {
+                        $line .= ' DEFAULT ' . $column['default'];
+                    }
+                    if (isset($column['extra']) && $column['extra'] !== '') {
+                        $line .= ' ' . $column['extra'];
+                    }
+                    if ($idx < count($columns) - 1) {
+                        $line .= ',';
+                    }
+                    $schemaLines[] = $line;
+                }
+                $schemaLines[] = ');';
+                $schemaString = implode("\n", $schemaLines);
+                $schemaEscaped = htmlspecialchars($schemaString, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
                 $html .= '<div class="tab-pane fade' . $isActive . '" id="' . $tabId . '" role="tabpanel" aria-labelledby="tab-' . $tabId . '">';
                 $html .= '<div class="card">';
                 $html .= '<div class="fc-db-table fastcrud-db-editor__columns">';
@@ -1276,11 +1300,14 @@ SQL;
                 $html .= '<span class="badge bg-primary-subtle text-primary fw-semibold">' . $columnSummary . '</span>';
                 $html .= '</div>';
                 $confirmMessage = htmlspecialchars(sprintf('Delete table "%s"? This action cannot be undone.', $table), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $html .= '<form method="post" class="ms-lg-auto d-flex align-items-center" data-fc-db-editor-form>';
+                $html .= '<div class="ms-lg-auto d-flex align-items-center gap-2">';
+                $html .= '<button type="button" class="btn btn-sm btn-outline-secondary fc-db-copy-schema" data-fc-schema="' . $schemaEscaped . '" title="Copy schema"><i class="fas fa-copy me-1"></i>Copy Scheme</button>';
+                $html .= '<form method="post" class="d-flex align-items-center" data-fc-db-editor-form>';
                 $html .= '<input type="hidden" name="fc_db_editor_action" value="delete_table">';
                 $html .= '<input type="hidden" name="table_name" value="' . $tableEscaped . '">';
                 $html .= '<button type="submit" class="btn btn-outline-danger btn-sm" data-fc-db-confirm="' . $confirmMessage . '" title="Delete table" aria-label="Delete table"><i class="fas fa-trash me-1"></i>Delete</button>';
                 $html .= '</form>';
+                $html .= '</div>';
                 $html .= '</div>';
                 $html .= '<div class="fc-db-table__body p-4">';
                 if ($columns === []) {
@@ -2509,6 +2536,29 @@ SQL;
             var container = trigger.closest('[data-fc-inline-container]');
             if (container) {
                 showForm(container);
+            }
+            return;
+        }
+
+        var copySchemaBtn = event.target.closest('.fc-db-copy-schema');
+        if (copySchemaBtn) {
+            event.preventDefault();
+            var schema = copySchemaBtn.getAttribute('data-fc-schema');
+            if (schema && navigator.clipboard) {
+                navigator.clipboard.writeText(schema).then(function() {
+                    var icon = copySchemaBtn.querySelector('i');
+                    var originalClass = icon.className;
+                    icon.className = 'fas fa-check';
+                    copySchemaBtn.classList.add('btn-success');
+                    copySchemaBtn.classList.remove('btn-outline-secondary');
+                    setTimeout(function() {
+                        icon.className = originalClass;
+                        copySchemaBtn.classList.remove('btn-success');
+                        copySchemaBtn.classList.add('btn-outline-secondary');
+                    }, 1500);
+                }).catch(function() {
+                    alert('Failed to copy schema to clipboard');
+                });
             }
             return;
         }
