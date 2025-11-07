@@ -7290,7 +7290,7 @@ CSS;
 #{$containerId} table tfoot td.fastcrud-actions-cell {
     position: sticky;
     right: 0;
-    min-width: 12rem;
+    width: fit-content;
 }
 
 #{$containerId} table thead th.fastcrud-actions {
