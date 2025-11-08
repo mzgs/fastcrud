@@ -4919,15 +4919,24 @@ class Crud
                 $searchClause = sprintf('%s LIKE %s', $targetExpr, $placeholder);
             } else {
                 // When "All" is selected (or no specific/allowed column picked),
-                // search across the visible grid columns if available,
-                // otherwise fall back to configured search columns.
-                $exprList = array_values($map);
-                if ($exprList === []) {
-                    $exprList = [];
-                    foreach ($configuredColumns as $c) {
-                        $expr = $this->normalizeWhereField($c);
-                        if ($expr !== '') { $exprList[] = $expr; }
+                // start with visible grid columns and always merge configured search columns
+                // so hidden-but-searchable fields are still queried.
+                $exprList = [];
+                $seenExprs = [];
+
+                foreach ($map as $expr) {
+                    if ($expr === '') { continue; }
+                    $exprList[] = $expr;
+                    $seenExprs[$expr] = true;
+                }
+
+                foreach ($configuredColumns as $c) {
+                    $expr = $this->normalizeWhereField($c);
+                    if ($expr === '' || isset($seenExprs[$expr])) {
+                        continue;
                     }
+                    $exprList[] = $expr;
+                    $seenExprs[$expr] = true;
                 }
 
                 $parts = [];
