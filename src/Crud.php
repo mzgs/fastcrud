@@ -7562,6 +7562,13 @@ CSS;
     z-index: 1070;
 }
 
+#{$containerId} .fastcrud-multi-link-menu {
+    max-height: 20rem;
+    max-height: min(60vh, 20rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
 /* Align boolean switches neatly inside cells */
 #{$containerId} table tbody td .fastcrud-bool-cell {
     display: flex;
