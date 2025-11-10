@@ -450,6 +450,14 @@ class Crud
                 }
             }
 
+            $dividerTitle = null;
+            if (array_key_exists('title', $entry) && $entry['title'] !== null) {
+                $titleCandidate = trim((string) $entry['title']);
+                if ($titleCandidate !== '') {
+                    $dividerTitle = $titleCandidate;
+                }
+            }
+
             $isDivider = false;
             if ($entryType === 'divider') {
                 $isDivider = true;
@@ -461,7 +469,8 @@ class Crud
 
             if ($isDivider) {
                 $items[] = [
-                    'type' => 'divider',
+                    'type'  => 'divider',
+                    'title' => $dividerTitle,
                 ];
                 continue;
             }
@@ -2145,14 +2154,29 @@ class Crud
                 }
 
                 if ($itemType === 'divider') {
-                    if ($items !== []) {
-                        $lastIndex = array_key_last($items);
-                        $lastItem = $lastIndex !== null ? $items[$lastIndex] : null;
-                        $lastType = is_array($lastItem) && isset($lastItem['type']) ? strtolower((string) $lastItem['type']) : null;
-                        if ($lastType !== 'divider') {
-                            $items[] = ['type' => 'divider'];
+                    if ($items === []) {
+                        continue;
+                    }
+
+                    $lastIndex = array_key_last($items);
+                    $lastItem = $lastIndex !== null ? $items[$lastIndex] : null;
+                    $lastType = is_array($lastItem) && isset($lastItem['type']) ? strtolower((string) $lastItem['type']) : null;
+                    if ($lastType === 'divider') {
+                        continue;
+                    }
+
+                    $resolvedTitle = null;
+                    if (array_key_exists('title', $item) && $item['title'] !== null) {
+                        $titleResult = trim($this->applyPattern((string) $item['title'], '', null, 'multi_link_button', $row));
+                        if ($titleResult !== '') {
+                            $resolvedTitle = $titleResult;
                         }
                     }
+
+                    $items[] = [
+                        'type'  => 'divider',
+                        'title' => $resolvedTitle,
+                    ];
                     continue;
                 }
 
@@ -16111,7 +16135,17 @@ CSS;
                         }
 
                         if (itemType === 'divider') {
-                            dropdownItems.push('<li><hr class="dropdown-divider fastcrud-multi-link-divider" role="separator"></li>');
+                            var dividerTitleRaw = typeof item.title === 'string' ? item.title : '';
+                            var dividerTitle = dividerTitleRaw.trim();
+                            var dividerHtml = '<li class="fastcrud-multi-link-divider-wrapper">'
+                                + '<hr class="dropdown-divider fastcrud-multi-link-divider" role="separator">';
+                            if (dividerTitle) {
+                                dividerHtml += '<div class="dropdown-header fastcrud-multi-link-divider-title">'
+                                    + escapeHtml(dividerTitle)
+                                    + '</div>';
+                            }
+                            dividerHtml += '</li>';
+                            dropdownItems.push(dividerHtml);
                             return;
                         }
 
