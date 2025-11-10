@@ -338,6 +338,13 @@ All customization options are available through the main `FastCrud\Crud` class m
   }
   $crud->column_callback('total', 'format_total_with_tax');
   ```
+- **`column_callbacks(array $definitions): self`** – Apply several `column_callback()` rules at once by passing an associative array where each key is a comma-separated column list and each value is the callable.
+  ```php
+  $crud->column_callbacks([
+      'status' => 'map_status',
+      'total,subtotal' => [InvoicePresenter::class, 'formatCurrency'],
+  ]);
+  ```
 - **`custom_column(string $column, string|array $callback): self`** – Add computed virtual columns to the grid; callback forms mirror `column_callback()`.
   ```php
   // Using a named function (function must accept 1 param: $row)
@@ -416,6 +423,13 @@ All customization options are available through the main `FastCrud\Crud` class m
       HTML;
   }
   $crud->field_callback('color', 'create_color_picker');
+  ```
+- **`fields_callbacks(array $definitions): self`** – Batch syntax for `field_callback()`. Use associative maps (`['color' => 'create_color_picker', 'status,priority' => 'decorate_badges']`). Alias: `field_callbacks()`.
+  ```php
+  $crud->fields_callbacks([
+      'color' => 'create_color_picker',
+      'status,priority' => 'decorate_badges',
+  ]);
   ```
 - **`fields(string|array $fields, bool $reverse = false, string|false $tab = false, string|array|false $mode = false): self`** – Arrange form fields into sections and tabs; target specific modes using `'create'`, `'edit'`, `'view'`, or `'all'` (or pass `false` to apply everywhere).
   ```php

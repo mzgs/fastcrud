@@ -3049,6 +3049,30 @@ class Crud
     }
 
     /**
+     * Register multiple column callbacks in a single call.
+     *
+     * Pass an associative array where each key is a comma-separated list of columns
+     * (or a single column) and each value is the callable definition accepted by
+     * {@see column_callback()}.
+     *
+     * @param array<int|string, mixed> $definitions
+     */
+    public function column_callbacks(array $definitions): self
+    {
+        if ($definitions === []) {
+            throw new InvalidArgumentException('column_callbacks requires at least one definition.');
+        }
+
+        $applied = $this->applyBatchCallbacks($definitions, 'column');
+
+        if (!$applied) {
+            throw new InvalidArgumentException('column_callbacks requires at least one valid definition.');
+        }
+
+        return $this;
+    }
+
+    /**
      * Register a computed column that is not part of the underlying table.
      *
      * The callback receives the current row array and should return the value to display.
@@ -3117,6 +3141,36 @@ class Crud
     }
 
     /**
+     * Bulk assign field callbacks using the same associative shape as `column_callbacks()`.
+     *
+     * @param array<int|string, mixed> $definitions
+     */
+    public function fields_callbacks(array $definitions): self
+    {
+        if ($definitions === []) {
+            throw new InvalidArgumentException('fields_callbacks requires at least one definition.');
+        }
+
+        $applied = $this->applyBatchCallbacks($definitions, 'field');
+
+        if (!$applied) {
+            throw new InvalidArgumentException('fields_callbacks requires at least one valid definition.');
+        }
+
+        return $this;
+    }
+
+    /**
+     * Alias of {@see fields_callbacks()} for readability.
+     *
+     * @param array<int|string, mixed> $definitions
+     */
+    public function field_callbacks(array $definitions): self
+    {
+        return $this->fields_callbacks($definitions);
+    }
+
+    /**
      * Register a form field that is not stored in the database.
      *
      * The callback receives the field name, the initial value (or null), the row array, and the
@@ -3147,6 +3201,64 @@ class Crud
         }
 
         return $this;
+    }
+
+    /**
+     * @param array<int|string, mixed> $definitions
+     */
+    private function applyBatchCallbacks(array $definitions, string $type): bool
+    {
+        $applied = false;
+        $listKeys = $type === 'column' ? ['columns'] : ['fields', 'columns'];
+
+        foreach ($definitions as $key => $definition) {
+            [$targets, $callback] = $this->normalizeBatchCallbackDefinition($key, $definition, $listKeys, $type);
+
+            if ($type === 'column') {
+                $this->column_callback($targets, $callback);
+            } else {
+                $this->field_callback($targets, $callback);
+            }
+
+            $applied = true;
+        }
+
+        return $applied;
+    }
+
+    /**
+     * @param array<int, string> $listKeys
+     * @return array{0: string|array<int, string>, 1: string|array<int, string>}
+     */
+    private function normalizeBatchCallbackDefinition(int|string $key, mixed $definition, array $listKeys, string $type): array
+    {
+        $targets = null;
+        $callback = null;
+
+        if (is_string($key)) {
+            $targets = $key;
+            $callback = $definition;
+        } elseif (is_array($definition)) {
+            foreach ($listKeys as $listKey) {
+                if (array_key_exists($listKey, $definition) && array_key_exists('callback', $definition)) {
+                    $targets = $definition[$listKey];
+                    $callback = $definition['callback'];
+                    break;
+                }
+            }
+
+            if ($targets === null && array_key_exists(0, $definition) && array_key_exists(1, $definition)) {
+                $targets = $definition[0];
+                $callback = $definition[1];
+            }
+        }
+
+        if ($targets === null || $callback === null) {
+            $label = $type === 'column' ? 'columns' : 'fields';
+            throw new InvalidArgumentException(sprintf('Each %s_callbacks entry must provide %s and callback.', $type, $label));
+        }
+
+        return [$targets, $callback];
     }
 
     /**

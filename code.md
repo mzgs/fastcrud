@@ -55,8 +55,8 @@ graph TD
 
 ## Configuration APIs (selected)
 - **Data shaping** – `columns()`, `limit()/limit_list()`, `order_by()`, `where()/or_where()`, `join()`, `relation()`, `subselect()`
-- **Presentation** – `column_label*`, `column_pattern()`, `column_callback()`, `custom_column()`, `column_class()`, `column_width()`, `column_cut()`, `table_title()/hide_table_title()/tooltip()/icon()`, `add_link_button()`, `add_multi_link_button()`
-- **Field layout** – `fields()`, `default_tab()`, `change_type()`, `inline_edit()`, `setPanelWidth()`
+- **Presentation** – `column_label*`, `column_pattern()`, `column_callback()`, `column_callbacks()`, `custom_column()`, `column_class()`, `column_width()`, `column_cut()`, `table_title()/hide_table_title()/tooltip()/icon()`, `add_link_button()`, `add_multi_link_button()`
+- **Field layout** – `fields()`, `field_callback()`, `fields_callbacks()`, `default_tab()`, `change_type()`, `inline_edit()`, `setPanelWidth()`
 - **Field lifecycle & validation** – `pass_var()`, `pass_default()`, `readonly()`, `disabled()`, `validation_required()`, `validation_pattern()`, `unique()`
 - **Meta & summaries** – `column_summary()` for SUM/AVG/MIN/MAX/COUNT footers, automatic `buildSummaries()` on fetch.
 - **Direct data ops** – `getTableData()`, `getRecord()`, `updateRecord()`, `deleteRecord()`, `duplicateRecord()`
