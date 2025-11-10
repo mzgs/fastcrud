@@ -3099,6 +3099,45 @@ class Crud
     }
 
     /**
+     * Register multiple custom columns using associative "column list" => callable definitions.
+     *
+     * Keys accept a single column or a comma-separated list; values are forwarded to
+     * {@see custom_column()} for validation.
+     *
+     * @param array<string, string|array<int, string>> $definitions
+     */
+    public function custom_columns(array $definitions): self
+    {
+        if ($definitions === []) {
+            throw new InvalidArgumentException('custom_columns requires at least one definition.');
+        }
+
+        $applied = false;
+
+        foreach ($definitions as $columns => $callback) {
+            if (!is_string($columns)) {
+                throw new InvalidArgumentException('custom_columns keys must be strings of column names.');
+            }
+
+            $targets = $this->normalizeList($columns);
+            if ($targets === []) {
+                continue;
+            }
+
+            foreach ($targets as $column) {
+                $this->custom_column($column, $callback);
+                $applied = true;
+            }
+        }
+
+        if (!$applied) {
+            throw new InvalidArgumentException('custom_columns requires at least one valid column name.');
+        }
+
+        return $this;
+    }
+
+    /**
      * Apply a callback to transform form field values before they are sent to the client.
      *
      * The callback receives the field name, the current value, the full row array, and the form

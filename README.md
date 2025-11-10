@@ -354,6 +354,13 @@ All customization options are available through the main `FastCrud\Crud` class m
   }
   $crud->custom_column('full_name', 'compute_full_name');
   ```
+- **`custom_columns(array $definitions): self`** – Batch syntax for `custom_column()`. Provide associative maps where each key can target multiple custom columns via comma-separated names.
+  ```php
+  $crud->custom_columns([
+      'full_name' => 'compute_full_name',
+      'total_with_tax,total_without_tax' => [InvoicePresenter::class, 'formatTotals'],
+  ]);
+  ```
 - **`column_class(string|array $columns, string|array $classes): self`** – Append custom CSS classes to specific cells (pass space-separated strings or arrays).
   ```php
   $crud->column_class('status', 'text-uppercase text-success');
