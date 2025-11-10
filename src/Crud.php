@@ -160,7 +160,7 @@ class Crud
         ],
         'column_summaries' => [],
         'field_labels' => [],
-        'panel_width' => null,
+        'panel_width' => '30%',
         'select2' => false,
         'filters_enabled' => true,
         'numbers_enabled' => false,
