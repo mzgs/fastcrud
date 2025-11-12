@@ -42,6 +42,11 @@ class Crud
      */
     private array $nestedTables = [];
     private string $primaryKeyColumn = 'id';
+    private ?string $cachedDriver = null;
+    /**
+     * @var array<string, array{expr: string, is_json: bool}>
+     */
+    private array $searchableColumnMeta = [];
     private const SUPPORTED_CONDITION_OPERATORS = [
         'equals',
         'not_equals',
@@ -5171,7 +5176,15 @@ class Crud
             if ($targetExpr !== null && $targetExpr !== '') {
                 $placeholder = ':search_term';
                 $parameters[$placeholder] = '%' . $searchTerm . '%';
-                $searchClause = sprintf('%s LIKE %s', $targetExpr, $placeholder);
+                $isJsonColumn = isset($this->searchableColumnMeta[$searchColumn])
+                    ? (bool) ($this->searchableColumnMeta[$searchColumn]['is_json'] ?? false)
+                    : false;
+
+                if ($isJsonColumn && $this->supportsJsonSearch()) {
+                    $searchClause = $this->buildJsonSearchCondition($targetExpr, $placeholder, false);
+                } else {
+                    $searchClause = sprintf('%s LIKE %s', $targetExpr, $placeholder);
+                }
             } else {
                 // When "All" is selected (or no specific/allowed column picked),
                 // start with visible grid columns and always merge configured search columns
@@ -5179,9 +5192,9 @@ class Crud
                 $exprList = [];
                 $seenExprs = [];
 
-                foreach ($map as $expr) {
+                foreach ($map as $displayColumn => $expr) {
                     if ($expr === '') { continue; }
-                    $exprList[] = $expr;
+                    $exprList[] = ['expr' => $expr, 'key' => $displayColumn];
                     $seenExprs[$expr] = true;
                 }
 
@@ -5190,17 +5203,27 @@ class Crud
                     if ($expr === '' || isset($seenExprs[$expr])) {
                         continue;
                     }
-                    $exprList[] = $expr;
+                    $exprList[] = ['expr' => $expr, 'key' => null];
                     $seenExprs[$expr] = true;
                 }
 
                 $parts = [];
                 $value = '%' . $searchTerm . '%';
-                foreach ($exprList as $idx => $expr) {
+                foreach ($exprList as $idx => $entry) {
+                    $expr = $entry['expr'];
                     if ($expr === '') { continue; }
                     $ph = ':search_term_' . $idx;
                     $parameters[$ph] = $value;
-                    $parts[] = sprintf('%s LIKE %s', $expr, $ph);
+                    $key = $entry['key'];
+                    $isJsonColumn = $key !== null
+                        ? (bool) ($this->searchableColumnMeta[$key]['is_json'] ?? false)
+                        : false;
+
+                    if ($isJsonColumn && $this->supportsJsonSearch()) {
+                        $parts[] = $this->buildJsonSearchCondition($expr, $ph, false);
+                    } else {
+                        $parts[] = sprintf('%s LIKE %s', $expr, $ph);
+                    }
                 }
                 $searchClause = $parts !== [] ? '(' . implode(' OR ', $parts) . ')' : '';
             }
@@ -5226,14 +5249,57 @@ class Crud
         return $sql;
     }
 
-    private function getSqlIdentifierQuotes(): array
+    private function getConnectionDriver(): string
     {
-        $driver = 'mysql';
+        if (is_string($this->cachedDriver) && $this->cachedDriver !== '') {
+            return $this->cachedDriver;
+        }
+
         try {
             $driver = strtolower((string) $this->connection->getAttribute(PDO::ATTR_DRIVER_NAME));
         } catch (PDOException) {
             $driver = 'mysql';
         }
+
+        if ($driver === '') {
+            $driver = 'mysql';
+        }
+
+        $this->cachedDriver = $driver;
+
+        return $this->cachedDriver;
+    }
+
+    private function supportsJsonSearch(): bool
+    {
+        return $this->getConnectionDriver() === 'mysql';
+    }
+
+    private function isJsonColumnType(?string $type): bool
+    {
+        if ($type === null || $type === '') {
+            return false;
+        }
+
+        $token = strtolower((string) $type);
+        $paren = strpos($token, '(');
+        if ($paren !== false) {
+            $token = substr($token, 0, $paren);
+        }
+
+        return in_array(trim($token), ['json', 'jsonb'], true);
+    }
+
+    private function buildJsonSearchCondition(string $columnExpr, string $placeholder, bool $negate = false): string
+    {
+        $keyword = $negate ? 'IS NULL' : 'IS NOT NULL';
+
+        return sprintf('JSON_SEARCH(%s, \'one\', %s) %s', $columnExpr, $placeholder, $keyword);
+    }
+
+    private function getSqlIdentifierQuotes(): array
+    {
+        $driver = $this->getConnectionDriver();
 
         if ($driver === 'pgsql' || $driver === 'sqlite') {
             return ['"', '"'];
@@ -5322,9 +5388,13 @@ class Crud
      */
     private function getWhereColumnsMapForAllSearch(): array
     {
+        $this->searchableColumnMeta = [];
+
         if ($this->config['custom_query'] !== null) {
             return [];
         }
+
+        $supportsJsonSearch = $this->supportsJsonSearch();
 
         // Build alias => table map for later schema lookups
         $aliasToTable = [];
@@ -5374,7 +5444,7 @@ class Crud
             $joinSchemas[$alias] = $this->getTableSchema($table);
         }
 
-        $isSearchableType = static function (?string $type): bool {
+        $isSearchableType = static function (?string $type) use ($supportsJsonSearch): bool {
             if ($type === null || $type === '') {
                 return true;
             }
@@ -5388,6 +5458,9 @@ class Crud
                 'binary','varbinary','bit',
                 'geometry','point','linestring','polygon','multipoint','multilinestring','multipolygon','geometrycollection'
             ];
+            if ($supportsJsonSearch) {
+                $blocked = array_values(array_diff($blocked, ['json', 'jsonb']));
+            }
             foreach ($blocked as $b) {
                 if ($t === $b) {
                     return false;
@@ -5408,18 +5481,36 @@ class Crud
             if (strpos($displayCol, '__') !== false) {
                 [$alias, $name] = array_map('trim', explode('__', $displayCol, 2));
                 $typeMeta = $joinSchemas[$alias][$name]['type'] ?? null;
-                if (!$isSearchableType(is_string($typeMeta) ? $typeMeta : null)) {
+                $typeString = is_string($typeMeta) ? $typeMeta : null;
+                $isJsonType = $this->isJsonColumnType($typeString);
+                if ($isJsonType && !$supportsJsonSearch) {
+                    continue;
+                }
+                if (!$isJsonType && !$isSearchableType($typeString)) {
                     continue;
                 }
                 $expr = $this->quoteQualifiedIdentifier($alias . '.' . $name);
                 $map[$displayCol] = $expr;
+                $this->searchableColumnMeta[$displayCol] = [
+                    'expr' => $expr,
+                    'is_json' => $isJsonType,
+                ];
             } else {
                 $typeMeta = $mainSchema[$displayCol]['type'] ?? null;
-                if (!$isSearchableType(is_string($typeMeta) ? $typeMeta : null)) {
+                $typeString = is_string($typeMeta) ? $typeMeta : null;
+                $isJsonType = $this->isJsonColumnType($typeString);
+                if ($isJsonType && !$supportsJsonSearch) {
+                    continue;
+                }
+                if (!$isJsonType && !$isSearchableType($typeString)) {
                     continue;
                 }
                 $expr = $this->quoteQualifiedIdentifier('main.' . $displayCol);
                 $map[$displayCol] = $expr;
+                $this->searchableColumnMeta[$displayCol] = [
+                    'expr' => $expr,
+                    'is_json' => $isJsonType,
+                ];
             }
         }
 
@@ -9025,9 +9116,12 @@ HTML;
      */
     private function makeQueryBuilderFieldEntry(string $fieldKey, string $qualifiedName, array $columnMeta): array
     {
+        $typeInfo = $this->detectSqlTypeInfo($columnMeta);
         $type = $this->determineQueryBuilderFieldType($columnMeta);
         $options = $this->extractEnumValues($columnMeta);
         $label = $this->resolveColumnLabel($fieldKey);
+        $normalizedType = $typeInfo['normalized'] !== '' ? $typeInfo['normalized'] : $typeInfo['raw'];
+        $isJsonField = $this->isJsonColumnType($normalizedType);
 
         return [
             'id'       => $fieldKey,
@@ -9037,6 +9131,7 @@ HTML;
             'nullable' => $this->queryBuilderColumnIsNullable($columnMeta),
             'options'  => $options,
             'sql'      => $this->quoteQualifiedIdentifier($qualifiedName),
+            'is_json'  => $isJsonField,
         ];
     }
 
@@ -9117,6 +9212,10 @@ HTML;
             'polygon', 'multipoint', 'multilinestring', 'multipolygon',
             'geometrycollection', 'bytea'
         ];
+
+        if ($this->supportsJsonSearch()) {
+            $blocked = array_values(array_diff($blocked, ['json', 'jsonb']));
+        }
 
         return !in_array($token, $blocked, true);
     }
@@ -9333,6 +9432,7 @@ HTML;
             'type'     => $fieldType,
             'sql'      => $fieldMeta['sql'],
             'nullable' => $fieldMeta['nullable'] ?? true,
+            'is_json'  => (bool) ($fieldMeta['is_json'] ?? false),
         ];
     }
 
@@ -9402,6 +9502,7 @@ HTML;
         }
 
         $type = isset($filter['type']) && is_string($filter['type']) ? $filter['type'] : 'string';
+        $isJsonField = isset($filter['is_json']) ? (bool) $filter['is_json'] : false;
 
         $basePlaceholder = ':qb_' . $placeholderCounter;
         $placeholderCounter++;
@@ -9448,6 +9549,13 @@ HTML;
                 }
 
                 $parameters[$basePlaceholder] = '%' . $stringValue . '%';
+
+                if ($isJsonField && $this->supportsJsonSearch()) {
+                    $negate = $operator === 'not_contains';
+
+                    return $this->buildJsonSearchCondition($column, $basePlaceholder, $negate);
+                }
+
                 $keyword = $operator === 'contains' ? 'LIKE' : 'NOT LIKE';
 
                 return sprintf('%s %s %s', $column, $keyword, $basePlaceholder);

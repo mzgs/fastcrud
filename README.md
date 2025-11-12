@@ -892,6 +892,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $crud->search_columns(['name', 'email'], 'name');
   ```
+  > 💡 Using MySQL? FastCRUD will automatically apply `JSON_SEARCH()` for any JSON columns so you can search the nested document structure from the quick search box and the Query Builder without extra configuration.
 - **`no_quotes(string|array $fields): self`** – Treat specified expressions as raw SQL by passing column names or raw expressions (array or comma-separated string).
   ```php
   $crud->no_quotes('JSON_EXTRACT(meta, "$.flag")');
