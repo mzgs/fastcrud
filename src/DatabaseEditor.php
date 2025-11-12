@@ -36,7 +36,7 @@ class DatabaseEditor
         self::maybeHandleDownloadEarly();
     }
 
-    public static function render(bool $showHeader = true, bool $showRecordsTable = false): string
+    public static function render(bool $showHeader = true, bool $showRecordsTable = true): string
     {
         if (!self::$initialized) {
             self::init();
