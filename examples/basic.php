@@ -255,7 +255,7 @@ DatabaseEditor::init();
                     ])
                     ->enable_select2()
                     ->column_pattern('slug', '<strong>{value} - {id} | {status}</strong>')
-                   ->column_cut('content', 30)
+                   ->column_truncate('content', 30)
                     ->column_pattern('content', 'pattern content| {value}')
                     ->column_callback('content', 'content_callback')
                     // Add a custom, computed column that isn't stored in the database
@@ -264,7 +264,7 @@ DatabaseEditor::init();
                     ->field_callback('color', 'create_color_picker')
                     ->column_class('user_id', 'text-muted')
                     // ->column_width('title', '30%')
-                    ->column_cut('content', 30)
+                    ->column_truncate('content', 30)
                     ->setPanelWidth('30%')
                     
                     ->add_link_button('example.com?id={id}', 'fas fa-user', '', 'btn btn-info text-white', ['target' => '_blank', 'class' => 'me-2'] )

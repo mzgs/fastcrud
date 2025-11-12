@@ -329,7 +329,7 @@ All customization options are available through the main `FastCrud\Crud` class m
   $crud->column_pattern('email', '<a href="mailto:{raw}">{value}</a>');
   $crud->column_pattern('name', '<strong>{first_name} {last_name}</strong> ({id})');
   ```
-  Use `{formatted}` to reference the truncated display produced by helpers like `column_cut()`, while `{value}` preserves the original string.
+  Use `{formatted}` to reference the truncated display produced by helpers like `column_truncate()`, while `{value}` preserves the original string.
 - **`column_callback(string|array $columns, string|array $callback): self`** – Pass values through a formatter callback (use a named function `'function_name'`, `'Class::method'`, or `[ClassName::class, 'method']`).
   ```php
   // Using a named function (function must accept 4 params: $value, $row, $column, $display)
@@ -372,9 +372,9 @@ All customization options are available through the main `FastCrud\Crud` class m
   ```php
   $crud->column_width('name', '220px');
   ```
-- **`column_cut(string|array $columns, int $length, string $suffix = '…'): self`** – Truncate long text for clean tables; customise the suffix (e.g. `'...'`).
+- **`column_truncate(string|array $columns, int $length, string $suffix = '…'): self`** – Truncate long text for clean tables; customise the suffix (e.g. `'...'`). FastCRUD now trims every column to 300 chars by default via `CrudConfig::$default_column_truncate`; override globally by changing that flag or per column with `column_truncate()`.
   ```php
-  $crud->column_cut('description', 80);
+  $crud->column_truncate('description', 80);
   ```
 - **`highlight(string|array $columns, string $operator, mixed $value = null, string $class = 'text-warning'): self`** – Highlight cells that match conditions using operators such as `equals`, `not_equals`, `contains`, `not_contains`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in`, `empty`, `not_empty` (symbol aliases like `=`, `!=`, `>=`, `<` are also accepted).
   ```php
@@ -1058,6 +1058,16 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 - **`CrudConfig::$hide_table_title`** – Hide the table header block (title, icon, tooltip) by default (default: `false`).
   ```php
   CrudConfig::$hide_table_title = true; // Remove table titles globally
+  ```
+- **`CrudConfig::$default_column_truncate`** – Automatically truncate every column unless overridden per column (defaults to `300`). Accepts either an integer length (suffix defaults to `'…'`), an array like `['length' => 60, 'suffix' => '...']`, or `null` to disable globally.
+  ```php
+  use FastCrud\CrudConfig;
+
+  CrudConfig::$default_column_truncate = ['length' => 60, 'suffix' => '...'];
+  // or
+  CrudConfig::$default_column_truncate = 80;
+  // disable the global truncation entirely
+  CrudConfig::$default_column_truncate = null;
   ```
 
 ---

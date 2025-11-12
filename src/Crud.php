@@ -132,6 +132,7 @@ class Crud
         'column_classes' => [],
         'column_widths' => [],
         'column_cuts' => [],
+        'default_column_truncate' => null,
         'column_highlights' => [],
         'row_highlights' => [],
         'link_buttons' => [],
@@ -225,6 +226,11 @@ class Crud
         $this->config['filters_enabled'] = CrudConfig::$enable_filters;
         $this->config['numbers_enabled'] = CrudConfig::$enable_numbers;
         $this->config['table_meta']['hide_title'] = CrudConfig::$hide_table_title;
+
+        $defaultTruncate = $this->resolveDefaultColumnTruncate();
+        if ($defaultTruncate !== null) {
+            $this->config['default_column_truncate'] = $defaultTruncate;
+        }
     }
 
     public function getTable(): string
@@ -358,6 +364,51 @@ class Crud
     {
         $list = $this->normalizeList($classes);
         return implode(' ', $list);
+    }
+
+    /**
+     * @return array{length:int,suffix:string}|null
+     */
+    private function resolveDefaultColumnTruncate(): ?array
+    {
+        return $this->normalizeDefaultColumnTruncateValue(
+            CrudConfig::$default_column_truncate,
+            'CrudConfig::$default_column_truncate'
+        );
+    }
+
+    /**
+     * @param array{length:mixed,suffix?:mixed}|int|null $value
+     * @return array{length:int,suffix:string}|null
+     */
+    private function normalizeDefaultColumnTruncateValue(array|int|null $value, string $context): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_int($value)) {
+            $length = $value;
+            $suffix = '…';
+        } elseif (is_array($value)) {
+            if (!isset($value['length'])) {
+                throw new InvalidArgumentException($context . ' requires a length.');
+            }
+
+            $length = (int) $value['length'];
+            $suffix = array_key_exists('suffix', $value) ? (string) $value['suffix'] : '…';
+        } else {
+            throw new InvalidArgumentException($context . ' must be an integer or array.');
+        }
+
+        if ($length < 1) {
+            throw new InvalidArgumentException($context . ' length must be at least 1.');
+        }
+
+        return [
+            'length' => $length,
+            'suffix' => $suffix,
+        ];
     }
 
     /**
@@ -2378,7 +2429,9 @@ class Crud
         $displayOriginal = $display;
         $formattedDisplay = $display;
 
-        $cut = $this->config['column_cuts'][$column] ?? null;
+        $cut = $this->config['column_cuts'][$column]
+            ?? $this->config['default_column_truncate']
+            ?? null;
         if (is_array($cut) && isset($cut['length'])) {
             $suffix = isset($cut['suffix']) ? (string) $cut['suffix'] : '…';
             $formattedDisplay = $this->truncateString($formattedDisplay, (int) $cut['length'], $suffix);
@@ -3477,15 +3530,15 @@ class Crud
     /**
      * @param string|array<int, string> $columns
      */
-    public function column_cut(string|array $columns, int $length, string $suffix = '…'): self
+    public function column_truncate(string|array $columns, int $length, string $suffix = '…'): self
     {
         $columnList = $this->normalizeList($columns);
         if ($columnList === []) {
-            throw new InvalidArgumentException('column_cut requires at least one column.');
+            throw new InvalidArgumentException('column_truncate requires at least one column.');
         }
 
         if ($length < 1) {
-            throw new InvalidArgumentException('Column cut length must be at least 1.');
+            throw new InvalidArgumentException('Column truncate length must be at least 1.');
         }
 
         $applied = false;
@@ -3504,10 +3557,19 @@ class Crud
         }
 
         if (!$applied) {
-            throw new InvalidArgumentException('column_cut requires at least one valid column name.');
+            throw new InvalidArgumentException('column_truncate requires at least one valid column name.');
         }
 
         return $this;
+    }
+
+    /**
+     * @deprecated 1.0.x Use column_truncate() instead.
+     * @param string|array<int, string> $columns
+     */
+    public function column_cut(string|array $columns, int $length, string $suffix = '…'): self
+    {
+        return $this->column_truncate($columns, $length, $suffix);
     }
 
 
@@ -8676,6 +8738,7 @@ HTML;
             'column_classes'  => $this->config['column_classes'],
             'column_widths'   => $this->config['column_widths'],
             'column_cuts'     => $this->config['column_cuts'],
+            'default_column_truncate' => $this->config['default_column_truncate'],
             'column_highlights' => $this->config['column_highlights'],
             'row_highlights'    => $this->config['row_highlights'],
             'link_buttons'       => $this->config['link_buttons'],
@@ -9927,6 +9990,15 @@ HTML;
                 ];
             }
             $this->config['column_cuts'] = $cuts;
+        }
+
+        if (array_key_exists('default_column_truncate', $payload)) {
+            $this->config['default_column_truncate'] = $this->normalizeDefaultColumnTruncateValue(
+                is_array($payload['default_column_truncate']) || is_int($payload['default_column_truncate'])
+                    ? $payload['default_column_truncate']
+                    : null,
+                'default_column_truncate payload'
+            );
         }
 
 

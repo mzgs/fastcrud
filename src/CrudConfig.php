@@ -34,6 +34,15 @@ class CrudConfig
     // hide table title block globally
     public static bool $hide_table_title = false;
 
+    /**
+     * When set, truncate every column by default unless overridden via Crud::column_truncate().
+     * Defaults to 300 characters. Accepts either an integer length (suffix defaults to '…') or an
+     * array with `['length' => int, 'suffix' => string]`.
+     *
+     * @var array{length:int,suffix?:string}|int|null
+     */
+    public static array|int|null $default_column_truncate = 300;
+
     // For default CSS classes and colours refer to CrudStyle::$* properties.
 
     /**
