@@ -449,7 +449,7 @@ All customization options are available through the main `FastCrud\Crud` class m
   ```php
   $crud->fields(['name', 'email', 'phone'], false, 'Details');
   ```
-- **`form_section(string $identifier, array $definition, string|array|false $mode = false): self`** – Group fields into labeled form blocks with optional icons, descriptive copy, and collapsible behaviour. Define the fields inside the section with `fields`, set a human-friendly `title`, optionally include a `description`, `icon`, or `collapsible`/`collapsed` flags, and scope to specific modes using either the third argument or a `'mode'` key in the definition.
+- **`form_section(string $identifier, array $definition, string|array|false $mode = false): self`** – Group fields into labeled form blocks with optional icons, descriptive copy, and collapsible behaviour. Define the fields inside the section with `fields`, set a human-friendly `title`, optionally include a `description`, `icon`, custom wrapper `class`, or `collapsible`/`collapsed` flags, and scope to specific modes using either the third argument or a `'mode'` key in the definition.
   ```php
   $crud
       ->fields('name,email,timezone,locale')
@@ -457,6 +457,7 @@ All customization options are available through the main `FastCrud\Crud` class m
           'title'       => 'Profile',
           'description' => 'Primary contact details',
           'icon'        => 'fas fa-id-card',
+          'class'       => 'card shadow-sm',
           'fields'      => ['name', 'email'],
       ])
       ->form_section('preferences', [

@@ -198,6 +198,7 @@ DatabaseEditor::init();
                         'description' => 'Basic account metadata',
                         'fields'      => ['title', 'slug'],
                         'icon'        => 'fas fa-user',
+                        'class'       => 'border rounded p-3',
                     ])
                     ->form_section('details', [
                         'title'  => 'Details',

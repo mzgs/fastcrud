@@ -4441,6 +4441,12 @@ class Crud
             $icon = $iconCandidate === '' ? null : $iconCandidate;
         }
 
+        $sectionClass = null;
+        if (isset($definition['class']) && is_string($definition['class'])) {
+            $classCandidate = $this->normalizeCssClassList($definition['class']);
+            $sectionClass = $classCandidate === '' ? null : $classCandidate;
+        }
+
         $collapsible = !empty($definition['collapsible']);
         $collapsed = false;
         if (isset($definition['collapsed'])) {
@@ -4461,6 +4467,7 @@ class Crud
             'collapsible' => $collapsible,
             'collapsed'   => $collapsible ? $collapsed : false,
             'icon'        => $icon,
+            'class'       => $sectionClass,
         ];
 
         foreach ($modes as $targetMode) {
@@ -8276,6 +8283,12 @@ HTML;
                         $icon = $iconCandidate === '' ? null : $iconCandidate;
                     }
 
+                    $cssClass = null;
+                    if (isset($entry['class']) && is_string($entry['class'])) {
+                        $classCandidate = $this->normalizeCssClassList($entry['class']);
+                        $cssClass = $classCandidate === '' ? null : $classCandidate;
+                    }
+
                     $normalizedSections[] = [
                         'id'          => $sectionId,
                         'title'       => $title,
@@ -8284,6 +8297,7 @@ HTML;
                         'collapsible' => $collapsible,
                         'collapsed'   => $collapsed,
                         'icon'        => $icon,
+                        'class'       => $cssClass,
                     ];
                 }
 
@@ -15601,6 +15615,12 @@ CSS;
                         icon = trimmedIcon.length ? trimmedIcon : null;
                     }
 
+                    var customClass = null;
+                    if (typeof entry.class === 'string') {
+                        var trimmedClass = entry.class.trim();
+                        customClass = trimmedClass.length ? trimmedClass : null;
+                    }
+
                     var normalized = {
                         id: sectionId,
                         title: title,
@@ -15608,7 +15628,8 @@ CSS;
                         fields: filteredFields,
                         collapsible: collapsible,
                         collapsed: collapsed,
-                        icon: icon
+                        icon: icon,
+                        class: customClass
                     };
 
                     if (Object.prototype.hasOwnProperty.call(indexLookup, sectionId)) {
@@ -15749,7 +15770,8 @@ CSS;
                         fields: [],
                         collapsible: false,
                         collapsed: false,
-                        icon: null
+                        icon: null,
+                        class: null
                     };
                     sectionsInfo.list.push(sectionMetaMap[sectionId]);
                 }
@@ -17615,7 +17637,8 @@ CSS;
                     fields: [],
                     collapsible: false,
                     collapsed: false,
-                    icon: null
+                    icon: null,
+                    class: null
                 };
                 sectionMetaMap[sectionId] = fallback;
                 return fallback;
@@ -17653,9 +17676,14 @@ CSS;
                 var collapsible = !!meta.collapsible;
                 var collapsed = collapsible && !!meta.collapsed;
                 var iconClass = typeof meta.icon === 'string' && meta.icon.length ? meta.icon : null;
+                var sectionClass = typeof meta.class === 'string' && meta.class.length ? meta.class : null;
 
                 var wrapper = $('<div class="fastcrud-form-section mb-4"></div>')
                     .attr('data-fastcrud-section', sectionId);
+
+                if (sectionClass) {
+                    wrapper.addClass(sectionClass);
+                }
 
                 var header = null;
                 if (title) {
@@ -19087,7 +19115,8 @@ CSS;
                     fields: [],
                     collapsible: false,
                     collapsed: false,
-                    icon: null
+                    icon: null,
+                    class: null
                 };
                 viewSectionMetaMap[sectionId] = fallback;
                 return fallback;
@@ -19136,9 +19165,14 @@ CSS;
                 var collapsible = !!meta.collapsible;
                 var collapsed = collapsible && !!meta.collapsed;
                 var iconClass = typeof meta.icon === 'string' && meta.icon.length ? meta.icon : null;
+                var sectionClass = typeof meta.class === 'string' && meta.class.length ? meta.class : null;
 
                 var wrapper = $('<div class="fastcrud-view-section mb-4"></div>')
                     .attr('data-fastcrud-section', effectiveSection);
+
+                if (sectionClass) {
+                    wrapper.addClass(sectionClass);
+                }
 
                 var header = null;
                 if (title) {
