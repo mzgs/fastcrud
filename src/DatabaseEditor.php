@@ -1412,11 +1412,13 @@ SQL;
                         $primaryIcon = $isPrimary
                             ? '<span class="ms-2 text-warning fc-db-primary-key-icon" title="Primary key"><i class="fas fa-key" aria-hidden="true"></i><span class="visually-hidden">Primary key</span></span>'
                             : '';
+                        $copyColumnLabel = htmlspecialchars(sprintf('Copy column name %s', $columnName), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                         $html .= '<tr data-fc-db-column="' . $columnEscaped . '">';
                         if ($reorderEnabled) {
                             $html .= '<td class="text-center text-muted align-middle" data-fc-db-reorder-handle title="Drag to reorder"><i class="fas fa-grip-vertical"></i></td>';
                         }
                         $html .= '<th scope="row" class="align-middle">';
+                        $html .= '<div class="d-flex align-items-center gap-2">';
                         $html .= '<div data-fc-inline-container="name" class="fc-db-inline">';
                         $html .= '<span class="fw-semibold fc-db-inline-trigger link-body-emphasis" data-fc-inline-trigger role="button" tabindex="0" title="Rename column">' . $columnEscaped . '</span>';
                         if ($primaryIcon !== '') {
@@ -1428,6 +1430,8 @@ SQL;
                         $html .= '<input type="hidden" name="column_name" value="' . $columnEscaped . '">';
                         $html .= '<input type="text" name="new_column_name" class="form-control form-control-sm" value="' . $columnEscaped . '" required pattern="[A-Za-z0-9_]+" placeholder="Column name">';
                         $html .= '</form>';
+                        $html .= '</div>';
+                        $html .= '<button type="button" class="btn btn-link btn-sm p-0 text-muted fc-db-copy-column" data-fc-copy-column="' . $columnEscaped . '" title="' . $copyColumnLabel . '" aria-label="' . $copyColumnLabel . '"><i class="fas fa-copy" aria-hidden="true"></i><span class="visually-hidden">' . $copyColumnLabel . '</span></button>';
                         $html .= '</div>';
                         $html .= '</th>';
                         $html .= '<td class="align-middle" data-fc-inline-container="type">';
@@ -1862,6 +1866,15 @@ SQL;
 }
 .fastcrud-db-editor .fc-db-primary-key-icon i {
     line-height: 1;
+}
+.fastcrud-db-editor .fc-db-copy-column {
+    color: var(--bs-secondary-color);
+    text-decoration: none;
+}
+.fastcrud-db-editor .fc-db-copy-column:hover,
+.fastcrud-db-editor .fc-db-copy-column:focus-visible {
+    color: var(--bs-primary);
+    text-decoration: none;
 }
 .fastcrud-db-editor .fc-db-inline-editing .fc-db-primary-key-icon {
     display: none;
@@ -2809,6 +2822,33 @@ SQL;
                     }, 1500);
                 }).catch(function() {
                     alert('Failed to copy schema to clipboard');
+                });
+            }
+            return;
+        }
+
+        var copyColumnBtn = event.target.closest('.fc-db-copy-column');
+        if (copyColumnBtn) {
+            event.preventDefault();
+            var columnName = copyColumnBtn.getAttribute('data-fc-copy-column');
+            if (columnName && navigator.clipboard) {
+                navigator.clipboard.writeText(columnName).then(function () {
+                    var icon = copyColumnBtn.querySelector('i');
+                    var originalClass = icon ? icon.className : '';
+                    if (icon) {
+                        icon.className = 'fas fa-check';
+                    }
+                    copyColumnBtn.classList.add('text-success');
+                    copyColumnBtn.classList.remove('text-muted');
+                    setTimeout(function () {
+                        if (icon) {
+                            icon.className = originalClass || 'fas fa-copy';
+                        }
+                        copyColumnBtn.classList.remove('text-success');
+                        copyColumnBtn.classList.add('text-muted');
+                    }, 1200);
+                }).catch(function () {
+                    alert('Failed to copy column name to clipboard');
                 });
             }
             return;
