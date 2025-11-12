@@ -1553,6 +1553,7 @@ SQL;
             $crud->hide_table_title(false);
             $crud->table_icon('fas fa-table');
             $crud->default_column_truncate(100);
+            $crud->enable_filters(true);
             
             return $crud->render();
         } catch (Throwable $exception) {
