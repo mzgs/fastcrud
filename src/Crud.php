@@ -3564,6 +3564,24 @@ class Crud
     }
 
     /**
+     * Override the default truncation applied to every column unless column_truncate() is used.
+     *
+     * Pass an integer length to use the default '…' suffix, provide an array like
+     * ['length' => 80, 'suffix' => '...'], or null to disable per-instance defaults.
+     *
+     * @param array{length:int,suffix?:string}|int|null $value
+     */
+    public function default_column_truncate(array|int|null $value): self
+    {
+        $this->config['default_column_truncate'] = $this->normalizeDefaultColumnTruncateValue(
+            $value,
+            'default_column_truncate()'
+        );
+
+        return $this;
+    }
+
+    /**
      * @deprecated 1.0.x Use column_truncate() instead.
      * @param string|array<int, string> $columns
      */

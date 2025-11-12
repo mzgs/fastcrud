@@ -1552,6 +1552,7 @@ SQL;
             $crud->limit_list([5,10, 25, 50, 100,500,1000]);
             $crud->hide_table_title(false);
             $crud->table_icon('fas fa-table');
+            $crud->default_column_truncate(100);
             
             return $crud->render();
         } catch (Throwable $exception) {

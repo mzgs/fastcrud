@@ -372,9 +372,13 @@ All customization options are available through the main `FastCrud\Crud` class m
   ```php
   $crud->column_width('name', '220px');
   ```
-- **`column_truncate(string|array $columns, int $length, string $suffix = '…'): self`** – Truncate long text for clean tables; customise the suffix (e.g. `'...'`). FastCRUD now trims every column to 300 chars by default via `CrudConfig::$default_column_truncate`; override globally by changing that flag or per column with `column_truncate()`.
+- **`column_truncate(string|array $columns, int $length, string $suffix = '…'): self`** – Truncate long text for clean tables; customise the suffix (e.g. `'...'`). FastCRUD now trims every column to 300 chars by default via `CrudConfig::$default_column_truncate`; override globally by changing that flag, per Crud instance with `default_column_truncate()`, or per column with `column_truncate()`.
   ```php
   $crud->column_truncate('description', 80);
+  ```
+- **`default_column_truncate(int|array|null $value): self`** – Override the per-instance fallback that applies to every column (before `column_truncate()` rules). Pass `80` to trim to 80 chars with the default suffix, `['length' => 120, 'suffix' => '...']` for custom suffixes, or `null` to disable automatic truncation for that Crud instance only.
+  ```php
+  $crud->default_column_truncate(['length' => 120, 'suffix' => '...']);
   ```
 - **`highlight(string|array $columns, string $operator, mixed $value = null, string $class = 'text-warning'): self`** – Highlight cells that match conditions using operators such as `equals`, `not_equals`, `contains`, `not_contains`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in`, `empty`, `not_empty` (symbol aliases like `=`, `!=`, `>=`, `<` are also accepted).
   ```php
@@ -1059,7 +1063,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   CrudConfig::$hide_table_title = true; // Remove table titles globally
   ```
-- **`CrudConfig::$default_column_truncate`** – Automatically truncate every column unless overridden per column (defaults to `300`). Accepts either an integer length (suffix defaults to `'…'`), an array like `['length' => 60, 'suffix' => '...']`, or `null` to disable globally.
+- **`CrudConfig::$default_column_truncate`** – Automatically truncate every column unless overridden per column (defaults to `300`). Accepts either an integer length (suffix defaults to `'…'`), an array like `['length' => 60, 'suffix' => '...']`, or `null` to disable globally. When you only need to change a single Crud instance, call `$crud->default_column_truncate(...)` instead of touching the global flag.
   ```php
   use FastCrud\CrudConfig;
 
