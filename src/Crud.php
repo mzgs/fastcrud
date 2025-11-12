@@ -4447,6 +4447,12 @@ class Crud
             $sectionClass = $classCandidate === '' ? null : $classCandidate;
         }
 
+        $titleClass = null;
+        if (isset($definition['title_class']) && is_string($definition['title_class'])) {
+            $titleClassCandidate = $this->normalizeCssClassList($definition['title_class']);
+            $titleClass = $titleClassCandidate === '' ? null : $titleClassCandidate;
+        }
+
         $collapsible = !empty($definition['collapsible']);
         $collapsed = false;
         if (isset($definition['collapsed'])) {
@@ -4468,6 +4474,7 @@ class Crud
             'collapsed'   => $collapsible ? $collapsed : false,
             'icon'        => $icon,
             'class'       => $sectionClass,
+            'title_class' => $titleClass,
         ];
 
         foreach ($modes as $targetMode) {
@@ -8289,6 +8296,12 @@ HTML;
                         $cssClass = $classCandidate === '' ? null : $classCandidate;
                     }
 
+                    $titleClass = null;
+                    if (isset($entry['title_class']) && is_string($entry['title_class'])) {
+                        $titleClassCandidate = $this->normalizeCssClassList($entry['title_class']);
+                        $titleClass = $titleClassCandidate === '' ? null : $titleClassCandidate;
+                    }
+
                     $normalizedSections[] = [
                         'id'          => $sectionId,
                         'title'       => $title,
@@ -8298,6 +8311,7 @@ HTML;
                         'collapsed'   => $collapsed,
                         'icon'        => $icon,
                         'class'       => $cssClass,
+                        'title_class' => $titleClass,
                     ];
                 }
 
@@ -15621,6 +15635,12 @@ CSS;
                         customClass = trimmedClass.length ? trimmedClass : null;
                     }
 
+                    var titleClass = null;
+                    if (typeof entry.title_class === 'string') {
+                        var trimmedTitleClass = entry.title_class.trim();
+                        titleClass = trimmedTitleClass.length ? trimmedTitleClass : null;
+                    }
+
                     var normalized = {
                         id: sectionId,
                         title: title,
@@ -15629,7 +15649,8 @@ CSS;
                         collapsible: collapsible,
                         collapsed: collapsed,
                         icon: icon,
-                        class: customClass
+                        class: customClass,
+                        title_class: titleClass
                     };
 
                     if (Object.prototype.hasOwnProperty.call(indexLookup, sectionId)) {
@@ -15771,7 +15792,8 @@ CSS;
                         collapsible: false,
                         collapsed: false,
                         icon: null,
-                        class: null
+                        class: null,
+                        title_class: null
                     };
                     sectionsInfo.list.push(sectionMetaMap[sectionId]);
                 }
@@ -17638,7 +17660,8 @@ CSS;
                     collapsible: false,
                     collapsed: false,
                     icon: null,
-                    class: null
+                    class: null,
+                    title_class: null
                 };
                 sectionMetaMap[sectionId] = fallback;
                 return fallback;
@@ -17677,6 +17700,7 @@ CSS;
                 var collapsed = collapsible && !!meta.collapsed;
                 var iconClass = typeof meta.icon === 'string' && meta.icon.length ? meta.icon : null;
                 var sectionClass = typeof meta.class === 'string' && meta.class.length ? meta.class : null;
+                var titleClass = typeof meta.title_class === 'string' && meta.title_class.length ? meta.title_class : null;
 
                 var wrapper = $('<div class="fastcrud-form-section mb-4"></div>')
                     .attr('data-fastcrud-section', sectionId);
@@ -17686,19 +17710,37 @@ CSS;
                 }
 
                 var header = null;
-                if (title) {
-                    header = $('<div class="d-flex align-items-center justify-content-between mb-2 fastcrud-form-section-header"></div>');
-                    var titleHeading = $('<h5 class="mb-0 d-flex align-items-center"></h5>');
-                    if (iconClass) {
-                        titleHeading.append($('<i class="fastcrud-form-section-icon me-2"></i>').addClass(iconClass));
+                if (title || description || collapsible) {
+                    header = $('<div class="d-flex align-items-start justify-content-between mb-2 fastcrud-form-section-header"></div>');
+                    var headingGroup = $('<div class="fastcrud-form-section-heading"></div>');
+                    if (titleClass) {
+                        headingGroup.addClass(titleClass);
                     }
-                    titleHeading.append($('<span></span>').text(title));
-                    header.append(titleHeading);
-                    wrapper.append(header);
-                }
 
-                if (description) {
-                    wrapper.append($('<p class="text-muted mb-3"></p>').text(description));
+                    var hasHeadingContent = false;
+                    if (title) {
+                        var titleRow = $('<div class="fastcrud-form-section-title d-flex align-items-center"></div>');
+                        if (iconClass) {
+                            titleRow.append($('<i class="fastcrud-form-section-icon me-2"></i>').addClass(iconClass));
+                        }
+                        titleRow.append($('<span class="fw-semibold"></span>').text(title));
+                        headingGroup.append(titleRow);
+                        hasHeadingContent = true;
+                    } else if (iconClass && !title) {
+                        headingGroup.append($('<i class="fastcrud-form-section-icon"></i>').addClass(iconClass));
+                        hasHeadingContent = true;
+                    }
+
+                    if (description) {
+                        headingGroup.append($('<div class="fastcrud-form-section-description text-muted small"></div>').text(description));
+                        hasHeadingContent = true;
+                    }
+
+                    if (hasHeadingContent) {
+                        header.append(headingGroup);
+                    }
+
+                    wrapper.append(header);
                 }
 
                 var body = $('<div class="fastcrud-form-section-body"></div>');
@@ -19116,7 +19158,8 @@ CSS;
                     collapsible: false,
                     collapsed: false,
                     icon: null,
-                    class: null
+                    class: null,
+                    title_class: null
                 };
                 viewSectionMetaMap[sectionId] = fallback;
                 return fallback;
@@ -19166,6 +19209,7 @@ CSS;
                 var collapsed = collapsible && !!meta.collapsed;
                 var iconClass = typeof meta.icon === 'string' && meta.icon.length ? meta.icon : null;
                 var sectionClass = typeof meta.class === 'string' && meta.class.length ? meta.class : null;
+                var titleClass = typeof meta.title_class === 'string' && meta.title_class.length ? meta.title_class : null;
 
                 var wrapper = $('<div class="fastcrud-view-section mb-4"></div>')
                     .attr('data-fastcrud-section', effectiveSection);
@@ -19175,19 +19219,37 @@ CSS;
                 }
 
                 var header = null;
-                if (title) {
-                    header = $('<div class="d-flex align-items-center justify-content-between mb-2 fastcrud-view-section-header"></div>');
-                    var heading = $('<h6 class="mb-0 text-uppercase text-muted d-flex align-items-center"></h6>');
-                    if (iconClass) {
-                        heading.append($('<i class="fastcrud-form-section-icon me-2"></i>').addClass(iconClass));
+                if (title || description || collapsible) {
+                    header = $('<div class="d-flex align-items-start justify-content-between mb-2 fastcrud-view-section-header"></div>');
+                    var headingGroup = $('<div class="fastcrud-view-section-heading"></div>');
+                    if (titleClass) {
+                        headingGroup.addClass(titleClass);
                     }
-                    heading.append($('<span></span>').text(title));
-                    header.append(heading);
-                    wrapper.append(header);
-                }
 
-                if (description) {
-                    wrapper.append($('<p class="text-muted small mb-3"></p>').text(description));
+                    var hasHeadingContent = false;
+                    if (title) {
+                        var heading = $('<div class="fastcrud-view-section-title text-uppercase text-muted small d-flex align-items-center"></div>');
+                        if (iconClass) {
+                            heading.append($('<i class="fastcrud-form-section-icon me-2"></i>').addClass(iconClass));
+                        }
+                        heading.append($('<span></span>').text(title));
+                        headingGroup.append(heading);
+                        hasHeadingContent = true;
+                    } else if (iconClass && !title) {
+                        headingGroup.append($('<i class="fastcrud-form-section-icon"></i>').addClass(iconClass));
+                        hasHeadingContent = true;
+                    }
+
+                    if (description) {
+                        headingGroup.append($('<div class="fastcrud-view-section-description text-muted small"></div>').text(description));
+                        hasHeadingContent = true;
+                    }
+
+                    if (hasHeadingContent) {
+                        header.append(headingGroup);
+                    }
+
+                    wrapper.append(header);
                 }
 
                 var list = $('<div class="list-group list-group-flush"></div>');
