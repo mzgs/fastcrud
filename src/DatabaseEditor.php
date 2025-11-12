@@ -36,7 +36,7 @@ class DatabaseEditor
         self::maybeHandleDownloadEarly();
     }
 
-    public static function render(bool $showHeader = true): string
+    public static function render(bool $showHeader = true, bool $showRecordsTable = false): string
     {
         if (!self::$initialized) {
             self::init();
@@ -55,7 +55,16 @@ class DatabaseEditor
         $activeTable = self::resolveActiveTable($tables);
         $dbConfig = CrudConfig::getDbConfig();
 
-        return self::renderHtml($connection, $tables, $tableColumns, $driver, $dbConfig, $activeTable, $showHeader);
+        return self::renderHtml(
+            $connection,
+            $tables,
+            $tableColumns,
+            $driver,
+            $dbConfig,
+            $activeTable,
+            $showHeader,
+            $showRecordsTable
+        );
     }
 
     private static function detectDriver(PDO $connection): string
@@ -119,6 +128,7 @@ class DatabaseEditor
                 'change_column_type' => self::handleChangeColumnType($connection, $driver),
                 'delete_column' => self::handleDeleteColumn($connection, $driver),
                 'reorder_columns' => self::handleReorderColumns($connection, $driver),
+                'load_records_table' => self::handleLoadRecordsTable($connection, $driver),
                 default => null,
             };
         } catch (PDOException $exception) {
@@ -160,6 +170,20 @@ class DatabaseEditor
     private static function maybeHandleAjaxEarly(): void
     {
         if (!self::isAjaxInvocation()) {
+            return;
+        }
+
+        $action = isset($_POST['fc_db_editor_action']) ? trim((string) $_POST['fc_db_editor_action']) : '';
+
+        if ($action === 'load_records_table') {
+            try {
+                $connection = Database::connection();
+                $driver = self::detectDriver($connection);
+                self::handleLoadRecordsTable($connection, $driver);
+            } catch (Throwable $exception) {
+                self::respondRecordsTableError($exception->getMessage());
+            }
+
             return;
         }
 
@@ -492,6 +516,33 @@ class DatabaseEditor
         if (!self::$returnJsonResponse) {
             self::$messages[] = sprintf('Column order updated for "%s".', $table);
         }
+    }
+
+    private static function handleLoadRecordsTable(PDO $connection, string $driver): void
+    {
+        $requested = isset($_POST['table_name']) ? trim((string) $_POST['table_name']) : '';
+        if ($requested === '') {
+            self::respondRecordsTableError('Select a table to load its records.');
+        }
+
+        if (!self::isValidIdentifier($requested)) {
+            self::respondRecordsTableError('Table name must contain only letters, numbers, or underscores.');
+        }
+
+        $tables = self::fetchTables($connection, $driver);
+        if ($tables === []) {
+            self::respondRecordsTableError('No tables are available for this connection.');
+        }
+
+        $matched = self::findTableByName($tables, $requested);
+        if ($matched === null) {
+            self::respondRecordsTableError(sprintf('Table "%s" does not exist.', $requested));
+        }
+
+        self::$activeTable = $matched;
+
+        $recordsHtml = self::renderRecordsTable($connection, $matched);
+        self::respondRecordsTableSuccess($recordsHtml, $matched);
     }
 
     private static function generateDatabaseDump(PDO $connection, string $driver): string
@@ -1091,7 +1142,16 @@ SQL;
         return 'Database';
     }
 
-    private static function renderHtml(PDO $connection, array $tables, array $tableColumns, string $driver, array $dbConfig, ?string $activeTable, bool $showHeader): string
+    private static function renderHtml(
+        PDO $connection,
+        array $tables,
+        array $tableColumns,
+        string $driver,
+        array $dbConfig,
+        ?string $activeTable,
+        bool $showHeader,
+        bool $showRecordsTable
+    ): string
     {
         if ($activeTable !== null && !in_array($activeTable, $tables, true)) {
             $activeTable = null;
@@ -1228,7 +1288,7 @@ SQL;
                 $columnCountAttr = htmlspecialchars((string) $columnCount, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                 $columnBadge = $columnCount === 1 ? '1 col' : $columnCount . ' cols';
                 $tableSearch = htmlspecialchars(strtolower($table), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $html .= '<a class="fc-db-table-link' . $isActive . '" data-fc-db-table-name="' . $tableSearch . '" data-fc-db-table-label="' . $tableEscaped . '" data-fc-db-table-columns="' . $columnCountAttr . '" id="tab-' . $tabId . '" data-bs-toggle="list" href="#' . $tabId . '" role="tab" aria-controls="' . $tabId . '" aria-selected="' . $ariaSelected . '" title="View ' . $tableEscaped . '">';
+                $html .= '<a class="fc-db-table-link' . $isActive . '" data-fc-db-table-name="' . $tableSearch . '" data-fc-db-table-label="' . $tableEscaped . '" data-fc-db-table="' . $tableEscaped . '" data-fc-db-table-columns="' . $columnCountAttr . '" id="tab-' . $tabId . '" data-bs-toggle="list" href="#' . $tabId . '" role="tab" aria-controls="' . $tabId . '" aria-selected="' . $ariaSelected . '" title="View ' . $tableEscaped . '">';
                 $html .= '<span class="fc-db-table-link__name text-truncate"><i class="fas fa-table text-primary me-2"></i>' . $tableEscaped . '</span>';
                 $html .= '<span class="badge bg-body-secondary text-body fw-semibold">' . $columnBadge . '</span>';
                 $html .= '</a>';
@@ -1456,6 +1516,20 @@ SQL;
 
         $html .= '</div>';
 
+        if ($showRecordsTable) {
+            $activeTableAttr = $activeTable !== null
+                ? htmlspecialchars($activeTable, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+                : '';
+            $html .= '<hr class="fastcrud-db-editor-divider my-4">';
+            $html .= '<div class="fastcrud-db-editor-records mt-4" data-fc-db-records';
+            if ($activeTableAttr !== '') {
+                $html .= ' data-fc-db-records-table="' . $activeTableAttr . '"';
+            }
+            $html .= '>';
+            $html .= self::renderRecordsTable($connection, $activeTable);
+            $html .= '</div>';
+        }
+
         if (!self::$scriptInjected) {
             $html .= self::renderInlineEditorScript();
             self::$scriptInjected = true;
@@ -1464,6 +1538,61 @@ SQL;
         self::resetFeedback();
 
         return $html;
+    }
+
+    private static function renderRecordsTable(PDO $connection, ?string $activeTable): string
+    {
+        if ($activeTable === null) {
+            return '<div class="alert alert-info" role="alert">Select a table to view its records.</div>';
+        }
+
+        try {
+            $crud = new Crud($activeTable, $connection);
+            $crud->limit(10);
+            $crud->limit_list([5,10, 25, 50, 100,500,1000]);
+            return $crud->render();
+        } catch (Throwable $exception) {
+            $message = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+            return '<div class="alert alert-danger" role="alert">' . $message . '</div>';
+        }
+    }
+
+    private static function respondRecordsTablePayload(array $payload): void
+    {
+        header('Content-Type: application/json');
+        echo json_encode($payload);
+        exit;
+    }
+
+    private static function respondRecordsTableSuccess(string $html, string $table): void
+    {
+        self::respondRecordsTablePayload([
+            'success' => true,
+            'records' => $html,
+            'table' => $table,
+        ]);
+    }
+
+    private static function respondRecordsTableError(string $message): void
+    {
+        $html = '<div class="alert alert-danger" role="alert">' . htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</div>';
+
+        self::respondRecordsTablePayload([
+            'success' => false,
+            'records' => $html,
+        ]);
+    }
+
+    private static function findTableByName(array $tables, string $requested): ?string
+    {
+        foreach ($tables as $table) {
+            if (strcasecmp($table, $requested) === 0) {
+                return $table;
+            }
+        }
+
+        return null;
     }
 
     private static function renderAlerts(array $messages, string $type): string
@@ -1790,6 +1919,7 @@ SQL;
     var sortableScriptRequested = false;
     var tableSearchTeardown = null;
     var suppressTableAutoScroll = false;
+    var recordsRequestToken = 0;
 
     function getEditorRoot() {
         return document.querySelector('.fastcrud-db-editor');
@@ -2032,6 +2162,122 @@ SQL;
         if (targetTop >= viewportBottom) {
             scrollContainerTo(container, targetBottom - container.clientHeight + buffer);
         }
+    }
+
+    function getRecordsContainer() {
+        return document.querySelector('[data-fc-db-records]');
+    }
+
+    function executeScriptsWithin(element) {
+        if (!element) {
+            return;
+        }
+
+        var scripts = element.querySelectorAll('script');
+        scripts.forEach(function (script) {
+            if (!script.parentNode) {
+                return;
+            }
+
+            var replacement = document.createElement('script');
+            for (var i = 0; i < script.attributes.length; i += 1) {
+                var attribute = script.attributes[i];
+                replacement.setAttribute(attribute.name, attribute.value);
+            }
+
+            replacement.text = script.text || script.textContent || '';
+            script.parentNode.insertBefore(replacement, script);
+            script.parentNode.removeChild(script);
+        });
+    }
+
+    function renderRecordsPlaceholder(message, variant) {
+        var container = getRecordsContainer();
+        if (!container) {
+            return;
+        }
+
+        var type = variant === 'error' ? 'danger' : (variant === 'muted' ? 'secondary' : 'info');
+        container.innerHTML = '<div class="alert alert-' + type + '" role="alert">' + message + '</div>';
+    }
+
+    function refreshRecordsForTable(table) {
+        var container = getRecordsContainer();
+        if (!container) {
+            return;
+        }
+
+        var targetTable = (table || '').trim();
+        if (targetTable === '') {
+            container.removeAttribute('data-fc-db-records-table');
+            renderRecordsPlaceholder('Select a table to view its records.', 'info');
+            return;
+        }
+
+        var current = (container.getAttribute('data-fc-db-records-table') || '').toLowerCase();
+        if (current === targetTable.toLowerCase()) {
+            return;
+        }
+
+        container.setAttribute('data-fc-db-records-table', targetTable);
+        renderRecordsPlaceholder('Loading records...', 'info');
+
+        var formData = new FormData();
+        formData.append('fc_db_editor_action', 'load_records_table');
+        formData.append('table_name', targetTable);
+
+        var requestToken = ++recordsRequestToken;
+
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-FastCrud-Db-Editor': '1',
+                'Accept': 'application/json'
+            },
+            credentials: 'same-origin'
+        })
+        .then(function (response) {
+            return response.json().catch(function () {
+                return { success: false, records: '<div class="alert alert-danger" role="alert">Unable to parse response.</div>' };
+            });
+        })
+        .then(function (payload) {
+            if (requestToken !== recordsRequestToken) {
+                return;
+            }
+
+            if (!payload || typeof payload.records !== 'string') {
+                renderRecordsPlaceholder('Unable to load records. Please try again.', 'error');
+                container.removeAttribute('data-fc-db-records-table');
+                return;
+            }
+
+            if (payload.success !== true) {
+                container.removeAttribute('data-fc-db-records-table');
+            } else if (payload.table) {
+                container.setAttribute('data-fc-db-records-table', payload.table);
+            }
+
+            container.innerHTML = payload.records;
+            executeScriptsWithin(container);
+        })
+        .catch(function () {
+            if (requestToken !== recordsRequestToken) {
+                return;
+            }
+            renderRecordsPlaceholder('Unable to load records. Please try again.', 'error');
+            container.removeAttribute('data-fc-db-records-table');
+        });
+    }
+
+    function getTableNameFromLink(link) {
+        if (!link) {
+            return '';
+        }
+        var table = link.getAttribute('data-fc-db-table') || link.getAttribute('data-fc-db-table-label') || '';
+        return table.trim();
     }
 
     function initTableSearch() {
@@ -2649,6 +2895,10 @@ SQL;
         if (target && target.matches('[data-fc-db-table-label]')) {
             updateHeroFromLink(target);
             scrollActiveTableIntoView(target);
+            var table = getTableNameFromLink(target);
+            if (table && getRecordsContainer()) {
+                refreshRecordsForTable(table);
+            }
         }
     });
 

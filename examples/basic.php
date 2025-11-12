@@ -137,7 +137,7 @@ DatabaseEditor::init();
 
                  
 
-                <?= DatabaseEditor::render(true); ?>
+                <?= DatabaseEditor::render(true, true); ?>
 
                 <br>
                 <br>

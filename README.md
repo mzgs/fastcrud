@@ -163,6 +163,9 @@ DatabaseEditor::init($pdo);
 
 // Render the database editor interface
 echo DatabaseEditor::render();
+
+// Uncomment to include the CRUD records table for the selected table beneath the editor
+// echo DatabaseEditor::render(true, true);
 ?>
 ```
 
@@ -192,10 +195,10 @@ echo DatabaseEditor::render();
   - Supplying a `PDO` instance lets you share an existing connection without reconfiguring `CrudConfig`.
 
 ##### Rendering
-- **`DatabaseEditor::render(bool $showHeader = true): string`** – Generate and return the complete database editor HTML interface. Pass `false` to omit the hero header block.
+- **`DatabaseEditor::render(bool $showHeader = true, bool $showRecordsTable = false): string`** – Generate and return the complete database editor HTML interface. Pass `false` to omit the hero header block and set `$showRecordsTable` to `true` to render a live CRUD table for the currently selected database table beneath the editor. When enabled, switching tables in the sidebar automatically refreshes the CRUD view without reloading the page.
   ```php
-  $editorHtml = DatabaseEditor::render();
-  echo $editorHtml;
+  // Hero header hidden, records view enabled
+  echo DatabaseEditor::render(false, true);
   ```
 
 ### ⚡ Supported Operations
