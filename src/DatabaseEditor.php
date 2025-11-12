@@ -1550,6 +1550,9 @@ SQL;
             $crud = new Crud($activeTable, $connection);
             $crud->limit(10);
             $crud->limit_list([5,10, 25, 50, 100,500,1000]);
+            $crud->hide_table_title(false);
+            $crud->table_icon('fas fa-table');
+            
             return $crud->render();
         } catch (Throwable $exception) {
             $message = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
