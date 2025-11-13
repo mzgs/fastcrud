@@ -17735,7 +17735,7 @@ CSS;
                     if (title) {
                         var titleRow = $('<h5 class="fastcrud-form-section-title d-flex align-items-center mb-0"></h5>');
                         if (iconClass) {
-                            titleRow.append($('<i class="fastcrud-form-section-icon me-2"></i>').addClass(iconClass));
+                            titleRow.append($('<i class="fastcrud-form-section-icon me-1"></i>').addClass(iconClass));
                         }
                         titleRow.append($('<span></span>').text(title));
                         headingGroup.append(titleRow);
@@ -19244,7 +19244,7 @@ CSS;
                     if (title) {
                         var heading = $('<h5 class="fastcrud-view-section-title text-uppercase text-muted small d-flex align-items-center mb-0"></h5>');
                         if (iconClass) {
-                            heading.append($('<i class="fastcrud-form-section-icon me-2"></i>').addClass(iconClass));
+                            heading.append($('<i class="fastcrud-form-section-icon me-1"></i>').addClass(iconClass));
                         }
                         heading.append($('<span></span>').text(title));
                         headingGroup.append(heading);
