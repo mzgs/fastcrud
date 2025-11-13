@@ -1441,6 +1441,18 @@ class Crud
                         $icon = $iconCandidate === '' ? null : $iconCandidate;
                     }
 
+                    $sectionClass = null;
+                    if (isset($entry['class']) && is_string($entry['class'])) {
+                        $classCandidate = $this->normalizeCssClassList($entry['class']);
+                        $sectionClass = $classCandidate === '' ? null : $classCandidate;
+                    }
+
+                    $titleClass = null;
+                    if (isset($entry['title_class']) && is_string($entry['title_class'])) {
+                        $titleClassCandidate = $this->normalizeCssClassList($entry['title_class']);
+                        $titleClass = $titleClassCandidate === '' ? null : $titleClassCandidate;
+                    }
+
                     $collapsible = !empty($entry['collapsible']);
                     $collapsed = false;
                     if (isset($entry['collapsed'])) {
@@ -1457,6 +1469,8 @@ class Crud
                         'collapsible' => $collapsible,
                         'collapsed'   => $collapsible ? $collapsed : false,
                         'icon'        => $icon,
+                        'class'       => $sectionClass,
+                        'title_class' => $titleClass,
                     ];
                 }
 
@@ -17719,11 +17733,11 @@ CSS;
 
                     var hasHeadingContent = false;
                     if (title) {
-                        var titleRow = $('<div class="fastcrud-form-section-title d-flex align-items-center"></div>');
+                        var titleRow = $('<h5 class="fastcrud-form-section-title d-flex align-items-center mb-0"></h5>');
                         if (iconClass) {
                             titleRow.append($('<i class="fastcrud-form-section-icon me-2"></i>').addClass(iconClass));
                         }
-                        titleRow.append($('<span class="fw-semibold"></span>').text(title));
+                        titleRow.append($('<span></span>').text(title));
                         headingGroup.append(titleRow);
                         hasHeadingContent = true;
                     } else if (iconClass && !title) {
@@ -19228,7 +19242,7 @@ CSS;
 
                     var hasHeadingContent = false;
                     if (title) {
-                        var heading = $('<div class="fastcrud-view-section-title text-uppercase text-muted small d-flex align-items-center"></div>');
+                        var heading = $('<h5 class="fastcrud-view-section-title text-uppercase text-muted small d-flex align-items-center mb-0"></h5>');
                         if (iconClass) {
                             heading.append($('<i class="fastcrud-form-section-icon me-2"></i>').addClass(iconClass));
                         }

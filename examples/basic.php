@@ -199,7 +199,7 @@ DatabaseEditor::init();
                         'fields'      => ['title', 'slug'],
                         'icon'        => 'fas fa-user',
                         'class'       => 'border rounded p-3',
-                        'title_class' => 'mb-2 pb-2 border-bottom',
+                        'title_class' => 'mb-2 p-3 border-bottom bg-danger',
                     ])
                     ->form_section('details', [
                         'title'  => 'Details',
