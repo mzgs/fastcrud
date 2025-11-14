@@ -17621,7 +17621,7 @@ CSS;
 
             if (useTabs) {
                 tabsNav = $('<ul class="nav nav-tabs mb-3" role="tablist"></ul>');
-                tabsContent = $('<div class="tab-content"></div>');
+                tabsContent = $('<div class="tab-content pe-1"></div>');
                 editFieldsContainer.append(tabsNav).append(tabsContent);
             }
 
@@ -17650,7 +17650,7 @@ CSS;
                 navItem.append(navButton);
                 tabsNav.append(navItem);
 
-                var pane = $('<div class="tab-pane fade" role="tabpanel"></div>')
+                var pane = $('<div class="tab-pane fade p-1" role="tabpanel"></div>')
                     .attr('id', tabId)
                     .attr('aria-labelledby', tabId + '-tab');
                 tabsContent.append(pane);
@@ -19110,7 +19110,7 @@ CSS;
 
             if (viewUsesTabs) {
                 viewTabsNav = $('<ul class="nav nav-tabs mb-3" role="tablist"></ul>');
-                viewTabsContent = $('<div class="tab-content"></div>');
+                viewTabsContent = $('<div class="tab-content pe-1"></div>');
                 viewContentContainer.append(viewTabsNav).append(viewTabsContent);
             } else if (!viewHasSections) {
                 viewContentContainer.addClass('list-group list-group-flush');
@@ -19143,7 +19143,7 @@ CSS;
                 navItem.append(navButton);
                 viewTabsNav.append(navItem);
 
-                var pane = $('<div class="tab-pane fade" role="tabpanel"></div>')
+                var pane = $('<div class="tab-pane fade p-1" role="tabpanel"></div>')
                     .attr('id', tabId)
                     .attr('aria-labelledby', tabId + '-tab');
                 var paneContainer = viewHasSections
