@@ -18525,7 +18525,8 @@ CSS;
                                     source: url,
                                     options: {
                                         type: 'local',
-                                        file: { name: name },
+                                        // Provide a numeric size so FilePond formatting does not show NaN
+                                        file: { name: name, size: 0 },
                                         metadata: { poster: url, storedName: name }
                                     }
                                 };
@@ -18828,12 +18829,18 @@ CSS;
                             if (isMultipleFiles) {
                                 var list = parseImageNameList(valueInput.val());
                                 initialFiles = list.map(function(fname) {
-                                    return { source: toPublicUrl(fname), options: { type: 'local', file: { name: fname } } };
+                                    return {
+                                        source: toPublicUrl(fname),
+                                        options: { type: 'local', file: { name: fname, size: 0 } }
+                                    };
                                 });
                             } else {
                                 var name = String(valueInput.val() || '').trim();
                                 if (name) {
-                                    initialFiles = [{ source: toPublicUrl(name), options: { type: 'local', file: { name: name } } }];
+                                    initialFiles = [{
+                                        source: toPublicUrl(name),
+                                        options: { type: 'local', file: { name: name, size: 0 } }
+                                    }];
                                 }
                             }
 
