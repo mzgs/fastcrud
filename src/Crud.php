@@ -12133,6 +12133,19 @@ CSS;
                 clientConfig = {};
             }
         }
+        function hasObjectEntries(value) {
+            if (!value || typeof value !== 'object') {
+                return false;
+            }
+            for (var prop in value) {
+                if (Object.prototype.hasOwnProperty.call(value, prop)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        var requiresCustomFieldHtml = hasObjectEntries(clientConfig.custom_fields)
+            || hasObjectEntries(clientConfig.field_callbacks);
         var debugEnabled = !!(clientConfig && clientConfig.debug);
 
         function toggleActionsCellZIndex(element, isOpen) {
@@ -19864,8 +19877,13 @@ CSS;
             }
 
             var key = rowCacheKey(pkCol, pkVal, normalizedMode);
-            if (rowCache[key]) {
-                return Promise.resolve(deepClone(rowCache[key]));
+            var cachedRow = rowCache[key];
+            if (cachedRow) {
+                var hasFieldHtml = cachedRow.__fastcrud_field_html && typeof cachedRow.__fastcrud_field_html === 'object'
+                    && Object.keys(cachedRow.__fastcrud_field_html).length > 0;
+                if (!requiresCustomFieldHtml || hasFieldHtml) {
+                    return Promise.resolve(deepClone(cachedRow));
+                }
             }
             return new Promise(function(resolve, reject) {
                 $.ajax({
