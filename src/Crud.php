@@ -17725,7 +17725,7 @@ CSS;
 
                 var header = null;
                 if (title || description || collapsible) {
-                    header = $('<div class="d-flex align-items-start justify-content-between mb-2 fastcrud-form-section-header"></div>');
+                    header = $('<div class="mb-2 fastcrud-form-section-header"></div>');
                     var headingGroup = $('<div class="fastcrud-form-section-heading"></div>');
                     if (titleClass) {
                         headingGroup.addClass(titleClass);
