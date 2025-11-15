@@ -17733,7 +17733,7 @@ CSS;
 
                     var hasHeadingContent = false;
                     if (title) {
-                        var titleRow = $('<h5 class="fastcrud-form-section-title d-flex align-items-center mb-0"></h5>');
+                        var titleRow = $('<h5 class="fastcrud-form-section-title mb-0"></h5>');
                         if (iconClass) {
                             titleRow.append($('<i class="fastcrud-form-section-icon me-1"></i>').addClass(iconClass));
                         }
