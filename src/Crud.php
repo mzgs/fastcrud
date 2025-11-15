@@ -3240,8 +3240,8 @@ class Crud
      * mode (`edit`, `create`, or `view`). Whatever value it returns (including null) replaces the
      * existing field value. Return an array with an `html` key or a plain string (text or markup)
      * to provide custom form controls rendered as raw HTML. FastCRUD also runs these callbacks
-     * while building the create-form template (before a record exists); the placeholder rows are
-     * marked with `__fastcrud_template => true` and contain null column values. When returning
+     * while building the per-mode form templates (before a record exists); those placeholder rows
+     * are marked with `__fastcrud_template => true` and contain null column values. When returning
      * custom markup, include your own inputs with `data-fastcrud-field="{field}"` so the Ajax
      * submit logic can capture the value.
      */
@@ -3311,7 +3311,7 @@ class Crud
      * Register a form field that is not stored in the database.
      *
      * The callback receives the field name, the initial value (or null), the row array, and the
-     * current form mode. FastCRUD also invokes the callback to build the create-form template
+     * current form mode. FastCRUD also invokes the callback to build the per-mode form templates
      * before a record exists; those placeholder rows expose `__fastcrud_template => true` and the
      * column values will be null. Return a string of HTML or an array with `html`/`value` keys to
      * inject custom form controls. Escape the markup yourself if it contains untrusted data.
@@ -8061,11 +8061,10 @@ HTML;
 
         $templates = [];
 
-        // Edit/view forms always fetch a real record before rendering, so template
-        // markup is only required for the create form. Tag the template rows so
-        // callback authors can detect placeholder invocations (all column values
-        // are null at this stage).
-        $templateRows = ['create'];
+        // Templates seed the client-side forms for every mode. Tag placeholder rows
+        // so callback authors can detect these pre-record invocations (all column
+        // values are null at this stage) and bail when needed.
+        $templateRows = ['create', 'edit', 'view'];
 
         foreach ($templateRows as $mode) {
             $row = $baseRow;
