@@ -13683,6 +13683,119 @@ CSS;
             return joinPublicUrl(getUploadPublicBase(), v);
         }
 
+        function hydrateFilePondInitialSizes(pond, initialFiles) {
+            if (!pond || typeof fetch !== 'function' || typeof FormData === 'undefined' || !Array.isArray(initialFiles) || !initialFiles.length) {
+                return;
+            }
+
+            var entries = initialFiles.map(function(entry) {
+                var storedName = entry && entry.options && entry.options.metadata ? entry.options.metadata.storedName : '';
+                return {
+                    storedName: storedName,
+                    source: entry && entry.source ? entry.source : ''
+                };
+            }).filter(function(entry) {
+                return !!entry.storedName;
+            });
+
+            if (!entries.length) {
+                return;
+            }
+
+            var requested = Object.create(null);
+
+            function formatReadableFileSize(bytes) {
+                if (!bytes || !Number.isFinite(bytes) || bytes <= 0) {
+                    return '0 B';
+                }
+                var units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+                var exponent = Math.floor(Math.log(bytes) / Math.log(1024));
+                if (!Number.isFinite(exponent) || exponent < 0) {
+                    exponent = 0;
+                }
+                exponent = Math.min(exponent, units.length - 1);
+                var value = bytes / Math.pow(1024, exponent);
+                var precision = (value >= 10 || exponent === 0) ? 0 : 2;
+                return value.toFixed(precision) + ' ' + units[exponent];
+            }
+
+            function updateItemsWithSize(storedName, size) {
+                var files = typeof pond.getFiles === 'function' ? pond.getFiles() : [];
+                if (!files.length) {
+                    return;
+                }
+                var formatted = formatReadableFileSize(size);
+                files.forEach(function(item) {
+                    if (!item) {
+                        return;
+                    }
+                    var matches = false;
+                    if (item.getMetadata && typeof item.getMetadata === 'function') {
+                        matches = item.getMetadata('storedName') === storedName;
+                    }
+                    if (!matches && item.source && typeof item.source === 'string') {
+                        matches = item.source.indexOf(storedName) !== -1;
+                    }
+                    if (!matches) {
+                        return;
+                    }
+                    try {
+                        if (item.setMetadata && typeof item.setMetadata === 'function') {
+                            item.setMetadata('size', size, true);
+                            item.setMetadata('filesize', size, true);
+                        }
+                        item.fileSize = size;
+                        if (item.file && typeof item.file === 'object') {
+                            Object.defineProperty(item.file, 'size', { value: size, configurable: true });
+                        }
+                    } catch (e) {}
+                    try {
+                        if (pond.element && item.id) {
+                            var selector = '[data-filepond-item-id="' + item.id + '"] .filepond--file-info-sub';
+                            var info = pond.element.querySelector(selector);
+                            if (info) {
+                                info.textContent = formatted;
+                            }
+                        }
+                    } catch (e) {}
+                });
+            }
+
+            entries.forEach(function(entry) {
+                if (!entry.storedName || requested[entry.storedName]) {
+                    return;
+                }
+                requested[entry.storedName] = true;
+
+                try {
+                    var formData = new FormData();
+                    formData.append('fastcrud_ajax', '1');
+                    formData.append('action', 'file_metadata');
+                    formData.append('name', entry.storedName);
+
+                    fetch(window.location.pathname, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        body: formData
+                    }).then(function(response) {
+                        if (!response || typeof response.json !== 'function') {
+                            throw new Error('invalid_response');
+                        }
+                        return response.json();
+                    }).then(function(payload) {
+                        if (!payload || payload.success !== true || typeof payload.size === 'undefined') {
+                            return;
+                        }
+                        var size = Number(payload.size);
+                        if (!Number.isFinite(size) || size <= 0) {
+                            return;
+                        }
+                        updateItemsWithSize(entry.storedName, size);
+                    }).catch(function() {});
+                } catch (e) {}
+            });
+        }
+
         function extractFileName(value) {
             var str = String(value || '').trim();
             if (!str) { return ''; }
@@ -18674,6 +18787,7 @@ CSS;
                                     }
                                 }
                             });
+                            hydrateFilePondInitialSizes(pond, initialFiles);
 
                             // Apply width: use full width for multi-image grids by default
                             var pondWidth = (function() {
@@ -18831,7 +18945,11 @@ CSS;
                                 initialFiles = list.map(function(fname) {
                                     return {
                                         source: toPublicUrl(fname),
-                                        options: { type: 'local', file: { name: fname, size: 0 } }
+                                        options: {
+                                            type: 'local',
+                                            file: { name: fname, size: 0 },
+                                            metadata: { storedName: fname }
+                                        }
                                     };
                                 });
                             } else {
@@ -18839,7 +18957,11 @@ CSS;
                                 if (name) {
                                     initialFiles = [{
                                         source: toPublicUrl(name),
-                                        options: { type: 'local', file: { name: name, size: 0 } }
+                                        options: {
+                                            type: 'local',
+                                            file: { name: name, size: 0 },
+                                            metadata: { storedName: name }
+                                        }
                                     }];
                                 }
                             }
@@ -18920,6 +19042,7 @@ CSS;
                                     }
                                 }
                             });
+                            hydrateFilePondInitialSizes(pond, initialFiles);
 
                             if (isMultipleFiles) {
                                 pond.on('removefile', function(error, file) {

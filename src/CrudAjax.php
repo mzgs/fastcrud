@@ -61,6 +61,9 @@ class CrudAjax
                     // Reuse the same secure image upload flow used by TinyMCE
                     self::handleUploadImage($request);
                     break;
+                case 'file_metadata':
+                    self::handleFileMetadata($request);
+                    break;
                 case 'nested_fetch':
                     self::handleNestedFetch($request);
                     break;
@@ -162,6 +165,29 @@ class CrudAjax
         self::respond([
             'success' => true,
             'html' => $html,
+        ]);
+    }
+
+    private static function handleFileMetadata(array $request): void
+    {
+        $nameRaw = $request['name'] ?? null;
+        if (!is_string($nameRaw) || trim($nameRaw) === '') {
+            throw new InvalidArgumentException('File name parameter is required.');
+        }
+
+        $absolutePath = self::resolveStoredFileAbsolutePath($nameRaw);
+        if ($absolutePath === null || !is_file($absolutePath)) {
+            throw new InvalidArgumentException('File not found.');
+        }
+
+        $size = @filesize($absolutePath);
+        if ($size === false) {
+            throw new RuntimeException('Unable to determine file size.');
+        }
+
+        self::respond([
+            'success' => true,
+            'size' => (int) $size,
         ]);
     }
 
@@ -1196,6 +1222,37 @@ class CrudAjax
         }
 
         return implode('/', $segments);
+    }
+
+    private static function resolveStoredFileAbsolutePath(string $storedName): ?string
+    {
+        $normalized = trim((string) $storedName);
+        if ($normalized === '') {
+            return null;
+        }
+
+        if (self::isUrl($normalized)) {
+            $parsedPath = parse_url($normalized, PHP_URL_PATH) ?: '';
+            $normalized = $parsedPath !== '' ? $parsedPath : '';
+        }
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        if (self::isAbsolutePath($normalized)) {
+            return is_file($normalized) ? $normalized : null;
+        }
+
+        $relative = trim(strtr($normalized, [chr(92) => '/', '\\' => '/']), '/');
+        if ($relative === '' || str_contains($relative, '..')) {
+            return null;
+        }
+
+        $baseDirectory = self::resolveUploadDirectoryFromBase(CrudConfig::getUploadPath());
+        $fullPath = rtrim($baseDirectory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . strtr($relative, ['/' => DIRECTORY_SEPARATOR, chr(92) => DIRECTORY_SEPARATOR]);
+
+        return $fullPath;
     }
 
     private static function sanitizePathSegment(string $value): string
