@@ -137,7 +137,7 @@ DatabaseEditor::init();
 
                  
 
-                <?= DatabaseEditor::render(true, true); ?>
+              
 
                 <br>
                 <br>
@@ -189,7 +189,7 @@ DatabaseEditor::init();
                     // ->fields('user_id,status,title,is_featured,json_field,image,gallery_images,file,color,content,created_at'  )
                     // ->fields('slug,status_note,cats,radio_field' )
                     // ->fields('slug,content',false,'Content' )
-                    ->fields('title,slug,status,cats,file,is_slide,radio_field,color,content,image,gallery_images,json_field,created_at' )
+                    ->fields('title,slug,image,status,cats,file,is_slide,radio_field,color,content,gallery_images,json_field,created_at' )
 
                     ->change_type('file', 'files')
 
@@ -199,7 +199,7 @@ DatabaseEditor::init();
                         'fields'      => ['title', 'slug'],
                         'icon'        => 'fas fa-user',
                         'class'       => 'border rounded p-3',
-                        'title_class' => 'mb-2 p-3 border-bottom bg-danger',
+                        'title_class' => 'mb-2 p-3 border-bottom',
                     ])
                     ->form_section('details', [
                         'title'  => 'Details',
@@ -328,10 +328,13 @@ DatabaseEditor::init();
                 echo $usersCrud->render();
                 ?>
 
+                 
             </div>
 
 
-          
+             <br>
+                    <hr>
+                    <?= DatabaseEditor::render(true, false); ?>
 
 
         </div>

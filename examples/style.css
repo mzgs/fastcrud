@@ -360,13 +360,13 @@ input[type="checkbox"]::before {
 
 hr { border-color: color-mix(in srgb, var(--bs-border-color) 80%, transparent); }
 
-.fastcrud-form-section h5{
+/* .fastcrud-form-section h5{
   background-color: #2f6bff;
   color: white;
   padding: 10px;
   display: block;
   width: 100%;
-}
+} */
 
 /* Dark theme adjustments for table headers */
 [data-bs-theme="dark"] .table thead th {
