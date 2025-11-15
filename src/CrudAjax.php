@@ -64,6 +64,9 @@ class CrudAjax
                 case 'file_metadata':
                     self::handleFileMetadata($request);
                     break;
+                case 'file_metadata_bulk':
+                    self::handleFileMetadataBulk($request);
+                    break;
                 case 'nested_fetch':
                     self::handleNestedFetch($request);
                     break;
@@ -188,6 +191,53 @@ class CrudAjax
         self::respond([
             'success' => true,
             'size' => (int) $size,
+        ]);
+    }
+
+    private static function handleFileMetadataBulk(array $request): void
+    {
+        $namesPayload = $request['names'] ?? [];
+        $names = [];
+
+        if (is_string($namesPayload) && $namesPayload !== '') {
+            $decoded = json_decode($namesPayload, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $names = $decoded;
+            }
+        } elseif (is_array($namesPayload)) {
+            $names = $namesPayload;
+        }
+
+        if (!is_array($names)) {
+            throw new InvalidArgumentException('Invalid names payload.');
+        }
+
+        $sizes = [];
+        foreach ($names as $name) {
+            if (!is_string($name)) {
+                continue;
+            }
+            $trimmed = trim($name);
+            if ($trimmed === '' || isset($sizes[$trimmed])) {
+                continue;
+            }
+
+            $absolutePath = self::resolveStoredFileAbsolutePath($trimmed);
+            if ($absolutePath === null || !is_file($absolutePath)) {
+                continue;
+            }
+
+            $size = @filesize($absolutePath);
+            if ($size === false) {
+                continue;
+            }
+
+            $sizes[$trimmed] = (int) $size;
+        }
+
+        self::respond([
+            'success' => true,
+            'sizes' => $sizes,
         ]);
     }
 

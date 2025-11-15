@@ -13702,7 +13702,19 @@ CSS;
                 return;
             }
 
-            var requested = Object.create(null);
+            var uniqueNames = [];
+            var seen = Object.create(null);
+            entries.forEach(function(entry) {
+                if (!entry.storedName || seen[entry.storedName]) {
+                    return;
+                }
+                seen[entry.storedName] = true;
+                uniqueNames.push(entry.storedName);
+            });
+
+            if (!uniqueNames.length) {
+                return;
+            }
 
             function formatReadableFileSize(bytes) {
                 if (!bytes || !Number.isFinite(bytes) || bytes <= 0) {
@@ -13761,39 +13773,37 @@ CSS;
                 });
             }
 
-            entries.forEach(function(entry) {
-                if (!entry.storedName || requested[entry.storedName]) {
-                    return;
-                }
-                requested[entry.storedName] = true;
+            try {
+                var formData = new FormData();
+                formData.append('fastcrud_ajax', '1');
+                formData.append('action', 'file_metadata_bulk');
+                formData.append('names', JSON.stringify(uniqueNames));
 
-                try {
-                    var formData = new FormData();
-                    formData.append('fastcrud_ajax', '1');
-                    formData.append('action', 'file_metadata');
-                    formData.append('name', entry.storedName);
-
-                    fetch(window.location.pathname, {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        body: formData
-                    }).then(function(response) {
-                        if (!response || typeof response.json !== 'function') {
-                            throw new Error('invalid_response');
-                        }
-                        return response.json();
-                    }).then(function(payload) {
-                        if (!payload || payload.success !== true || typeof payload.size === 'undefined') {
+                fetch(window.location.pathname, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: formData
+                }).then(function(response) {
+                    if (!response || typeof response.json !== 'function') {
+                        throw new Error('invalid_response');
+                    }
+                    return response.json();
+                }).then(function(payload) {
+                    if (!payload || payload.success !== true || typeof payload.sizes !== 'object' || payload.sizes === null) {
+                        return;
+                    }
+                    Object.keys(payload.sizes).forEach(function(key) {
+                        if (!Object.prototype.hasOwnProperty.call(payload.sizes, key)) {
                             return;
                         }
-                        var size = Number(payload.size);
+                        var size = Number(payload.sizes[key]);
                         if (!Number.isFinite(size) || size <= 0) {
                             return;
                         }
-                        updateItemsWithSize(entry.storedName, size);
-                    }).catch(function() {});
-                } catch (e) {}
-            });
+                        updateItemsWithSize(key, size);
+                    });
+                }).catch(function() {});
+            } catch (e) {}
         }
 
         function extractFileName(value) {
