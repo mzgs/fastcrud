@@ -3239,9 +3239,11 @@ class Crud
      * The callback receives the field name, the current value, the full row array, and the form
      * mode (`edit`, `create`, or `view`). Whatever value it returns (including null) replaces the
      * existing field value. Return an array with an `html` key or a plain string (text or markup)
-     * to provide custom form controls rendered as raw HTML. When returning custom markup, include
-     * your own inputs with `data-fastcrud-field="{field}"` so the Ajax submit logic can capture
-     * the value.
+     * to provide custom form controls rendered as raw HTML. FastCRUD also runs these callbacks
+     * while building the create-form template (before a record exists); the placeholder rows are
+     * marked with `__fastcrud_template => true` and contain null column values. When returning
+     * custom markup, include your own inputs with `data-fastcrud-field="{field}"` so the Ajax
+     * submit logic can capture the value.
      */
     public function field_callback(string|array $fields, string|array $callback): self
     {
@@ -3309,8 +3311,10 @@ class Crud
      * Register a form field that is not stored in the database.
      *
      * The callback receives the field name, the initial value (or null), the row array, and the
-     * current form mode. Return a string of HTML or an array with `html`/`value` keys to inject
-     * custom form controls. Escape the markup yourself if it contains untrusted data.
+     * current form mode. FastCRUD also invokes the callback to build the create-form template
+     * before a record exists; those placeholder rows expose `__fastcrud_template => true` and the
+     * column values will be null. Return a string of HTML or an array with `html`/`value` keys to
+     * inject custom form controls. Escape the markup yourself if it contains untrusted data.
      */
     public function custom_field(string $field, string|array $callback): self
     {
@@ -8057,8 +8061,15 @@ HTML;
 
         $templates = [];
 
-        foreach (['create', 'edit', 'view'] as $mode) {
+        // Edit/view forms always fetch a real record before rendering, so template
+        // markup is only required for the create form. Tag the template rows so
+        // callback authors can detect placeholder invocations (all column values
+        // are null at this stage).
+        $templateRows = ['create'];
+
+        foreach ($templateRows as $mode) {
             $row = $baseRow;
+            $row['__fastcrud_template'] = true;
             $templates[$mode] = $this->applyFieldCallbacksToRow($row, $mode);
         }
 
