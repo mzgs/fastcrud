@@ -1038,9 +1038,14 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $path = CrudConfig::getUploadPath();
   ```
-- **`CrudConfig::$upload_path`** – Set the default upload directory for file operations (default: `'public/uploads'`).
+- **`CrudConfig::$upload_path`** – Set the default filesystem destination for uploads (default: `'public/uploads'`).
   ```php
   CrudConfig::$upload_path = 'assets/uploads';
+  ```
+- **`CrudConfig::$upload_serve_path`** – Override the public URL/base path that browsers should use when referencing uploaded files (defaults to `CrudConfig::$upload_path`).
+  ```php
+  CrudConfig::$upload_path = '/var/uploads/files';
+  CrudConfig::$upload_serve_path = '/uploads';
   ```
 - **`CrudConfig::$images_in_grid`** – Enable/disable image thumbnails in grid view (default: `true`).
   ```php

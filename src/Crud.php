@@ -2724,7 +2724,7 @@ class Crud
 
     private function buildPublicUploadUrl(string $name): string
     {
-        $base = CrudConfig::getUploadPath();
+        $base = CrudConfig::getUploadServePath();
 
         if ($name !== '' && (preg_match('/^https?:\/\//i', $name) === 1 || substr($name, 0, 1) === '/')) {
             return $name;
@@ -8913,7 +8913,7 @@ HTML;
             'inline_edit'       => $inline,
             'nested_tables'     => $this->buildNestedTablesClientConfigPayload(),
             'rich_editor'       => [
-                'upload_path' => CrudConfig::getUploadPath(),
+                'upload_path' => CrudConfig::getUploadServePath(),
             ],
             'select2'           => (bool) ($this->config['select2'] ?? false),
             'debug'           => (bool) CrudConfig::$debug,

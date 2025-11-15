@@ -1100,7 +1100,8 @@ class CrudAjax
      */
     private static function resolveUploadDestination(?string $pathOption): array
     {
-        $basePublic = CrudConfig::getUploadPath();
+        $baseStorage = CrudConfig::getUploadPath();
+        $basePublic = CrudConfig::getUploadServePath();
         $relative = '';
 
         if ($pathOption !== null) {
@@ -1119,7 +1120,7 @@ class CrudAjax
             }
         }
 
-        $baseDirectory = self::resolveUploadDirectoryFromBase($basePublic);
+        $baseDirectory = self::resolveUploadDirectoryFromBase($baseStorage);
         $targetDirectory = $baseDirectory;
 
         if ($relative !== '') {

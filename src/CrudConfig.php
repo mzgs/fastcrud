@@ -12,6 +12,7 @@ class CrudConfig
     ];
 
     public static string $upload_path = 'public/uploads';
+    public static ?string $upload_serve_path = null;
     // shows images in list view
     public static bool $images_in_grid = true;
     public static int $images_in_grid_height = 55;
@@ -81,5 +82,15 @@ class CrudConfig
     {
         $path = trim(self::$upload_path);
         return $path === '' ? 'public/uploads' : $path;
+    }
+
+    public static function getUploadServePath(): string
+    {
+        $path = self::$upload_serve_path;
+        if ($path === null || trim($path) === '') {
+            return self::getUploadPath();
+        }
+
+        return trim($path);
     }
 }
