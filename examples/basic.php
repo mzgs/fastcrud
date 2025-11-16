@@ -170,6 +170,7 @@ DatabaseEditor::init();
                         'button_class' => 'btn btn-sm btn-success'
                     ], [
                         ['url' => '/customers/{id}', 'label' => 'Profile', 'icon' => 'fas fa-user'],
+                        ['type' => 'input', 'url' => '/customers/search/{id}', 'label' => 'Email Lookup', 'input_name' => 'email', 'icon' => 'fas fa-search', 'prompt' => 'Enter email to search'],
                         ['url' => '/customers/{id}', 'label' => 'Profile', 'icon' => 'fas fa-user'],
                         ['type' => 'divider' ],
                         ['url' => '/customers/{id}/orders', 'label' => 'Orders', 'icon' => 'fas fa-receipt', 'options' => ['target' => '_blank']],

@@ -633,6 +633,74 @@ class Crud
                 continue;
             }
 
+            if ($entryType === 'input') {
+                $url = isset($entry['url']) ? trim((string) $entry['url']) : '';
+                if ($url === '') {
+                    continue;
+                }
+
+                $labelRaw = isset($entry['label']) ? (string) $entry['label'] : '';
+                $label = trim($labelRaw);
+                if ($label === '') {
+                    continue;
+                }
+
+                $inputName = 'exampleinput';
+                if (array_key_exists('input_name', $entry) && $entry['input_name'] !== null) {
+                    $nameCandidate = trim((string) $entry['input_name']);
+                    if ($nameCandidate !== '') {
+                        $inputName = $nameCandidate;
+                    }
+                }
+
+                $prompt = null;
+                if (array_key_exists('prompt', $entry) && $entry['prompt'] !== null) {
+                    $promptCandidate = trim((string) $entry['prompt']);
+                    if ($promptCandidate !== '') {
+                        $prompt = $promptCandidate;
+                    }
+                }
+
+                $icon = null;
+                if (array_key_exists('icon', $entry) && $entry['icon'] !== null) {
+                    $iconRaw = (string) $entry['icon'];
+                    $iconClass = $this->normalizeCssClassList($iconRaw);
+                    if ($iconClass !== '') {
+                        $icon = $iconClass;
+                    }
+                }
+
+                $itemOptions = [];
+                if (isset($entry['options']) && is_array($entry['options'])) {
+                    foreach ($entry['options'] as $key => $value) {
+                        if (!is_string($key)) {
+                            continue;
+                        }
+
+                        $normalizedKey = trim($key);
+                        if ($normalizedKey === '') {
+                            continue;
+                        }
+
+                        if (is_scalar($value)) {
+                            $itemOptions[$normalizedKey] = (string) $value;
+                        }
+                    }
+                }
+
+                $items[] = [
+                    'type'       => 'input',
+                    'url'        => $url,
+                    'label'      => $label,
+                    'icon'       => $icon,
+                    'options'    => $itemOptions,
+                    'input_name' => $inputName,
+                    'prompt'     => $prompt,
+                ];
+                $hasActionItem = true;
+                continue;
+            }
+
             $url = isset($entry['url']) ? trim((string) $entry['url']) : '';
             if ($url === '') {
                 continue;
@@ -2331,6 +2399,75 @@ class Crud
                         'label'   => $resolvedLabel,
                         'icon'    => $resolvedIcon,
                         'options' => $resolvedOptions,
+                    ];
+                    $hasActionItem = true;
+                    continue;
+                }
+
+                if ($itemType === 'input') {
+                    if (!isset($item['url'], $item['label'])) {
+                        continue;
+                    }
+
+                    $resolvedUrl = trim($this->applyPattern((string) $item['url'], '', null, 'multi_link_button', $row));
+                    if ($resolvedUrl === '') {
+                        continue;
+                    }
+
+                    $resolvedLabel = trim($this->applyPattern((string) $item['label'], '', null, 'multi_link_button', $row));
+                    if ($resolvedLabel === '') {
+                        continue;
+                    }
+
+                    $resolvedOptions = [];
+                    if (isset($item['options']) && is_array($item['options'])) {
+                        foreach ($item['options'] as $key => $value) {
+                            if (!is_string($key)) {
+                                continue;
+                            }
+
+                            $optionValue = trim($this->applyPattern($value, '', null, 'multi_link_button', $row));
+                            if ($optionValue === '') {
+                                continue;
+                            }
+
+                            $resolvedOptions[$key] = $optionValue;
+                        }
+                    }
+
+                    $resolvedIcon = null;
+                    if (isset($item['icon']) && is_string($item['icon']) && $item['icon'] !== '') {
+                        $iconCandidate = trim($this->applyPattern($item['icon'], '', null, 'multi_link_button', $row));
+                        if ($iconCandidate !== '') {
+                            $normalizedIcon = $this->normalizeCssClassList($iconCandidate);
+                            if ($normalizedIcon !== '') {
+                                $resolvedIcon = $normalizedIcon;
+                            }
+                        }
+                    }
+
+                    $inputNameSource = isset($item['input_name']) ? (string) $item['input_name'] : 'exampleinput';
+                    $resolvedInputName = trim($this->applyPattern($inputNameSource, '', null, 'multi_link_button', $row));
+                    if ($resolvedInputName === '') {
+                        $resolvedInputName = 'exampleinput';
+                    }
+
+                    $resolvedPrompt = null;
+                    if (array_key_exists('prompt', $item) && $item['prompt'] !== null) {
+                        $promptCandidate = trim($this->applyPattern((string) $item['prompt'], '', null, 'multi_link_button', $row));
+                        if ($promptCandidate !== '') {
+                            $resolvedPrompt = $promptCandidate;
+                        }
+                    }
+
+                    $items[] = [
+                        'type'       => 'input',
+                        'url'        => $resolvedUrl,
+                        'label'      => $resolvedLabel,
+                        'icon'       => $resolvedIcon,
+                        'options'    => $resolvedOptions,
+                        'input_name' => $resolvedInputName,
+                        'prompt'     => $resolvedPrompt,
                     ];
                     $hasActionItem = true;
                     continue;
@@ -16402,6 +16539,49 @@ CSS;
             }
         }
 
+        function buildUrlWithParam(baseUrl, paramName, paramValue) {
+            var href = typeof baseUrl === 'string' ? baseUrl : '';
+            var trimmedHref = href.trim();
+            if (!trimmedHref) {
+                return '';
+            }
+            var nameSource = typeof paramName === 'string' ? paramName : '';
+            var paramKey = nameSource.trim() || 'exampleinput';
+            var valueString = (paramValue === null || typeof paramValue === 'undefined')
+                ? ''
+                : String(paramValue);
+            var hashIndex = trimmedHref.indexOf('#');
+            var hash = '';
+            if (hashIndex !== -1) {
+                hash = trimmedHref.slice(hashIndex);
+                trimmedHref = trimmedHref.slice(0, hashIndex);
+            }
+            var separator = trimmedHref.indexOf('?') === -1 ? '?' : '&';
+            return trimmedHref + separator + encodeURIComponent(paramKey) + '=' + encodeURIComponent(valueString) + hash;
+        }
+
+        function followUrl(url, target, rel) {
+            var href = typeof url === 'string' ? url.trim() : '';
+            if (!href) {
+                return;
+            }
+            var resolvedTarget = typeof target === 'string' ? target.trim() : '';
+            if (!resolvedTarget || resolvedTarget === '_self') {
+                window.location.href = href;
+                return;
+            }
+            var link = document.createElement('a');
+            link.href = href;
+            link.target = resolvedTarget;
+            if (typeof rel === 'string' && rel.trim()) {
+                link.rel = rel.trim();
+            }
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         function hasNestedTablesConfigured() {
             return Array.isArray(nestedTablesConfig) && nestedTablesConfig.length > 0;
         }
@@ -16731,6 +16911,122 @@ CSS;
                             }
 
                             dropdownItems.push('<li><button type="button" class="' + escapeHtml(deleteClassAttr) + '"' + deleteAttrString + '>' + deleteContent + '</button></li>');
+                            return;
+                        }
+
+                        if (itemType === 'input') {
+                            var inputHref = String(item.url || '').trim();
+                            var inputLabelRaw = typeof item.label === 'string' ? item.label : '';
+                            var inputLabel = inputLabelRaw.trim();
+                            if (!inputHref || !inputLabel) {
+                                return;
+                            }
+
+                            var inputNameRaw = typeof item.input_name === 'string' ? item.input_name : '';
+                            var inputName = inputNameRaw.trim() || 'exampleinput';
+                            var inputPromptRaw = typeof item.prompt === 'string' ? item.prompt : '';
+                            var inputPrompt = inputPromptRaw.trim();
+
+                            var inputClassParts = ['dropdown-item', 'fastcrud-multi-link-item', 'fastcrud-multi-link-input'];
+                            var inputOptions = item.options && typeof item.options === 'object'
+                                ? Object.assign({}, item.options)
+                                : {};
+                            var inputOptionClassRaw = '';
+                            if (Object.prototype.hasOwnProperty.call(inputOptions, 'class')) {
+                                inputOptionClassRaw = String(inputOptions['class'] || '').trim();
+                                delete inputOptions['class'];
+                            }
+                            if (inputOptionClassRaw) {
+                                inputOptionClassRaw.split(/\s+/).forEach(function(extra) {
+                                    if (!extra) { return; }
+                                    if (inputClassParts.indexOf(extra) === -1) {
+                                        inputClassParts.push(extra);
+                                    }
+                                });
+                            }
+
+                            var inputAttrString = '';
+                            var inputHasTitle = false;
+                            var inputHasAria = false;
+                            var inputHasRole = false;
+                            var inputTargetAttr = '';
+                            var inputRelAttr = '';
+
+                            Object.keys(inputOptions).forEach(function(optionKey) {
+                                if (!Object.prototype.hasOwnProperty.call(inputOptions, optionKey)) {
+                                    return;
+                                }
+                                var attrName = String(optionKey);
+                                if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
+                                    return;
+                                }
+                                var lowerName = attrName.toLowerCase();
+                                if (lowerName === 'class' || lowerName === 'href' || lowerName === 'type') {
+                                    return;
+                                }
+                                if (lowerName === 'target') {
+                                    inputTargetAttr = String(inputOptions[optionKey] || '').trim();
+                                    return;
+                                }
+                                if (lowerName === 'rel') {
+                                    inputRelAttr = String(inputOptions[optionKey] || '').trim();
+                                    return;
+                                }
+                                if (lowerName === 'title') {
+                                    inputHasTitle = true;
+                                } else if (lowerName === 'aria-label') {
+                                    inputHasAria = true;
+                                } else if (lowerName === 'role') {
+                                    inputHasRole = true;
+                                }
+                                var attrValue = inputOptions[optionKey];
+                                if (attrValue === null || typeof attrValue === 'undefined') {
+                                    return;
+                                }
+                                inputAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
+                            });
+
+                            if (!inputHasAria) {
+                                inputAttrString += ' aria-label="' + escapeHtml(inputLabel) + '"';
+                            }
+                            if (!inputHasTitle) {
+                                inputAttrString += ' title="' + escapeHtml(inputLabel) + '"';
+                            }
+                            if (!inputHasRole) {
+                                inputAttrString += ' role="menuitem"';
+                            }
+
+                            inputAttrString += ' data-fastcrud-input-url="' + escapeHtml(inputHref) + '"';
+                            inputAttrString += ' data-fastcrud-input-name="' + escapeHtml(inputName) + '"';
+                            if (inputPrompt) {
+                                inputAttrString += ' data-fastcrud-input-prompt="' + escapeHtml(inputPrompt) + '"';
+                            }
+                            if (inputTargetAttr) {
+                                inputAttrString += ' data-fastcrud-input-target="' + escapeHtml(inputTargetAttr) + '"';
+                            }
+                            if (inputRelAttr) {
+                                inputAttrString += ' data-fastcrud-input-rel="' + escapeHtml(inputRelAttr) + '"';
+                            }
+
+                            var uniqueInputClassParts = [];
+                            inputClassParts.forEach(function(part) {
+                                if (!part) { return; }
+                                if (uniqueInputClassParts.indexOf(part) === -1) {
+                                    uniqueInputClassParts.push(part);
+                                }
+                            });
+
+                            var inputClassAttr = uniqueInputClassParts.join(' ');
+                            var inputIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
+                            var inputContent;
+                            if (inputIconClass) {
+                                var inputIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(inputIconClass) + '"></i>';
+                                inputContent = inputIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(inputLabel) + '</span>';
+                            } else {
+                                inputContent = escapeHtml(inputLabel);
+                            }
+
+                            dropdownItems.push('<li><button type="button" class="' + escapeHtml(inputClassAttr) + '"' + inputAttrString + '>' + inputContent + '</button></li>');
                             return;
                         }
 
@@ -20793,6 +21089,50 @@ CSS;
             var pk = getPkInfoFromElement(this);
             if (!pk) { showError('Unable to determine primary key for deletion.'); return false; }
             requestDelete({ __fastcrud_primary_key: pk.column, __fastcrud_primary_value: pk.value });
+            return false;
+        });
+
+        table.on('click', '.fastcrud-multi-link-input', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            var button = $(this);
+            var baseUrlRaw = button.data('fastcrudInputUrl');
+            var baseUrl = typeof baseUrlRaw === 'string' ? baseUrlRaw : '';
+            if (!baseUrl.trim()) {
+                return false;
+            }
+            var paramNameRaw = button.data('fastcrudInputName');
+            var paramName = typeof paramNameRaw === 'string' ? paramNameRaw : '';
+            if (!paramName.trim()) {
+                paramName = 'exampleinput';
+            }
+            var promptRaw = button.data('fastcrudInputPrompt');
+            var promptMessage = '';
+            if (typeof promptRaw === 'string' && promptRaw.trim()) {
+                promptMessage = promptRaw.trim();
+            } else {
+                var ariaLabel = button.attr('aria-label') || '';
+                var fallbackLabel = ariaLabel.trim();
+                if (!fallbackLabel) {
+                    var textLabel = (button.text() || '').trim();
+                    fallbackLabel = textLabel || 'value';
+                }
+                promptMessage = 'Enter ' + fallbackLabel;
+            }
+            var inputValue = window.prompt(promptMessage, '');
+            if (inputValue === null) {
+                return false;
+            }
+            var valueString = String(inputValue);
+            if (valueString.trim() === '') {
+                return false;
+            }
+            var targetRaw = button.data('fastcrudInputTarget');
+            var relRaw = button.data('fastcrudInputRel');
+            var target = typeof targetRaw === 'string' ? targetRaw : '';
+            var rel = typeof relRaw === 'string' ? relRaw : '';
+            var finalUrl = buildUrlWithParam(baseUrl, paramName, valueString);
+            followUrl(finalUrl, target, rel);
             return false;
         });
 
