@@ -140,6 +140,7 @@ class Crud
         'default_column_truncate' => null,
         'column_highlights' => [],
         'row_highlights' => [],
+        'action_button_sequence' => [],
         'link_buttons' => [],
         'multi_link_buttons' => [],
         'inline_edit' => [],
@@ -839,6 +840,61 @@ class Crud
             ],
             'items' => $items,
         ];
+    }
+
+    /**
+     * @param mixed $sequence
+     * @return array<int, string>
+     */
+    private function normalizeActionButtonSequence(mixed $sequence): array
+    {
+        if (!is_array($sequence)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($sequence as $entry) {
+            if (!is_string($entry)) {
+                continue;
+            }
+
+            $type = strtolower(trim($entry));
+            if ($type === 'link' || $type === 'multi') {
+                $normalized[] = $type;
+            }
+        }
+
+        return $normalized;
+    }
+
+    private function appendActionButtonSequence(string $type): void
+    {
+        $type = strtolower(trim($type));
+        if ($type !== 'link' && $type !== 'multi') {
+            return;
+        }
+
+        if (!isset($this->config['action_button_sequence']) || !is_array($this->config['action_button_sequence'])) {
+            $this->config['action_button_sequence'] = [];
+        }
+
+        $this->config['action_button_sequence'][] = $type;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function getActionButtonSequence(): array
+    {
+        $sequence = $this->config['action_button_sequence'] ?? [];
+        if (!is_array($sequence)) {
+            $sequence = [];
+        }
+
+        $normalized = $this->normalizeActionButtonSequence($sequence);
+        $this->config['action_button_sequence'] = $normalized;
+
+        return $normalized;
     }
 
     /**
@@ -2092,6 +2148,11 @@ class Crud
             $meta['multi_link_buttons'] = $multiLinkButtons;
         }
 
+        $actionButtonOrder = $this->buildCustomActionButtonOrder($linkButtons, $multiLinkButtons);
+        if ($actionButtonOrder !== []) {
+            $meta['action_button_order'] = $actionButtonOrder;
+        }
+
         $meta['view_allowed'] = $this->isActionAllowedForRow('view', $sourceRow);
         $meta['duplicate_allowed'] = $this->isActionAllowedForRow('duplicate', $sourceRow);
         $meta['edit_allowed'] = $this->isActionAllowedForRow('edit', $sourceRow);
@@ -2251,6 +2312,52 @@ class Crud
         }
 
         return $result;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $linkButtons
+     * @param array<int, array<string, mixed>> $multiLinkButtons
+     * @return array<int, array{type: string, index: int}>
+     */
+    private function buildCustomActionButtonOrder(array $linkButtons, array $multiLinkButtons): array
+    {
+        $linkCount = count($linkButtons);
+        $multiCount = count($multiLinkButtons);
+        if ($linkCount === 0 && $multiCount === 0) {
+            return [];
+        }
+
+        $sequence = $this->getActionButtonSequence();
+        $order = [];
+        $linkIndex = 0;
+        $multiIndex = 0;
+
+        foreach ($sequence as $entry) {
+            if ($entry === 'link') {
+                if ($linkIndex < $linkCount) {
+                    $order[] = ['type' => 'link', 'index' => $linkIndex];
+                    $linkIndex++;
+                }
+                continue;
+            }
+
+            if ($entry === 'multi' && $multiIndex < $multiCount) {
+                $order[] = ['type' => 'multi', 'index' => $multiIndex];
+                $multiIndex++;
+            }
+        }
+
+        while ($linkIndex < $linkCount) {
+            $order[] = ['type' => 'link', 'index' => $linkIndex];
+            $linkIndex++;
+        }
+
+        while ($multiIndex < $multiCount) {
+            $order[] = ['type' => 'multi', 'index' => $multiIndex];
+            $multiIndex++;
+        }
+
+        return $order;
     }
 
     /**
@@ -4423,6 +4530,7 @@ class Crud
         }
 
         $this->config['link_buttons'][] = $normalized;
+        $this->appendActionButtonSequence('link');
 
         return $this;
     }
@@ -4447,6 +4555,7 @@ class Crud
         }
 
         $this->config['multi_link_buttons'][] = $normalized;
+        $this->appendActionButtonSequence('multi');
 
         return $this;
     }
@@ -8302,6 +8411,7 @@ HTML;
             ],
             'link_buttons'    => $this->getNormalizedLinkButtonsConfig(),
             'multi_link_buttons' => $this->getNormalizedMultiLinkButtonsConfig(),
+            'action_button_sequence' => $this->getActionButtonSequence(),
             'primary_key'    => $this->getPrimaryKeyColumn(),
             'columns'        => $columns,
             'labels'         => $filterColumns($this->config['column_labels']),
@@ -9041,6 +9151,7 @@ HTML;
             'row_highlights'    => $this->config['row_highlights'],
             'link_buttons'       => $this->config['link_buttons'],
             'multi_link_buttons' => $this->config['multi_link_buttons'],
+            'action_button_sequence' => $this->getActionButtonSequence(),
             'table_meta'        => $this->config['table_meta'],
             'column_summaries'  => $this->config['column_summaries'],
             'field_labels'      => $this->config['field_labels'],
@@ -10004,6 +10115,10 @@ HTML;
             } elseif ($multiLinkConfig === null) {
                 $this->config['multi_link_buttons'] = [];
             }
+        }
+
+        if (array_key_exists('action_button_sequence', $payload)) {
+            $this->config['action_button_sequence'] = $this->normalizeActionButtonSequence($payload['action_button_sequence']);
         }
 
         if (isset($payload['column_callbacks']) && is_array($payload['column_callbacks'])) {
@@ -13601,6 +13716,9 @@ CSS;
                     nested_tables: Array.isArray(clientConfig.nested_tables) ? clientConfig.nested_tables.slice() : [],
                     link_buttons: Array.isArray(clientConfig.link_buttons) ? clientConfig.link_buttons.slice() : [],
                     multi_link_buttons: Array.isArray(clientConfig.multi_link_buttons) ? clientConfig.multi_link_buttons.slice() : [],
+                    action_button_sequence: Array.isArray(clientConfig.action_button_sequence)
+                        ? clientConfig.action_button_sequence.slice()
+                        : [],
                     soft_delete: clientConfig.soft_delete || null,
                     labels: clientConfig.column_labels || {},
                     column_classes: clientConfig.column_classes || {},
@@ -14961,6 +15079,9 @@ CSS;
                 : [];
             clientConfig.multi_link_buttons = Array.isArray(meta.multi_link_buttons)
                 ? deepClone(meta.multi_link_buttons)
+                : [];
+            clientConfig.action_button_sequence = Array.isArray(meta.action_button_sequence)
+                ? meta.action_button_sequence.slice()
                 : [];
 
             updateMetaContainer(tableMeta);
@@ -16593,475 +16714,180 @@ CSS;
             var editActionClass = getStyleClass('edit_action_button_class', 'btn btn-sm btn-primary');
             var deleteActionClass = getStyleClass('delete_action_button_class', 'btn btn-sm btn-danger');
 
-            if (rowMeta && Array.isArray(rowMeta.link_buttons)) {
-                rowMeta.link_buttons.forEach(function(linkMeta) {
-                    if (!linkMeta || typeof linkMeta !== 'object') {
-                        return;
-                    }
+            function renderLinkButton(linkMeta) {
+                if (!linkMeta || typeof linkMeta !== 'object') {
+                    return;
+                }
 
-                    var href = String(linkMeta.url || '').trim();
-                    if (!href.length) {
-                        return;
-                    }
-                    var classSource = String(linkMeta.button_class || '').trim();
-                    var classParts = classSource.length ? classSource.split(/\s+/) : [];
-                    if (classParts.indexOf('btn') === -1) {
-                        classParts.unshift('btn');
-                    }
-                    if (classParts.indexOf('btn-sm') === -1) {
-                        classParts.push('btn-sm');
-                    }
-                    if (classParts.indexOf('fastcrud-action-button') === -1) {
-                        classParts.push('fastcrud-action-button');
-                    }
-                    if (classParts.indexOf('fastcrud-link-btn') === -1) {
-                        classParts.push('fastcrud-link-btn');
-                    }
-                    var labelRaw = typeof linkMeta.label === 'string' ? linkMeta.label : '';
-                    var labelText = labelRaw.trim();
-                    var options = linkMeta.options && typeof linkMeta.options === 'object'
-                        ? Object.assign({}, linkMeta.options)
-                        : {};
-                    var attrString = '';
-                    var hasTitleAttr = false;
-                    var hasAriaAttr = false;
-                    var hasRoleAttr = false;
+                var href = String(linkMeta.url || '').trim();
+                if (!href.length) {
+                    return;
+                }
+                var classSource = String(linkMeta.button_class || '').trim();
+                var classParts = classSource.length ? classSource.split(/\s+/) : [];
+                if (classParts.indexOf('btn') === -1) {
+                    classParts.unshift('btn');
+                }
+                if (classParts.indexOf('btn-sm') === -1) {
+                    classParts.push('btn-sm');
+                }
+                if (classParts.indexOf('fastcrud-action-button') === -1) {
+                    classParts.push('fastcrud-action-button');
+                }
+                if (classParts.indexOf('fastcrud-link-btn') === -1) {
+                    classParts.push('fastcrud-link-btn');
+                }
+                var labelRaw = typeof linkMeta.label === 'string' ? linkMeta.label : '';
+                var labelText = labelRaw.trim();
+                var options = linkMeta.options && typeof linkMeta.options === 'object'
+                    ? Object.assign({}, linkMeta.options)
+                    : {};
+                var attrString = '';
+                var hasTitleAttr = false;
+                var hasAriaAttr = false;
+                var hasRoleAttr = false;
 
-                    var optionClassRaw = '';
-                    if (Object.prototype.hasOwnProperty.call(options, 'class')) {
-                        optionClassRaw = String(options['class'] || '').trim();
-                        delete options['class'];
-                    }
+                var optionClassRaw = '';
+                if (Object.prototype.hasOwnProperty.call(options, 'class')) {
+                    optionClassRaw = String(options['class'] || '').trim();
+                    delete options['class'];
+                }
 
-                    if (optionClassRaw) {
-                        optionClassRaw.split(/\s+/).forEach(function(extra) {
-                            if (!extra) { return; }
-                            if (classParts.indexOf(extra) === -1) {
-                                classParts.push(extra);
-                            }
-                        });
-                    }
-
-                    Object.keys(options).forEach(function(optionKey) {
-                        if (!Object.prototype.hasOwnProperty.call(options, optionKey)) {
-                            return;
+                if (optionClassRaw) {
+                    optionClassRaw.split(/\s+/).forEach(function(extra) {
+                        if (!extra) { return; }
+                        if (classParts.indexOf(extra) === -1) {
+                            classParts.push(extra);
                         }
-                        var attrName = String(optionKey);
-                        if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
-                            return;
-                        }
-                        var lowerName = attrName.toLowerCase();
-                        if (lowerName === 'href' || lowerName === 'class') {
-                            return;
-                        }
-                        if (lowerName === 'title') {
-                            hasTitleAttr = true;
-                        } else if (lowerName === 'aria-label') {
-                            hasAriaAttr = true;
-                        } else if (lowerName === 'role') {
-                            hasRoleAttr = true;
-                        }
-                        var attrValue = options[optionKey];
-                        if (attrValue === null || typeof attrValue === 'undefined') {
-                            return;
-                        }
-                        attrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
                     });
+                }
 
-                    if (!hasAriaAttr) {
-                        var ariaLabel = labelText ? labelText : 'Open link';
-                        attrString += ' aria-label="' + escapeHtml(ariaLabel) + '"';
+                Object.keys(options).forEach(function(optionKey) {
+                    if (!Object.prototype.hasOwnProperty.call(options, optionKey)) {
+                        return;
                     }
-                    if (!hasTitleAttr && labelText) {
-                        attrString += ' title="' + escapeHtml(labelText) + '"';
+                    var attrName = String(optionKey);
+                    if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
+                        return;
                     }
-                    if (!hasRoleAttr) {
-                        attrString += ' role="button"';
+                    var lowerName = attrName.toLowerCase();
+                    if (lowerName === 'href' || lowerName === 'class') {
+                        return;
                     }
-
-                    var iconClass = typeof linkMeta.icon === 'string' ? linkMeta.icon.trim() : '';
-                    var iconHtml = iconClass ? '<i class="fastcrud-link-icon ' + escapeHtml(iconClass) + '"></i>' : '';
-                    var contentHtml;
-                    if (iconHtml && labelText) {
-                        contentHtml = iconHtml + '<span class="fastcrud-link-btn-text ms-1">' + escapeHtml(labelText) + '</span>';
-                    } else if (iconHtml) {
-                        contentHtml = iconHtml;
-                    } else if (labelText) {
-                        contentHtml = escapeHtml(labelText);
-                    } else {
-                        contentHtml = '<span class="visually-hidden">Open link</span>';
+                    if (lowerName === 'title') {
+                        hasTitleAttr = true;
+                    } else if (lowerName === 'aria-label') {
+                        hasAriaAttr = true;
+                    } else if (lowerName === 'role') {
+                        hasRoleAttr = true;
                     }
-
-                    var classAttr = classParts.join(' ');
-                    fragments.push('<a href="' + escapeHtml(href) + '" class="' + escapeHtml(classAttr) + '"' + attrString + '>' + contentHtml + '</a>');
+                    var attrValue = options[optionKey];
+                    if (attrValue === null || typeof attrValue === 'undefined') {
+                        return;
+                    }
+                    attrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
                 });
+
+                if (!hasAriaAttr) {
+                    var ariaLabel = labelText ? labelText : 'Open link';
+                    attrString += ' aria-label="' + escapeHtml(ariaLabel) + '"';
+                }
+                if (!hasTitleAttr && labelText) {
+                    attrString += ' title="' + escapeHtml(labelText) + '"';
+                }
+                if (!hasRoleAttr) {
+                    attrString += ' role="button"';
+                }
+
+                var iconClass = typeof linkMeta.icon === 'string' ? linkMeta.icon.trim() : '';
+                var iconHtml = iconClass ? '<i class="fastcrud-link-icon ' + escapeHtml(iconClass) + '"></i>' : '';
+                var contentHtml;
+                if (iconHtml && labelText) {
+                    contentHtml = iconHtml + '<span class="fastcrud-link-btn-text ms-1">' + escapeHtml(labelText) + '</span>';
+                } else if (iconHtml) {
+                    contentHtml = iconHtml;
+                } else if (labelText) {
+                    contentHtml = escapeHtml(labelText);
+                } else {
+                    contentHtml = '<span class="visually-hidden">Open link</span>';
+                }
+
+                var classAttr = classParts.join(' ');
+                fragments.push('<a href="' + escapeHtml(href) + '" class="' + escapeHtml(classAttr) + '"' + attrString + '>' + contentHtml + '</a>');
             }
 
-            if (rowMeta && Array.isArray(rowMeta.multi_link_buttons)) {
-                rowMeta.multi_link_buttons.forEach(function(multiMeta) {
-                    if (!multiMeta || typeof multiMeta !== 'object') {
+            function renderMultiLinkButton(multiMeta) {
+                if (!multiMeta || typeof multiMeta !== 'object') {
+                    return;
+                }
+
+                var buttonMeta = multiMeta.button && typeof multiMeta.button === 'object'
+                    ? multiMeta.button
+                    : {};
+                var multiItems = Array.isArray(multiMeta.items) ? multiMeta.items : [];
+                if (!multiItems.length) {
+                    return;
+                }
+
+                var dropdownItems = [];
+                multiItems.forEach(function(item) {
+                    if (!item || typeof item !== 'object') {
                         return;
                     }
 
-                    var buttonMeta = multiMeta.button && typeof multiMeta.button === 'object'
-                        ? multiMeta.button
-                        : {};
-                    var multiItems = Array.isArray(multiMeta.items) ? multiMeta.items : [];
-                    if (!multiItems.length) {
+                    var itemTypeRaw = typeof item.type === 'string' ? item.type : '';
+                    var itemType = itemTypeRaw ? itemTypeRaw.trim().toLowerCase() : '';
+                    if (!itemType) {
+                        itemType = 'link';
+                    }
+
+                    if (itemType === 'divider') {
+                        var dividerTitleRaw = typeof item.title === 'string' ? item.title : '';
+                        var dividerTitle = dividerTitleRaw.trim();
+                        var dividerHtml = '<li class="fastcrud-multi-link-divider-wrapper">'
+                            + '<hr class="dropdown-divider fastcrud-multi-link-divider" role="separator">';
+                        if (dividerTitle) {
+                            dividerHtml += '<div class="dropdown-header fastcrud-multi-link-divider-title">'
+                                + escapeHtml(dividerTitle)
+                                + '</div>';
+                        }
+                        dividerHtml += '</li>';
+                        dropdownItems.push(dividerHtml);
                         return;
                     }
 
-                    var dropdownItems = [];
-                    multiItems.forEach(function(item) {
-                        if (!item || typeof item !== 'object') {
-                            return;
+                    if (itemType === 'duplicate') {
+                        var duplicateLabelRaw = typeof item.label === 'string' ? item.label : '';
+                        var duplicateLabel = duplicateLabelRaw.trim();
+                        if (!duplicateLabel) {
+                            duplicateLabel = 'Duplicate';
                         }
 
-                        var itemTypeRaw = typeof item.type === 'string' ? item.type : '';
-                        var itemType = itemTypeRaw ? itemTypeRaw.trim().toLowerCase() : '';
-                        if (!itemType) {
-                            itemType = 'link';
-                        }
-
-                        if (itemType === 'divider') {
-                            var dividerTitleRaw = typeof item.title === 'string' ? item.title : '';
-                            var dividerTitle = dividerTitleRaw.trim();
-                            var dividerHtml = '<li class="fastcrud-multi-link-divider-wrapper">'
-                                + '<hr class="dropdown-divider fastcrud-multi-link-divider" role="separator">';
-                            if (dividerTitle) {
-                                dividerHtml += '<div class="dropdown-header fastcrud-multi-link-divider-title">'
-                                    + escapeHtml(dividerTitle)
-                                    + '</div>';
-                            }
-                            dividerHtml += '</li>';
-                            dropdownItems.push(dividerHtml);
-                            return;
-                        }
-
-                        if (itemType === 'duplicate') {
-                            var duplicateLabelRaw = typeof item.label === 'string' ? item.label : '';
-                            var duplicateLabel = duplicateLabelRaw.trim();
-                            if (!duplicateLabel) {
-                                duplicateLabel = 'Duplicate';
-                            }
-
-                            var duplicateClassParts = ['dropdown-item', 'fastcrud-multi-link-item', 'fastcrud-duplicate-btn'];
-                            var duplicateOptions = item.options && typeof item.options === 'object'
-                                ? Object.assign({}, item.options)
-                                : {};
-                            var duplicateOptionClassRaw = '';
-                            if (Object.prototype.hasOwnProperty.call(duplicateOptions, 'class')) {
-                                duplicateOptionClassRaw = String(duplicateOptions['class'] || '').trim();
-                                delete duplicateOptions['class'];
-                            }
-                            if (duplicateOptionClassRaw) {
-                                duplicateOptionClassRaw.split(/\s+/).forEach(function(extra) {
-                                    if (!extra) { return; }
-                                    if (duplicateClassParts.indexOf(extra) === -1) {
-                                        duplicateClassParts.push(extra);
-                                    }
-                                });
-                            }
-
-                            var duplicateAttrString = '';
-                            var duplicateHasTitle = false;
-                            var duplicateHasAria = false;
-                            var duplicateHasRole = false;
-
-                            Object.keys(duplicateOptions).forEach(function(optionKey) {
-                                if (!Object.prototype.hasOwnProperty.call(duplicateOptions, optionKey)) {
-                                    return;
-                                }
-                                var attrName = String(optionKey);
-                                if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
-                                    return;
-                                }
-                                var lowerName = attrName.toLowerCase();
-                                if (lowerName === 'href' || lowerName === 'class') {
-                                    return;
-                                }
-                                if (lowerName === 'title') {
-                                    duplicateHasTitle = true;
-                                } else if (lowerName === 'aria-label') {
-                                    duplicateHasAria = true;
-                                } else if (lowerName === 'role') {
-                                    duplicateHasRole = true;
-                                }
-                                var attrValue = duplicateOptions[optionKey];
-                                if (attrValue === null || typeof attrValue === 'undefined') {
-                                    return;
-                                }
-                                duplicateAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
-                            });
-
-                            if (!duplicateHasAria) {
-                                duplicateAttrString += ' aria-label="' + escapeHtml(duplicateLabel) + '"';
-                            }
-                            if (!duplicateHasTitle) {
-                                duplicateAttrString += ' title="' + escapeHtml(duplicateLabel) + '"';
-                            }
-                            if (!duplicateHasRole) {
-                                duplicateAttrString += ' role="menuitem"';
-                            }
-
-                            var uniqueDuplicateClassParts = [];
-                            duplicateClassParts.forEach(function(part) {
-                                if (!part) { return; }
-                                if (uniqueDuplicateClassParts.indexOf(part) === -1) {
-                                    uniqueDuplicateClassParts.push(part);
-                                }
-                            });
-
-                            var duplicateClassAttr = uniqueDuplicateClassParts.join(' ');
-                            var duplicateIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
-                            var duplicateContent;
-                            if (duplicateIconClass) {
-                                var duplicateIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(duplicateIconClass) + '"></i>';
-                                duplicateContent = duplicateIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(duplicateLabel) + '</span>';
-                            } else {
-                                duplicateContent = escapeHtml(duplicateLabel);
-                            }
-
-                            dropdownItems.push('<li><button type="button" class="' + escapeHtml(duplicateClassAttr) + '"' + duplicateAttrString + '>' + duplicateContent + '</button></li>');
-                            return;
-                        }
-
-                        if (itemType === 'delete') {
-                            var deleteLabelRaw = typeof item.label === 'string' ? item.label : '';
-                            var deleteLabel = deleteLabelRaw.trim();
-                            if (!deleteLabel) {
-                                deleteLabel = 'Delete';
-                            }
-
-                            var deleteClassParts = ['dropdown-item', 'fastcrud-multi-link-item', 'fastcrud-delete-btn'];
-                            var deleteOptions = item.options && typeof item.options === 'object'
-                                ? Object.assign({}, item.options)
-                                : {};
-                            var deleteOptionClassRaw = '';
-                            if (Object.prototype.hasOwnProperty.call(deleteOptions, 'class')) {
-                                deleteOptionClassRaw = String(deleteOptions['class'] || '').trim();
-                                delete deleteOptions['class'];
-                            }
-                            if (deleteOptionClassRaw) {
-                                deleteOptionClassRaw.split(/\s+/).forEach(function(extra) {
-                                    if (!extra) { return; }
-                                    if (deleteClassParts.indexOf(extra) === -1) {
-                                        deleteClassParts.push(extra);
-                                    }
-                                });
-                            }
-
-                            var deleteAttrString = '';
-                            var deleteHasTitle = false;
-                            var deleteHasAria = false;
-                            var deleteHasRole = false;
-
-                            Object.keys(deleteOptions).forEach(function(optionKey) {
-                                if (!Object.prototype.hasOwnProperty.call(deleteOptions, optionKey)) {
-                                    return;
-                                }
-                                var attrName = String(optionKey);
-                                if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
-                                    return;
-                                }
-                                var lowerName = attrName.toLowerCase();
-                                if (lowerName === 'href' || lowerName === 'class') {
-                                    return;
-                                }
-                                if (lowerName === 'title') {
-                                    deleteHasTitle = true;
-                                } else if (lowerName === 'aria-label') {
-                                    deleteHasAria = true;
-                                } else if (lowerName === 'role') {
-                                    deleteHasRole = true;
-                                }
-                                var attrValue = deleteOptions[optionKey];
-                                if (attrValue === null || typeof attrValue === 'undefined') {
-                                    return;
-                                }
-                                deleteAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
-                            });
-
-                            if (!deleteHasAria) {
-                                deleteAttrString += ' aria-label="' + escapeHtml(deleteLabel) + '"';
-                            }
-                            if (!deleteHasTitle) {
-                                deleteAttrString += ' title="' + escapeHtml(deleteLabel) + '"';
-                            }
-                            if (!deleteHasRole) {
-                                deleteAttrString += ' role="menuitem"';
-                            }
-
-                            var uniqueDeleteClassParts = [];
-                            deleteClassParts.forEach(function(part) {
-                                if (!part) { return; }
-                                if (uniqueDeleteClassParts.indexOf(part) === -1) {
-                                    uniqueDeleteClassParts.push(part);
-                                }
-                            });
-
-                            var deleteClassAttr = uniqueDeleteClassParts.join(' ');
-                            var deleteIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
-                            var deleteContent;
-                            if (deleteIconClass) {
-                                var deleteIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(deleteIconClass) + '"></i>';
-                                deleteContent = deleteIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(deleteLabel) + '</span>';
-                            } else {
-                                deleteContent = escapeHtml(deleteLabel);
-                            }
-
-                            dropdownItems.push('<li><button type="button" class="' + escapeHtml(deleteClassAttr) + '"' + deleteAttrString + '>' + deleteContent + '</button></li>');
-                            return;
-                        }
-
-                        if (itemType === 'input') {
-                            var inputHref = String(item.url || '').trim();
-                            var inputLabelRaw = typeof item.label === 'string' ? item.label : '';
-                            var inputLabel = inputLabelRaw.trim();
-                            if (!inputHref || !inputLabel) {
-                                return;
-                            }
-
-                            var inputNameRaw = typeof item.input_name === 'string' ? item.input_name : '';
-                            var inputName = inputNameRaw.trim() || 'exampleinput';
-                            var inputPromptRaw = typeof item.prompt === 'string' ? item.prompt : '';
-                            var inputPrompt = inputPromptRaw.trim();
-
-                            var inputClassParts = ['dropdown-item', 'fastcrud-multi-link-item', 'fastcrud-multi-link-input'];
-                            var inputOptions = item.options && typeof item.options === 'object'
-                                ? Object.assign({}, item.options)
-                                : {};
-                            var inputOptionClassRaw = '';
-                            if (Object.prototype.hasOwnProperty.call(inputOptions, 'class')) {
-                                inputOptionClassRaw = String(inputOptions['class'] || '').trim();
-                                delete inputOptions['class'];
-                            }
-                            if (inputOptionClassRaw) {
-                                inputOptionClassRaw.split(/\s+/).forEach(function(extra) {
-                                    if (!extra) { return; }
-                                    if (inputClassParts.indexOf(extra) === -1) {
-                                        inputClassParts.push(extra);
-                                    }
-                                });
-                            }
-
-                            var inputAttrString = '';
-                            var inputHasTitle = false;
-                            var inputHasAria = false;
-                            var inputHasRole = false;
-                            var inputTargetAttr = '';
-                            var inputRelAttr = '';
-
-                            Object.keys(inputOptions).forEach(function(optionKey) {
-                                if (!Object.prototype.hasOwnProperty.call(inputOptions, optionKey)) {
-                                    return;
-                                }
-                                var attrName = String(optionKey);
-                                if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
-                                    return;
-                                }
-                                var lowerName = attrName.toLowerCase();
-                                if (lowerName === 'class' || lowerName === 'href' || lowerName === 'type') {
-                                    return;
-                                }
-                                if (lowerName === 'target') {
-                                    inputTargetAttr = String(inputOptions[optionKey] || '').trim();
-                                    return;
-                                }
-                                if (lowerName === 'rel') {
-                                    inputRelAttr = String(inputOptions[optionKey] || '').trim();
-                                    return;
-                                }
-                                if (lowerName === 'title') {
-                                    inputHasTitle = true;
-                                } else if (lowerName === 'aria-label') {
-                                    inputHasAria = true;
-                                } else if (lowerName === 'role') {
-                                    inputHasRole = true;
-                                }
-                                var attrValue = inputOptions[optionKey];
-                                if (attrValue === null || typeof attrValue === 'undefined') {
-                                    return;
-                                }
-                                inputAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
-                            });
-
-                            if (!inputHasAria) {
-                                inputAttrString += ' aria-label="' + escapeHtml(inputLabel) + '"';
-                            }
-                            if (!inputHasTitle) {
-                                inputAttrString += ' title="' + escapeHtml(inputLabel) + '"';
-                            }
-                            if (!inputHasRole) {
-                                inputAttrString += ' role="menuitem"';
-                            }
-
-                            inputAttrString += ' data-fastcrud-input-url="' + escapeHtml(inputHref) + '"';
-                            inputAttrString += ' data-fastcrud-input-name="' + escapeHtml(inputName) + '"';
-                            if (inputPrompt) {
-                                inputAttrString += ' data-fastcrud-input-prompt="' + escapeHtml(inputPrompt) + '"';
-                            }
-                            if (inputTargetAttr) {
-                                inputAttrString += ' data-fastcrud-input-target="' + escapeHtml(inputTargetAttr) + '"';
-                            }
-                            if (inputRelAttr) {
-                                inputAttrString += ' data-fastcrud-input-rel="' + escapeHtml(inputRelAttr) + '"';
-                            }
-
-                            var uniqueInputClassParts = [];
-                            inputClassParts.forEach(function(part) {
-                                if (!part) { return; }
-                                if (uniqueInputClassParts.indexOf(part) === -1) {
-                                    uniqueInputClassParts.push(part);
-                                }
-                            });
-
-                            var inputClassAttr = uniqueInputClassParts.join(' ');
-                            var inputIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
-                            var inputContent;
-                            if (inputIconClass) {
-                                var inputIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(inputIconClass) + '"></i>';
-                                inputContent = inputIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(inputLabel) + '</span>';
-                            } else {
-                                inputContent = escapeHtml(inputLabel);
-                            }
-
-                            dropdownItems.push('<li><button type="button" class="' + escapeHtml(inputClassAttr) + '"' + inputAttrString + '>' + inputContent + '</button></li>');
-                            return;
-                        }
-
-                        var itemHref = String(item.url || '').trim();
-                        var itemLabelRaw = typeof item.label === 'string' ? item.label : '';
-                        var itemLabel = itemLabelRaw.trim();
-                        if (!itemHref || !itemLabel) {
-                            return;
-                        }
-
-                        var itemClassParts = ['dropdown-item', 'fastcrud-multi-link-item'];
-                        var itemOptions = item.options && typeof item.options === 'object'
+                        var duplicateClassParts = ['dropdown-item', 'fastcrud-multi-link-item', 'fastcrud-duplicate-btn'];
+                        var duplicateOptions = item.options && typeof item.options === 'object'
                             ? Object.assign({}, item.options)
                             : {};
-                        var itemOptionClassRaw = '';
-                        if (Object.prototype.hasOwnProperty.call(itemOptions, 'class')) {
-                            itemOptionClassRaw = String(itemOptions['class'] || '').trim();
-                            delete itemOptions['class'];
+                        var duplicateOptionClassRaw = '';
+                        if (Object.prototype.hasOwnProperty.call(duplicateOptions, 'class')) {
+                            duplicateOptionClassRaw = String(duplicateOptions['class'] || '').trim();
+                            delete duplicateOptions['class'];
                         }
-                        if (itemOptionClassRaw) {
-                            itemOptionClassRaw.split(/\s+/).forEach(function(extra) {
+                        if (duplicateOptionClassRaw) {
+                            duplicateOptionClassRaw.split(/\s+/).forEach(function(extra) {
                                 if (!extra) { return; }
-                                if (itemClassParts.indexOf(extra) === -1) {
-                                    itemClassParts.push(extra);
+                                if (duplicateClassParts.indexOf(extra) === -1) {
+                                    duplicateClassParts.push(extra);
                                 }
                             });
                         }
 
-                        var itemAttrString = '';
-                        var itemHasTitle = false;
-                        var itemHasAria = false;
-                        var itemHasRole = false;
+                        var duplicateAttrString = '';
+                        var duplicateHasTitle = false;
+                        var duplicateHasAria = false;
+                        var duplicateHasRole = false;
 
-                        Object.keys(itemOptions).forEach(function(optionKey) {
-                            if (!Object.prototype.hasOwnProperty.call(itemOptions, optionKey)) {
+                        Object.keys(duplicateOptions).forEach(function(optionKey) {
+                            if (!Object.prototype.hasOwnProperty.call(duplicateOptions, optionKey)) {
                                 return;
                             }
                             var attrName = String(optionKey);
@@ -17073,94 +16899,265 @@ CSS;
                                 return;
                             }
                             if (lowerName === 'title') {
-                                itemHasTitle = true;
+                                duplicateHasTitle = true;
                             } else if (lowerName === 'aria-label') {
-                                itemHasAria = true;
+                                duplicateHasAria = true;
                             } else if (lowerName === 'role') {
-                                itemHasRole = true;
+                                duplicateHasRole = true;
                             }
-                            var attrValue = itemOptions[optionKey];
+                            var attrValue = duplicateOptions[optionKey];
                             if (attrValue === null || typeof attrValue === 'undefined') {
                                 return;
                             }
-                            itemAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
+                            duplicateAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
                         });
 
-                        if (!itemHasAria) {
-                            itemAttrString += ' aria-label="' + escapeHtml(itemLabel) + '"';
+                        if (!duplicateHasAria) {
+                            duplicateAttrString += ' aria-label="' + escapeHtml(duplicateLabel) + '"';
                         }
-                        if (!itemHasTitle) {
-                            itemAttrString += ' title="' + escapeHtml(itemLabel) + '"';
+                        if (!duplicateHasTitle) {
+                            duplicateAttrString += ' title="' + escapeHtml(duplicateLabel) + '"';
                         }
-                        if (!itemHasRole) {
-                            itemAttrString += ' role="menuitem"';
+                        if (!duplicateHasRole) {
+                            duplicateAttrString += ' role="menuitem"';
                         }
 
-                        var uniqueItemClassParts = [];
-                        itemClassParts.forEach(function(part) {
+                        var uniqueDuplicateClassParts = [];
+                        duplicateClassParts.forEach(function(part) {
                             if (!part) { return; }
-                            if (uniqueItemClassParts.indexOf(part) === -1) {
-                                uniqueItemClassParts.push(part);
+                            if (uniqueDuplicateClassParts.indexOf(part) === -1) {
+                                uniqueDuplicateClassParts.push(part);
                             }
                         });
 
-                        var itemClassAttr = uniqueItemClassParts.join(' ');
-                        var itemIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
-                        var itemContent;
-                        if (itemIconClass) {
-                            var itemIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(itemIconClass) + '"></i>';
-                            itemContent = itemIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(itemLabel) + '</span>';
+                        var duplicateClassAttr = uniqueDuplicateClassParts.join(' ');
+                        var duplicateIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
+                        var duplicateContent;
+                        if (duplicateIconClass) {
+                            var duplicateIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(duplicateIconClass) + '"></i>';
+                            duplicateContent = duplicateIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(duplicateLabel) + '</span>';
                         } else {
-                            itemContent = escapeHtml(itemLabel);
+                            duplicateContent = escapeHtml(duplicateLabel);
                         }
 
-                        dropdownItems.push('<li><a href="' + escapeHtml(itemHref) + '" class="' + escapeHtml(itemClassAttr) + '"' + itemAttrString + '>' + itemContent + '</a></li>');
-                    });
-
-                    if (!dropdownItems.length) {
+                        dropdownItems.push('<li><button type="button" class="' + escapeHtml(duplicateClassAttr) + '"' + duplicateAttrString + '>' + duplicateContent + '</button></li>');
                         return;
                     }
 
-                    var triggerClassSource = String(buttonMeta.button_class || '').trim();
-                    var triggerClassParts = triggerClassSource ? triggerClassSource.split(/\s+/) : [];
-                    if (triggerClassParts.indexOf('btn') === -1) { triggerClassParts.unshift('btn'); }
-                    var hasSizeClass = triggerClassParts.some(function(part) {
-                        return /^btn-(?:sm|md|lg|xl)$/i.test(part);
-                    });
-                    if (!hasSizeClass) {
-                        triggerClassParts.push('btn-sm');
-                    }
-                    if (triggerClassParts.indexOf('dropdown-toggle') === -1) { triggerClassParts.push('dropdown-toggle'); }
-                    if (triggerClassParts.indexOf('fastcrud-action-button') === -1) { triggerClassParts.push('fastcrud-action-button'); }
-                    if (triggerClassParts.indexOf('fastcrud-multi-link-trigger') === -1) { triggerClassParts.push('fastcrud-multi-link-trigger'); }
+                    if (itemType === 'delete') {
+                        var deleteLabelRaw = typeof item.label === 'string' ? item.label : '';
+                        var deleteLabel = deleteLabelRaw.trim();
+                        if (!deleteLabel) {
+                            deleteLabel = 'Delete';
+                        }
 
-                    var triggerOptions = buttonMeta.options && typeof buttonMeta.options === 'object'
-                        ? Object.assign({}, buttonMeta.options)
-                        : {};
-                    var triggerOptionClassRaw = '';
-                    if (Object.prototype.hasOwnProperty.call(triggerOptions, 'class')) {
-                        triggerOptionClassRaw = String(triggerOptions['class'] || '').trim();
-                        delete triggerOptions['class'];
+                        var deleteClassParts = ['dropdown-item', 'fastcrud-multi-link-item', 'fastcrud-delete-btn'];
+                        var deleteOptions = item.options && typeof item.options === 'object'
+                            ? Object.assign({}, item.options)
+                            : {};
+                        var deleteOptionClassRaw = '';
+                        if (Object.prototype.hasOwnProperty.call(deleteOptions, 'class')) {
+                            deleteOptionClassRaw = String(deleteOptions['class'] || '').trim();
+                            delete deleteOptions['class'];
+                        }
+                        if (deleteOptionClassRaw) {
+                            deleteOptionClassRaw.split(/\s+/).forEach(function(extra) {
+                                if (!extra) { return; }
+                                if (deleteClassParts.indexOf(extra) === -1) {
+                                    deleteClassParts.push(extra);
+                                }
+                            });
+                        }
+
+                        var deleteAttrString = '';
+                        var deleteHasTitle = false;
+                        var deleteHasAria = false;
+                        var deleteHasRole = false;
+
+                        Object.keys(deleteOptions).forEach(function(optionKey) {
+                            if (!Object.prototype.hasOwnProperty.call(deleteOptions, optionKey)) {
+                                return;
+                            }
+                            var attrName = String(optionKey);
+                            if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
+                                return;
+                            }
+                            var lowerName = attrName.toLowerCase();
+                            if (lowerName === 'href' || lowerName === 'class') {
+                                return;
+                            }
+                            if (lowerName === 'title') {
+                                deleteHasTitle = true;
+                            } else if (lowerName === 'aria-label') {
+                                deleteHasAria = true;
+                            } else if (lowerName === 'role') {
+                                deleteHasRole = true;
+                            }
+                            var attrValue = deleteOptions[optionKey];
+                            if (attrValue === null || typeof attrValue === 'undefined') {
+                                return;
+                            }
+                            deleteAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
+                        });
+
+                        if (!deleteHasAria) {
+                            deleteAttrString += ' aria-label="' + escapeHtml(deleteLabel) + '"';
+                        }
+                        if (!deleteHasTitle) {
+                            deleteAttrString += ' title="' + escapeHtml(deleteLabel) + '"';
+                        }
+                        if (!deleteHasRole) {
+                            deleteAttrString += ' role="menuitem"';
+                        }
+
+                        var uniqueDeleteClassParts = [];
+                        deleteClassParts.forEach(function(part) {
+                            if (!part) { return; }
+                            if (uniqueDeleteClassParts.indexOf(part) === -1) {
+                                uniqueDeleteClassParts.push(part);
+                            }
+                        });
+
+                        var deleteClassAttr = uniqueDeleteClassParts.join(' ');
+                        var deleteIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
+                        var deleteContent;
+                        if (deleteIconClass) {
+                            var deleteIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(deleteIconClass) + '"></i>';
+                            deleteContent = deleteIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(deleteLabel) + '</span>';
+                        } else {
+                            deleteContent = escapeHtml(deleteLabel);
+                        }
+
+                        dropdownItems.push('<li><button type="button" class="' + escapeHtml(deleteClassAttr) + '"' + deleteAttrString + '>' + deleteContent + '</button></li>');
+                        return;
                     }
-                    if (triggerOptionClassRaw) {
-                        triggerOptionClassRaw.split(/\s+/).forEach(function(extra) {
+
+                    if (itemType === 'input') {
+                        var inputHref = String(item.url || '').trim();
+                        var inputLabelRaw = typeof item.label === 'string' ? item.label : '';
+                        var inputLabel = inputLabelRaw.trim();
+                        if (!inputHref || !inputLabel) {
+                            return;
+                        }
+
+                        var inputNameRaw = typeof item.input_name === 'string' ? item.input_name : '';
+                        var inputName = inputNameRaw.trim() || 'exampleinput';
+                        var inputPromptRaw = typeof item.prompt === 'string' ? item.prompt : '';
+                        var inputPrompt = inputPromptRaw.trim();
+
+                        var inputClassParts = ['dropdown-item', 'fastcrud-multi-link-item', 'fastcrud-multi-link-input'];
+                        var inputOptions = item.options && typeof item.options === 'object'
+                            ? Object.assign({}, item.options)
+                            : {};
+                        var inputOptionClassRaw = '';
+                        if (Object.prototype.hasOwnProperty.call(inputOptions, 'class')) {
+                            inputOptionClassRaw = String(inputOptions['class'] || '').trim();
+                            delete inputOptions['class'];
+                        }
+                        if (inputOptionClassRaw) {
+                            inputOptionClassRaw.split(/\s+/).forEach(function(extra) {
+                                if (!extra) { return; }
+                                if (inputClassParts.indexOf(extra) === -1) {
+                                    inputClassParts.push(extra);
+                                }
+                            });
+                        }
+
+                        var inputAttrString = '';
+                        var inputHasTitle = false;
+                        var inputHasAria = false;
+                        var inputHasRole = false;
+
+                        Object.keys(inputOptions).forEach(function(optionKey) {
+                            if (!Object.prototype.hasOwnProperty.call(inputOptions, optionKey)) {
+                                return;
+                            }
+                            var attrName = String(optionKey);
+                            if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
+                                return;
+                            }
+                            var lowerName = attrName.toLowerCase();
+                            if (lowerName === 'href' || lowerName === 'class') {
+                                return;
+                            }
+                            if (lowerName === 'title') {
+                                inputHasTitle = true;
+                            } else if (lowerName === 'aria-label') {
+                                inputHasAria = true;
+                            } else if (lowerName === 'role') {
+                                inputHasRole = true;
+                            }
+                            var attrValue = inputOptions[optionKey];
+                            if (attrValue === null || typeof attrValue === 'undefined') {
+                                return;
+                            }
+                            inputAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
+                        });
+
+                        if (!inputHasAria) {
+                            inputAttrString += ' aria-label="' + escapeHtml(inputLabel) + '"';
+                        }
+                        if (!inputHasTitle) {
+                            inputAttrString += ' title="' + escapeHtml(inputLabel) + '"';
+                        }
+                        if (!inputHasRole) {
+                            inputAttrString += ' role="menuitem"';
+                        }
+
+                        var uniqueInputClassParts = [];
+                        inputClassParts.forEach(function(part) {
+                            if (!part) { return; }
+                            if (uniqueInputClassParts.indexOf(part) === -1) {
+                                uniqueInputClassParts.push(part);
+                            }
+                        });
+
+                        var inputClassAttr = uniqueInputClassParts.join(' ');
+                        var inputIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
+                        var inputContent;
+                        if (inputIconClass) {
+                            var inputIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(inputIconClass) + '"></i>';
+                            inputContent = inputIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(inputLabel) + '</span>';
+                        } else {
+                            inputContent = escapeHtml(inputLabel);
+                        }
+
+                        dropdownItems.push('<li><button type="button" class="' + escapeHtml(inputClassAttr) + '" data-input-action="true" data-prompt="' + escapeHtml(inputPrompt) + '" data-url="' + escapeHtml(inputHref) + '" data-input-name="' + escapeHtml(inputName) + '"' + inputAttrString + '>' + inputContent + '</button></li>');
+                        return;
+                    }
+
+                    var linkHref = String(item.url || '').trim();
+                    var linkLabelRaw = typeof item.label === 'string' ? item.label : '';
+                    var linkLabel = linkLabelRaw.trim();
+                    if (!linkHref || !linkLabel) {
+                        return;
+                    }
+
+                    var linkClassParts = ['dropdown-item', 'fastcrud-multi-link-item'];
+                    var linkOptions = item.options && typeof item.options === 'object'
+                        ? Object.assign({}, item.options)
+                        : {};
+                    var linkOptionClassRaw = '';
+                    if (Object.prototype.hasOwnProperty.call(linkOptions, 'class')) {
+                        linkOptionClassRaw = String(linkOptions['class'] || '').trim();
+                        delete linkOptions['class'];
+                    }
+                    if (linkOptionClassRaw) {
+                        linkOptionClassRaw.split(/\s+/).forEach(function(extra) {
                             if (!extra) { return; }
-                            if (triggerClassParts.indexOf(extra) === -1) {
-                                triggerClassParts.push(extra);
+                            if (linkClassParts.indexOf(extra) === -1) {
+                                linkClassParts.push(extra);
                             }
                         });
                     }
 
-                    var triggerAttrString = '';
-                    var triggerHasTitle = false;
-                    var triggerHasAria = false;
-                    var triggerHasRole = false;
-                    var triggerHasToggle = false;
-                    var triggerHasExpanded = false;
-                    var triggerHasHaspopup = false;
+                    var linkAttrString = '';
+                    var linkHasTitle = false;
+                    var linkHasAria = false;
+                    var linkHasRole = false;
 
-                    Object.keys(triggerOptions).forEach(function(optionKey) {
-                        if (!Object.prototype.hasOwnProperty.call(triggerOptions, optionKey)) {
+                    Object.keys(linkOptions).forEach(function(optionKey) {
+                        if (!Object.prototype.hasOwnProperty.call(linkOptions, optionKey)) {
                             return;
                         }
                         var attrName = String(optionKey);
@@ -17168,134 +17165,187 @@ CSS;
                             return;
                         }
                         var lowerName = attrName.toLowerCase();
-                        if (lowerName === 'class' || lowerName === 'href') {
+                        if (lowerName === 'href' || lowerName === 'class') {
                             return;
                         }
                         if (lowerName === 'title') {
-                            triggerHasTitle = true;
+                            linkHasTitle = true;
                         } else if (lowerName === 'aria-label') {
-                            triggerHasAria = true;
+                            linkHasAria = true;
                         } else if (lowerName === 'role') {
-                            triggerHasRole = true;
-                        } else if (lowerName === 'data-bs-toggle') {
-                            triggerHasToggle = true;
-                        } else if (lowerName === 'aria-expanded') {
-                            triggerHasExpanded = true;
-                        } else if (lowerName === 'aria-haspopup') {
-                            triggerHasHaspopup = true;
+                            linkHasRole = true;
                         }
-                        var attrValue = triggerOptions[optionKey];
+                        var attrValue = linkOptions[optionKey];
                         if (attrValue === null || typeof attrValue === 'undefined') {
                             return;
                         }
-                        triggerAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
+                        linkAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
                     });
 
-                    var uniqueTriggerClassParts = [];
-                    triggerClassParts.forEach(function(part) {
-                        if (!part) {
-                            return;
-                        }
-                        if (uniqueTriggerClassParts.indexOf(part) === -1) {
-                            uniqueTriggerClassParts.push(part);
+                    if (!linkHasAria) {
+                        linkAttrString += ' aria-label="' + escapeHtml(linkLabel) + '"';
+                    }
+                    if (!linkHasTitle) {
+                        linkAttrString += ' title="' + escapeHtml(linkLabel) + '"';
+                    }
+                    if (!linkHasRole) {
+                        linkAttrString += ' role="menuitem"';
+                    }
+
+                    var uniqueLinkClassParts = [];
+                    linkClassParts.forEach(function(part) {
+                        if (!part) { return; }
+                        if (uniqueLinkClassParts.indexOf(part) === -1) {
+                            uniqueLinkClassParts.push(part);
                         }
                     });
-                    triggerClassParts = uniqueTriggerClassParts;
 
-                    var triggerLabel = typeof buttonMeta.label === 'string' ? buttonMeta.label.trim() : '';
-
-                    if (!triggerHasAria) {
-                        var triggerAriaLabel = triggerLabel ? triggerLabel : 'Open menu';
-                        triggerAttrString += ' aria-label="' + escapeHtml(triggerAriaLabel) + '"';
-                    }
-                    if (!triggerHasTitle && triggerLabel) {
-                        triggerAttrString += ' title="' + escapeHtml(triggerLabel) + '"';
-                    }
-                    if (!triggerHasRole) {
-                        triggerAttrString += ' role="button"';
-                    }
-                    if (!triggerHasToggle) {
-                        triggerAttrString += ' data-bs-toggle="dropdown"';
-                    }
-                    if (!triggerHasExpanded) {
-                        triggerAttrString += ' aria-expanded="false"';
-                    }
-                    if (!triggerHasHaspopup) {
-                        triggerAttrString += ' aria-haspopup="true"';
-                    }
-
-                    var triggerClassAttr = triggerClassParts.join(' ');
-                    var triggerIconClass = typeof buttonMeta.icon === 'string' ? buttonMeta.icon.trim() : '';
-                    var triggerIconHtml = triggerIconClass
-                        ? '<i class="fastcrud-multi-link-icon ' + escapeHtml(triggerIconClass) + '"></i>'
-                        : '';
-                    var triggerContent;
-                    if (triggerIconHtml && triggerLabel) {
-                        triggerContent = triggerIconHtml + '<span class="fastcrud-multi-link-text ms-1">' + escapeHtml(triggerLabel) + '</span>';
-                    } else if (triggerIconHtml) {
-                        triggerContent = triggerIconHtml;
-                    } else if (triggerLabel) {
-                        triggerContent = escapeHtml(triggerLabel);
+                    var linkClassAttr = uniqueLinkClassParts.join(' ');
+                    var linkIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
+                    var linkContent;
+                    if (linkIconClass) {
+                        var linkIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(linkIconClass) + '"></i>';
+                        linkContent = linkIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(linkLabel) + '</span>';
                     } else {
-                        triggerContent = '<span class="visually-hidden">Open menu</span>';
+                        linkContent = escapeHtml(linkLabel);
                     }
 
-                    var menuClassSource = String(buttonMeta.menu_class || '').trim();
-                    if (!menuClassSource) {
-                        menuClassSource = 'dropdown-menu dropdown-menu-end';
-                    }
-                    var menuClassParts = menuClassSource ? menuClassSource.split(/\s+/) : [];
-                    if (menuClassParts.indexOf('dropdown-menu') === -1) {
-                        menuClassParts.unshift('dropdown-menu');
-                    }
-                    if (menuClassParts.indexOf('fastcrud-multi-link-menu') === -1) {
-                        menuClassParts.push('fastcrud-multi-link-menu');
-                    }
-                    var uniqueMenuClassParts = [];
-                    menuClassParts.forEach(function(part) {
-                        if (!part) {
-                            return;
-                        }
-                        if (uniqueMenuClassParts.indexOf(part) === -1) {
-                            uniqueMenuClassParts.push(part);
-                        }
-                    });
-                    var menuClassAttr = uniqueMenuClassParts.join(' ');
-
-                    var containerClassSource = String(buttonMeta.container_class || '').trim();
-                    if (!containerClassSource) {
-                        containerClassSource = 'btn-group';
-                    }
-                    var containerClassParts = containerClassSource ? containerClassSource.split(/\s+/) : [];
-                    if (containerClassParts.indexOf('fastcrud-action-button-group') === -1) {
-                        containerClassParts.push('fastcrud-action-button-group');
-                    }
-                    if (containerClassParts.indexOf('fastcrud-multi-link-btn') === -1) {
-                        containerClassParts.push('fastcrud-multi-link-btn');
-                    }
-                    var hasWrapperClass = containerClassParts.some(function(part) {
-                        var lower = part.toLowerCase();
-                        return lower === 'btn-group' || lower === 'dropdown' || lower === 'dropup' || lower === 'dropend' || lower === 'dropstart';
-                    });
-                    if (!hasWrapperClass) {
-                        containerClassParts.unshift('btn-group');
-                    }
-                    var uniqueContainerClassParts = [];
-                    containerClassParts.forEach(function(part) {
-                        if (!part) {
-                            return;
-                        }
-                        if (uniqueContainerClassParts.indexOf(part) === -1) {
-                            uniqueContainerClassParts.push(part);
-                        }
-                    });
-                    var containerClassAttr = uniqueContainerClassParts.join(' ');
-
-                    var triggerHtml = '<button type="button" class="' + escapeHtml(triggerClassAttr) + '"' + triggerAttrString + '>' + triggerContent + '</button>';
-                    var menuHtml = '<ul class="' + escapeHtml(menuClassAttr) + '" role="menu">' + dropdownItems.join('') + '</ul>';
-
-                    fragments.push('<div class="' + escapeHtml(containerClassAttr) + '">' + triggerHtml + menuHtml + '</div>');
+                    dropdownItems.push('<li><a class="' + escapeHtml(linkClassAttr) + '" href="' + escapeHtml(linkHref) + '"' + linkAttrString + '>' + linkContent + '</a></li>');
                 });
+
+                if (!dropdownItems.length) {
+                    return;
+                }
+
+                var buttonIconClass = typeof buttonMeta.icon === 'string' ? buttonMeta.icon.trim() : '';
+                var buttonLabelRaw = typeof buttonMeta.label === 'string' ? buttonMeta.label : '';
+                var buttonLabel = buttonLabelRaw.trim();
+                var buttonClassRaw = typeof buttonMeta.button_class === 'string' ? buttonMeta.button_class : '';
+                var buttonClass = buttonClassRaw.trim() || 'btn btn-sm btn-outline-secondary dropdown-toggle fastcrud-action-button fastcrud-multi-link-trigger';
+                var menuClassRaw = typeof buttonMeta.menu_class === 'string' ? buttonMeta.menu_class : '';
+                var menuClass = menuClassRaw.trim() || 'dropdown-menu dropdown-menu-end fastcrud-multi-link-menu';
+                var containerClassRaw = typeof buttonMeta.container_class === 'string' ? buttonMeta.container_class : '';
+                var containerClass = containerClassRaw.trim() || 'btn-group fastcrud-multi-link-container';
+                var buttonOptions = buttonMeta.options && typeof buttonMeta.options === 'object'
+                    ? Object.assign({}, buttonMeta.options)
+                    : {};
+                var buttonAttrString = '';
+                var buttonHasTitle = false;
+                var buttonHasAria = false;
+                var buttonHasRole = false;
+
+                Object.keys(buttonOptions).forEach(function(optionKey) {
+                    if (!Object.prototype.hasOwnProperty.call(buttonOptions, optionKey)) {
+                        return;
+                    }
+                    var attrName = String(optionKey);
+                    if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
+                        return;
+                    }
+                    var lowerName = attrName.toLowerCase();
+                    if (lowerName === 'class') {
+                        return;
+                    }
+                    if (lowerName === 'title') {
+                        buttonHasTitle = true;
+                    } else if (lowerName === 'aria-label') {
+                        buttonHasAria = true;
+                    } else if (lowerName === 'role') {
+                        buttonHasRole = true;
+                    }
+                    var attrValue = buttonOptions[optionKey];
+                    if (attrValue === null || typeof attrValue === 'undefined') {
+                        return;
+                    }
+                    buttonAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
+                });
+
+                if (!buttonHasAria) {
+                    var defaultLabel = buttonLabel || 'Actions';
+                    buttonAttrString += ' aria-label="' + escapeHtml(defaultLabel) + '"';
+                }
+                if (!buttonHasTitle && buttonLabel) {
+                    buttonAttrString += ' title="' + escapeHtml(buttonLabel) + '"';
+                }
+                if (!buttonHasRole) {
+                    buttonAttrString += ' role="button"';
+                }
+
+                var buttonContent;
+                if (buttonIconClass && buttonLabel) {
+                    buttonContent = '<i class="fastcrud-multi-link-trigger-icon ' + escapeHtml(buttonIconClass) + '"></i>'
+                        + '<span class="fastcrud-multi-link-trigger-text ms-1">' + escapeHtml(buttonLabel) + '</span>';
+                } else if (buttonIconClass) {
+                    buttonContent = '<i class="fastcrud-multi-link-trigger-icon ' + escapeHtml(buttonIconClass) + '"></i>';
+                } else if (buttonLabel) {
+                    buttonContent = '<span class="fastcrud-multi-link-trigger-text">' + escapeHtml(buttonLabel) + '</span>';
+                } else {
+                    buttonContent = '<span class="visually-hidden">Open actions</span>';
+                }
+
+                var dropdownHtml = '<div class="' + escapeHtml(containerClass) + '">' +
+                    '<button type="button" class="' + escapeHtml(buttonClass) + '" data-bs-toggle="dropdown" aria-expanded="false"' + buttonAttrString + '>' + buttonContent + '</button>' +
+                    '<ul class="' + escapeHtml(menuClass) + '">' + dropdownItems.join('') + '</ul>' +
+                    '</div>';
+
+                fragments.push(dropdownHtml);
+            }
+
+            var hasCustomButtonOrder = rowMeta
+                && Array.isArray(rowMeta.action_button_order)
+                && rowMeta.action_button_order.length;
+            if (hasCustomButtonOrder) {
+                var orderedLinkButtons = Array.isArray(rowMeta.link_buttons) ? rowMeta.link_buttons : [];
+                var orderedMultiButtons = Array.isArray(rowMeta.multi_link_buttons) ? rowMeta.multi_link_buttons : [];
+                var nextLinkIndex = 0;
+                var nextMultiIndex = 0;
+
+                rowMeta.action_button_order.forEach(function(orderEntry) {
+                    if (!orderEntry || typeof orderEntry !== 'object') {
+                        return;
+                    }
+                    var entryTypeRaw = typeof orderEntry.type === 'string' ? orderEntry.type : '';
+                    var entryType = entryTypeRaw.trim().toLowerCase();
+                    if (entryType !== 'link' && entryType !== 'multi') {
+                        return;
+                    }
+                    var pointer = typeof orderEntry.index === 'number'
+                        ? orderEntry.index
+                        : (entryType === 'link' ? nextLinkIndex : nextMultiIndex);
+                    if (entryType === 'link') {
+                        if (pointer < 0 || pointer >= orderedLinkButtons.length) {
+                            pointer = nextLinkIndex;
+                        }
+                        if (pointer >= 0 && pointer < orderedLinkButtons.length) {
+                            renderLinkButton(orderedLinkButtons[pointer]);
+                            nextLinkIndex = pointer + 1;
+                        }
+                        return;
+                    }
+
+                    if (pointer < 0 || pointer >= orderedMultiButtons.length) {
+                        pointer = nextMultiIndex;
+                    }
+                    if (pointer >= 0 && pointer < orderedMultiButtons.length) {
+                        renderMultiLinkButton(orderedMultiButtons[pointer]);
+                        nextMultiIndex = pointer + 1;
+                    }
+                });
+
+                for (; nextLinkIndex < orderedLinkButtons.length; nextLinkIndex++) {
+                    renderLinkButton(orderedLinkButtons[nextLinkIndex]);
+                }
+                for (; nextMultiIndex < orderedMultiButtons.length; nextMultiIndex++) {
+                    renderMultiLinkButton(orderedMultiButtons[nextMultiIndex]);
+                }
+            } else {
+                if (rowMeta && Array.isArray(rowMeta.link_buttons)) {
+                    rowMeta.link_buttons.forEach(renderLinkButton);
+                }
+
+                if (rowMeta && Array.isArray(rowMeta.multi_link_buttons)) {
+                    rowMeta.multi_link_buttons.forEach(renderMultiLinkButton);
+                }
             }
 
             if (duplicateEnabled) {
