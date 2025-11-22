@@ -17067,6 +17067,8 @@ CSS;
                         var inputHasTitle = false;
                         var inputHasAria = false;
                         var inputHasRole = false;
+                        var inputTargetAttr = '';
+                        var inputRelAttr = '';
 
                         Object.keys(inputOptions).forEach(function(optionKey) {
                             if (!Object.prototype.hasOwnProperty.call(inputOptions, optionKey)) {
@@ -17077,7 +17079,15 @@ CSS;
                                 return;
                             }
                             var lowerName = attrName.toLowerCase();
-                            if (lowerName === 'href' || lowerName === 'class') {
+                            if (lowerName === 'class' || lowerName === 'href' || lowerName === 'type') {
+                                return;
+                            }
+                            if (lowerName === 'target') {
+                                inputTargetAttr = String(inputOptions[optionKey] || '').trim();
+                                return;
+                            }
+                            if (lowerName === 'rel') {
+                                inputRelAttr = String(inputOptions[optionKey] || '').trim();
                                 return;
                             }
                             if (lowerName === 'title') {
@@ -17104,6 +17114,18 @@ CSS;
                             inputAttrString += ' role="menuitem"';
                         }
 
+                        inputAttrString += ' data-fastcrud-input-url="' + escapeHtml(inputHref) + '"';
+                        inputAttrString += ' data-fastcrud-input-name="' + escapeHtml(inputName) + '"';
+                        if (inputPrompt) {
+                            inputAttrString += ' data-fastcrud-input-prompt="' + escapeHtml(inputPrompt) + '"';
+                        }
+                        if (inputTargetAttr) {
+                            inputAttrString += ' data-fastcrud-input-target="' + escapeHtml(inputTargetAttr) + '"';
+                        }
+                        if (inputRelAttr) {
+                            inputAttrString += ' data-fastcrud-input-rel="' + escapeHtml(inputRelAttr) + '"';
+                        }
+
                         var uniqueInputClassParts = [];
                         inputClassParts.forEach(function(part) {
                             if (!part) { return; }
@@ -17122,42 +17144,42 @@ CSS;
                             inputContent = escapeHtml(inputLabel);
                         }
 
-                        dropdownItems.push('<li><button type="button" class="' + escapeHtml(inputClassAttr) + '" data-input-action="true" data-prompt="' + escapeHtml(inputPrompt) + '" data-url="' + escapeHtml(inputHref) + '" data-input-name="' + escapeHtml(inputName) + '"' + inputAttrString + '>' + inputContent + '</button></li>');
+                        dropdownItems.push('<li><button type="button" class="' + escapeHtml(inputClassAttr) + '"' + inputAttrString + '>' + inputContent + '</button></li>');
                         return;
                     }
 
-                    var linkHref = String(item.url || '').trim();
-                    var linkLabelRaw = typeof item.label === 'string' ? item.label : '';
-                    var linkLabel = linkLabelRaw.trim();
-                    if (!linkHref || !linkLabel) {
+                    var itemHref = String(item.url || '').trim();
+                    var itemLabelRaw = typeof item.label === 'string' ? item.label : '';
+                    var itemLabel = itemLabelRaw.trim();
+                    if (!itemHref || !itemLabel) {
                         return;
                     }
 
-                    var linkClassParts = ['dropdown-item', 'fastcrud-multi-link-item'];
-                    var linkOptions = item.options && typeof item.options === 'object'
+                    var itemClassParts = ['dropdown-item', 'fastcrud-multi-link-item'];
+                    var itemOptions = item.options && typeof item.options === 'object'
                         ? Object.assign({}, item.options)
                         : {};
-                    var linkOptionClassRaw = '';
-                    if (Object.prototype.hasOwnProperty.call(linkOptions, 'class')) {
-                        linkOptionClassRaw = String(linkOptions['class'] || '').trim();
-                        delete linkOptions['class'];
+                    var itemOptionClassRaw = '';
+                    if (Object.prototype.hasOwnProperty.call(itemOptions, 'class')) {
+                        itemOptionClassRaw = String(itemOptions['class'] || '').trim();
+                        delete itemOptions['class'];
                     }
-                    if (linkOptionClassRaw) {
-                        linkOptionClassRaw.split(/\s+/).forEach(function(extra) {
+                    if (itemOptionClassRaw) {
+                        itemOptionClassRaw.split(/\s+/).forEach(function(extra) {
                             if (!extra) { return; }
-                            if (linkClassParts.indexOf(extra) === -1) {
-                                linkClassParts.push(extra);
+                            if (itemClassParts.indexOf(extra) === -1) {
+                                itemClassParts.push(extra);
                             }
                         });
                     }
 
-                    var linkAttrString = '';
-                    var linkHasTitle = false;
-                    var linkHasAria = false;
-                    var linkHasRole = false;
+                    var itemAttrString = '';
+                    var itemHasTitle = false;
+                    var itemHasAria = false;
+                    var itemHasRole = false;
 
-                    Object.keys(linkOptions).forEach(function(optionKey) {
-                        if (!Object.prototype.hasOwnProperty.call(linkOptions, optionKey)) {
+                    Object.keys(itemOptions).forEach(function(optionKey) {
+                        if (!Object.prototype.hasOwnProperty.call(itemOptions, optionKey)) {
                             return;
                         }
                         var attrName = String(optionKey);
@@ -17169,73 +17191,94 @@ CSS;
                             return;
                         }
                         if (lowerName === 'title') {
-                            linkHasTitle = true;
+                            itemHasTitle = true;
                         } else if (lowerName === 'aria-label') {
-                            linkHasAria = true;
+                            itemHasAria = true;
                         } else if (lowerName === 'role') {
-                            linkHasRole = true;
+                            itemHasRole = true;
                         }
-                        var attrValue = linkOptions[optionKey];
+                        var attrValue = itemOptions[optionKey];
                         if (attrValue === null || typeof attrValue === 'undefined') {
                             return;
                         }
-                        linkAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
+                        itemAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
                     });
 
-                    if (!linkHasAria) {
-                        linkAttrString += ' aria-label="' + escapeHtml(linkLabel) + '"';
+                    if (!itemHasAria) {
+                        itemAttrString += ' aria-label="' + escapeHtml(itemLabel) + '"';
                     }
-                    if (!linkHasTitle) {
-                        linkAttrString += ' title="' + escapeHtml(linkLabel) + '"';
+                    if (!itemHasTitle) {
+                        itemAttrString += ' title="' + escapeHtml(itemLabel) + '"';
                     }
-                    if (!linkHasRole) {
-                        linkAttrString += ' role="menuitem"';
+                    if (!itemHasRole) {
+                        itemAttrString += ' role="menuitem"';
                     }
 
-                    var uniqueLinkClassParts = [];
-                    linkClassParts.forEach(function(part) {
+                    var uniqueItemClassParts = [];
+                    itemClassParts.forEach(function(part) {
                         if (!part) { return; }
-                        if (uniqueLinkClassParts.indexOf(part) === -1) {
-                            uniqueLinkClassParts.push(part);
+                        if (uniqueItemClassParts.indexOf(part) === -1) {
+                            uniqueItemClassParts.push(part);
                         }
                     });
 
-                    var linkClassAttr = uniqueLinkClassParts.join(' ');
-                    var linkIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
-                    var linkContent;
-                    if (linkIconClass) {
-                        var linkIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(linkIconClass) + '"></i>';
-                        linkContent = linkIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(linkLabel) + '</span>';
+                    var itemClassAttr = uniqueItemClassParts.join(' ');
+                    var itemIconClass = item.icon && typeof item.icon === 'string' ? item.icon.trim() : '';
+                    var itemContent;
+                    if (itemIconClass) {
+                        var itemIconHtml = '<i class="fastcrud-multi-link-item-icon ' + escapeHtml(itemIconClass) + '"></i>';
+                        itemContent = itemIconHtml + '<span class="fastcrud-multi-link-item-text ms-2">' + escapeHtml(itemLabel) + '</span>';
                     } else {
-                        linkContent = escapeHtml(linkLabel);
+                        itemContent = escapeHtml(itemLabel);
                     }
 
-                    dropdownItems.push('<li><a class="' + escapeHtml(linkClassAttr) + '" href="' + escapeHtml(linkHref) + '"' + linkAttrString + '>' + linkContent + '</a></li>');
+                    dropdownItems.push('<li><a href="' + escapeHtml(itemHref) + '" class="' + escapeHtml(itemClassAttr) + '"' + itemAttrString + '>' + itemContent + '</a></li>');
                 });
 
                 if (!dropdownItems.length) {
                     return;
                 }
 
-                var buttonIconClass = typeof buttonMeta.icon === 'string' ? buttonMeta.icon.trim() : '';
-                var buttonLabelRaw = typeof buttonMeta.label === 'string' ? buttonMeta.label : '';
-                var buttonLabel = buttonLabelRaw.trim();
-                var buttonClassRaw = typeof buttonMeta.button_class === 'string' ? buttonMeta.button_class : '';
-                var buttonClass = buttonClassRaw.trim() || 'btn btn-sm btn-outline-secondary dropdown-toggle fastcrud-action-button fastcrud-multi-link-trigger';
-                var menuClassRaw = typeof buttonMeta.menu_class === 'string' ? buttonMeta.menu_class : '';
-                var menuClass = menuClassRaw.trim() || 'dropdown-menu dropdown-menu-end fastcrud-multi-link-menu';
-                var containerClassRaw = typeof buttonMeta.container_class === 'string' ? buttonMeta.container_class : '';
-                var containerClass = containerClassRaw.trim() || 'btn-group fastcrud-multi-link-container';
-                var buttonOptions = buttonMeta.options && typeof buttonMeta.options === 'object'
+                var triggerClassSource = String(buttonMeta.button_class || '').trim();
+                var triggerClassParts = triggerClassSource ? triggerClassSource.split(/\s+/) : [];
+                if (triggerClassParts.indexOf('btn') === -1) { triggerClassParts.unshift('btn'); }
+                var hasSizeClass = triggerClassParts.some(function(part) {
+                    return /^btn-(?:sm|md|lg|xl)$/i.test(part);
+                });
+                if (!hasSizeClass) {
+                    triggerClassParts.push('btn-sm');
+                }
+                if (triggerClassParts.indexOf('dropdown-toggle') === -1) { triggerClassParts.push('dropdown-toggle'); }
+                if (triggerClassParts.indexOf('fastcrud-action-button') === -1) { triggerClassParts.push('fastcrud-action-button'); }
+                if (triggerClassParts.indexOf('fastcrud-multi-link-trigger') === -1) { triggerClassParts.push('fastcrud-multi-link-trigger'); }
+
+                var triggerOptions = buttonMeta.options && typeof buttonMeta.options === 'object'
                     ? Object.assign({}, buttonMeta.options)
                     : {};
-                var buttonAttrString = '';
-                var buttonHasTitle = false;
-                var buttonHasAria = false;
-                var buttonHasRole = false;
+                var triggerOptionClassRaw = '';
+                if (Object.prototype.hasOwnProperty.call(triggerOptions, 'class')) {
+                    triggerOptionClassRaw = String(triggerOptions['class'] || '').trim();
+                    delete triggerOptions['class'];
+                }
+                if (triggerOptionClassRaw) {
+                    triggerOptionClassRaw.split(/\s+/).forEach(function(extra) {
+                        if (!extra) { return; }
+                        if (triggerClassParts.indexOf(extra) === -1) {
+                            triggerClassParts.push(extra);
+                        }
+                    });
+                }
 
-                Object.keys(buttonOptions).forEach(function(optionKey) {
-                    if (!Object.prototype.hasOwnProperty.call(buttonOptions, optionKey)) {
+                var triggerAttrString = '';
+                var triggerHasTitle = false;
+                var triggerHasAria = false;
+                var triggerHasRole = false;
+                var triggerHasToggle = false;
+                var triggerHasExpanded = false;
+                var triggerHasHaspopup = false;
+
+                Object.keys(triggerOptions).forEach(function(optionKey) {
+                    if (!Object.prototype.hasOwnProperty.call(triggerOptions, optionKey)) {
                         return;
                     }
                     var attrName = String(optionKey);
@@ -17243,52 +17286,133 @@ CSS;
                         return;
                     }
                     var lowerName = attrName.toLowerCase();
-                    if (lowerName === 'class') {
+                    if (lowerName === 'class' || lowerName === 'href') {
                         return;
                     }
                     if (lowerName === 'title') {
-                        buttonHasTitle = true;
+                        triggerHasTitle = true;
                     } else if (lowerName === 'aria-label') {
-                        buttonHasAria = true;
+                        triggerHasAria = true;
                     } else if (lowerName === 'role') {
-                        buttonHasRole = true;
+                        triggerHasRole = true;
+                    } else if (lowerName === 'data-bs-toggle') {
+                        triggerHasToggle = true;
+                    } else if (lowerName === 'aria-expanded') {
+                        triggerHasExpanded = true;
+                    } else if (lowerName === 'aria-haspopup') {
+                        triggerHasHaspopup = true;
                     }
-                    var attrValue = buttonOptions[optionKey];
+                    var attrValue = triggerOptions[optionKey];
                     if (attrValue === null || typeof attrValue === 'undefined') {
                         return;
                     }
-                    buttonAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
+                    triggerAttrString += ' ' + escapeHtml(attrName) + '="' + escapeHtml(String(attrValue)) + '"';
                 });
 
-                if (!buttonHasAria) {
-                    var defaultLabel = buttonLabel || 'Actions';
-                    buttonAttrString += ' aria-label="' + escapeHtml(defaultLabel) + '"';
+                var uniqueTriggerClassParts = [];
+                triggerClassParts.forEach(function(part) {
+                    if (!part) {
+                        return;
+                    }
+                    if (uniqueTriggerClassParts.indexOf(part) === -1) {
+                        uniqueTriggerClassParts.push(part);
+                    }
+                });
+                triggerClassParts = uniqueTriggerClassParts;
+
+                var triggerLabel = typeof buttonMeta.label === 'string' ? buttonMeta.label.trim() : '';
+
+                if (!triggerHasAria) {
+                    var triggerAriaLabel = triggerLabel ? triggerLabel : 'Open menu';
+                    triggerAttrString += ' aria-label="' + escapeHtml(triggerAriaLabel) + '"';
                 }
-                if (!buttonHasTitle && buttonLabel) {
-                    buttonAttrString += ' title="' + escapeHtml(buttonLabel) + '"';
+                if (!triggerHasTitle && triggerLabel) {
+                    triggerAttrString += ' title="' + escapeHtml(triggerLabel) + '"';
                 }
-                if (!buttonHasRole) {
-                    buttonAttrString += ' role="button"';
+                if (!triggerHasRole) {
+                    triggerAttrString += ' role="button"';
+                }
+                if (!triggerHasToggle) {
+                    triggerAttrString += ' data-bs-toggle="dropdown"';
+                }
+                if (!triggerHasExpanded) {
+                    triggerAttrString += ' aria-expanded="false"';
+                }
+                if (!triggerHasHaspopup) {
+                    triggerAttrString += ' aria-haspopup="true"';
                 }
 
-                var buttonContent;
-                if (buttonIconClass && buttonLabel) {
-                    buttonContent = '<i class="fastcrud-multi-link-trigger-icon ' + escapeHtml(buttonIconClass) + '"></i>'
-                        + '<span class="fastcrud-multi-link-trigger-text ms-1">' + escapeHtml(buttonLabel) + '</span>';
-                } else if (buttonIconClass) {
-                    buttonContent = '<i class="fastcrud-multi-link-trigger-icon ' + escapeHtml(buttonIconClass) + '"></i>';
-                } else if (buttonLabel) {
-                    buttonContent = '<span class="fastcrud-multi-link-trigger-text">' + escapeHtml(buttonLabel) + '</span>';
+                var triggerClassAttr = triggerClassParts.join(' ');
+                var triggerIconClass = typeof buttonMeta.icon === 'string' ? buttonMeta.icon.trim() : '';
+                var triggerIconHtml = triggerIconClass
+                    ? '<i class="fastcrud-multi-link-icon ' + escapeHtml(triggerIconClass) + '"></i>'
+                    : '';
+                var triggerContent;
+                if (triggerIconHtml && triggerLabel) {
+                    triggerContent = triggerIconHtml + '<span class="fastcrud-multi-link-text ms-1">' + escapeHtml(triggerLabel) + '</span>';
+                } else if (triggerIconHtml) {
+                    triggerContent = triggerIconHtml;
+                } else if (triggerLabel) {
+                    triggerContent = escapeHtml(triggerLabel);
                 } else {
-                    buttonContent = '<span class="visually-hidden">Open actions</span>';
+                    triggerContent = '<span class="visually-hidden">Open menu</span>';
                 }
 
-                var dropdownHtml = '<div class="' + escapeHtml(containerClass) + '">' +
-                    '<button type="button" class="' + escapeHtml(buttonClass) + '" data-bs-toggle="dropdown" aria-expanded="false"' + buttonAttrString + '>' + buttonContent + '</button>' +
-                    '<ul class="' + escapeHtml(menuClass) + '">' + dropdownItems.join('') + '</ul>' +
-                    '</div>';
+                var menuClassSource = String(buttonMeta.menu_class || '').trim();
+                if (!menuClassSource) {
+                    menuClassSource = 'dropdown-menu dropdown-menu-end';
+                }
+                var menuClassParts = menuClassSource ? menuClassSource.split(/\s+/) : [];
+                if (menuClassParts.indexOf('dropdown-menu') === -1) {
+                    menuClassParts.unshift('dropdown-menu');
+                }
+                if (menuClassParts.indexOf('fastcrud-multi-link-menu') === -1) {
+                    menuClassParts.push('fastcrud-multi-link-menu');
+                }
+                var uniqueMenuClassParts = [];
+                menuClassParts.forEach(function(part) {
+                    if (!part) {
+                        return;
+                    }
+                    if (uniqueMenuClassParts.indexOf(part) === -1) {
+                        uniqueMenuClassParts.push(part);
+                    }
+                });
+                var menuClassAttr = uniqueMenuClassParts.join(' ');
 
-                fragments.push(dropdownHtml);
+                var containerClassSource = String(buttonMeta.container_class || '').trim();
+                if (!containerClassSource) {
+                    containerClassSource = 'btn-group';
+                }
+                var containerClassParts = containerClassSource ? containerClassSource.split(/\s+/) : [];
+                if (containerClassParts.indexOf('fastcrud-action-button-group') === -1) {
+                    containerClassParts.push('fastcrud-action-button-group');
+                }
+                if (containerClassParts.indexOf('fastcrud-multi-link-btn') === -1) {
+                    containerClassParts.push('fastcrud-multi-link-btn');
+                }
+                var hasWrapperClass = containerClassParts.some(function(part) {
+                    var lower = part.toLowerCase();
+                    return lower === 'btn-group' || lower === 'dropdown' || lower === 'dropup' || lower === 'dropend' || lower === 'dropstart';
+                });
+                if (!hasWrapperClass) {
+                    containerClassParts.unshift('btn-group');
+                }
+                var uniqueContainerClassParts = [];
+                containerClassParts.forEach(function(part) {
+                    if (!part) {
+                        return;
+                    }
+                    if (uniqueContainerClassParts.indexOf(part) === -1) {
+                        uniqueContainerClassParts.push(part);
+                    }
+                });
+                var containerClassAttr = uniqueContainerClassParts.join(' ');
+
+                var triggerHtml = '<button type="button" class="' + escapeHtml(triggerClassAttr) + '"' + triggerAttrString + '>' + triggerContent + '</button>';
+                var menuHtml = '<ul class="' + escapeHtml(menuClassAttr) + '" role="menu">' + dropdownItems.join('') + '</ul>';
+
+                fragments.push('<div class="' + escapeHtml(containerClassAttr) + '">' + triggerHtml + menuHtml + '</div>');
             }
 
             var hasCustomButtonOrder = rowMeta
