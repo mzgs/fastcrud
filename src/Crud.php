@@ -161,6 +161,7 @@ class Crud
             'batch_delete' => false,
             'batch_delete_button' => false,
             'bulk_actions' => [],
+            'toolbar_actions' => [],
             'delete_confirm' => true,
             'export_csv' => false,
             'export_excel' => false,
@@ -478,6 +479,14 @@ class Crud
             'button_class' => $buttonClass ?? $defaultButtonClass,
             'options'      => $options,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function normalizeToolbarActionConfigPayload(array $payload): ?array
+    {
+        return $this->normalizeLinkButtonConfigPayload($payload);
     }
 
     /**
@@ -927,6 +936,34 @@ class Crud
         $this->config['link_buttons'] = $normalizedList;
 
         return $normalizedList;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function getNormalizedToolbarActionsConfig(): array
+    {
+        $tableMeta = $this->config['table_meta'] ?? [];
+        $stored = $tableMeta['toolbar_actions'] ?? [];
+        if (!is_array($stored)) {
+            $stored = [];
+        }
+
+        $normalized = [];
+        foreach ($stored as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $action = $this->normalizeToolbarActionConfigPayload($entry);
+            if ($action !== null) {
+                $normalized[] = $action;
+            }
+        }
+
+        $this->config['table_meta']['toolbar_actions'] = $normalized;
+
+        return $normalized;
     }
 
     /**
@@ -4531,6 +4568,62 @@ class Crud
 
         $this->config['link_buttons'][] = $normalized;
         $this->appendActionButtonSequence('link');
+
+        return $this;
+    }
+
+    /**
+     * @param string|array<string, mixed> $urlOrConfig
+     * @param array<string, bool|float|int|string> $options
+     */
+    public function add_toolbar_action(string|array $urlOrConfig, ?string $iconClass = null, ?string $label = null, ?string $buttonClass = null, array $options = []): self
+    {
+        if (is_array($urlOrConfig)) {
+            $payload = $urlOrConfig;
+
+            if ($iconClass !== null && !array_key_exists('icon', $payload)) {
+                $payload['icon'] = $iconClass;
+            }
+
+            if ($label !== null && !array_key_exists('label', $payload)) {
+                $payload['label'] = $label;
+            }
+
+            if ($buttonClass !== null && !array_key_exists('button_class', $payload)) {
+                $payload['button_class'] = $buttonClass;
+            }
+
+            if ($options !== []) {
+                if (!isset($payload['options']) || !is_array($payload['options'])) {
+                    $payload['options'] = $options;
+                } else {
+                    $payload['options'] = array_merge($payload['options'], $options);
+                }
+            }
+        } else {
+            if ($iconClass === null) {
+                throw new InvalidArgumentException('Toolbar action requires both a URL and icon class when using the legacy signature.');
+            }
+
+            $payload = [
+                'url'          => $urlOrConfig,
+                'icon'         => $iconClass,
+                'label'        => $label,
+                'button_class' => $buttonClass,
+                'options'      => $options,
+            ];
+        }
+
+        $normalized = $this->normalizeToolbarActionConfigPayload($payload);
+        if ($normalized === null) {
+            throw new InvalidArgumentException('Toolbar action requires a non-empty URL and icon class.');
+        }
+
+        if (!isset($this->config['table_meta']['toolbar_actions']) || !is_array($this->config['table_meta']['toolbar_actions'])) {
+            $this->config['table_meta']['toolbar_actions'] = [];
+        }
+
+        $this->config['table_meta']['toolbar_actions'][] = $normalized;
 
         return $this;
     }
@@ -8405,6 +8498,7 @@ HTML;
                 'bulk_actions' => isset($tableMeta['bulk_actions']) && is_array($tableMeta['bulk_actions'])
                     ? array_values($tableMeta['bulk_actions'])
                     : [],
+                'toolbar_actions' => $this->getNormalizedToolbarActionsConfig(),
                 'delete_confirm' => isset($tableMeta['delete_confirm']) ? (bool) $tableMeta['delete_confirm'] : true,
                 'export_csv' => isset($tableMeta['export_csv']) ? (bool) $tableMeta['export_csv'] : false,
                 'export_excel' => isset($tableMeta['export_excel']) ? (bool) $tableMeta['export_excel'] : false,
@@ -9109,6 +9203,7 @@ HTML;
             ? (bool) $this->config['table_meta']['batch_delete']
             : false;
         $this->config['table_meta']['batch_delete_button'] = $batchDeleteConfigured;
+        $this->getNormalizedToolbarActionsConfig();
 
         $formMeta = $this->buildFormMeta($columns);
         if (!isset($formMeta['all_columns']) || !is_array($formMeta['all_columns'])) {
@@ -10043,6 +10138,7 @@ HTML;
                 'export_csv' => isset($meta['export_csv']) ? (bool) $meta['export_csv'] : false,
                 'export_excel' => isset($meta['export_excel']) ? (bool) $meta['export_excel'] : false,
                 'bulk_actions' => [],
+                'toolbar_actions' => [],
             ];
 
             if (isset($meta['bulk_actions']) && is_array($meta['bulk_actions'])) {
@@ -10062,6 +10158,49 @@ HTML;
                 }
 
                 $this->config['table_meta']['bulk_actions'] = $bulkActions;
+            }
+
+            if (isset($meta['toolbar_actions']) && is_array($meta['toolbar_actions'])) {
+                $toolbarActions = [];
+                foreach ($meta['toolbar_actions'] as $entry) {
+                    if (!is_array($entry)) {
+                        continue;
+                    }
+
+                    $normalized = $this->normalizeToolbarActionConfigPayload($entry);
+                    if ($normalized !== null) {
+                        $toolbarActions[] = $normalized;
+                    }
+                }
+
+                $this->config['table_meta']['toolbar_actions'] = $toolbarActions;
+            }
+        }
+
+        if (array_key_exists('toolbar_actions', $payload)) {
+            $toolbarPayload = $payload['toolbar_actions'];
+            $normalizedToolbar = [];
+            if (is_array($toolbarPayload)) {
+                foreach ($toolbarPayload as $entry) {
+                    if (!is_array($entry)) {
+                        continue;
+                    }
+
+                    $normalized = $this->normalizeToolbarActionConfigPayload($entry);
+                    if ($normalized !== null) {
+                        $normalizedToolbar[] = $normalized;
+                    }
+                }
+            }
+
+            $this->config['table_meta']['toolbar_actions'] = $normalizedToolbar;
+        } elseif (array_key_exists('toolbar_action', $payload)) {
+            $toolbarAction = $payload['toolbar_action'];
+            if (is_array($toolbarAction)) {
+                $normalizedToolbarAction = $this->normalizeToolbarActionConfigPayload($toolbarAction);
+                $this->config['table_meta']['toolbar_actions'] = $normalizedToolbarAction !== null ? [$normalizedToolbarAction] : [];
+            } elseif ($toolbarAction === null) {
+                $this->config['table_meta']['toolbar_actions'] = [];
             }
         }
 
@@ -15308,6 +15447,136 @@ CSS;
             var actionsWrapper = $('<div class="d-flex align-items-center gap-2 ms-auto"></div>');
             utilitiesWrapper.append(actionsWrapper);
             var hasActions = false;
+
+            function buildToolbarActionElement(actionMeta) {
+                if (!actionMeta || typeof actionMeta !== 'object') {
+                    return null;
+                }
+
+                var href = typeof actionMeta.url === 'string' ? actionMeta.url.trim() : '';
+                if (!href.length) {
+                    return null;
+                }
+
+                var classListRaw = typeof actionMeta.button_class === 'string'
+                    ? actionMeta.button_class
+                    : '';
+                var classParts = classListRaw.trim().length
+                    ? classListRaw.trim().split(/\s+/)
+                    : [];
+                var options = (actionMeta.options && typeof actionMeta.options === 'object')
+                    ? $.extend(true, {}, actionMeta.options)
+                    : {};
+
+                if (classParts.indexOf('btn') === -1) {
+                    classParts.unshift('btn');
+                }
+                if (classParts.indexOf('fastcrud-link-btn') === -1) {
+                    classParts.push('fastcrud-link-btn');
+                }
+                if (classParts.indexOf('fastcrud-toolbar-action') === -1) {
+                    classParts.push('fastcrud-toolbar-action');
+                }
+
+                if (Object.prototype.hasOwnProperty.call(options, 'class')) {
+                    var extraClass = String(options['class'] || '').trim();
+                    delete options['class'];
+                    if (extraClass.length) {
+                        extraClass.split(/\s+/).forEach(function(part) {
+                            if (!part.length || classParts.indexOf(part) !== -1) {
+                                return;
+                            }
+                            classParts.push(part);
+                        });
+                    }
+                }
+
+                var button = $('<a></a>').attr('href', href).addClass(classParts.join(' '));
+                var hasTitle = false;
+                var hasAriaLabel = false;
+                var hasRole = false;
+
+                Object.keys(options).forEach(function(optionKey) {
+                    if (!Object.prototype.hasOwnProperty.call(options, optionKey)) {
+                        return;
+                    }
+                    var attrName = String(optionKey);
+                    if (!/^[A-Za-z0-9_:-]+$/.test(attrName)) {
+                        return;
+                    }
+                    var lowerName = attrName.toLowerCase();
+                    if (lowerName === 'href') {
+                        return;
+                    }
+
+                    var attrValue = options[optionKey];
+                    if (attrValue === null || typeof attrValue === 'undefined') {
+                        return;
+                    }
+                    button.attr(attrName, attrValue);
+
+                    if (lowerName === 'title') {
+                        hasTitle = true;
+                    } else if (lowerName === 'aria-label') {
+                        hasAriaLabel = true;
+                    } else if (lowerName === 'role') {
+                        hasRole = true;
+                    }
+                });
+
+                var labelText = typeof actionMeta.label === 'string'
+                    ? actionMeta.label.trim()
+                    : '';
+                var iconClass = typeof actionMeta.icon === 'string'
+                    ? actionMeta.icon.trim()
+                    : '';
+                var hasIcon = false;
+                if (iconClass.length) {
+                    var iconEl = $('<i aria-hidden="true"></i>').addClass('fastcrud-link-icon');
+                    iconClass.split(/\s+/).forEach(function(part) {
+                        if (!part.length) {
+                            return;
+                        }
+                        iconEl.addClass(part);
+                    });
+                    button.append(iconEl);
+                    hasIcon = true;
+                }
+
+                if (labelText.length) {
+                    var labelSpan = $('<span class="fastcrud-link-btn-text"></span>').text(labelText);
+                    if (hasIcon) {
+                        labelSpan.addClass('ms-1');
+                    }
+                    button.append(labelSpan);
+                } else if (!hasIcon) {
+                    button.append('<span class="visually-hidden">Open link</span>');
+                }
+
+                if (!hasTitle && labelText.length) {
+                    button.attr('title', labelText);
+                }
+                if (!hasAriaLabel) {
+                    button.attr('aria-label', labelText.length ? labelText : 'Open link');
+                }
+                if (!hasRole) {
+                    button.attr('role', 'button');
+                }
+
+                return button;
+            }
+
+            var toolbarActionsList = Array.isArray(tableMeta.toolbar_actions)
+                ? tableMeta.toolbar_actions
+                : [];
+            toolbarActionsList.forEach(function(actionMeta) {
+                var actionEl = buildToolbarActionElement(actionMeta);
+                if (!actionEl) {
+                    return;
+                }
+                actionsWrapper.append(actionEl);
+                hasActions = true;
+            });
 
             if (allowBatchDeleteButton) {
                 var batchDeleteButtonClass = getStyleClass('batch_delete_button_class', 'btn btn-sm btn-danger');

@@ -853,6 +853,19 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   // Legacy positional signature remains supported
   $crud->add_link_button('/reports/export', 'fas fa-download', 'Export', 'btn btn-sm btn-secondary');
   ```
+- **`add_toolbar_action(string|array $urlOrConfig, ?string $iconClass = null, ?string $label = null, ?string $buttonClass = null, array $options = []): self`** – Inject a static action button into the top toolbar (rendered to the left of bulk/delete/add controls). Accepts the same payload formats as `add_link_button()`, so you can mix and match array payloads or the legacy positional signature plus an `$options` array for custom attributes.
+  ```php
+  $crud->add_toolbar_action([
+      'url' => route('reports.index'),
+      'icon' => 'fas fa-chart-line',
+      'label' => 'Reports',
+      'button_class' => 'btn btn-sm btn-outline-primary',
+      'options' => ['target' => '_blank']
+  ]);
+
+  // Legacy signature stays compatible as well
+  $crud->add_toolbar_action('/reports/new', 'fas fa-plus-circle', 'New Report');
+  ```
 - **`add_multi_link_button(array $mainButton = [], array $items = []): self`** – Append a dropdown button that expands into multiple links. Supply at least one actionable entry in `$items`, each with `'url'` and `'label'` plus optional `'icon'` and `'options'` for per-link attributes (placeholders like `{id}` are resolved per-row). To insert a divider between links, either pass an empty array or `['type' => 'divider']` as an item, and optionally add `'title' => 'Section Name'` to print a small caption under the separator. You can also push built-in destructive utilities into the dropdown via entries such as `['type' => 'duplicate', 'label' => 'Clone']` or `['type' => 'delete', 'label' => 'Remove']`; these menu items stay visible even when `enable_duplicate(false)` / `enable_delete(false)` or action conditions hide the stock row buttons, while still reusing the existing handlers (rows that fail their condition will be rejected when clicked). Need a quick input before redirecting? Use `['type' => 'input', 'input_name' => 'query']` (falls back to `'exampleinput'`) to pop up a prompt, append `?query=value` to the resolved URL, and follow it (add `'prompt' => 'Search email'` to customize the question). `$mainButton` configures the trigger with keys such as `'icon'`, `'label'`, `'button_class'`, `'menu_class'`, `'container_class'`, and `'options'`; omit any key to fall back to sensible defaults. Invoke this repeatedly to add more dropdown clusters.
   ```php
   $crud->add_multi_link_button([
