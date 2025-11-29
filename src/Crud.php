@@ -6378,7 +6378,8 @@ class Crud
     private function loadMysqlTableSchema(string $table): array
     {
         $schema = [];
-        $sql = sprintf('SHOW FULL COLUMNS FROM `%s`', $table);
+        $escapedTable = str_replace('`', '``', $table);
+        $sql = sprintf('SHOW FULL COLUMNS FROM `%s`', $escapedTable);
 
         try {
             $statement = $this->connection->query($sql);
@@ -6411,7 +6412,94 @@ class Crud
             }
         }
 
+        if ($schema !== []) {
+            $jsonAliases = $this->detectMysqlJsonAliasColumns($table);
+            if ($jsonAliases !== []) {
+                $normalizedLookup = [];
+                foreach (array_keys($schema) as $columnName) {
+                    if (!is_string($columnName) || $columnName === '') {
+                        continue;
+                    }
+                    $normalizedLookup[strtolower($columnName)] = $columnName;
+                }
+
+                foreach ($jsonAliases as $aliasColumn => $_flag) {
+                    $normalized = strtolower($aliasColumn);
+                    if (!isset($normalizedLookup[$normalized])) {
+                        continue;
+                    }
+
+                    $actualColumn = $normalizedLookup[$normalized];
+                    $schema[$actualColumn]['type'] = 'json';
+                    $schema[$actualColumn]['raw_type'] = 'json';
+                    if (!isset($schema[$actualColumn]['meta']) || !is_array($schema[$actualColumn]['meta'])) {
+                        $schema[$actualColumn]['meta'] = [];
+                    }
+                    $schema[$actualColumn]['meta']['mariadb_json_alias'] = true;
+                }
+            }
+        }
+
         return $schema;
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function detectMysqlJsonAliasColumns(string $table): array
+    {
+        $table = trim($table);
+        if ($table === '') {
+            return [];
+        }
+
+        $escapedTable = str_replace('`', '``', $table);
+        $sql = sprintf('SHOW CREATE TABLE `%s`', $escapedTable);
+
+        try {
+            $statement = $this->connection->query($sql);
+        } catch (PDOException) {
+            return [];
+        }
+
+        if ($statement === false) {
+            return [];
+        }
+
+        $row = $statement->fetch(PDO::FETCH_ASSOC);
+        if ($row === false) {
+            return [];
+        }
+
+        $ddl = '';
+        foreach (['Create Table', 'Create View', 'Create'] as $key) {
+            if (isset($row[$key]) && is_string($row[$key]) && $row[$key] !== '') {
+                $ddl = $row[$key];
+                break;
+            }
+        }
+
+        if ($ddl === '') {
+            return [];
+        }
+
+        $matches = [];
+        preg_match_all('/json_valid\(\s*`([^`]+)`\s*\)/i', $ddl, $matches);
+
+        if (!isset($matches[1]) || !is_array($matches[1])) {
+            return [];
+        }
+
+        $aliases = [];
+        foreach ($matches[1] as $columnName) {
+            if (!is_string($columnName) || $columnName === '') {
+                continue;
+            }
+
+            $aliases[strtolower($columnName)] = true;
+        }
+
+        return $aliases;
     }
 
     /**
