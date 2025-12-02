@@ -1689,7 +1689,8 @@ class CrudAjax
             return true;
         }
 
-        return (bool) preg_match('/^[A-Za-z]:[\\\//]/', $path);
+        // Windows absolute paths look like "C:/" or "C:\"; allow either slash style.
+        return (bool) preg_match('#^[A-Za-z]:[\\/]#', $path);
     }
 
     private static function isUrl(string $path): bool
