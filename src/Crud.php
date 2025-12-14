@@ -11393,7 +11393,8 @@ HTML;
 
         $row = $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
 
-        if ($row !== null && !$this->isActionAllowedForRow('view', $row)) {
+        // Skip view-permission enforcement when the view action itself is disabled.
+        if ($row !== null && $this->isActionEnabled('view') && !$this->isActionAllowedForRow('view', $row)) {
             throw new RuntimeException('View action is not permitted for this record.');
         }
 
