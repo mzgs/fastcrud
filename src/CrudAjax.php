@@ -826,7 +826,7 @@ class CrudAjax
             $header[] = isset($labels[$column]) ? (string) $labels[$column] : $column;
         }
         if ($header !== []) {
-            fputcsv($stream, $header, $delimiter, $enclosure);
+            fputcsv($stream, $header, $delimiter, $enclosure, '');
         }
 
         foreach ($rows as $row) {
@@ -855,7 +855,7 @@ class CrudAjax
                 $line[] = is_scalar($value) ? (string) $value : '';
             }
 
-            fputcsv($stream, $line, $delimiter, $enclosure);
+            fputcsv($stream, $line, $delimiter, $enclosure, '');
         }
 
         rewind($stream);
