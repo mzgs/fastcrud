@@ -4,26 +4,17 @@ declare(strict_types=1);
 namespace FastCrud;
 
 use Exception;
-use ErrorException;
 use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
-use Throwable;
 
 class CrudAjax
 {
-    /**
-     * Track whether a response has already been emitted to avoid duplicate output.
-     */
-    private static bool $responseEmitted = false;
-
     /**
      * Handle incoming AJAX requests for CRUD operations.
      */
     public static function handle(): void
     {
-        self::registerErrorHandler();
-
         try {
             $request = self::getRequestData();
 
@@ -206,7 +197,16 @@ class CrudAjax
     private static function handleFileMetadataBulk(array $request): void
     {
         $namesPayload = $request['names'] ?? [];
-        $names = self::safeDecodeToArray($namesPayload);
+        $names = [];
+
+        if (is_string($namesPayload) && $namesPayload !== '') {
+            $decoded = json_decode($namesPayload, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $names = $decoded;
+            }
+        } elseif (is_array($namesPayload)) {
+            $names = $namesPayload;
+        }
 
         if (!is_array($names)) {
             throw new InvalidArgumentException('Invalid names payload.');
@@ -345,7 +345,17 @@ class CrudAjax
         }
 
         $fieldsPayload = $request['fields'] ?? [];
-        $fields = self::safeDecodeToArray($fieldsPayload);
+        $fields = [];
+
+        if (is_string($fieldsPayload) && $fieldsPayload !== '') {
+            $decoded = json_decode($fieldsPayload, true);
+            if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                throw new InvalidArgumentException('Invalid fields payload.');
+            }
+            $fields = $decoded;
+        } elseif (is_array($fieldsPayload)) {
+            $fields = $fieldsPayload;
+        }
 
         if (!is_array($fields)) {
             throw new InvalidArgumentException('Invalid fields payload.');
@@ -396,7 +406,17 @@ class CrudAjax
         }
 
         $fieldsPayload = $request['fields'] ?? [];
-        $fields = self::safeDecodeToArray($fieldsPayload);
+        $fields = [];
+
+        if (is_string($fieldsPayload) && $fieldsPayload !== '') {
+            $decoded = json_decode($fieldsPayload, true);
+            if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                throw new InvalidArgumentException('Invalid fields payload.');
+            }
+            $fields = $decoded;
+        } elseif (is_array($fieldsPayload)) {
+            $fields = $fieldsPayload;
+        }
 
         if (!is_array($fields)) {
             throw new InvalidArgumentException('Invalid fields payload.');
@@ -570,7 +590,7 @@ class CrudAjax
         $fieldsInput = $request['fields'];
         if (is_string($fieldsInput) && $fieldsInput !== '') {
             try {
-                $decoded = self::safeDecodeToArray($fieldsInput);
+                $decoded = json_decode($fieldsInput, true, 512, JSON_THROW_ON_ERROR);
                 if (is_array($decoded)) {
                     $fieldsInput = $decoded;
                 }
@@ -806,7 +826,7 @@ class CrudAjax
             $header[] = isset($labels[$column]) ? (string) $labels[$column] : $column;
         }
         if ($header !== []) {
-            fputcsv($stream, $header, $delimiter, $enclosure, '');
+            fputcsv($stream, $header, $delimiter, $enclosure);
         }
 
         foreach ($rows as $row) {
@@ -835,7 +855,7 @@ class CrudAjax
                 $line[] = is_scalar($value) ? (string) $value : '';
             }
 
-            fputcsv($stream, $line, $delimiter, $enclosure, '');
+            fputcsv($stream, $line, $delimiter, $enclosure);
         }
 
         rewind($stream);
@@ -1698,8 +1718,6 @@ class CrudAjax
             @ob_clean();
         }
 
-        self::$responseEmitted = true;
-
         if (!headers_sent()) {
             header('Content-Type: application/json; charset=utf-8');
         }
@@ -1721,106 +1739,20 @@ class CrudAjax
         exit;
     }
 
-    /**
-     * Register error/exception/shutdown handlers so PHP errors surface in AJAX responses.
-     */
-    private static function registerErrorHandler(): void
-    {
-        static $registered = false;
-        if ($registered) {
-            return;
-        }
-        $registered = true;
-
-        set_error_handler(static function (int $severity, string $message, ?string $file = null, ?int $line = null): bool {
-            if (!(error_reporting() & $severity)) {
-                return false;
-            }
-
-            throw new ErrorException($message, 0, $severity, $file ?? '', $line ?? 0);
-        });
-
-        set_exception_handler(static function (Throwable $throwable): void {
-            self::respond([
-                'success' => false,
-                'error' => $throwable->getMessage(),
-                'file' => $throwable->getFile(),
-                'line' => $throwable->getLine(),
-                'trace' => CrudConfig::$debug ? $throwable->getTraceAsString() : null,
-            ], 500);
-        });
-
-        register_shutdown_function(static function (): void {
-            if (self::$responseEmitted) {
-                return;
-            }
-
-            $error = error_get_last();
-            if ($error === null) {
-                return;
-            }
-
-            $fatalTypes = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR];
-            if (!in_array($error['type'], $fatalTypes, true)) {
-                return;
-            }
-
-            self::respond([
-                'success' => false,
-                'error' => $error['message'] . ' in ' . ($error['file'] ?? '') . ':' . ($error['line'] ?? ''),
-                'file' => $error['file'] ?? null,
-                'line' => $error['line'] ?? null,
-            ], 500);
-        });
-    }
-
-    /**
-     * Safely decode a JSON payload to an array. Accepts already-decoded arrays.
-     *
-     * @return array<mixed>|null
-     */
-    private static function safeDecodeToArray(mixed $payload): ?array
-    {
-        if (is_array($payload)) {
-            return $payload;
-        }
-
-        if (!is_string($payload) || trim($payload) === '') {
-            return null;
-        }
-
-        $decoded = json_decode($payload, true);
-        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
-            return null;
-        }
-
-        return $decoded;
-    }
-
     private static function respondFile(string $filename, string $mimeType, string $content): void
     {
-        if (function_exists('ini_get') && ini_get('zlib.output_compression')) {
-            @ini_set('zlib.output_compression', 'Off');
-        }
-
-        while (ob_get_level() > 0) {
-            @ob_end_clean();
+        if (ob_get_level() > 0) {
+            @ob_clean();
         }
 
         if (!headers_sent()) {
-            $compressionValue = function_exists('ini_get') ? (string) ini_get('zlib.output_compression') : '';
-            $compressionActive = $compressionValue !== '' && strtolower($compressionValue) !== 'off' && $compressionValue !== '0';
             header('Content-Type: ' . $mimeType);
             header('Content-Disposition: attachment; filename="' . $filename . '"');
-            if (!$compressionActive) {
-                header('Content-Length: ' . (string) strlen($content));
-            }
+            header('Content-Length: ' . (string) strlen($content));
             header('Cache-Control: no-store, no-cache, must-revalidate');
-            header('Pragma: no-cache');
         }
 
         echo $content;
-        flush();
         exit;
     }
 }

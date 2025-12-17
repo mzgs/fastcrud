@@ -278,14 +278,14 @@ class Crud
 
         $decoded = null;
 
-        if (is_array($configPayload)) {
-            $decoded = $configPayload;
-        } elseif (is_string($configPayload) && $configPayload !== '') {
+        if (is_string($configPayload) && $configPayload !== '') {
             try {
                 $decoded = json_decode($configPayload, true, 512, JSON_THROW_ON_ERROR);
             } catch (JsonException) {
                 $decoded = null;
             }
+        } elseif (is_array($configPayload)) {
+            $decoded = $configPayload;
         }
 
         if (is_array($decoded)) {
@@ -2055,81 +2055,6 @@ class Crud
         return (string) $value;
     }
 
-    private function prepareValueForCallback(string $column, mixed $value): mixed
-    {
-        if (!$this->isJsonColumnForCallback($column)) {
-            return $value;
-        }
-
-        $decoded = $this->decodeJsonStructure($value);
-
-        return $decoded !== null ? $decoded : $value;
-    }
-
-    private function isJsonColumnForCallback(string $column): bool
-    {
-        $behaviour = $this->config['form']['behaviours']['change_type'][$column] ?? null;
-        if (is_array($behaviour)) {
-            $type = strtolower((string) ($behaviour['type'] ?? ''));
-            if ($type === 'json') {
-                return true;
-            }
-        }
-
-        $schema = $this->getTableSchema($this->table);
-        if (isset($schema[$column]) && is_array($schema[$column])) {
-            $typeInfo = $this->detectSqlTypeInfo($schema[$column]);
-            $normalized = $typeInfo['normalized'] !== '' ? $typeInfo['normalized'] : $typeInfo['raw'];
-
-            return $this->isJsonColumnType($normalized);
-        }
-
-        return false;
-    }
-
-    private function decodeJsonStructure(mixed $value): ?array
-    {
-        if (is_array($value)) {
-            return $value;
-        }
-
-        if (!is_string($value)) {
-            return null;
-        }
-
-        $current = trim($value);
-        if ($current === '' || !$this->looksLikeJsonValue($current)) {
-            return null;
-        }
-
-        for ($attempt = 0; $attempt < 2; $attempt++) {
-            try {
-                $decoded = json_decode($current, true, 512, JSON_THROW_ON_ERROR);
-            } catch (JsonException) {
-                return null;
-            }
-
-            if (is_array($decoded)) {
-                return $decoded;
-            }
-
-            if (!is_string($decoded) || !$this->looksLikeJsonValue($decoded)) {
-                return null;
-            }
-
-            $current = $decoded;
-        }
-
-        return null;
-    }
-
-    private function looksLikeJsonValue(string $value): bool
-    {
-        $first = $value[0] ?? '';
-
-        return $first === '{' || $first === '[' || $first === '"';
-    }
-
     private function truncateString(string $value, int $length, string $suffix = '…'): string
     {
         $length = max(1, $length);
@@ -2841,8 +2766,7 @@ class Crud
 
             if ($callable !== null && is_callable($callable)) {
                 $formattedValue = $html !== null ? $html : $display;
-                $callbackValue = $this->prepareValueForCallback($column, $value);
-                $result = call_user_func($callable, $callbackValue, $row, $column, $formattedValue);
+                $result = call_user_func($callable, $value, $row, $column, $formattedValue);
 
                 if ($result !== null) {
                     $stringResult = $this->stringifyValue($result);
@@ -21585,47 +21509,34 @@ CSS;
 
         function startExport(format) {
             var action = format === 'excel' ? 'export_excel' : 'export_csv';
-            var form = document.createElement('form');
-            form.method = 'POST';
-            form.action = window.location.pathname;
-            form.target = '_blank';
-
-            var addField = function(name, value) {
-                var input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = name;
-                input.value = String(value);
-                form.appendChild(input);
-            };
-
-            addField('fastcrud_ajax', '1');
-            addField('action', action);
-            addField('table', tableName);
-            addField('id', tableId);
-            addField('config', JSON.stringify(clientConfig));
+            var params = new URLSearchParams();
+            params.set('fastcrud_ajax', '1');
+            params.set('action', action);
+            params.set('table', tableName);
+            params.set('id', tableId);
+            params.set('config', JSON.stringify(clientConfig));
 
             if (primaryKeyColumn) {
-                addField('primary_key_column', primaryKeyColumn);
+                params.set('primary_key_column', primaryKeyColumn);
             }
 
             if (currentSearchTerm) {
-                addField('search_term', currentSearchTerm);
+                params.set('search_term', currentSearchTerm);
             }
 
             if (currentSearchColumn) {
-                addField('search_column', currentSearchColumn);
+                params.set('search_column', currentSearchColumn);
             }
 
             var selection = collectSelectionForBulk(false);
             if (selection && selection.values && selection.values.length) {
                 selection.values.forEach(function(value) {
-                    addField('primary_key_values[]', value);
+                    params.append('primary_key_values[]', value);
                 });
             }
 
-            document.body.appendChild(form);
-            form.submit();
-            form.remove();
+            var url = window.location.pathname + '?' + params.toString();
+            window.open(url, '_blank');
         }
 
         table.on('change', '.fastcrud-select-row', function() {
