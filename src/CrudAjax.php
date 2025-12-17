@@ -1741,21 +1741,28 @@ class CrudAjax
 
     private static function respondFile(string $filename, string $mimeType, string $content): void
     {
-        if (ob_get_level() > 0) {
-            @ob_clean();
+        if (function_exists('ini_get') && ini_get('zlib.output_compression')) {
+            @ini_set('zlib.output_compression', 'Off');
+        }
+
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
         }
 
         if (!headers_sent()) {
-            $compressionActive = ini_get('zlib.output_compression') && strtolower((string) ini_get('zlib.output_compression')) !== 'off';
+            $compressionValue = function_exists('ini_get') ? (string) ini_get('zlib.output_compression') : '';
+            $compressionActive = $compressionValue !== '' && strtolower($compressionValue) !== 'off' && $compressionValue !== '0';
             header('Content-Type: ' . $mimeType);
             header('Content-Disposition: attachment; filename="' . $filename . '"');
             if (!$compressionActive) {
                 header('Content-Length: ' . (string) strlen($content));
             }
             header('Cache-Control: no-store, no-cache, must-revalidate');
+            header('Pragma: no-cache');
         }
 
         echo $content;
+        flush();
         exit;
     }
 }
