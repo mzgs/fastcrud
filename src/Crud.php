@@ -21585,34 +21585,47 @@ CSS;
 
         function startExport(format) {
             var action = format === 'excel' ? 'export_excel' : 'export_csv';
-            var params = new URLSearchParams();
-            params.set('fastcrud_ajax', '1');
-            params.set('action', action);
-            params.set('table', tableName);
-            params.set('id', tableId);
-            params.set('config', JSON.stringify(clientConfig));
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = window.location.pathname;
+            form.target = '_blank';
+
+            var addField = function(name, value) {
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = name;
+                input.value = String(value);
+                form.appendChild(input);
+            };
+
+            addField('fastcrud_ajax', '1');
+            addField('action', action);
+            addField('table', tableName);
+            addField('id', tableId);
+            addField('config', JSON.stringify(clientConfig));
 
             if (primaryKeyColumn) {
-                params.set('primary_key_column', primaryKeyColumn);
+                addField('primary_key_column', primaryKeyColumn);
             }
 
             if (currentSearchTerm) {
-                params.set('search_term', currentSearchTerm);
+                addField('search_term', currentSearchTerm);
             }
 
             if (currentSearchColumn) {
-                params.set('search_column', currentSearchColumn);
+                addField('search_column', currentSearchColumn);
             }
 
             var selection = collectSelectionForBulk(false);
             if (selection && selection.values && selection.values.length) {
                 selection.values.forEach(function(value) {
-                    params.append('primary_key_values[]', value);
+                    addField('primary_key_values[]', value);
                 });
             }
 
-            var url = window.location.pathname + '?' + params.toString();
-            window.open(url, '_blank');
+            document.body.appendChild(form);
+            form.submit();
+            form.remove();
         }
 
         table.on('change', '.fastcrud-select-row', function() {
