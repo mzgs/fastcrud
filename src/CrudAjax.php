@@ -1746,9 +1746,12 @@ class CrudAjax
         }
 
         if (!headers_sent()) {
+            $compressionActive = ini_get('zlib.output_compression') && strtolower((string) ini_get('zlib.output_compression')) !== 'off';
             header('Content-Type: ' . $mimeType);
             header('Content-Disposition: attachment; filename="' . $filename . '"');
-            header('Content-Length: ' . (string) strlen($content));
+            if (!$compressionActive) {
+                header('Content-Length: ' . (string) strlen($content));
+            }
             header('Cache-Control: no-store, no-cache, must-revalidate');
         }
 
