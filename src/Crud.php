@@ -278,14 +278,14 @@ class Crud
 
         $decoded = null;
 
-        if (is_string($configPayload) && $configPayload !== '') {
+        if (is_array($configPayload)) {
+            $decoded = $configPayload;
+        } elseif (is_string($configPayload) && $configPayload !== '') {
             try {
                 $decoded = json_decode($configPayload, true, 512, JSON_THROW_ON_ERROR);
             } catch (JsonException) {
                 $decoded = null;
             }
-        } elseif (is_array($configPayload)) {
-            $decoded = $configPayload;
         }
 
         if (is_array($decoded)) {

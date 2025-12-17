@@ -206,16 +206,7 @@ class CrudAjax
     private static function handleFileMetadataBulk(array $request): void
     {
         $namesPayload = $request['names'] ?? [];
-        $names = [];
-
-        if (is_string($namesPayload) && $namesPayload !== '') {
-            $decoded = json_decode($namesPayload, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                $names = $decoded;
-            }
-        } elseif (is_array($namesPayload)) {
-            $names = $namesPayload;
-        }
+        $names = self::safeDecodeToArray($namesPayload);
 
         if (!is_array($names)) {
             throw new InvalidArgumentException('Invalid names payload.');
@@ -354,17 +345,7 @@ class CrudAjax
         }
 
         $fieldsPayload = $request['fields'] ?? [];
-        $fields = [];
-
-        if (is_string($fieldsPayload) && $fieldsPayload !== '') {
-            $decoded = json_decode($fieldsPayload, true);
-            if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
-                throw new InvalidArgumentException('Invalid fields payload.');
-            }
-            $fields = $decoded;
-        } elseif (is_array($fieldsPayload)) {
-            $fields = $fieldsPayload;
-        }
+        $fields = self::safeDecodeToArray($fieldsPayload);
 
         if (!is_array($fields)) {
             throw new InvalidArgumentException('Invalid fields payload.');
@@ -415,17 +396,7 @@ class CrudAjax
         }
 
         $fieldsPayload = $request['fields'] ?? [];
-        $fields = [];
-
-        if (is_string($fieldsPayload) && $fieldsPayload !== '') {
-            $decoded = json_decode($fieldsPayload, true);
-            if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
-                throw new InvalidArgumentException('Invalid fields payload.');
-            }
-            $fields = $decoded;
-        } elseif (is_array($fieldsPayload)) {
-            $fields = $fieldsPayload;
-        }
+        $fields = self::safeDecodeToArray($fieldsPayload);
 
         if (!is_array($fields)) {
             throw new InvalidArgumentException('Invalid fields payload.');
@@ -599,7 +570,7 @@ class CrudAjax
         $fieldsInput = $request['fields'];
         if (is_string($fieldsInput) && $fieldsInput !== '') {
             try {
-                $decoded = json_decode($fieldsInput, true, 512, JSON_THROW_ON_ERROR);
+                $decoded = self::safeDecodeToArray($fieldsInput);
                 if (is_array($decoded)) {
                     $fieldsInput = $decoded;
                 }
@@ -1773,6 +1744,8 @@ class CrudAjax
             self::respond([
                 'success' => false,
                 'error' => $throwable->getMessage(),
+                'file' => $throwable->getFile(),
+                'line' => $throwable->getLine(),
                 'trace' => CrudConfig::$debug ? $throwable->getTraceAsString() : null,
             ], 500);
         });
@@ -1795,8 +1768,33 @@ class CrudAjax
             self::respond([
                 'success' => false,
                 'error' => $error['message'] . ' in ' . ($error['file'] ?? '') . ':' . ($error['line'] ?? ''),
+                'file' => $error['file'] ?? null,
+                'line' => $error['line'] ?? null,
             ], 500);
         });
+    }
+
+    /**
+     * Safely decode a JSON payload to an array. Accepts already-decoded arrays.
+     *
+     * @return array<mixed>|null
+     */
+    private static function safeDecodeToArray(mixed $payload): ?array
+    {
+        if (is_array($payload)) {
+            return $payload;
+        }
+
+        if (!is_string($payload) || trim($payload) === '') {
+            return null;
+        }
+
+        $decoded = json_decode($payload, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            return null;
+        }
+
+        return $decoded;
     }
 
     private static function respondFile(string $filename, string $mimeType, string $content): void
