@@ -2055,6 +2055,81 @@ class Crud
         return (string) $value;
     }
 
+    private function prepareValueForCallback(string $column, mixed $value): mixed
+    {
+        if (!$this->isJsonColumnForCallback($column)) {
+            return $value;
+        }
+
+        $decoded = $this->decodeJsonStructure($value);
+
+        return $decoded !== null ? $decoded : $value;
+    }
+
+    private function isJsonColumnForCallback(string $column): bool
+    {
+        $behaviour = $this->config['form']['behaviours']['change_type'][$column] ?? null;
+        if (is_array($behaviour)) {
+            $type = strtolower((string) ($behaviour['type'] ?? ''));
+            if ($type === 'json') {
+                return true;
+            }
+        }
+
+        $schema = $this->getTableSchema($this->table);
+        if (isset($schema[$column]) && is_array($schema[$column])) {
+            $typeInfo = $this->detectSqlTypeInfo($schema[$column]);
+            $normalized = $typeInfo['normalized'] !== '' ? $typeInfo['normalized'] : $typeInfo['raw'];
+
+            return $this->isJsonColumnType($normalized);
+        }
+
+        return false;
+    }
+
+    private function decodeJsonStructure(mixed $value): ?array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $current = trim($value);
+        if ($current === '' || !$this->looksLikeJsonValue($current)) {
+            return null;
+        }
+
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            try {
+                $decoded = json_decode($current, true, 512, JSON_THROW_ON_ERROR);
+            } catch (JsonException) {
+                return null;
+            }
+
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+
+            if (!is_string($decoded) || !$this->looksLikeJsonValue($decoded)) {
+                return null;
+            }
+
+            $current = $decoded;
+        }
+
+        return null;
+    }
+
+    private function looksLikeJsonValue(string $value): bool
+    {
+        $first = $value[0] ?? '';
+
+        return $first === '{' || $first === '[' || $first === '"';
+    }
+
     private function truncateString(string $value, int $length, string $suffix = '…'): string
     {
         $length = max(1, $length);
@@ -2766,7 +2841,8 @@ class Crud
 
             if ($callable !== null && is_callable($callable)) {
                 $formattedValue = $html !== null ? $html : $display;
-                $result = call_user_func($callable, $value, $row, $column, $formattedValue);
+                $callbackValue = $this->prepareValueForCallback($column, $value);
+                $result = call_user_func($callable, $callbackValue, $row, $column, $formattedValue);
 
                 if ($result !== null) {
                     $stringResult = $this->stringifyValue($result);
