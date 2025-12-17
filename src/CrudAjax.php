@@ -4,17 +4,26 @@ declare(strict_types=1);
 namespace FastCrud;
 
 use Exception;
+use ErrorException;
 use InvalidArgumentException;
 use JsonException;
 use RuntimeException;
+use Throwable;
 
 class CrudAjax
 {
+    /**
+     * Track whether a response has already been emitted to avoid duplicate output.
+     */
+    private static bool $responseEmitted = false;
+
     /**
      * Handle incoming AJAX requests for CRUD operations.
      */
     public static function handle(): void
     {
+        self::registerErrorHandler();
+
         try {
             $request = self::getRequestData();
 
@@ -1718,6 +1727,8 @@ class CrudAjax
             @ob_clean();
         }
 
+        self::$responseEmitted = true;
+
         if (!headers_sent()) {
             header('Content-Type: application/json; charset=utf-8');
         }
@@ -1737,6 +1748,55 @@ class CrudAjax
 
         echo $json;
         exit;
+    }
+
+    /**
+     * Register error/exception/shutdown handlers so PHP errors surface in AJAX responses.
+     */
+    private static function registerErrorHandler(): void
+    {
+        static $registered = false;
+        if ($registered) {
+            return;
+        }
+        $registered = true;
+
+        set_error_handler(static function (int $severity, string $message, ?string $file = null, ?int $line = null): bool {
+            if (!(error_reporting() & $severity)) {
+                return false;
+            }
+
+            throw new ErrorException($message, 0, $severity, $file ?? '', $line ?? 0);
+        });
+
+        set_exception_handler(static function (Throwable $throwable): void {
+            self::respond([
+                'success' => false,
+                'error' => $throwable->getMessage(),
+                'trace' => CrudConfig::$debug ? $throwable->getTraceAsString() : null,
+            ], 500);
+        });
+
+        register_shutdown_function(static function (): void {
+            if (self::$responseEmitted) {
+                return;
+            }
+
+            $error = error_get_last();
+            if ($error === null) {
+                return;
+            }
+
+            $fatalTypes = [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR];
+            if (!in_array($error['type'], $fatalTypes, true)) {
+                return;
+            }
+
+            self::respond([
+                'success' => false,
+                'error' => $error['message'] . ' in ' . ($error['file'] ?? '') . ':' . ($error['line'] ?? ''),
+            ], 500);
+        });
     }
 
     private static function respondFile(string $filename, string $mimeType, string $content): void
