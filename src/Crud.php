@@ -2926,13 +2926,33 @@ class Crud
                     : $this->primaryKeyColumn;
                 $pkValue = $row['__fastcrud_primary_value'] ?? ($row[$pkCol] ?? null);
 
+                $readonlyFields = $this->gatherBehaviourForMode('readonly', 'edit');
+                $disabledFields = $this->gatherBehaviourForMode('disabled', 'edit');
+                $fieldLocked = isset($readonlyFields[$column]) || isset($disabledFields[$column]);
+                $rowEditable = $this->isActionAllowedForRow('edit', $row) && !$fieldLocked;
+
+                $checkboxAttributes = [
+                    'type="checkbox"',
+                    'class="form-check-input fastcrud-bool-view"',
+                    'role="switch"',
+                    'aria-label="' . $this->escapeHtml($label) . '"',
+                    'data-fastcrud-field="' . $this->escapeHtml($column) . '"',
+                    'data-fastcrud-pk="' . $this->escapeHtml($pkCol) . '"',
+                    'data-fastcrud-pk-value="' . $this->escapeHtml($this->stringifyValue($pkValue)) . '"',
+                ];
+
+                if ($checked) {
+                    $checkboxAttributes[] = 'checked';
+                }
+
+                if (!$rowEditable) {
+                    $checkboxAttributes[] = 'disabled';
+                    $checkboxAttributes[] = 'aria-disabled="true"';
+                }
+
                 $html = sprintf(
-                    '<div class="fastcrud-bool-cell"><div class="form-check form-switch m-0"><input type="checkbox" class="form-check-input fastcrud-bool-view" role="switch" aria-label="%s" data-fastcrud-field="%s" data-fastcrud-pk="%s" data-fastcrud-pk-value="%s" %s></div></div>',
-                    $this->escapeHtml($label),
-                    $this->escapeHtml($column),
-                    $this->escapeHtml($pkCol),
-                    $this->escapeHtml($this->stringifyValue($pkValue)),
-                    $checked ? 'checked' : ''
+                    '<div class="fastcrud-bool-cell"><div class="form-check form-switch m-0"><input %s></div></div>',
+                    implode(' ', $checkboxAttributes)
                 );
                 // Keep $display as original; render() will use HTML when available
             }
@@ -21180,6 +21200,9 @@ CSS;
         // Inline toggle for boolean switches in grid
         table.on('change', 'input.fastcrud-bool-view', function(event) {
             var input = $(this);
+            if (input.is(':disabled')) {
+                return;
+            }
             if (input.data('fastcrudUpdating')) {
                 return;
             }
@@ -21220,11 +21243,13 @@ CSS;
                     } else {
                         var message = response && response.error ? response.error : 'Failed to update value.';
                         if (window.console && console.error) console.error('FastCrud toggle error:', message);
+                        window.alert(message);
                         input.prop('checked', wasChecked);
                     }
                 },
                 error: function(_, __, error) {
                     if (window.console && console.error) console.error('FastCrud toggle request failed:', error);
+                    window.alert('Failed to update value: ' + error);
                     input.prop('checked', wasChecked);
                 },
                 complete: function() {
