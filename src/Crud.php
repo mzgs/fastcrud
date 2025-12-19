@@ -2926,33 +2926,13 @@ class Crud
                     : $this->primaryKeyColumn;
                 $pkValue = $row['__fastcrud_primary_value'] ?? ($row[$pkCol] ?? null);
 
-                $readonlyFields = $this->gatherBehaviourForMode('readonly', 'edit');
-                $disabledFields = $this->gatherBehaviourForMode('disabled', 'edit');
-                $fieldLocked = isset($readonlyFields[$column]) || isset($disabledFields[$column]);
-                $rowEditable = $this->isActionAllowedForRow('edit', $row) && !$fieldLocked;
-
-                $checkboxAttributes = [
-                    'type="checkbox"',
-                    'class="form-check-input fastcrud-bool-view"',
-                    'role="switch"',
-                    'aria-label="' . $this->escapeHtml($label) . '"',
-                    'data-fastcrud-field="' . $this->escapeHtml($column) . '"',
-                    'data-fastcrud-pk="' . $this->escapeHtml($pkCol) . '"',
-                    'data-fastcrud-pk-value="' . $this->escapeHtml($this->stringifyValue($pkValue)) . '"',
-                ];
-
-                if ($checked) {
-                    $checkboxAttributes[] = 'checked';
-                }
-
-                if (!$rowEditable) {
-                    $checkboxAttributes[] = 'disabled';
-                    $checkboxAttributes[] = 'aria-disabled="true"';
-                }
-
                 $html = sprintf(
-                    '<div class="fastcrud-bool-cell"><div class="form-check form-switch m-0"><input %s></div></div>',
-                    implode(' ', $checkboxAttributes)
+                    '<div class="fastcrud-bool-cell"><div class="form-check form-switch m-0"><input type="checkbox" class="form-check-input fastcrud-bool-view" role="switch" aria-label="%s" data-fastcrud-field="%s" data-fastcrud-pk="%s" data-fastcrud-pk-value="%s" %s></div></div>',
+                    $this->escapeHtml($label),
+                    $this->escapeHtml($column),
+                    $this->escapeHtml($pkCol),
+                    $this->escapeHtml($this->stringifyValue($pkValue)),
+                    $checked ? 'checked' : ''
                 );
                 // Keep $display as original; render() will use HTML when available
             }
@@ -10938,11 +10918,6 @@ HTML;
                 continue;
             }
 
-            // Honour explicit payload values; only inject when the client did not send the field
-            if (array_key_exists($column, $fields)) {
-                continue;
-            }
-
             $filtered[$column] = $this->renderTemplateValue($value, $context);
             $context[$column] = $filtered[$column];
         }
@@ -11250,11 +11225,6 @@ HTML;
         $passVars = $this->gatherBehaviourForMode('pass_var', $mode);
         foreach ($passVars as $column => $value) {
             if (!in_array($column, $columns, true)) {
-                continue;
-            }
-
-            // Do not override explicit user input coming from the client
-            if (isset($payloadColumns[$column])) {
                 continue;
             }
 
@@ -21210,9 +21180,6 @@ CSS;
         // Inline toggle for boolean switches in grid
         table.on('change', 'input.fastcrud-bool-view', function(event) {
             var input = $(this);
-            if (input.is(':disabled')) {
-                return;
-            }
             if (input.data('fastcrudUpdating')) {
                 return;
             }
@@ -21222,9 +21189,6 @@ CSS;
             if (!field || !pkCol || typeof pkVal === 'undefined') {
                 // revert change if metadata is missing
                 input.prop('checked', !input.is(':checked'));
-                if (window.console && console.error) {
-                    console.error('FastCrud toggle error: missing metadata', { field: field, pkCol: pkCol, pkVal: pkVal });
-                }
                 return;
             }
 
@@ -21250,31 +21214,17 @@ CSS;
                     fields: JSON.stringify(payloadFields),
                     config: JSON.stringify(clientConfig)
                 },
-                success: function(response, textStatus, jqXHR) {
+                success: function(response) {
                     if (response && response.success) {
                         loadTableData(currentPage);
                     } else {
                         var message = response && response.error ? response.error : 'Failed to update value.';
-                        if (window.console && console.error) {
-                            console.error('FastCrud toggle update rejected', {
-                                message: message,
-                                status: jqXHR ? jqXHR.status : 'n/a',
-                                response: response
-                            });
-                        }
-                        window.alert(message);
+                        if (window.console && console.error) console.error('FastCrud toggle error:', message);
                         input.prop('checked', wasChecked);
                     }
                 },
-                error: function(jqXHR, textStatus, error) {
-                    if (window.console && console.error) {
-                        console.error('FastCrud toggle request failed', {
-                            status: jqXHR ? jqXHR.status : 'n/a',
-                            statusText: jqXHR ? jqXHR.statusText : textStatus,
-                            error: error
-                        });
-                    }
-                    window.alert('Failed to update value: ' + error);
+                error: function(_, __, error) {
+                    if (window.console && console.error) console.error('FastCrud toggle request failed:', error);
                     input.prop('checked', wasChecked);
                 },
                 complete: function() {
