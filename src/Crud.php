@@ -21197,6 +21197,13 @@ CSS;
             input.prop('disabled', true);
             input.data('fastcrudUpdating', true);
 
+            var coerceBool = function(value) {
+                if (value === true || value === 1 || value === '1') { return true; }
+                if (value === false || value === 0 || value === '0') { return false; }
+                var normalized = String(value || '').toLowerCase();
+                return ['true', 't', 'yes', 'y', 'on', 'enabled', 'enable', 'active', 'checked'].indexOf(normalized) !== -1;
+            };
+
             var payloadFields = {};
             payloadFields[field] = newValue;
 
@@ -21216,7 +21223,28 @@ CSS;
                 },
                 success: function(response) {
                     if (response && response.success) {
-                        loadTableData(currentPage);
+                        // Keep caches fresh without reloading the full table
+                        try {
+                            var pkValueString = String(pkVal);
+                            var editCacheKey = rowCacheKey(pkCol, pkValueString, 'edit');
+                            var viewCacheKey = rowCacheKey(pkCol, pkValueString, 'view');
+                            if (rowCache[editCacheKey]) { delete rowCache[editCacheKey]; }
+                            if (rowCache[viewCacheKey]) { delete rowCache[viewCacheKey]; }
+                        } catch (e) {}
+
+                        if (response.row && Object.prototype.hasOwnProperty.call(response.row, field)) {
+                            input.prop('checked', coerceBool(response.row[field]));
+                        }
+
+                        try {
+                            table.trigger('fastcrud:bool-toggle', {
+                                tableId: tableId,
+                                field: field,
+                                primaryKey: pkCol,
+                                primaryValue: pkVal,
+                                value: input.is(':checked')
+                            });
+                        } catch (e) {}
                     } else {
                         var message = response && response.error ? response.error : 'Failed to update value.';
                         if (window.console && console.error) console.error('FastCrud toggle error:', message);
