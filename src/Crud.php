@@ -11258,22 +11258,6 @@ HTML;
 
         $context = array_merge($currentRow, $fields, $filtered);
 
-        $passDefaults = $this->gatherBehaviourForMode('pass_default', $mode);
-        foreach ($passDefaults as $column => $value) {
-            if (!in_array($column, $columns, true)) {
-                continue;
-            }
-
-            $needsDefault = !array_key_exists($column, $filtered)
-                || $filtered[$column] === null
-                || $filtered[$column] === '';
-
-            if ($needsDefault) {
-                $filtered[$column] = $this->renderTemplateValue($value, $context);
-                $context[$column]  = $filtered[$column];
-            }
-        }
-
         $passVars = $this->gatherBehaviourForMode('pass_var', $mode);
         foreach ($passVars as $column => $value) {
             if (!in_array($column, $columns, true)) {
@@ -18858,7 +18842,7 @@ CSS;
                 var fieldLabel = resolveFieldLabel(column);
 
                 var currentValue = typeof row[column] !== 'undefined' && row[column] !== null ? row[column] : '';
-                if ((currentValue === null || currentValue === '') && typeof behaviours.pass_default !== 'undefined') {
+                if (isCreateMode && (currentValue === null || currentValue === '') && typeof behaviours.pass_default !== 'undefined') {
                     currentValue = interpolateTemplate(behaviours.pass_default, templateContext);
                 }
                 if ((currentValue === null || currentValue === '') && typeof changeMeta.default !== 'undefined' && changeMeta.default !== null) {
@@ -19487,7 +19471,7 @@ CSS;
                 if (behaviours.pass_var) {
                     input.attr('data-fastcrud-pass-var', behaviours.pass_var);
                 }
-                if (behaviours.pass_default) {
+                if (isCreateMode && behaviours.pass_default) {
                     input.attr('data-fastcrud-pass-default', behaviours.pass_default);
                 }
                 if (behaviours.unique) {
@@ -20014,7 +19998,10 @@ CSS;
             initializeRichEditors(editFieldsContainer);
             initializeSelect2(editFieldsContainer);
 
-            var behaviourSources = [formConfig.behaviours.pass_var || {}, formConfig.behaviours.pass_default || {}];
+            var behaviourSources = [formConfig.behaviours.pass_var || {}];
+            if (isCreateMode && formConfig.behaviours.pass_default) {
+                behaviourSources.push(formConfig.behaviours.pass_default);
+            }
             var createdHiddenFields = {};
             behaviourSources.forEach(function(source) {
                 Object.keys(source).forEach(function(fieldName) {
@@ -20030,11 +20017,11 @@ CSS;
                         return;
                     }
 
-                    var behaviours = resolveBehavioursForField(fieldName, 'edit');
+                    var behaviours = resolveBehavioursForField(fieldName, formMode);
                     var value = '';
                     if (behaviours.pass_var) {
                         value = interpolateTemplate(behaviours.pass_var, templateContext);
-                    } else if (behaviours.pass_default) {
+                    } else if (isCreateMode && behaviours.pass_default) {
                         value = interpolateTemplate(behaviours.pass_default, templateContext);
                     }
 
