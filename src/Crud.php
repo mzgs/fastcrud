@@ -63,18 +63,18 @@ class Crud
     ];
 
     private const QUERY_BUILDER_OPERATOR_CONFIG = [
-        'equals' => ['label' => 'Equals', 'requires_value' => true, 'multi' => false],
-        'not_equals' => ['label' => 'Does not equal', 'requires_value' => true, 'multi' => false],
-        'contains' => ['label' => 'Contains', 'requires_value' => true, 'multi' => false],
+        'equals'       => ['label' => 'Equals', 'requires_value' => true, 'multi' => false],
+        'not_equals'   => ['label' => 'Does not equal', 'requires_value' => true, 'multi' => false],
+        'contains'     => ['label' => 'Contains', 'requires_value' => true, 'multi' => false],
         'not_contains' => ['label' => 'Does not contain', 'requires_value' => true, 'multi' => false],
-        'gt' => ['label' => 'Greater than', 'requires_value' => true, 'multi' => false],
-        'gte' => ['label' => 'Greater than or equal', 'requires_value' => true, 'multi' => false],
-        'lt' => ['label' => 'Less than', 'requires_value' => true, 'multi' => false],
-        'lte' => ['label' => 'Less than or equal', 'requires_value' => true, 'multi' => false],
-        'in' => ['label' => 'Is one of', 'requires_value' => true, 'multi' => true],
-        'not_in' => ['label' => 'Is not one of', 'requires_value' => true, 'multi' => true],
-        'empty' => ['label' => 'Is empty', 'requires_value' => false, 'multi' => false],
-        'not_empty' => ['label' => 'Is not empty', 'requires_value' => false, 'multi' => false],
+        'gt'           => ['label' => 'Greater than', 'requires_value' => true, 'multi' => false],
+        'gte'          => ['label' => 'Greater than or equal', 'requires_value' => true, 'multi' => false],
+        'lt'           => ['label' => 'Less than', 'requires_value' => true, 'multi' => false],
+        'lte'          => ['label' => 'Less than or equal', 'requires_value' => true, 'multi' => false],
+        'in'           => ['label' => 'Is one of', 'requires_value' => true, 'multi' => true],
+        'not_in'       => ['label' => 'Is not one of', 'requires_value' => true, 'multi' => true],
+        'empty'        => ['label' => 'Is empty', 'requires_value' => false, 'multi' => false],
+        'not_empty'    => ['label' => 'Is not empty', 'requires_value' => false, 'multi' => false],
     ];
 
     private const SUPPORTED_SUMMARY_TYPES = ['sum', 'avg', 'min', 'max', 'count'];
@@ -101,99 +101,99 @@ class Crud
      * @var array<string, mixed>
      */
     private array $config = [
-        'where' => [],
-        'order_by' => [],
-        'sort_disabled' => [],
-        'no_quotes' => [],
-        'limit_options' => [5, 10, 25, 50, 100],
-        'limit_default' => null,
-        'search_columns' => [],
-        'search_default' => null,
-        'joins' => [],
-        'relations' => [],
-        'custom_query' => null,
-        'subselects' => [],
-        'visible_columns' => null,
-        'columns_reverse' => false,
-        'column_labels' => [],
-        'column_patterns' => [],
-        'column_callbacks' => [],
-        'custom_columns' => [],
-        'field_callbacks' => [],
-        'custom_fields' => [],
-        'soft_delete' => null,
-        'lifecycle_callbacks' => [
+        'where'                   => [],
+        'order_by'                => [],
+        'sort_disabled'           => [],
+        'no_quotes'               => [],
+        'limit_options'           => [5, 10, 25, 50, 100],
+        'limit_default'           => null,
+        'search_columns'          => [],
+        'search_default'          => null,
+        'joins'                   => [],
+        'relations'               => [],
+        'custom_query'            => null,
+        'subselects'              => [],
+        'visible_columns'         => null,
+        'columns_reverse'         => false,
+        'column_labels'           => [],
+        'column_patterns'         => [],
+        'column_callbacks'        => [],
+        'custom_columns'          => [],
+        'field_callbacks'         => [],
+        'custom_fields'           => [],
+        'soft_delete'             => null,
+        'lifecycle_callbacks'     => [
             'before_insert' => [],
-            'after_insert' => [],
+            'after_insert'  => [],
             'before_update' => [],
-            'after_update' => [],
+            'after_update'  => [],
             'before_delete' => [],
-            'after_delete' => [],
-            'before_fetch' => [],
-            'after_fetch' => [],
-            'before_read' => [],
-            'after_read' => [],
+            'after_delete'  => [],
+            'before_fetch'  => [],
+            'after_fetch'   => [],
+            'before_read'   => [],
+            'after_read'    => [],
         ],
-        'column_classes' => [],
-        'column_widths' => [],
-        'column_cuts' => [],
+        'column_classes'          => [],
+        'column_widths'           => [],
+        'column_cuts'             => [],
         'default_column_truncate' => null,
-        'column_highlights' => [],
-        'row_highlights' => [],
-        'action_button_sequence' => [],
-        'link_buttons' => [],
-        'multi_link_buttons' => [],
-        'inline_edit' => [],
-        'table_meta' => [
-            'title'   => null,
-            'tooltip' => null,
-            'icon'    => null,
-            'hide_title' => false,
-            'add' => true,
-            'view' => true,
-            'view_condition' => null,
-            'edit' => true,
-            'edit_condition' => null,
-            'delete' => true,
-            'delete_condition' => null,
-            'duplicate' => false,
+        'column_highlights'       => [],
+        'row_highlights'          => [],
+        'action_button_sequence'  => [],
+        'link_buttons'            => [],
+        'multi_link_buttons'      => [],
+        'inline_edit'             => [],
+        'table_meta'              => [
+            'title'               => null,
+            'tooltip'             => null,
+            'icon'                => null,
+            'hide_title'          => false,
+            'add'                 => true,
+            'view'                => true,
+            'view_condition'      => null,
+            'edit'                => true,
+            'edit_condition'      => null,
+            'delete'              => true,
+            'delete_condition'    => null,
+            'duplicate'           => false,
             'duplicate_condition' => null,
-            'batch_delete' => false,
+            'batch_delete'        => false,
             'batch_delete_button' => false,
-            'bulk_actions' => [],
-            'toolbar_actions' => [],
-            'delete_confirm' => true,
-            'export_csv' => false,
-            'export_excel' => false,
+            'bulk_actions'        => [],
+            'toolbar_actions'     => [],
+            'delete_confirm'      => true,
+            'export_csv'          => false,
+            'export_excel'        => false,
         ],
-        'column_summaries' => [],
-        'field_labels' => [],
-        'panel_width' => '30%',
-        'select2' => false,
-        'filters_enabled' => true,
-        'numbers_enabled' => false,
-        'primary_key' => 'id',
-        'query_builder' => [
-            'filters' => [],
-            'logic' => 'AND',
-            'sorts' => [],
+        'column_summaries'        => [],
+        'field_labels'            => [],
+        'panel_width'             => '30%',
+        'select2'                 => false,
+        'filters_enabled'         => true,
+        'numbers_enabled'         => false,
+        'primary_key'             => 'id',
+        'query_builder'           => [
+            'filters'     => [],
+            'logic'       => 'AND',
+            'sorts'       => [],
             'active_view' => null,
         ],
-        'form' => [
-            'layouts' => [],
+        'form'                    => [
+            'layouts'      => [],
             'default_tabs' => [],
-            'behaviours' => [
-                'change_type' => [],
-                'pass_var' => [],
-                'pass_default' => [],
-                'readonly' => [],
-                'disabled' => [],
+            'behaviours'   => [
+                'change_type'         => [],
+                'pass_var'            => [],
+                'pass_default'        => [],
+                'readonly'            => [],
+                'disabled'            => [],
                 'validation_required' => [],
-                'validation_pattern' => [],
-                'unique' => [],
+                'validation_pattern'  => [],
+                'unique'              => [],
             ],
-            'all_columns' => [],
-            'sections' => [],
+            'all_columns'  => [],
+            'sections'     => [],
         ],
     ];
 
@@ -229,9 +229,9 @@ class Crud
         $this->connection = $connection ?? Database::connection();
         $this->id         = $this->generateId();
 
-        $this->config['select2'] = CrudConfig::$enable_select2;
-        $this->config['filters_enabled'] = CrudConfig::$enable_filters;
-        $this->config['numbers_enabled'] = CrudConfig::$enable_numbers;
+        $this->config['select2']                  = CrudConfig::$enable_select2;
+        $this->config['filters_enabled']          = CrudConfig::$enable_filters;
+        $this->config['numbers_enabled']          = CrudConfig::$enable_numbers;
         $this->config['table_meta']['hide_title'] = CrudConfig::$hide_table_title;
 
         $defaultTruncate = $this->resolveDefaultColumnTruncate();
@@ -262,7 +262,7 @@ class Crud
             throw new InvalidArgumentException('Primary key column cannot be empty.');
         }
 
-        $this->primaryKeyColumn = $column;
+        $this->primaryKeyColumn      = $column;
         $this->config['primary_key'] = $column;
 
         return $this;
@@ -307,7 +307,7 @@ class Crud
             throw new InvalidArgumentException('Items per page must be at least 1.');
         }
 
-        $this->perPage = $perPage;
+        $this->perPage                 = $perPage;
         $this->config['limit_default'] = $perPage;
         return $this;
     }
@@ -326,7 +326,7 @@ class Crud
     public function inline_edit(string|array $fields): self
     {
         $list = $this->normalizeList($fields);
-        $map = [];
+        $map  = [];
         foreach ($list as $field) {
             $normalized = $this->normalizeColumnReference($field);
             if ($normalized !== '') {
@@ -428,7 +428,7 @@ class Crud
             return null;
         }
 
-        $iconRaw = isset($payload['icon']) ? (string) $payload['icon'] : '';
+        $iconRaw   = isset($payload['icon']) ? (string) $payload['icon'] : '';
         $iconClass = $this->normalizeCssClassList($iconRaw);
         if ($iconClass === '') {
             return null;
@@ -436,7 +436,7 @@ class Crud
 
         $buttonClass = null;
         if (array_key_exists('button_class', $payload) && $payload['button_class'] !== null) {
-            $buttonClassRaw = (string) $payload['button_class'];
+            $buttonClassRaw   = (string) $payload['button_class'];
             $normalizedButton = $this->normalizeCssClassList($buttonClassRaw);
             if ($normalizedButton !== '') {
                 $buttonClass = $normalizedButton;
@@ -469,7 +469,7 @@ class Crud
             }
         }
 
-        $styles = $this->getStyleDefaults();
+        $styles             = $this->getStyleDefaults();
         $defaultButtonClass = $styles['link_button_class'] ?? 'btn btn-sm btn-outline-secondary';
 
         return [
@@ -499,10 +499,10 @@ class Crud
             return null;
         }
 
-        $items = [];
-        $hasActionItem = false;
+        $items            = [];
+        $hasActionItem    = false;
         $hasDuplicateItem = false;
-        $hasDeleteItem = false;
+        $hasDeleteItem    = false;
         foreach ($itemsRaw as $entry) {
             if (!is_array($entry)) {
                 continue;
@@ -550,13 +550,13 @@ class Crud
                     }
                 }
 
-                $icon = null;
+                $icon        = null;
                 $defaultIcon = $this->normalizeCssClassList((string) (CrudStyle::$duplicate_action_icon ?? ''));
                 if ($defaultIcon !== '') {
                     $icon = $defaultIcon;
                 }
                 if (array_key_exists('icon', $entry) && $entry['icon'] !== null) {
-                    $iconRaw = (string) $entry['icon'];
+                    $iconRaw   = (string) $entry['icon'];
                     $iconClass = $this->normalizeCssClassList($iconRaw);
                     if ($iconClass !== '') {
                         $icon = $iconClass;
@@ -581,13 +581,13 @@ class Crud
                     }
                 }
 
-                $items[] = [
+                $items[]          = [
                     'type'    => 'duplicate',
                     'label'   => $label,
                     'icon'    => $icon,
                     'options' => $itemOptions,
                 ];
-                $hasActionItem = true;
+                $hasActionItem    = true;
                 $hasDuplicateItem = true;
                 continue;
             }
@@ -601,13 +601,13 @@ class Crud
                     }
                 }
 
-                $icon = null;
+                $icon        = null;
                 $defaultIcon = $this->normalizeCssClassList((string) (CrudStyle::$delete_action_icon ?? ''));
                 if ($defaultIcon !== '') {
                     $icon = $defaultIcon;
                 }
                 if (array_key_exists('icon', $entry) && $entry['icon'] !== null) {
-                    $iconRaw = (string) $entry['icon'];
+                    $iconRaw   = (string) $entry['icon'];
                     $iconClass = $this->normalizeCssClassList($iconRaw);
                     if ($iconClass !== '') {
                         $icon = $iconClass;
@@ -632,7 +632,7 @@ class Crud
                     }
                 }
 
-                $items[] = [
+                $items[]       = [
                     'type'    => 'delete',
                     'label'   => $label,
                     'icon'    => $icon,
@@ -650,7 +650,7 @@ class Crud
                 }
 
                 $labelRaw = isset($entry['label']) ? (string) $entry['label'] : '';
-                $label = trim($labelRaw);
+                $label    = trim($labelRaw);
                 if ($label === '') {
                     continue;
                 }
@@ -673,7 +673,7 @@ class Crud
 
                 $icon = null;
                 if (array_key_exists('icon', $entry) && $entry['icon'] !== null) {
-                    $iconRaw = (string) $entry['icon'];
+                    $iconRaw   = (string) $entry['icon'];
                     $iconClass = $this->normalizeCssClassList($iconRaw);
                     if ($iconClass !== '') {
                         $icon = $iconClass;
@@ -698,7 +698,7 @@ class Crud
                     }
                 }
 
-                $items[] = [
+                $items[]       = [
                     'type'       => 'input',
                     'url'        => $url,
                     'label'      => $label,
@@ -717,14 +717,14 @@ class Crud
             }
 
             $labelRaw = isset($entry['label']) ? (string) $entry['label'] : '';
-            $label = trim($labelRaw);
+            $label    = trim($labelRaw);
             if ($label === '') {
                 continue;
             }
 
             $icon = null;
             if (array_key_exists('icon', $entry) && $entry['icon'] !== null) {
-                $iconRaw = (string) $entry['icon'];
+                $iconRaw   = (string) $entry['icon'];
                 $iconClass = $this->normalizeCssClassList($iconRaw);
                 if ($iconClass !== '') {
                     $icon = $iconClass;
@@ -749,7 +749,7 @@ class Crud
                 }
             }
 
-            $items[] = [
+            $items[]       = [
                 'type'    => 'link',
                 'url'     => $url,
                 'label'   => $label,
@@ -778,7 +778,7 @@ class Crud
 
         $buttonIcon = '';
         if (array_key_exists('icon', $buttonRaw) && $buttonRaw['icon'] !== null) {
-            $iconCandidate = (string) $buttonRaw['icon'];
+            $iconCandidate  = (string) $buttonRaw['icon'];
             $normalizedIcon = $this->normalizeCssClassList($iconCandidate);
             if ($normalizedIcon !== '') {
                 $buttonIcon = $normalizedIcon;
@@ -795,7 +795,7 @@ class Crud
 
         $buttonClass = null;
         if (array_key_exists('button_class', $buttonRaw) && $buttonRaw['button_class'] !== null) {
-            $buttonClassRaw = (string) $buttonRaw['button_class'];
+            $buttonClassRaw   = (string) $buttonRaw['button_class'];
             $normalizedButton = $this->normalizeCssClassList($buttonClassRaw);
             if ($normalizedButton !== '') {
                 $buttonClass = $normalizedButton;
@@ -804,7 +804,7 @@ class Crud
 
         $menuClass = null;
         if (array_key_exists('menu_class', $buttonRaw) && $buttonRaw['menu_class'] !== null) {
-            $menuClassRaw = (string) $buttonRaw['menu_class'];
+            $menuClassRaw   = (string) $buttonRaw['menu_class'];
             $normalizedMenu = $this->normalizeCssClassList($menuClassRaw);
             if ($normalizedMenu !== '') {
                 $menuClass = $normalizedMenu;
@@ -813,7 +813,7 @@ class Crud
 
         $containerClass = null;
         if (array_key_exists('container_class', $buttonRaw) && $buttonRaw['container_class'] !== null) {
-            $containerClassRaw = (string) $buttonRaw['container_class'];
+            $containerClassRaw   = (string) $buttonRaw['container_class'];
             $normalizedContainer = $this->normalizeCssClassList($containerClassRaw);
             if ($normalizedContainer !== '') {
                 $containerClass = $normalizedContainer;
@@ -840,14 +840,14 @@ class Crud
 
         return [
             'button' => [
-                'icon'             => $buttonIcon,
-                'label'            => $buttonLabel,
-                'button_class'     => $buttonClass ?? self::DEFAULT_MULTI_LINK_BUTTON_CLASS,
-                'menu_class'       => $menuClass ?? self::DEFAULT_MULTI_LINK_MENU_CLASS,
-                'container_class'  => $containerClass ?? self::DEFAULT_MULTI_LINK_CONTAINER_CLASS,
-                'options'          => $buttonOptions,
+                'icon'            => $buttonIcon,
+                'label'           => $buttonLabel,
+                'button_class'    => $buttonClass ?? self::DEFAULT_MULTI_LINK_BUTTON_CLASS,
+                'menu_class'      => $menuClass ?? self::DEFAULT_MULTI_LINK_MENU_CLASS,
+                'container_class' => $containerClass ?? self::DEFAULT_MULTI_LINK_CONTAINER_CLASS,
+                'options'         => $buttonOptions,
             ],
-            'items' => $items,
+            'items'  => $items,
         ];
     }
 
@@ -900,7 +900,7 @@ class Crud
             $sequence = [];
         }
 
-        $normalized = $this->normalizeActionButtonSequence($sequence);
+        $normalized                             = $this->normalizeActionButtonSequence($sequence);
         $this->config['action_button_sequence'] = $normalized;
 
         return $normalized;
@@ -944,7 +944,7 @@ class Crud
     private function getNormalizedToolbarActionsConfig(): array
     {
         $tableMeta = $this->config['table_meta'] ?? [];
-        $stored = $tableMeta['toolbar_actions'] ?? [];
+        $stored    = $tableMeta['toolbar_actions'] ?? [];
         if (!is_array($stored)) {
             $stored = [];
         }
@@ -1053,7 +1053,7 @@ class Crud
             throw new InvalidArgumentException('Callback array must contain two string entries: [ClassName, methodName].');
         }
 
-        $class = trim($class);
+        $class  = trim($class);
         $method = trim($method);
 
         if ($class === '' || $method === '') {
@@ -1193,27 +1193,27 @@ class Crud
     {
         if (!isset($this->config['form']['behaviours']) || !is_array($this->config['form']['behaviours'])) {
             $this->config['form']['behaviours'] = [
-                'change_type' => [],
-                'pass_var' => [],
-                'pass_default' => [],
-                'readonly' => [],
-                'disabled' => [],
+                'change_type'         => [],
+                'pass_var'            => [],
+                'pass_default'        => [],
+                'readonly'            => [],
+                'disabled'            => [],
                 'validation_required' => [],
-                'validation_pattern' => [],
-                'unique' => [],
+                'validation_pattern'  => [],
+                'unique'              => [],
             ];
             return;
         }
 
         $defaults = [
-            'change_type' => [],
-            'pass_var' => [],
-            'pass_default' => [],
-            'readonly' => [],
-            'disabled' => [],
+            'change_type'         => [],
+            'pass_var'            => [],
+            'pass_default'        => [],
+            'readonly'            => [],
+            'disabled'            => [],
             'validation_required' => [],
-            'validation_pattern' => [],
-            'unique' => [],
+            'validation_pattern'  => [],
+            'unique'              => [],
         ];
 
         $this->config['form']['behaviours'] = array_replace($defaults, $this->config['form']['behaviours']);
@@ -1245,7 +1245,7 @@ class Crud
         }
 
         foreach ($modes as $mode) {
-            $bucket = $mode === 'all' ? 'all' : $mode;
+            $bucket                                     = $mode === 'all' ? 'all' : $mode;
             $this->config['form']['layouts'][$bucket][] = $entry;
         }
     }
@@ -1284,8 +1284,9 @@ class Crud
 
         return preg_replace_callback(
             '/\{([A-Za-z0-9_]+)\}/',
-            static function (array $matches) use ($context): string {
-                $key = $matches[1];
+            static function (array $matches) use ($context): string
+            {
+                $key         = $matches[1];
                 $replacement = $context[$key] ?? '';
                 if (is_scalar($replacement)) {
                     return (string) $replacement;
@@ -1339,7 +1340,7 @@ class Crud
             }
 
             $algorithmCandidate = $params['algorithm'] ?? $params['algo'] ?? ($definition['default'] ?? null);
-            $algorithm = $this->normalizePasswordAlgorithm($algorithmCandidate);
+            $algorithm          = $this->normalizePasswordAlgorithm($algorithmCandidate);
 
             $options = [];
             if (isset($params['options']) && is_array($params['options'])) {
@@ -1449,14 +1450,15 @@ class Crud
             return null;
         }
 
-        $delimiter = substr($pattern, 0, 1);
+        $delimiter       = substr($pattern, 0, 1);
         $knownDelimiters = ['/', '#', '~', '!'];
         if (!in_array($delimiter, $knownDelimiters, true)) {
             $escaped = str_replace('/', '\/', $pattern);
             $pattern = '/^' . $escaped . '$/';
         }
 
-        set_error_handler(static function () {
+        set_error_handler(static function ()
+        {
             return true;
         });
         $isValid = @preg_match($pattern, '') !== false;
@@ -1509,16 +1511,16 @@ class Crud
                     }
 
                     $reverse = !empty($entry['reverse']);
-                    $tab = null;
+                    $tab     = null;
                     if (isset($entry['tab']) && is_string($entry['tab'])) {
                         $tabCandidate = trim($entry['tab']);
-                        $tab = $tabCandidate === '' ? null : $tabCandidate;
+                        $tab          = $tabCandidate === '' ? null : $tabCandidate;
                     }
 
                     $section = null;
                     if (isset($entry['section']) && is_string($entry['section'])) {
                         $sectionCandidate = $this->normalizeSectionIdentifier($entry['section']);
-                        $section = $sectionCandidate === '' ? null : $sectionCandidate;
+                        $section          = $sectionCandidate === '' ? null : $sectionCandidate;
                     }
 
                     $normalizedEntries[] = [
@@ -1587,35 +1589,35 @@ class Crud
                     $title = null;
                     if (isset($entry['title']) && is_string($entry['title'])) {
                         $trimmedTitle = trim($entry['title']);
-                        $title = $trimmedTitle === '' ? null : $trimmedTitle;
+                        $title        = $trimmedTitle === '' ? null : $trimmedTitle;
                     }
 
                     $description = null;
                     if (isset($entry['description']) && is_string($entry['description'])) {
                         $trimmedDescription = trim($entry['description']);
-                        $description = $trimmedDescription === '' ? null : $trimmedDescription;
+                        $description        = $trimmedDescription === '' ? null : $trimmedDescription;
                     }
 
                     $icon = null;
                     if (isset($entry['icon']) && is_string($entry['icon'])) {
                         $iconCandidate = $this->normalizeCssClassList($entry['icon']);
-                        $icon = $iconCandidate === '' ? null : $iconCandidate;
+                        $icon          = $iconCandidate === '' ? null : $iconCandidate;
                     }
 
                     $sectionClass = null;
                     if (isset($entry['class']) && is_string($entry['class'])) {
                         $classCandidate = $this->normalizeCssClassList($entry['class']);
-                        $sectionClass = $classCandidate === '' ? null : $classCandidate;
+                        $sectionClass   = $classCandidate === '' ? null : $classCandidate;
                     }
 
                     $titleClass = null;
                     if (isset($entry['title_class']) && is_string($entry['title_class'])) {
                         $titleClassCandidate = $this->normalizeCssClassList($entry['title_class']);
-                        $titleClass = $titleClassCandidate === '' ? null : $titleClassCandidate;
+                        $titleClass          = $titleClassCandidate === '' ? null : $titleClassCandidate;
                     }
 
                     $collapsible = !empty($entry['collapsible']);
-                    $collapsed = false;
+                    $collapsed   = false;
                     if (isset($entry['collapsed'])) {
                         $collapsed = (bool) $entry['collapsed'];
                     } elseif (isset($entry['start_collapsed'])) {
@@ -1747,7 +1749,7 @@ class Crud
      */
     private function normalizeConditionOperatorString(string $operator, array $messages): string
     {
-        $original = $operator;
+        $original   = $operator;
         $normalized = strtolower(trim($operator));
 
         if ($normalized === '') {
@@ -1761,38 +1763,38 @@ class Crud
         $normalized = str_replace(' ', '_', $normalized);
 
         $synonyms = [
-            '='   => 'equals',
-            '=='  => 'equals',
-            '===' => 'equals',
-            'eq'  => 'equals',
-            '!='  => 'not_equals',
-            '!==' => 'not_equals',
-            '<>'  => 'not_equals',
-            'ne'  => 'not_equals',
-            'not_equals' => 'not_equals',
-            '>'   => 'gt',
-            'gt'  => 'gt',
-            '>='  => 'gte',
-            'gte' => 'gte',
-            '<'   => 'lt',
-            'lt'  => 'lt',
-            '<='  => 'lte',
-            'lte' => 'lte',
-            'notin' => 'not_in',
-            'not_in' => 'not_in',
-            'contains' => 'contains',
-            '!contains' => 'not_contains',
-            'notcontains' => 'not_contains',
-            'not_contains' => 'not_contains',
+            '='                => 'equals',
+            '=='               => 'equals',
+            '==='              => 'equals',
+            'eq'               => 'equals',
+            '!='               => 'not_equals',
+            '!=='              => 'not_equals',
+            '<>'               => 'not_equals',
+            'ne'               => 'not_equals',
+            'not_equals'       => 'not_equals',
+            '>'                => 'gt',
+            'gt'               => 'gt',
+            '>='               => 'gte',
+            'gte'              => 'gte',
+            '<'                => 'lt',
+            'lt'               => 'lt',
+            '<='               => 'lte',
+            'lte'              => 'lte',
+            'notin'            => 'not_in',
+            'not_in'           => 'not_in',
+            'contains'         => 'contains',
+            '!contains'        => 'not_contains',
+            'notcontains'      => 'not_contains',
+            'not_contains'     => 'not_contains',
             'does_not_contain' => 'not_contains',
-            'doesnt_contain' => 'not_contains',
-            'not_like' => 'not_contains',
-            '!~' => 'not_contains',
-            '!value' => 'empty',
-            'empty' => 'empty',
-            '!empty' => 'not_empty',
-            'not_empty' => 'not_empty',
-            'has_value' => 'not_empty',
+            'doesnt_contain'   => 'not_contains',
+            'not_like'         => 'not_contains',
+            '!~'               => 'not_contains',
+            '!value'           => 'empty',
+            'empty'            => 'empty',
+            '!empty'           => 'not_empty',
+            'not_empty'        => 'not_empty',
+            'has_value'        => 'not_empty',
         ];
 
         $normalized = $synonyms[$normalized] ?? $normalized;
@@ -1811,9 +1813,9 @@ class Crud
     private function normalizeConditionValueForOperator(string $operator, mixed $value, array $messages): mixed
     {
         $messages = array_replace([
-            'in_not_in' => 'IN/NOT IN conditions require a non-empty array of values.',
+            'in_not_in'  => 'IN/NOT IN conditions require a non-empty array of values.',
             'comparison' => 'Comparison operators require numeric values.',
-            'contains' => 'Contains operator requires a string value.',
+            'contains'   => 'Contains operator requires a string value.',
         ], $messages);
 
         if (in_array($operator, ['in', 'not_in'], true)) {
@@ -1854,7 +1856,7 @@ class Crud
         }
 
         $normalizedOperator = $this->normalizeConditionOperatorString($operator, [
-            'empty' => 'Highlight operator cannot be empty.',
+            'empty'       => 'Highlight operator cannot be empty.',
             'unsupported' => 'Unsupported condition operator: %s',
         ]);
 
@@ -1862,9 +1864,9 @@ class Crud
             $normalizedOperator,
             $value,
             [
-                'in_not_in' => 'IN/NOT IN conditions require a non-empty array of values.',
+                'in_not_in'  => 'IN/NOT IN conditions require a non-empty array of values.',
                 'comparison' => 'Comparison operators require numeric values.',
-                'contains' => 'Contains operator requires a string value.',
+                'contains'   => 'Contains operator requires a string value.',
             ]
         );
 
@@ -1890,7 +1892,7 @@ class Crud
         }
 
         $operator = $this->normalizeConditionOperatorString($operand, [
-            'empty' => 'Duplicate condition operator cannot be empty.',
+            'empty'       => 'Duplicate condition operator cannot be empty.',
             'unsupported' => 'Unsupported duplicate condition operator: %s',
         ]);
 
@@ -1898,9 +1900,9 @@ class Crud
             $operator,
             $value,
             [
-                'in_not_in' => 'IN/NOT IN duplicate conditions require a non-empty list of values.',
+                'in_not_in'  => 'IN/NOT IN duplicate conditions require a non-empty list of values.',
                 'comparison' => 'Comparison duplicate conditions require numeric values.',
-                'contains' => 'Contains duplicate conditions require a string value.',
+                'contains'   => 'Contains duplicate conditions require a string value.',
             ]
         );
 
@@ -1916,10 +1918,10 @@ class Crud
         $meta = $this->config['table_meta'] ?? [];
 
         return match ($action) {
-            'add'       => isset($meta['add']) ? (bool) $meta['add'] : true,
-            'view'      => isset($meta['view']) ? (bool) $meta['view'] : true,
-            'edit'      => isset($meta['edit']) ? (bool) $meta['edit'] : true,
-            'delete'    => (
+            'add' => isset($meta['add']) ? (bool) $meta['add'] : true,
+            'view' => isset($meta['view']) ? (bool) $meta['view'] : true,
+            'edit' => isset($meta['edit']) ? (bool) $meta['edit'] : true,
+            'delete' => (
                 (isset($meta['delete']) ? (bool) $meta['delete'] : true)
                 || $this->hasActionOverride('delete')
             ),
@@ -1927,7 +1929,7 @@ class Crud
                 (isset($meta['duplicate']) ? (bool) $meta['duplicate'] : false)
                 || $this->hasActionOverride('duplicate')
             ),
-            default     => false,
+            default => false,
         };
     }
 
@@ -1936,7 +1938,7 @@ class Crud
         $meta = $this->config['table_meta'] ?? [];
 
         $batchDeleteConfigured = isset($meta['batch_delete']) ? (bool) $meta['batch_delete'] : false;
-        $hasBulkActions = isset($meta['bulk_actions']) && is_array($meta['bulk_actions']) && $meta['bulk_actions'] !== [];
+        $hasBulkActions        = isset($meta['bulk_actions']) && is_array($meta['bulk_actions']) && $meta['bulk_actions'] !== [];
 
         if (!$batchDeleteConfigured && !$hasBulkActions) {
             return false;
@@ -1951,7 +1953,7 @@ class Crud
 
     private function getActionCondition(string $action): ?array
     {
-        $key = $action . '_condition';
+        $key       = $action . '_condition';
         $condition = $this->config['table_meta'][$key] ?? null;
 
         return is_array($condition) ? $condition : null;
@@ -1969,7 +1971,7 @@ class Crud
         }
 
         $rowForEvaluation = $row;
-        $column = $condition['column'] ?? null;
+        $column           = $condition['column'] ?? null;
         if (is_string($column) && $column !== '') {
             $rawValues = $row['__fastcrud_raw'] ?? null;
             if (is_array($rawValues) && array_key_exists($column, $rawValues)) {
@@ -1982,9 +1984,9 @@ class Crud
 
     private function evaluateCondition(array $condition, array $row): bool
     {
-        $column = $condition['column'];
+        $column   = $condition['column'];
         $operator = $condition['operator'];
-        $value = $condition['value'];
+        $value    = $condition['value'];
 
         $current = $row[$column] ?? null;
 
@@ -2057,7 +2059,7 @@ class Crud
 
     private function truncateString(string $value, int $length, string $suffix = '…'): string
     {
-        $length = max(1, $length);
+        $length       = max(1, $length);
         $stringLength = function_exists('mb_strlen') ? mb_strlen($value) : strlen($value);
 
         if ($stringLength <= $length) {
@@ -2075,16 +2077,17 @@ class Crud
     {
         return preg_replace_callback(
             self::PATTERN_TOKEN_REGEX,
-            function (array $matches) use ($display, $raw, $column, $row, $formatted): string {
+            function (array $matches) use ($display, $raw, $column, $row, $formatted): string
+            {
                 $token = strtolower($matches[1]);
 
                 return match ($token) {
-                    'value'  => $display,
+                    'value' => $display,
                     'formatted' => $formatted ?? $display,
-                    'raw'    => $this->stringifyValue($raw),
+                    'raw' => $this->stringifyValue($raw),
                     'column' => $column,
-                    'label'  => $this->resolveColumnLabel($column),
-                    default  => $this->stringifyValue($row[$token] ?? ''),
+                    'label' => $this->resolveColumnLabel($column),
+                    default => $this->stringifyValue($row[$token] ?? ''),
                 };
             },
             $pattern
@@ -2114,7 +2117,7 @@ class Crud
             return ['class' => null, 'style' => null];
         }
 
-        $lower = strtolower($width);
+        $lower      = strtolower($width);
         $styleUnits = ['px', 'rem', 'em', '%', 'vw', 'vh'];
         foreach ($styleUnits as $unit) {
             if (substr($lower, -strlen($unit)) === $unit) {
@@ -2137,7 +2140,7 @@ class Crud
     {
         $sourceRow = $row['__fastcrud_row'] ?? $row;
 
-        $cells = [];
+        $cells     = [];
         $rawValues = [];
 
         if (isset($sourceRow['__fastcrud_raw']) && is_array($sourceRow['__fastcrud_raw'])) {
@@ -2145,8 +2148,8 @@ class Crud
         }
 
         foreach ($columns as $column) {
-            $value = $sourceRow[$column] ?? null;
-            $rawOriginal = $rawValues[$column] ?? ($sourceRow[$column] ?? null);
+            $value          = $sourceRow[$column] ?? null;
+            $rawOriginal    = $rawValues[$column] ?? ($sourceRow[$column] ?? null);
             $cells[$column] = $this->presentCell($column, $value, $sourceRow, $rawOriginal);
         }
 
@@ -2157,7 +2160,7 @@ class Crud
             }
 
             $condition = $entry['condition'] ?? null;
-            $class = isset($entry['class']) ? (string) $entry['class'] : '';
+            $class     = isset($entry['class']) ? (string) $entry['class'] : '';
             if (!is_array($condition) || $class === '') {
                 continue;
             }
@@ -2190,10 +2193,10 @@ class Crud
             $meta['action_button_order'] = $actionButtonOrder;
         }
 
-        $meta['view_allowed'] = $this->isActionAllowedForRow('view', $sourceRow);
+        $meta['view_allowed']      = $this->isActionAllowedForRow('view', $sourceRow);
         $meta['duplicate_allowed'] = $this->isActionAllowedForRow('duplicate', $sourceRow);
-        $meta['edit_allowed'] = $this->isActionAllowedForRow('edit', $sourceRow);
-        $meta['delete_allowed'] = $this->isActionAllowedForRow('delete', $sourceRow);
+        $meta['edit_allowed']      = $this->isActionAllowedForRow('edit', $sourceRow);
+        $meta['delete_allowed']    = $this->isActionAllowedForRow('delete', $sourceRow);
 
         return $meta;
     }
@@ -2208,7 +2211,7 @@ class Crud
         foreach ($rows as $index => $row) {
             $rows[$index]['__fastcrud'] = $this->presentRow($row, $columns);
             if (isset($rows[$index]['__fastcrud_primary_key'])) {
-                $rows[$index]['__fastcrud']['primary_key'] = $rows[$index]['__fastcrud_primary_key'];
+                $rows[$index]['__fastcrud']['primary_key']   = $rows[$index]['__fastcrud_primary_key'];
                 $rows[$index]['__fastcrud']['primary_value'] = $rows[$index]['__fastcrud_primary_value'] ?? null;
             }
             if (isset($rows[$index]['__fastcrud_raw'])) {
@@ -2273,8 +2276,8 @@ class Crud
             }
 
             $initialValue = $original[$field] ?? null;
-            $result = call_user_func($callable, $field, $initialValue, $original, $mode);
-            $row = $this->applyFieldCallbackResult($row, $field, $result, $initialValue);
+            $result       = call_user_func($callable, $field, $initialValue, $original, $mode);
+            $row          = $this->applyFieldCallbackResult($row, $field, $result, $initialValue);
         }
 
         $fieldCallbacks = $this->config['field_callbacks'] ?? [];
@@ -2284,8 +2287,8 @@ class Crud
             }
 
             $currentValue = $row[$field] ?? ($original[$field] ?? null);
-            $result = call_user_func($callable, $field, $currentValue, $row, $mode);
-            $row = $this->applyFieldCallbackResult($row, $field, $result, $currentValue);
+            $result       = call_user_func($callable, $field, $currentValue, $row, $mode);
+            $row          = $this->applyFieldCallbackResult($row, $field, $result, $currentValue);
         }
 
         return $row;
@@ -2358,15 +2361,15 @@ class Crud
      */
     private function buildCustomActionButtonOrder(array $linkButtons, array $multiLinkButtons): array
     {
-        $linkCount = count($linkButtons);
+        $linkCount  = count($linkButtons);
         $multiCount = count($multiLinkButtons);
         if ($linkCount === 0 && $multiCount === 0) {
             return [];
         }
 
-        $sequence = $this->getActionButtonSequence();
-        $order = [];
-        $linkIndex = 0;
+        $sequence   = $this->getActionButtonSequence();
+        $order      = [];
+        $linkIndex  = 0;
         $multiIndex = 0;
 
         foreach ($sequence as $entry) {
@@ -2424,7 +2427,7 @@ class Crud
                 }
             }
 
-            $items = [];
+            $items         = [];
             $hasActionItem = false;
             foreach ($config['items'] as $item) {
                 $itemType = 'link';
@@ -2441,8 +2444,8 @@ class Crud
                     }
 
                     $lastIndex = array_key_last($items);
-                    $lastItem = $lastIndex !== null ? $items[$lastIndex] : null;
-                    $lastType = is_array($lastItem) && isset($lastItem['type']) ? strtolower((string) $lastItem['type']) : null;
+                    $lastItem  = $lastIndex !== null ? $items[$lastIndex] : null;
+                    $lastType  = is_array($lastItem) && isset($lastItem['type']) ? strtolower((string) $lastItem['type']) : null;
                     if ($lastType === 'divider') {
                         continue;
                     }
@@ -2495,7 +2498,7 @@ class Crud
                         }
                     }
 
-                    $items[] = [
+                    $items[]       = [
                         'type'    => 'duplicate',
                         'label'   => $resolvedLabel,
                         'icon'    => $resolvedIcon,
@@ -2538,7 +2541,7 @@ class Crud
                         }
                     }
 
-                    $items[] = [
+                    $items[]       = [
                         'type'    => 'delete',
                         'label'   => $resolvedLabel,
                         'icon'    => $resolvedIcon,
@@ -2590,7 +2593,7 @@ class Crud
                         }
                     }
 
-                    $inputNameSource = isset($item['input_name']) ? (string) $item['input_name'] : 'exampleinput';
+                    $inputNameSource   = isset($item['input_name']) ? (string) $item['input_name'] : 'exampleinput';
                     $resolvedInputName = trim($this->applyPattern($inputNameSource, '', null, 'multi_link_button', $row));
                     if ($resolvedInputName === '') {
                         $resolvedInputName = 'exampleinput';
@@ -2604,7 +2607,7 @@ class Crud
                         }
                     }
 
-                    $items[] = [
+                    $items[]       = [
                         'type'       => 'input',
                         'url'        => $resolvedUrl,
                         'label'      => $resolvedLabel,
@@ -2658,7 +2661,7 @@ class Crud
                     }
                 }
 
-                $items[] = [
+                $items[]       = [
                     'type'    => 'link',
                     'url'     => $resolvedUrl,
                     'label'   => $resolvedLabel,
@@ -2725,15 +2728,15 @@ class Crud
      */
     private function presentCell(string $column, mixed $value, array $row, mixed $rawOriginal): array
     {
-        $display = $this->stringifyValue($value);
-        $displayOriginal = $display;
+        $display          = $this->stringifyValue($value);
+        $displayOriginal  = $display;
         $formattedDisplay = $display;
 
         $cut = $this->config['column_cuts'][$column]
             ?? $this->config['default_column_truncate']
             ?? null;
         if (is_array($cut) && isset($cut['length'])) {
-            $suffix = isset($cut['suffix']) ? (string) $cut['suffix'] : '…';
+            $suffix           = isset($cut['suffix']) ? (string) $cut['suffix'] : '…';
             $formattedDisplay = $this->truncateString($formattedDisplay, (int) $cut['length'], $suffix);
         }
 
@@ -2744,19 +2747,19 @@ class Crud
             $patternTemplate = trim((string) $patternEntry);
             if ($patternTemplate !== '') {
                 $patternOutput = $this->applyPattern($patternTemplate, $displayOriginal, $value, $column, $row, $formattedDisplay);
-                $html = $patternOutput;
+                $html          = $patternOutput;
             }
         }
 
         $display = $formattedDisplay;
 
-        $tooltip = null;
-        $attributes = [];
+        $tooltip     = null;
+        $attributes  = [];
         $cellClasses = [];
 
         if (isset($this->config['column_callbacks'][$column])) {
             $callbackEntry = $this->config['column_callbacks'][$column];
-            $callable = null;
+            $callable      = null;
 
             if (is_string($callbackEntry) && $callbackEntry !== '') {
                 $callable = $callbackEntry;
@@ -2766,12 +2769,12 @@ class Crud
 
             if ($callable !== null && is_callable($callable)) {
                 $formattedValue = $html !== null ? $html : $display;
-                $result = call_user_func($callable, $value, $row, $column, $formattedValue);
+                $result         = call_user_func($callable, $value, $row, $column, $formattedValue);
 
                 if ($result !== null) {
                     $stringResult = $this->stringifyValue($result);
-                    $html = $stringResult;
-                    $display = $stringResult;
+                    $html         = $stringResult;
+                    $display      = $stringResult;
                 }
             }
         }
@@ -2779,14 +2782,14 @@ class Crud
         if ($html === null && isset($this->config['custom_columns'][$column])) {
             $stringValue = $this->stringifyValue($value);
             if ($stringValue !== '') {
-                $html = $stringValue;
+                $html    = $stringValue;
                 $display = $stringValue;
             }
         }
 
         if ($html === null && isset($this->config['form']['behaviours']['change_type'][$column])) {
-            $change = $this->config['form']['behaviours']['change_type'][$column];
-            $type = is_array($change) && isset($change['type']) ? strtolower((string) $change['type']) : '';
+            $change       = $this->config['form']['behaviours']['change_type'][$column];
+            $type         = is_array($change) && isset($change['type']) ? strtolower((string) $change['type']) : '';
             $changeParams = is_array($change) && isset($change['params']) && is_array($change['params']) ? $change['params'] : null;
             if ($type === 'file') {
                 $raw = $rawOriginal;
@@ -2797,10 +2800,10 @@ class Crud
                 $fileName = trim($fileName);
                 if ($fileName !== '') {
                     $resolved = self::resolveStoredFileName($fileName, $changeParams);
-                    $target = $resolved !== '' ? $resolved : $fileName;
-                    $href = $this->buildPublicUploadUrl($target);
+                    $target   = $resolved !== '' ? $resolved : $fileName;
+                    $href     = $this->buildPublicUploadUrl($target);
                     $linkText = $display;
-                    $html = '<a href="' . $this->escapeHtml($href) . '" target="_blank" rel="noopener noreferrer">' . $this->escapeHtml($linkText) . '</a>';
+                    $html     = '<a href="' . $this->escapeHtml($href) . '" target="_blank" rel="noopener noreferrer">' . $this->escapeHtml($linkText) . '</a>';
                 }
             } elseif ($type === 'files') {
                 $raw = $rawOriginal;
@@ -2809,17 +2812,18 @@ class Crud
                 }
                 $names = $this->parseImageNameList($raw);
                 if ($changeParams !== null) {
-                    $names = array_values(array_filter(array_map(
-                        static fn(string $name): string => self::resolveStoredFileName($name, $changeParams),
-                        $names
-                    ), static fn(string $name): bool => $name !== ''));
+                    $names = array_values(array_filter(
+                        array_map(
+                            static fn(string $name): string => self::resolveStoredFileName($name, $changeParams),
+                            $names
+                        ), static fn(string $name): bool => $name !== ''));
                 }
                 if ($names !== []) {
                     $first = $names[0];
-                    $href = $this->buildPublicUploadUrl($first);
+                    $href  = $this->buildPublicUploadUrl($first);
                     $extra = count($names) > 1 ? ' (+' . (count($names) - 1) . ')' : '';
-                    $text = $this->extractFileName($first) . $extra;
-                    $html = '<a href="' . $this->escapeHtml($href) . '" target="_blank" rel="noopener noreferrer">' . $this->escapeHtml($text) . '</a>';
+                    $text  = $this->extractFileName($first) . $extra;
+                    $html  = '<a href="' . $this->escapeHtml($href) . '" target="_blank" rel="noopener noreferrer">' . $this->escapeHtml($text) . '</a>';
                 }
             } elseif (($type === 'image' || $type === 'images') && CrudConfig::$images_in_grid) {
                 $height = (int) CrudConfig::$images_in_grid_height;
@@ -2831,10 +2835,10 @@ class Crud
                     $fileName = trim($this->stringifyValue($raw));
                     if ($fileName !== '') {
                         $resolved = self::resolveStoredFileName($fileName, $changeParams);
-                        $target = $resolved !== '' ? $resolved : $fileName;
-                        $src = $this->buildPublicUploadUrl($target);
-                        $style = $height > 0 ? (' style="height: ' . $height . 'px; width: auto;"') : '';
-                        $html = '<img src="' . $this->escapeHtml($src) . '" alt="" class="img-thumbnail"' . $style . ' />';
+                        $target   = $resolved !== '' ? $resolved : $fileName;
+                        $src      = $this->buildPublicUploadUrl($target);
+                        $style    = $height > 0 ? (' style="height: ' . $height . 'px; width: auto;"') : '';
+                        $html     = '<img src="' . $this->escapeHtml($src) . '" alt="" class="img-thumbnail"' . $style . ' />';
                     }
                 } else {
                     $raw = $rawOriginal;
@@ -2843,16 +2847,17 @@ class Crud
                     }
                     $names = $this->parseImageNameList($raw);
                     if ($changeParams !== null) {
-                        $names = array_values(array_filter(array_map(
-                            static fn(string $name): string => self::resolveStoredFileName($name, $changeParams),
-                            $names
-                        ), static fn(string $name): bool => $name !== ''));
+                        $names = array_values(array_filter(
+                            array_map(
+                                static fn(string $name): string => self::resolveStoredFileName($name, $changeParams),
+                                $names
+                            ), static fn(string $name): bool => $name !== ''));
                     }
                     if ($names !== []) {
                         $first = $names[0];
-                        $src = $this->buildPublicUploadUrl($first);
+                        $src   = $this->buildPublicUploadUrl($first);
                         $style = $height > 0 ? (' style="height: ' . $height . 'px; width: auto;"') : '';
-                        $html = '<img src="' . $this->escapeHtml($src) . '" alt="" class="img-thumbnail"' . $style . ' />';
+                        $html  = '<img src="' . $this->escapeHtml($src) . '" alt="" class="img-thumbnail"' . $style . ' />';
                     }
                 }
             } elseif ($type === 'color') {
@@ -2864,8 +2869,8 @@ class Crud
                 if ($colorValue !== '') {
                     $accent = $this->resolveAccentColor($colorValue);
                     $swatch = '<span style="display:inline-block;width:14px;height:14px;border:1px solid rgba(0,0,0,.2);vertical-align:middle;background-color: ' . $this->escapeHtml($accent) . ';"></span>';
-                    $text = $this->escapeHtml($this->stringifyValue($value));
-                    $html = $swatch . ' ' . $text;
+                    $text   = $this->escapeHtml($this->stringifyValue($value));
+                    $html   = $swatch . ' ' . $text;
                 }
             }
         }
@@ -2875,7 +2880,7 @@ class Crud
             $isBoolean = false;
 
             // Only allow inline toggle for base table columns
-            $lower = strtolower($column);
+            $lower      = strtolower($column);
             $baseLookup = [];
             foreach ($this->getBaseTableColumns() as $baseCol) {
                 if (is_string($baseCol) && $baseCol !== '') {
@@ -2895,7 +2900,7 @@ class Crud
 
                 // 2) Infer from schema when not explicitly set
                 if (!$isBoolean) {
-                    $schema = $this->getTableSchema($this->table);
+                    $schema       = $this->getTableSchema($this->table);
                     $schemaLookup = [];
                     foreach ($schema as $name => $meta) {
                         if (is_string($name) && $name !== '' && is_array($meta)) {
@@ -2949,7 +2954,7 @@ class Crud
                 }
 
                 $condition = $entry['condition'] ?? null;
-                $class = isset($entry['class']) ? (string) $entry['class'] : '';
+                $class     = isset($entry['class']) ? (string) $entry['class'] : '';
                 if (!is_array($condition) || $class === '') {
                     continue;
                 }
@@ -2965,7 +2970,7 @@ class Crud
         return [
             'display'    => $display,
             'html'       => $html,
-            'class'      => trim(implode(' ', array_filter($cellClasses, static fn(string $class): bool => $class !== ''))),
+            'class'      => trim(implode(' ', array_filter($cellClasses, static fn(string $class): bool      => $class !== ''))),
             'tooltip'    => $tooltip,
             'attributes' => $attributes,
             'width'      => $width,
@@ -2991,8 +2996,8 @@ class Crud
         if (is_numeric($text)) {
             return (float) $text != 0.0;
         }
-        $truthy  = ['true', 't', 'yes', 'y', 'on', 'enabled', 'enable', 'active', 'checked'];
-        $falsy   = ['false', 'f', 'no', 'n', 'off', 'disabled', 'disable', 'inactive', 'unchecked', 'null', 'none'];
+        $truthy = ['true', 't', 'yes', 'y', 'on', 'enabled', 'enable', 'active', 'checked'];
+        $falsy  = ['false', 'f', 'no', 'n', 'off', 'disabled', 'disable', 'inactive', 'unchecked', 'null', 'none'];
         if (in_array($text, $truthy, true)) {
             return true;
         }
@@ -3021,7 +3026,7 @@ class Crud
         }
 
         // Normalize join
-        $base = rtrim($base, '/');
+        $base    = rtrim($base, '/');
         $segment = ltrim($name, '/');
         return $base . '/' . $segment;
     }
@@ -3042,9 +3047,9 @@ class Crud
             $str = substr($str, 0, $queryPos);
         }
         // Normalize separators and take last segment
-        $str = str_replace('\\', '/', $str);
+        $str   = str_replace('\\', '/', $str);
         $parts = explode('/', $str);
-        $last = end($parts);
+        $last  = end($parts);
         return $last !== false ? (string) $last : '';
     }
 
@@ -3056,7 +3061,8 @@ class Crud
     {
         $result = [];
 
-        $append = static function(array &$list, string $candidate): void {
+        $append = static function (array &$list, string $candidate): void
+        {
             $normalized = self::normalizeStoredImageName($candidate);
             if ($normalized !== '' && !in_array($normalized, $list, true)) {
                 $list[] = $normalized;
@@ -3146,7 +3152,7 @@ class Crud
         }
 
         if (preg_match('#^https?://#i', $candidate) === 1) {
-            $parsed = parse_url($candidate, PHP_URL_PATH) ?: '';
+            $parsed    = parse_url($candidate, PHP_URL_PATH) ?: '';
             $candidate = $parsed !== '' ? $parsed : '';
         }
 
@@ -3166,9 +3172,9 @@ class Crud
             array_shift($segments);
         }
 
-        $base = CrudConfig::getUploadPath();
-        $base = strtr(trim($base), ['\\' => '/']);
-        $base = preg_replace('#/+#', '/', $base) ?? $base;
+        $base         = CrudConfig::getUploadPath();
+        $base         = strtr(trim($base), ['\\' => '/']);
+        $base         = preg_replace('#/+#', '/', $base) ?? $base;
         $baseSegments = array_values(array_filter(explode('/', trim($base, '/')), static fn(string $segment): bool => $segment !== ''));
 
         if ($segments !== [] && $baseSegments !== []) {
@@ -3353,7 +3359,7 @@ class Crud
         return $this;
     }
 
-  
+
     /**
      * Apply a simple HTML/text template to the column's rendered value.
      *
@@ -3415,7 +3421,7 @@ class Crud
             }
 
             $this->config['column_callbacks'][$normalized] = $serialized;
-            $applied = true;
+            $applied                                       = true;
         }
 
         if (!$applied) {
@@ -3548,7 +3554,7 @@ class Crud
             }
 
             $this->config['field_callbacks'][$normalized] = $serialized;
-            $applied = true;
+            $applied                                      = true;
         }
 
         if (!$applied) {
@@ -3628,7 +3634,7 @@ class Crud
      */
     private function applyBatchCallbacks(array $definitions, string $type): bool
     {
-        $applied = false;
+        $applied  = false;
         $listKeys = $type === 'column' ? ['columns'] : ['fields', 'columns'];
 
         foreach ($definitions as $key => $definition) {
@@ -3652,23 +3658,23 @@ class Crud
      */
     private function normalizeBatchCallbackDefinition(int|string $key, mixed $definition, array $listKeys, string $type): array
     {
-        $targets = null;
+        $targets  = null;
         $callback = null;
 
         if (is_string($key)) {
-            $targets = $key;
+            $targets  = $key;
             $callback = $definition;
         } elseif (is_array($definition)) {
             foreach ($listKeys as $listKey) {
                 if (array_key_exists($listKey, $definition) && array_key_exists('callback', $definition)) {
-                    $targets = $definition[$listKey];
+                    $targets  = $definition[$listKey];
                     $callback = $definition['callback'];
                     break;
                 }
             }
 
             if ($targets === null && array_key_exists(0, $definition) && array_key_exists(1, $definition)) {
-                $targets = $definition[0];
+                $targets  = $definition[0];
                 $callback = $definition[1];
             }
         }
@@ -3787,7 +3793,7 @@ class Crud
             }
 
             $this->config['column_classes'][$normalized] = $classString;
-            $applied = true;
+            $applied                                     = true;
         }
 
         if (!$applied) {
@@ -3821,7 +3827,7 @@ class Crud
             }
 
             $this->config['column_widths'][$normalized] = $width;
-            $applied = true;
+            $applied                                    = true;
         }
 
         if (!$applied) {
@@ -3857,7 +3863,7 @@ class Crud
                 'length' => $length,
                 'suffix' => $suffix,
             ];
-            $applied = true;
+            $applied                                  = true;
         }
 
         if (!$applied) {
@@ -3987,7 +3993,7 @@ class Crud
 
     public function table_tooltip(string $tooltip): self
     {
-        $tooltip = trim($tooltip);
+        $tooltip                               = trim($tooltip);
         $this->config['table_meta']['tooltip'] = $tooltip === '' ? null : $tooltip;
 
         return $this;
@@ -3995,7 +4001,7 @@ class Crud
 
     public function table_icon(string $iconClass): self
     {
-        $iconClass = $this->normalizeCssClassList($iconClass);
+        $iconClass                          = $this->normalizeCssClassList($iconClass);
         $this->config['table_meta']['icon'] = $iconClass === '' ? null : $iconClass;
 
         return $this;
@@ -4080,7 +4086,7 @@ class Crud
     {
         $enabled = (bool) $enabled;
 
-        $this->config['table_meta']['batch_delete'] = $enabled;
+        $this->config['table_meta']['batch_delete']        = $enabled;
         $this->config['table_meta']['batch_delete_button'] = $enabled;
 
         return $this;
@@ -4111,7 +4117,7 @@ class Crud
                 continue;
             }
 
-            $name = isset($entry['name']) ? (string) $entry['name'] : '';
+            $name  = isset($entry['name']) ? (string) $entry['name'] : '';
             $label = isset($entry['label']) ? (string) $entry['label'] : $name;
 
             $options = $entry;
@@ -4207,7 +4213,7 @@ class Crud
 
         foreach ($assignments as $key => $definition) {
             if (is_int($key) && is_array($definition) && isset($definition['column'])) {
-                $column = (string) $definition['column'];
+                $column       = (string) $definition['column'];
                 $normalized[] = $this->normalizeSoftDeleteAssignment($column, $definition, 'literal');
                 continue;
             }
@@ -4239,7 +4245,7 @@ class Crud
             throw new InvalidArgumentException('Soft delete column name cannot be empty.');
         }
 
-        $mode = $defaultMode;
+        $mode  = $defaultMode;
         $value = null;
 
         if (is_array($definition)) {
@@ -4258,7 +4264,7 @@ class Crud
                 $value = $definition['value'];
             }
         } elseif ($definition !== null) {
-            $mode = 'literal';
+            $mode  = 'literal';
             $value = $definition;
         } else {
             if ($defaultMode !== 'timestamp') {
@@ -4404,16 +4410,16 @@ class Crud
         }
 
         $clauses = [];
-        $index = 0;
+        $index   = 0;
 
         foreach ($assignments as $assignment) {
-            $column = $assignment['column'];
-            $mode = $assignment['mode'];
+            $column    = $assignment['column'];
+            $mode      = $assignment['mode'];
             $columnSql = $this->quoteIdentifierPart($column);
 
             if ($mode === 'expression') {
-                $expression = (string) $assignment['value'];
-                $clauses[] = sprintf('%s = %s', $columnSql, $expression);
+                $expression              = (string) $assignment['value'];
+                $clauses[]               = sprintf('%s = %s', $columnSql, $expression);
                 $resolvedValues[$column] = null;
                 continue;
             }
@@ -4422,10 +4428,10 @@ class Crud
                 ? $this->generateSoftDeleteTimestamp()
                 : ($assignment['value'] ?? null);
 
-            $placeholder = sprintf(':%s_%d', $parameterPrefix, $index++);
-            $clauses[] = sprintf('%s = %s', $columnSql, $placeholder);
+            $placeholder              = sprintf(':%s_%d', $parameterPrefix, $index++);
+            $clauses[]                = sprintf('%s = %s', $columnSql, $placeholder);
             $parameters[$placeholder] = $value;
-            $resolvedValues[$column] = $value;
+            $resolvedValues[$column]  = $value;
         }
 
         return implode(', ', $clauses);
@@ -4453,7 +4459,7 @@ class Crud
             }
 
             $expected = $resolvedValues[$column] ?? null;
-            $actual = $row[$column];
+            $actual   = $row[$column];
 
             if ($expected === null) {
                 if ($actual !== null) {
@@ -4673,7 +4679,7 @@ class Crud
             throw new InvalidArgumentException('Summary precision cannot be negative.');
         }
 
-        $applied = false;
+        $applied    = false;
         $labelValue = $label ? trim($label) : null;
 
         foreach ($columnList as $column) {
@@ -4708,9 +4714,8 @@ class Crud
         bool $reverse = false,
         string|false $tab = false,
         string|array|false $mode = false,
-        string|false $section = false
-    ): self
-    {
+        string|false $section = false,
+    ): self {
         $list = $this->normalizeList($fields);
         if ($list === []) {
             throw new InvalidArgumentException('Field configuration list cannot be empty.');
@@ -4731,13 +4736,13 @@ class Crud
         $tabName = null;
         if ($tab !== false) {
             $candidate = trim((string) $tab);
-            $tabName = $candidate === '' ? null : $candidate;
+            $tabName   = $candidate === '' ? null : $candidate;
         }
 
         $sectionName = null;
         if ($section !== false) {
             $sectionCandidate = $this->normalizeSectionIdentifier((string) $section);
-            $sectionName = $sectionCandidate === '' ? null : $sectionCandidate;
+            $sectionName      = $sectionCandidate === '' ? null : $sectionCandidate;
         }
 
         $modes = $this->normalizeFormModes($mode);
@@ -4783,35 +4788,35 @@ class Crud
         $title = null;
         if (isset($definition['title']) && is_string($definition['title'])) {
             $trimmedTitle = trim($definition['title']);
-            $title = $trimmedTitle === '' ? null : $trimmedTitle;
+            $title        = $trimmedTitle === '' ? null : $trimmedTitle;
         }
 
         $description = null;
         if (isset($definition['description']) && is_string($definition['description'])) {
             $trimmedDescription = trim($definition['description']);
-            $description = $trimmedDescription === '' ? null : $trimmedDescription;
+            $description        = $trimmedDescription === '' ? null : $trimmedDescription;
         }
 
         $icon = null;
         if (isset($definition['icon']) && is_string($definition['icon'])) {
             $iconCandidate = $this->normalizeCssClassList($definition['icon']);
-            $icon = $iconCandidate === '' ? null : $iconCandidate;
+            $icon          = $iconCandidate === '' ? null : $iconCandidate;
         }
 
         $sectionClass = null;
         if (isset($definition['class']) && is_string($definition['class'])) {
             $classCandidate = $this->normalizeCssClassList($definition['class']);
-            $sectionClass = $classCandidate === '' ? null : $classCandidate;
+            $sectionClass   = $classCandidate === '' ? null : $classCandidate;
         }
 
         $titleClass = null;
         if (isset($definition['title_class']) && is_string($definition['title_class'])) {
             $titleClassCandidate = $this->normalizeCssClassList($definition['title_class']);
-            $titleClass = $titleClassCandidate === '' ? null : $titleClassCandidate;
+            $titleClass          = $titleClassCandidate === '' ? null : $titleClassCandidate;
         }
 
         $collapsible = !empty($definition['collapsible']);
-        $collapsed = false;
+        $collapsed   = false;
         if (isset($definition['collapsed'])) {
             $collapsed = (bool) $definition['collapsed'];
         } elseif (isset($definition['start_collapsed'])) {
@@ -4871,7 +4876,7 @@ class Crud
         $modes = $this->normalizeFormModes($mode);
 
         foreach ($modes as $targetMode) {
-            $bucket = $targetMode === 'all' ? 'all' : $targetMode;
+            $bucket                                        = $targetMode === 'all' ? 'all' : $targetMode;
             $this->config['form']['default_tabs'][$bucket] = $tabName;
         }
 
@@ -4927,7 +4932,7 @@ class Crud
             return null;
         }
 
-        $normalized = $this->normalizeColumnReference($field);
+        $normalized  = $this->normalizeColumnReference($field);
         $definitions = $this->config['form']['behaviours']['change_type'] ?? [];
 
         $candidate = $definitions[$normalized] ?? $definitions[$field] ?? null;
@@ -5252,10 +5257,10 @@ class Crud
                 }
 
                 $trimmedAlias = trim((string) $value);
-                $aliasList[] = $trimmedAlias === '' ? null : $trimmedAlias;
+                $aliasList[]  = $trimmedAlias === '' ? null : $trimmedAlias;
             }
         } elseif (is_string($alias)) {
-            $trimmed = trim($alias);
+            $trimmed   = trim($alias);
             $baseAlias = $trimmed === '' ? null : $trimmed;
         }
 
@@ -5296,7 +5301,7 @@ class Crud
         string|array $relName,
         array $relWhere = [],
         string|false $orderBy = false,
-        bool $multi = false
+        bool $multi = false,
     ): self {
         $fieldList = $this->normalizeList($fields);
         if ($fieldList === []) {
@@ -5360,7 +5365,7 @@ class Crud
         string $parentColumn,
         string $innerTable,
         string $innerTableField,
-        ?callable $configurator = null
+        ?callable $configurator = null,
     ): self {
         $name = trim($instanceName);
         if ($name === '') {
@@ -5388,11 +5393,11 @@ class Crud
         }
 
         $this->nestedTables[$name] = [
-            'name'               => $name,
-            'parent_column'      => $normalizedParentColumn,
-            'parent_column_raw'  => trim($parentColumn),
-            'foreign_column'     => $foreignColumn,
-            'crud'               => $child,
+            'name'              => $name,
+            'parent_column'     => $normalizedParentColumn,
+            'parent_column_raw' => trim($parentColumn),
+            'foreign_column'    => $foreignColumn,
+            'crud'              => $child,
         ];
 
         return $child;
@@ -5401,7 +5406,7 @@ class Crud
     private function addWhereCondition(string $condition, string $glue): void
     {
         $normalizedGlue = strtoupper($glue) === 'OR' ? 'OR' : 'AND';
-        $trimmed = trim($condition);
+        $trimmed        = trim($condition);
 
         if ($trimmed === '') {
             throw new InvalidArgumentException('Condition expression cannot be empty.');
@@ -5465,26 +5470,26 @@ class Crud
                 }
 
                 $placeholders = [];
-                $index = 0;
+                $index        = 0;
                 foreach ($value as $item) {
                     $placeholder = sprintf(':w_%d_%d', $counter, $index++);
                     if (in_array($column, $this->config['no_quotes'], true)) {
                         $placeholders[] = (string) $item;
                     } else {
                         $parameters[$placeholder] = $item;
-                        $placeholders[] = $placeholder;
+                        $placeholders[]           = $placeholder;
                     }
                 }
 
-                $list = implode(', ', $placeholders);
+                $list   = implode(', ', $placeholders);
                 $clause = sprintf('%s %s (%s)', $column, $operator, $list);
             } else {
                 if (in_array($column, $this->config['no_quotes'], true)) {
                     $clause = sprintf('%s %s %s', $column, $operator, (string) $value);
                 } else {
-                    $placeholder = sprintf(':w_%d', $counter);
+                    $placeholder              = sprintf(':w_%d', $counter);
                     $parameters[$placeholder] = $value;
-                    $clause = sprintf('%s %s %s', $column, $operator, $placeholder);
+                    $clause                   = sprintf('%s %s %s', $column, $operator, $placeholder);
                 }
             }
 
@@ -5505,7 +5510,7 @@ class Crud
                 ? 'OR'
                 : 'AND';
 
-            $qbClauses = [];
+            $qbClauses            = [];
             $qbPlaceholderCounter = 0;
 
             foreach ($queryFilters as $filter) {
@@ -5533,8 +5538,8 @@ class Crud
 
         if ($searchTerm !== null && $searchTerm !== '') {
             $configuredColumns = $this->config['search_columns'];
-            $map = $this->getWhereColumnsMapForAllSearch(); // display => expr
-            $targetExpr = null;
+            $map               = $this->getWhereColumnsMapForAllSearch(); // display => expr
+            $targetExpr        = null;
 
             if ($searchColumn !== null && $searchColumn !== '') {
                 if (isset($map[$searchColumn])) {
@@ -5545,9 +5550,9 @@ class Crud
             }
 
             if ($targetExpr !== null && $targetExpr !== '') {
-                $placeholder = ':search_term';
+                $placeholder              = ':search_term';
                 $parameters[$placeholder] = '%' . $searchTerm . '%';
-                $isJsonColumn = isset($this->searchableColumnMeta[$searchColumn])
+                $isJsonColumn             = isset($this->searchableColumnMeta[$searchColumn])
                     ? (bool) ($this->searchableColumnMeta[$searchColumn]['is_json'] ?? false)
                     : false;
 
@@ -5560,12 +5565,14 @@ class Crud
                 // When "All" is selected (or no specific/allowed column picked),
                 // start with visible grid columns and always merge configured search columns
                 // so hidden-but-searchable fields are still queried.
-                $exprList = [];
+                $exprList  = [];
                 $seenExprs = [];
 
                 foreach ($map as $displayColumn => $expr) {
-                    if ($expr === '') { continue; }
-                    $exprList[] = ['expr' => $expr, 'key' => $displayColumn];
+                    if ($expr === '') {
+                        continue;
+                    }
+                    $exprList[]       = ['expr' => $expr, 'key' => $displayColumn];
                     $seenExprs[$expr] = true;
                 }
 
@@ -5574,7 +5581,7 @@ class Crud
                     if ($expr === '' || isset($seenExprs[$expr])) {
                         continue;
                     }
-                    $exprList[] = ['expr' => $expr, 'key' => null];
+                    $exprList[]       = ['expr' => $expr, 'key' => null];
                     $seenExprs[$expr] = true;
                 }
 
@@ -5582,11 +5589,13 @@ class Crud
                 $value = '%' . $searchTerm . '%';
                 foreach ($exprList as $idx => $entry) {
                     $expr = $entry['expr'];
-                    if ($expr === '') { continue; }
-                    $ph = ':search_term_' . $idx;
+                    if ($expr === '') {
+                        continue;
+                    }
+                    $ph              = ':search_term_' . $idx;
                     $parameters[$ph] = $value;
-                    $key = $entry['key'];
-                    $isJsonColumn = $key !== null
+                    $key             = $entry['key'];
+                    $isJsonColumn    = $key !== null
                         ? (bool) ($this->searchableColumnMeta[$key]['is_json'] ?? false)
                         : false;
 
@@ -5614,7 +5623,7 @@ class Crud
         $sql = '';
         foreach ($clauses as $index => $entry) {
             $prefix = $index === 0 ? '' : ' ' . $entry['glue'] . ' ';
-            $sql   .= $prefix . $entry['clause'];
+            $sql .= $prefix . $entry['clause'];
         }
 
         return $sql;
@@ -5688,8 +5697,10 @@ class Crud
             return $part;
         }
         // If already quoted, return as-is
-        if ((str_starts_with($trimmed, '`') && str_ends_with($trimmed, '`')) ||
-            (str_starts_with($trimmed, '"') && str_ends_with($trimmed, '"'))) {
+        if (
+            (str_starts_with($trimmed, '`') && str_ends_with($trimmed, '`')) ||
+            (str_starts_with($trimmed, '"') && str_ends_with($trimmed, '"'))
+        ) {
             return $trimmed;
         }
 
@@ -5709,10 +5720,12 @@ class Crud
             return $expr;
         }
 
-        $parts = explode('.', $expr);
+        $parts  = explode('.', $expr);
         $quoted = [];
         foreach ($parts as $p) {
-            if ($p === '') { continue; }
+            if ($p === '') {
+                continue;
+            }
             $quoted[] = $this->quoteIdentifierPart($p);
         }
         return implode('.', $quoted);
@@ -5747,7 +5760,7 @@ class Crud
         return $this->quoteQualifiedIdentifier($raw);
     }
 
-    
+
 
     /**
      * Map visible display columns to WHERE-capable SQL expressions.
@@ -5770,7 +5783,7 @@ class Crud
         // Build alias => table map for later schema lookups
         $aliasToTable = [];
         foreach ($this->config['joins'] as $index => $join) {
-            $alias = isset($join['alias']) && is_string($join['alias']) && $join['alias'] !== ''
+            $alias                = isset($join['alias']) && is_string($join['alias']) && $join['alias'] !== ''
                 ? $join['alias']
                 : ('j' . $index);
             $aliasToTable[$alias] = $join['table'];
@@ -5797,7 +5810,7 @@ class Crud
         foreach ($this->config['subselects'] as $sub) {
             $name = isset($sub['column']) ? (string) $sub['column'] : '';
             if ($name !== '') {
-                $available[] = $name;
+                $available[]           = $name;
                 $subselectNames[$name] = true;
             }
         }
@@ -5809,25 +5822,39 @@ class Crud
         }
 
         // Load schemas to filter out non-LIKE-able types
-        $mainSchema = $this->getTableSchema($this->table);
+        $mainSchema  = $this->getTableSchema($this->table);
         $joinSchemas = [];
         foreach ($aliasToTable as $alias => $table) {
             $joinSchemas[$alias] = $this->getTableSchema($table);
         }
 
-        $isSearchableType = static function (?string $type) use ($supportsJsonSearch): bool {
+        $isSearchableType = static function (?string $type) use ($supportsJsonSearch): bool
+        {
             if ($type === null || $type === '') {
                 return true;
             }
-            $t = strtolower($type);
+            $t     = strtolower($type);
             $paren = strpos($t, '(');
             if ($paren !== false) {
                 $t = substr($t, 0, $paren);
             }
             $blocked = [
-                'json','blob','tinyblob','mediumblob','longblob',
-                'binary','varbinary','bit',
-                'geometry','point','linestring','polygon','multipoint','multilinestring','multipolygon','geometrycollection'
+                'json',
+                'blob',
+                'tinyblob',
+                'mediumblob',
+                'longblob',
+                'binary',
+                'varbinary',
+                'bit',
+                'geometry',
+                'point',
+                'linestring',
+                'polygon',
+                'multipoint',
+                'multilinestring',
+                'multipolygon',
+                'geometrycollection',
             ];
             if ($supportsJsonSearch) {
                 $blocked = array_values(array_diff($blocked, ['json', 'jsonb']));
@@ -5851,23 +5878,23 @@ class Crud
 
             if (strpos($displayCol, '__') !== false) {
                 [$alias, $name] = array_map('trim', explode('__', $displayCol, 2));
-                $typeMeta = $joinSchemas[$alias][$name]['type'] ?? null;
-                $typeString = is_string($typeMeta) ? $typeMeta : null;
-                $isJsonType = $this->isJsonColumnType($typeString);
+                $typeMeta       = $joinSchemas[$alias][$name]['type'] ?? null;
+                $typeString     = is_string($typeMeta) ? $typeMeta : null;
+                $isJsonType     = $this->isJsonColumnType($typeString);
                 if ($isJsonType && !$supportsJsonSearch) {
                     continue;
                 }
                 if (!$isJsonType && !$isSearchableType($typeString)) {
                     continue;
                 }
-                $expr = $this->quoteQualifiedIdentifier($alias . '.' . $name);
-                $map[$displayCol] = $expr;
+                $expr                                    = $this->quoteQualifiedIdentifier($alias . '.' . $name);
+                $map[$displayCol]                        = $expr;
                 $this->searchableColumnMeta[$displayCol] = [
-                    'expr' => $expr,
+                    'expr'    => $expr,
                     'is_json' => $isJsonType,
                 ];
             } else {
-                $typeMeta = $mainSchema[$displayCol]['type'] ?? null;
+                $typeMeta   = $mainSchema[$displayCol]['type'] ?? null;
                 $typeString = is_string($typeMeta) ? $typeMeta : null;
                 $isJsonType = $this->isJsonColumnType($typeString);
                 if ($isJsonType && !$supportsJsonSearch) {
@@ -5876,10 +5903,10 @@ class Crud
                 if (!$isJsonType && !$isSearchableType($typeString)) {
                     continue;
                 }
-                $expr = $this->quoteQualifiedIdentifier('main.' . $displayCol);
-                $map[$displayCol] = $expr;
+                $expr                                    = $this->quoteQualifiedIdentifier('main.' . $displayCol);
+                $map[$displayCol]                        = $expr;
                 $this->searchableColumnMeta[$displayCol] = [
-                    'expr' => $expr,
+                    'expr'    => $expr,
                     'is_json' => $isJsonType,
                 ];
             }
@@ -5896,13 +5923,13 @@ class Crud
         $selectParts = ['main.*'];
 
         foreach ($this->config['subselects'] as $subselect) {
-            $column = $subselect['column'];
-            $sql    = $subselect['sql'];
+            $column        = $subselect['column'];
+            $sql           = $subselect['sql'];
             $selectParts[] = sprintf('(%s) AS %s', $sql, $column);
         }
 
         foreach ($this->config['joins'] as $index => $join) {
-            $alias = $join['alias'] ?? ('j' . $index);
+            $alias   = $join['alias'] ?? ('j' . $index);
             $columns = $this->getTableColumnsFor($join['table']);
             foreach ($columns as $column) {
                 $selectParts[] = sprintf('%s.%s AS %s__%s', $alias, $column, $alias, $column);
@@ -5916,7 +5943,7 @@ class Crud
             $sql .= ' ' . $joins;
         }
 
-        $parameters = [];
+        $parameters  = [];
         $whereClause = $this->buildWhereClause($parameters, $searchTerm, $searchColumn);
         if ($whereClause !== '') {
             $sql .= ' WHERE ' . $whereClause;
@@ -5935,7 +5962,7 @@ class Crud
                 if (!is_array($order) || !isset($order['field'], $order['direction'])) {
                     continue;
                 }
-                $field = (string) $order['field'];
+                $field      = (string) $order['field'];
                 $normalized = $this->normalizeColumnReference($field);
                 if ($normalized !== '' && isset($disabled[$normalized])) {
                     // Skip disabled columns from ORDER BY
@@ -5944,7 +5971,7 @@ class Crud
 
                 // Build a safe SQL expression for ORDER BY
                 // Support alias__column notation and quote identifiers when applicable.
-                $expr = $this->denormalizeColumnReference($normalized);
+                $expr         = $this->denormalizeColumnReference($normalized);
                 $isExpression = (str_contains($expr, ' ') || str_contains($expr, '(') || str_contains($expr, ')'));
                 if (!$isExpression) {
                     if (strpos($expr, '.') === false) {
@@ -5996,8 +6023,8 @@ class Crud
 
         $parts = [];
         foreach ($this->config['joins'] as $index => $join) {
-            $alias = $join['alias'] ?? ('j' . $index);
-            $left  = strpos($join['field'], '.') !== false ? $join['field'] : 'main.' . $join['field'];
+            $alias   = $join['alias'] ?? ('j' . $index);
+            $left    = strpos($join['field'], '.') !== false ? $join['field'] : 'main.' . $join['field'];
             $parts[] = sprintf(
                 'LEFT JOIN %s AS %s ON %s = %s.%s',
                 $join['table'],
@@ -6018,16 +6045,16 @@ class Crud
     {
         // Use COUNT(DISTINCT main.pk) when joins are present to avoid overcounting
         $useDistinct = $this->config['joins'] !== [];
-        $pkExpr = $this->quoteQualifiedIdentifier('main.' . $this->getPrimaryKeyColumn());
-        $countExpr = $useDistinct ? ('COUNT(DISTINCT ' . $pkExpr . ')') : 'COUNT(*)';
-        $sql = sprintf('SELECT %s FROM %s', $countExpr, $this->buildFromClause());
+        $pkExpr      = $this->quoteQualifiedIdentifier('main.' . $this->getPrimaryKeyColumn());
+        $countExpr   = $useDistinct ? ('COUNT(DISTINCT ' . $pkExpr . ')') : 'COUNT(*)';
+        $sql         = sprintf('SELECT %s FROM %s', $countExpr, $this->buildFromClause());
 
         $joins = $this->buildJoinClauses();
         if ($joins !== '') {
             $sql .= ' ' . $joins;
         }
 
-        $parameters = [];
+        $parameters  = [];
         $whereClause = $this->buildWhereClause($parameters, $searchTerm, $searchColumn);
         if ($whereClause !== '') {
             $sql .= ' WHERE ' . $whereClause;
@@ -6088,14 +6115,14 @@ class Crud
             $placeholders = [];
             $parameters   = [];
             foreach ($values as $valueIndex => $value) {
-                $placeholder = sprintf(':rel_%d_%d', $index, $valueIndex);
-                $placeholders[] = $placeholder;
+                $placeholder              = sprintf(':rel_%d_%d', $index, $valueIndex);
+                $placeholders[]           = $placeholder;
                 $parameters[$placeholder] = $value;
             }
 
             $selectColumns = [$relatedField . ' AS relation_key'];
             foreach ($nameFields as $nameIndex => $nameField) {
-                $alias = sprintf('relation_value_%d', $nameIndex);
+                $alias           = sprintf('relation_value_%d', $nameIndex);
                 $selectColumns[] = sprintf('%s AS %s', $nameField, $alias);
             }
 
@@ -6110,9 +6137,9 @@ class Crud
             if (!empty($relation['where']) && is_array($relation['where'])) {
                 $conditions = [];
                 foreach ($relation['where'] as $whereField => $whereValue) {
-                    $placeholder = sprintf(':rel_%d_w_%s', $index, count($parameters));
+                    $placeholder              = sprintf(':rel_%d_w_%s', $index, count($parameters));
                     $parameters[$placeholder] = $whereValue;
-                    $conditions[] = sprintf('%s = %s', $whereField, $placeholder);
+                    $conditions[]             = sprintf('%s = %s', $whereField, $placeholder);
                 }
 
                 if ($conditions !== []) {
@@ -6144,7 +6171,7 @@ class Crud
 
                 $parts = [];
                 foreach ($nameFields as $nameIndex => $nameField) {
-                    $alias = sprintf('relation_value_%d', $nameIndex);
+                    $alias   = sprintf('relation_value_%d', $nameIndex);
                     $parts[] = $relatedRow[$alias] ?? '';
                 }
 
@@ -6171,7 +6198,7 @@ class Crud
                     }
                     $rows[$rowIndex][$field] = implode(', ', $labels);
                 } else {
-                    $key = (string) $currentValue;
+                    $key                     = (string) $currentValue;
                     $rows[$rowIndex][$field] = $map[$key] ?? $currentValue;
                 }
             }
@@ -6194,10 +6221,10 @@ class Crud
         }
 
         $filteredRows = [];
-        $baseColumns = $this->getBaseTableColumns();
+        $baseColumns  = $this->getBaseTableColumns();
         foreach ($rows as $row) {
             $filteredRow = [
-                '__fastcrud_primary_key' => $row['__fastcrud_primary_key'] ?? null,
+                '__fastcrud_primary_key'   => $row['__fastcrud_primary_key'] ?? null,
                 '__fastcrud_primary_value' => $row['__fastcrud_primary_value'] ?? null,
             ];
             foreach ($visible as $column) {
@@ -6247,13 +6274,13 @@ class Crud
         }
 
         $result = [];
-        $added = [];
+        $added  = [];
 
         foreach ($configured as $column) {
             if ($column === '*') {
                 foreach ($available as $candidate) {
                     if (!isset($added[$candidate])) {
-                        $result[] = $candidate;
+                        $result[]          = $candidate;
                         $added[$candidate] = true;
                     }
                 }
@@ -6261,7 +6288,7 @@ class Crud
             }
 
             if (isset($availableLookup[$column]) && !isset($added[$column])) {
-                $result[] = $column;
+                $result[]       = $column;
                 $added[$column] = true;
             }
         }
@@ -6316,7 +6343,7 @@ class Crud
         }
 
         $columns = [];
-        $count = $statement->columnCount();
+        $count   = $statement->columnCount();
 
         for ($index = 0; $index < $count; $index++) {
             $meta = $statement->getColumnMeta($index) ?: [];
@@ -6377,9 +6404,9 @@ class Crud
      */
     private function loadMysqlTableSchema(string $table): array
     {
-        $schema = [];
+        $schema       = [];
         $escapedTable = str_replace('`', '``', $table);
-        $sql = sprintf('SHOW FULL COLUMNS FROM `%s`', $escapedTable);
+        $sql          = sprintf('SHOW FULL COLUMNS FROM `%s`', $escapedTable);
 
         try {
             $statement = $this->connection->query($sql);
@@ -6397,14 +6424,14 @@ class Crud
                 continue;
             }
 
-            $rawType = isset($row['Type']) ? (string) $row['Type'] : null;
-            $type = $rawType !== null ? strtolower($rawType) : null;
+            $rawType    = isset($row['Type']) ? (string) $row['Type'] : null;
+            $type       = $rawType !== null ? strtolower($rawType) : null;
             $enumValues = $rawType !== null ? $this->parseEnumDefinition($rawType) : [];
 
             $schema[$field] = [
-                'type' => $type,
+                'type'     => $type,
                 'raw_type' => $row['Type'] ?? null,
-                'meta' => $row,
+                'meta'     => $row,
             ];
 
             if ($enumValues !== []) {
@@ -6429,8 +6456,8 @@ class Crud
                         continue;
                     }
 
-                    $actualColumn = $normalizedLookup[$normalized];
-                    $schema[$actualColumn]['type'] = 'json';
+                    $actualColumn                      = $normalizedLookup[$normalized];
+                    $schema[$actualColumn]['type']     = 'json';
                     $schema[$actualColumn]['raw_type'] = 'json';
                     if (!isset($schema[$actualColumn]['meta']) || !is_array($schema[$actualColumn]['meta'])) {
                         $schema[$actualColumn]['meta'] = [];
@@ -6454,7 +6481,7 @@ class Crud
         }
 
         $escapedTable = str_replace('`', '``', $table);
-        $sql = sprintf('SHOW CREATE TABLE `%s`', $escapedTable);
+        $sql          = sprintf('SHOW CREATE TABLE `%s`', $escapedTable);
 
         try {
             $statement = $this->connection->query($sql);
@@ -6533,8 +6560,8 @@ SQL;
                 continue;
             }
 
-            $dataType = isset($row['data_type']) ? strtolower((string) $row['data_type']) : null;
-            $udtName  = isset($row['udt_name']) ? strtolower((string) $row['udt_name']) : null;
+            $dataType  = isset($row['data_type']) ? strtolower((string) $row['data_type']) : null;
+            $udtName   = isset($row['udt_name']) ? strtolower((string) $row['udt_name']) : null;
             $udtSchema = isset($row['udt_schema']) ? (string) $row['udt_schema'] : null;
 
             $enumValues = [];
@@ -6543,10 +6570,10 @@ SQL;
             }
 
             $schema[$field] = [
-                'type' => $dataType ?: $udtName,
+                'type'      => $dataType ?: $udtName,
                 'data_type' => $dataType,
-                'udt_name' => $udtName,
-                'meta' => $row,
+                'udt_name'  => $udtName,
+                'meta'      => $row,
             ];
 
             if ($enumValues !== []) {
@@ -6628,7 +6655,7 @@ SQL;
     private function loadSqliteTableSchema(string $table): array
     {
         $schema = [];
-        $sql = sprintf("PRAGMA table_info('%s')", $table);
+        $sql    = sprintf("PRAGMA table_info('%s')", $table);
 
         try {
             $statement = $this->connection->query($sql);
@@ -6649,9 +6676,9 @@ SQL;
             $type = isset($row['type']) ? strtolower((string) $row['type']) : null;
 
             $schema[$field] = [
-                'type' => $type,
+                'type'     => $type,
                 'raw_type' => $row['type'] ?? null,
-                'meta' => $row,
+                'meta'     => $row,
             ];
         }
 
@@ -6666,7 +6693,7 @@ SQL;
     private function loadGenericTableSchema(string $table): array
     {
         $schema = [];
-        $sql = sprintf('SELECT * FROM %s LIMIT 0', $table);
+        $sql    = sprintf('SELECT * FROM %s LIMIT 0', $table);
 
         try {
             $statement = $this->connection->query($sql);
@@ -6681,7 +6708,7 @@ SQL;
         $count = $statement->columnCount();
 
         for ($index = 0; $index < $count; $index++) {
-            $meta = $statement->getColumnMeta($index) ?: [];
+            $meta  = $statement->getColumnMeta($index) ?: [];
             $field = $meta['name'] ?? null;
             if (!is_string($field) || $field === '') {
                 continue;
@@ -6725,7 +6752,7 @@ SQL;
      */
     private function inferDefaultChangeTypes(array $columns): array
     {
-        $defaults = [];
+        $defaults  = [];
         $columnMap = [];
         foreach ($columns as $column) {
             if (!is_string($column) || $column === '') {
@@ -6794,15 +6821,15 @@ SQL;
             $originalField = $columnMap[$field];
 
             $options = $this->fetchRelationOptions($relation);
-            $params = [];
+            $params  = [];
             if ($options !== []) {
                 $params['values'] = $options;
             }
 
             $defaults[$originalField] = [
-                'type' => !empty($relation['multi']) ? 'multiselect' : 'select',
+                'type'    => !empty($relation['multi']) ? 'multiselect' : 'select',
                 'default' => '',
-                'params' => $params,
+                'params'  => $params,
             ];
         }
 
@@ -6815,17 +6842,17 @@ SQL;
      */
     private function fetchRelationOptions(array $relation): array
     {
-        $field = isset($relation['field']) ? (string) $relation['field'] : '';
-        $table = isset($relation['table']) ? (string) $relation['table'] : '';
+        $field        = isset($relation['field']) ? (string) $relation['field'] : '';
+        $table        = isset($relation['table']) ? (string) $relation['table'] : '';
         $relatedField = isset($relation['related_field']) ? (string) $relation['related_field'] : '';
-        $nameFields = isset($relation['related_name']) ? (array) $relation['related_name'] : [];
+        $nameFields   = isset($relation['related_name']) ? (array) $relation['related_name'] : [];
 
         if ($field === '' || $table === '' || $relatedField === '') {
             return [];
         }
 
         $cacheKeyParts = [$table, $relatedField, $nameFields, $relation['where'] ?? [], $relation['order_by'] ?? null];
-        $cacheKey = md5(json_encode($cacheKeyParts) ?: serialize($cacheKeyParts));
+        $cacheKey      = md5(json_encode($cacheKeyParts) ?: serialize($cacheKeyParts));
         if (isset($this->relationOptionsCache[$cacheKey])) {
             return $this->relationOptionsCache[$cacheKey];
         }
@@ -6835,11 +6862,11 @@ SQL;
             if (!is_string($nameField) || trim($nameField) === '') {
                 continue;
             }
-            $alias = sprintf('relation_value_%d', $index);
+            $alias           = sprintf('relation_value_%d', $index);
             $selectColumns[] = sprintf('%s AS %s', $nameField, $alias);
         }
 
-        $sql = sprintf('SELECT %s FROM %s', implode(', ', $selectColumns), $table);
+        $sql        = sprintf('SELECT %s FROM %s', implode(', ', $selectColumns), $table);
         $parameters = [];
         $conditions = [];
 
@@ -6848,9 +6875,9 @@ SQL;
                 if (!is_string($whereField) || trim($whereField) === '') {
                     continue;
                 }
-                $placeholder = sprintf(':relopt_%s_%d', preg_replace('/[^a-z0-9_]+/i', '_', $field), count($parameters));
+                $placeholder              = sprintf(':relopt_%s_%d', preg_replace('/[^a-z0-9_]+/i', '_', $field), count($parameters));
                 $parameters[$placeholder] = $whereValue;
-                $conditions[] = sprintf('%s = %s', $whereField, $placeholder);
+                $conditions[]             = sprintf('%s = %s', $whereField, $placeholder);
             }
         }
 
@@ -6891,7 +6918,7 @@ SQL;
                 if (!is_string($nameField) || trim($nameField) === '') {
                     continue;
                 }
-                $alias = sprintf('relation_value_%d', $index);
+                $alias   = sprintf('relation_value_%d', $index);
                 $parts[] = $row[$alias] ?? '';
             }
 
@@ -6980,7 +7007,7 @@ SQL;
             return [];
         }
 
-        $open = strpos($trimmed, '(');
+        $open  = strpos($trimmed, '(');
         $close = strrpos($trimmed, ')');
         if ($open === false || $close === false || $close <= $open) {
             return [];
@@ -7025,10 +7052,10 @@ SQL;
      */
     private function parseEnumValueList(string $body): array
     {
-        $values = [];
-        $length = strlen($body);
-        $buffer = '';
-        $inValue = false;
+        $values     = [];
+        $length     = strlen($body);
+        $buffer     = '';
+        $inValue    = false;
         $escapeNext = false;
 
         for ($index = 0; $index < $length; $index++) {
@@ -7054,8 +7081,8 @@ SQL;
                     }
 
                     $values[] = $buffer;
-                    $buffer = '';
-                    $inValue = false;
+                    $buffer   = '';
+                    $inValue  = false;
                 } else {
                     $inValue = true;
                 }
@@ -7087,17 +7114,17 @@ SQL;
             }
 
             return [
-                'type' => 'select',
+                'type'    => 'select',
                 'default' => $default,
-                'params' => ['values' => $enumValues],
+                'params'  => ['values' => $enumValues],
             ];
         }
 
-        $typeInfo = $this->detectSqlTypeInfo($columnMeta);
-        $rawType = $typeInfo['raw'];
+        $typeInfo       = $this->detectSqlTypeInfo($columnMeta);
+        $rawType        = $typeInfo['raw'];
         $normalizedType = $typeInfo['normalized'];
 
-        $params = [];
+        $params     = [];
         $changeType = null;
 
         if ($rawType !== '' && (preg_match('/tinyint\s*\(\s*1\s*\)/', $rawType) || preg_match('/bit\s*\(\s*1\s*\)/', $rawType))) {
@@ -7128,9 +7155,9 @@ SQL;
         }
 
         return [
-            'type' => $changeType,
+            'type'    => $changeType,
             'default' => '',
-            'params' => $params,
+            'params'  => $params,
         ];
     }
 
@@ -7157,7 +7184,7 @@ SQL;
             }
         }
 
-        $rawType = $candidates[0] ?? '';
+        $rawType        = $candidates[0] ?? '';
         $normalizedType = '';
 
         foreach ($candidates as $candidate) {
@@ -7169,7 +7196,7 @@ SQL;
         }
 
         return [
-            'raw' => $rawType,
+            'raw'        => $rawType,
             'normalized' => $normalizedType,
         ];
     }
@@ -7190,7 +7217,7 @@ SQL;
 
     private function isNumericType(string $normalizedType): bool
     {
-        $tokens = preg_split('/\s+/', $normalizedType) ?: [];
+        $tokens        = preg_split('/\s+/', $normalizedType) ?: [];
         $numericTokens = [
             'int',
             'integer',
@@ -7263,11 +7290,11 @@ SQL;
     public function render(?string $mode = null, mixed $primaryKeyValue = null): string
     {
         $normalizedMode = $this->normalizeRenderMode($mode);
-        $formOnly = $normalizedMode !== null;
+        $formOnly       = $normalizedMode !== null;
 
-        $rawId  = $this->id;
-        $id     = $this->escapeHtml($rawId);
-        $table  = $this->escapeHtml($this->table);
+        $rawId   = $this->id;
+        $id      = $this->escapeHtml($rawId);
+        $table   = $this->escapeHtml($this->table);
         $perPage = $this->perPage;
 
         // Get column names for headers
@@ -7277,15 +7304,15 @@ SQL;
             return '<div class="alert alert-warning">No columns available for this table.</div>';
         }
 
-        $batchDeleteEnabled = $this->isBatchDeleteEnabled();
-        $headerHtml = $this->buildHeader($columns);
+        $batchDeleteEnabled  = $this->isBatchDeleteEnabled();
+        $headerHtml          = $this->buildHeader($columns);
         $clientConfigPayload = $this->buildClientConfigPayload();
-        $script     = $this->generateAjaxScript();
-        $styles     = $this->buildActionColumnStyles($rawId, $formOnly);
-        $numbersEnabled = !empty($this->config['numbers_enabled']);
-        $colspan    = $this->escapeHtml((string) (count($columns) + 1 + ($batchDeleteEnabled ? 1 : 0) + ($this->hasNestedTables() ? 1 : 0) + ($numbersEnabled ? 1 : 0)));
-        $offcanvas  = $this->buildEditOffcanvas($rawId, $formOnly) . $this->buildViewOffcanvas($rawId, $formOnly);
-        $queryBuilderModal = $this->buildQueryBuilderModal($rawId, $formOnly);
+        $script              = $this->generateAjaxScript();
+        $styles              = $this->buildActionColumnStyles($rawId, $formOnly);
+        $numbersEnabled      = !empty($this->config['numbers_enabled']);
+        $colspan             = $this->escapeHtml((string) (count($columns) + 1 + ($batchDeleteEnabled ? 1 : 0) + ($this->hasNestedTables() ? 1 : 0) + ($numbersEnabled ? 1 : 0)));
+        $offcanvas           = $this->buildEditOffcanvas($rawId, $formOnly) . $this->buildViewOffcanvas($rawId, $formOnly);
+        $queryBuilderModal   = $this->buildQueryBuilderModal($rawId, $formOnly);
 
         $configJson = '{}';
         try {
@@ -7297,15 +7324,15 @@ SQL;
         $viewStorageKey = $this->buildViewStorageKey($clientConfigPayload);
 
         $containerAttributes = [
-            'id'                              => $rawId . '-container',
-            'data-fastcrud-config'            => $configJson,
+            'id'                                   => $rawId . '-container',
+            'data-fastcrud-config'                 => $configJson,
             'data-fastcrud-initial-primary-column' => $this->getPrimaryKeyColumn(),
-            'data-fastcrud-view-storage-key'  => $viewStorageKey,
+            'data-fastcrud-view-storage-key'       => $viewStorageKey,
         ];
 
         if ($formOnly) {
-            $containerAttributes['class'] = 'fastcrud-form-only';
-            $containerAttributes['data-fastcrud-form-only'] = '1';
+            $containerAttributes['class']                      = 'fastcrud-form-only';
+            $containerAttributes['data-fastcrud-form-only']    = '1';
             $containerAttributes['data-fastcrud-initial-mode'] = $normalizedMode;
 
             if ($primaryKeyValue !== null && $normalizedMode !== 'create') {
@@ -7408,7 +7435,7 @@ HTML;
         ?int $limit = null,
         ?int $offset = null,
         ?string $searchTerm = null,
-        ?string $searchColumn = null
+        ?string $searchColumn = null,
     ): array {
         $query = $this->buildSelectQuery($limit, $offset, $searchTerm, $searchColumn);
 
@@ -7428,8 +7455,8 @@ HTML;
         $rows = $this->applyRelations($rows);
         $rows = $this->applyCustomColumns($rows);
 
-        $columns = $this->extractColumnNames($statement, $rows);
-        $columns = $this->ensureCustomColumnNames($columns);
+        $columns          = $this->extractColumnNames($statement, $rows);
+        $columns          = $this->ensureCustomColumnNames($columns);
         [$rows, $columns] = $this->applyColumnVisibility($rows, $columns);
 
         $rows = $this->decorateRows($rows, $columns);
@@ -7465,10 +7492,10 @@ HTML;
         }
 
         $placeholders = [];
-        $parameters = [];
+        $parameters   = [];
         foreach (array_values($primaryKeyValues) as $index => $value) {
-            $placeholder = ':pk_list_' . $index;
-            $placeholders[] = $placeholder;
+            $placeholder              = ':pk_list_' . $index;
+            $placeholders[]           = $placeholder;
             $parameters[$placeholder] = $value;
         }
 
@@ -7498,18 +7525,18 @@ HTML;
         }
 
         $primaryKey = $this->getPrimaryKeyColumn();
-        $results = [];
+        $results    = [];
         foreach ($rows as $row) {
             if (!is_array($row)) {
                 continue;
             }
 
-            $row['__fastcrud_primary_key'] = $primaryKey;
+            $row['__fastcrud_primary_key']   = $primaryKey;
             $row['__fastcrud_primary_value'] = $row[$primaryKey] ?? null;
 
             /** @var array<string, mixed> $normalizedRow */
-            $normalizedRow = $this->applyFieldCallbacksToRow($row, 'edit');
-            $lookupValue = $normalizedRow[$primaryKeyColumn] ?? ($row[$primaryKeyColumn] ?? null);
+            $normalizedRow                                              = $this->applyFieldCallbacksToRow($row, 'edit');
+            $lookupValue                                                = $normalizedRow[$primaryKeyColumn] ?? ($row[$primaryKeyColumn] ?? null);
             $results[$this->normalizePrimaryKeyLookupKey($lookupValue)] = $normalizedRow;
         }
 
@@ -7538,7 +7565,7 @@ HTML;
         }
 
         foreach ($columns as $column) {
-            $label = $this->resolveColumnLabel($column);
+            $label   = $this->resolveColumnLabel($column);
             $classes = ['fastcrud-column', 'fastcrud-column-' . $this->buildColumnSlug($column)];
 
             $width = isset($this->config['column_widths'][$column])
@@ -7583,10 +7610,12 @@ HTML;
         if ($rows !== []) {
             $columns = array_keys($rows[0]);
 
-            return array_values(array_filter(
-                $columns,
-                static fn(string $column): bool => strpos($column, '__fastcrud') !== 0
-            ));
+            return array_values(
+                array_filter(
+                    $columns,
+                    static fn(string $column): bool => strpos($column, '__fastcrud') !== 0
+                )
+            );
         }
 
         $columns = [];
@@ -7640,13 +7669,13 @@ HTML;
             'x_icon_class'                  => 'fas fa-xmark',
         ];
 
-        $globalActionClass = '';
+        $globalActionClass    = '';
         $globalActionClassRaw = CrudStyle::$action_button_global_class ?? '';
         if (is_string($globalActionClassRaw)) {
             $globalActionClass = trim($globalActionClassRaw);
         }
 
-        $toolbarGlobalClass = '';
+        $toolbarGlobalClass    = '';
         $toolbarGlobalClassRaw = CrudStyle::$toolbar_action_button_global_class ?? '';
         if (is_string($toolbarGlobalClassRaw)) {
             $toolbarGlobalClass = trim($toolbarGlobalClassRaw);
@@ -7690,7 +7719,7 @@ HTML;
                 continue;
             }
 
-            $defaults[$key] = $trimmed;
+            $defaults[$key]         = $trimmed;
             $appliedOverrides[$key] = true;
         }
 
@@ -7741,7 +7770,7 @@ HTML;
             }
         }
 
-        $defaults['action_button_global_class'] = $globalActionClass;
+        $defaults['action_button_global_class']         = $globalActionClass;
         $defaults['toolbar_action_button_global_class'] = $toolbarGlobalClass;
 
         return $defaults;
@@ -7770,11 +7799,11 @@ HTML;
 
         $widthStyle = '';
         if ($this->config['panel_width'] !== null) {
-            $width = $this->escapeHtml($this->config['panel_width']);
+            $width      = $this->escapeHtml($this->config['panel_width']);
             $widthStyle = " style=\"width: {$width};\"";
         }
 
-        $styles = $this->getStyleDefaults();
+        $styles      = $this->getStyleDefaults();
         $cancelClass = $this->escapeHtml($styles['panel_cancel_button_class']);
         $saveClass   = $this->escapeHtml($styles['panel_save_button_class']);
 
@@ -7805,7 +7834,7 @@ HTML;
         }
 
         $panelClasses = 'offcanvas offcanvas-start';
-        $inlineAttr = '';
+        $inlineAttr   = '';
 
         return <<<HTML
 <div class="{$panelClasses}" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}"{$widthStyle}{$inlineAttr}>
@@ -7838,7 +7867,7 @@ HTML;
 
         $widthStyle = '';
         if ($this->config['panel_width'] !== null) {
-            $width = $this->escapeHtml($this->config['panel_width']);
+            $width      = $this->escapeHtml($this->config['panel_width']);
             $widthStyle = " style=\"width: {$width};\"";
         }
 
@@ -7858,7 +7887,7 @@ HTML;
         }
 
         $panelClasses = 'offcanvas offcanvas-start';
-        $inlineAttr = '';
+        $inlineAttr   = '';
 
         return <<<HTML
 <div class="{$panelClasses}" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}"{$widthStyle}{$inlineAttr}>
@@ -7881,13 +7910,13 @@ HTML;
         }
 
         $escapedId = $this->escapeHtml($id);
-        $modalId = $escapedId . '-query-builder';
-        $logicId = $escapedId . '-qb-logic';
+        $modalId   = $escapedId . '-query-builder';
+        $logicId   = $escapedId . '-qb-logic';
         $filtersId = $escapedId . '-qb-filters';
-        $sortsId = $escapedId . '-qb-sorts';
-        $applyId = $escapedId . '-qb-apply';
-        $clearId = $escapedId . '-qb-clear';
-        $saveId = $escapedId . '-qb-save';
+        $sortsId   = $escapedId . '-qb-sorts';
+        $applyId   = $escapedId . '-qb-apply';
+        $clearId   = $escapedId . '-qb-clear';
+        $saveId    = $escapedId . '-qb-save';
 
         return <<<HTML
 <div class="modal fade fastcrud-query-builder" id="{$modalId}" tabindex="-1" aria-labelledby="{$modalId}-label" aria-hidden="true">
@@ -8230,17 +8259,19 @@ HTML;
         }
         $lower = strtolower($c);
         // If it looks like a CSS variable or color function or hex, return as-is
-        if (str_starts_with($lower, 'var(')
+        if (
+            str_starts_with($lower, 'var(')
             || str_starts_with($lower, 'rgb(')
             || str_starts_with($lower, 'rgba(')
             || str_starts_with($lower, 'hsl(')
             || str_starts_with($lower, 'hsla(')
-            || str_starts_with($lower, '#')) {
+            || str_starts_with($lower, '#')
+        ) {
             return $c;
         }
 
         // Map Bootstrap theme keys to CSS vars
-        $keys = ['primary','secondary','success','danger','warning','info','light','dark'];
+        $keys = ['primary', 'secondary', 'success', 'danger', 'warning', 'info', 'light', 'dark'];
         if (in_array($lower, $keys, true)) {
             return 'var(--bs-' . $lower . ')';
         }
@@ -8260,7 +8291,7 @@ HTML;
         int $page = 1,
         ?int $perPage = null,
         ?string $searchTerm = null,
-        ?string $searchColumn = null
+        ?string $searchColumn = null,
     ): array {
         $defaultPerPage = $this->config['limit_default'] ?? $this->perPage;
         $perPage        = $perPage ?? $defaultPerPage;
@@ -8316,7 +8347,7 @@ HTML;
 
             if (array_key_exists('search_term', $modifiedPayload)) {
                 $searchTermCandidate = $modifiedPayload['search_term'];
-                $searchTerm = $searchTermCandidate === null ? null : (string) $searchTermCandidate;
+                $searchTerm          = $searchTermCandidate === null ? null : (string) $searchTermCandidate;
             }
 
             if (array_key_exists('search_column', $modifiedPayload)) {
@@ -8325,7 +8356,7 @@ HTML;
                     $searchColumn = null;
                 } elseif (is_string($searchColumnCandidate)) {
                     $searchColumnCandidate = trim($searchColumnCandidate);
-                    $searchColumn = $searchColumnCandidate === '' ? null : $searchColumnCandidate;
+                    $searchColumn          = $searchColumnCandidate === '' ? null : $searchColumnCandidate;
                 }
             }
         }
@@ -8337,7 +8368,7 @@ HTML;
             'search_column' => $searchColumn,
         ];
 
-        $countQuery = $this->buildCountQuery($searchTerm, $searchColumn);
+        $countQuery     = $this->buildCountQuery($searchTerm, $searchColumn);
         $countStatement = $this->connection->prepare($countQuery['sql']);
         if ($countStatement === false) {
             throw new RuntimeException('Failed to prepare count query.');
@@ -8398,7 +8429,7 @@ HTML;
 
     private function buildMetaWithSummaries(array $columns, ?string $searchTerm, ?string $searchColumn): array
     {
-        $meta = $this->buildMeta($columns);
+        $meta              = $this->buildMeta($columns);
         $meta['summaries'] = $this->buildSummaries($searchTerm, $searchColumn);
 
         return $meta;
@@ -8408,7 +8439,8 @@ HTML;
     {
         $lookup = [];
 
-        $register = function ($candidate) use (&$lookup): void {
+        $register = function ($candidate) use (&$lookup): void
+        {
             if (!is_string($candidate)) {
                 return;
             }
@@ -8460,7 +8492,7 @@ HTML;
     private function buildFormTemplates(array $allColumns): array
     {
         $hasFieldCallbacks = $this->config['field_callbacks'] ?? [];
-        $hasCustomFields = $this->config['custom_fields'] ?? [];
+        $hasCustomFields   = $this->config['custom_fields'] ?? [];
 
         if ($hasFieldCallbacks === [] && $hasCustomFields === []) {
             return [];
@@ -8494,9 +8526,9 @@ HTML;
         $templateRows = ['create', 'edit', 'view'];
 
         foreach ($templateRows as $mode) {
-            $row = $baseRow;
+            $row                        = $baseRow;
             $row['__fastcrud_template'] = true;
-            $templates[$mode] = $this->applyFieldCallbacksToRow($row, $mode);
+            $templates[$mode]           = $this->applyFieldCallbacksToRow($row, $mode);
         }
 
         return $templates;
@@ -8506,7 +8538,8 @@ HTML;
     {
         $columnLookup = $this->buildColumnLookup($columns);
 
-        $filterColumns = static function (array $source) use ($columnLookup): array {
+        $filterColumns = static function (array $source) use ($columnLookup): array
+        {
             $filtered = [];
             foreach ($source as $column => $value) {
                 if (isset($columnLookup[$column])) {
@@ -8516,21 +8549,24 @@ HTML;
             return $filtered;
         };
 
-        $tableMeta = $this->config['table_meta'];
-        $batchDeleteConfigured = isset($tableMeta['batch_delete']) ? (bool) $tableMeta['batch_delete'] : false;
+        $tableMeta                        = $this->config['table_meta'];
+        $batchDeleteConfigured            = isset($tableMeta['batch_delete']) ? (bool) $tableMeta['batch_delete'] : false;
         $tableMeta['batch_delete_button'] = $batchDeleteConfigured;
-        $tableTitle = isset($tableMeta['title']) && is_string($tableMeta['title']) && $tableMeta['title'] !== ''
+        $tableTitle                       = isset($tableMeta['title']) && is_string($tableMeta['title']) && $tableMeta['title'] !== ''
             ? $tableMeta['title']
             : $this->makeTitle($this->table);
 
         $inline = array_values(array_keys(array_filter($this->config['inline_edit'] ?? [], static fn($v) => (bool) $v)));
 
-        $sortDisabled = array_values(array_filter(
-            $this->config['sort_disabled'],
-            static function ($col) use ($columnLookup): bool {
-                return is_string($col) && isset($columnLookup[$col]);
-            }
-        ));
+        $sortDisabled = array_values(
+            array_filter(
+                $this->config['sort_disabled'],
+                static function ($col) use ($columnLookup): bool
+                {
+                    return is_string($col) && isset($columnLookup[$col]);
+                }
+            )
+        );
 
         foreach (array_keys($this->config['custom_columns']) as $customColumn) {
             if (!is_string($customColumn)) {
@@ -8556,70 +8592,70 @@ HTML;
         }
 
         return [
-            'table' => [
-                'key'       => $this->table,
-                'title'     => $tableTitle,
-                'tooltip'   => $tableMeta['tooltip'] ?? null,
-                'icon'      => $tableMeta['icon'] ?? null,
-                'hide_title' => isset($tableMeta['hide_title'])
+            'table'                  => [
+                'key'                 => $this->table,
+                'title'               => $tableTitle,
+                'tooltip'             => $tableMeta['tooltip'] ?? null,
+                'icon'                => $tableMeta['icon'] ?? null,
+                'hide_title'          => isset($tableMeta['hide_title'])
                     ? (bool) $tableMeta['hide_title']
                     : CrudConfig::$hide_table_title,
-                'add'       => isset($tableMeta['add']) ? (bool) $tableMeta['add'] : true,
-                'view'      => isset($tableMeta['view']) ? (bool) $tableMeta['view'] : true,
-                'view_condition' => isset($tableMeta['view_condition']) && is_array($tableMeta['view_condition'])
+                'add'                 => isset($tableMeta['add']) ? (bool) $tableMeta['add'] : true,
+                'view'                => isset($tableMeta['view']) ? (bool) $tableMeta['view'] : true,
+                'view_condition'      => isset($tableMeta['view_condition']) && is_array($tableMeta['view_condition'])
                     ? $tableMeta['view_condition']
                     : null,
-                'edit'      => isset($tableMeta['edit']) ? (bool) $tableMeta['edit'] : true,
-                'edit_condition' => isset($tableMeta['edit_condition']) && is_array($tableMeta['edit_condition'])
+                'edit'                => isset($tableMeta['edit']) ? (bool) $tableMeta['edit'] : true,
+                'edit_condition'      => isset($tableMeta['edit_condition']) && is_array($tableMeta['edit_condition'])
                     ? $tableMeta['edit_condition']
                     : null,
-                'delete'    => isset($tableMeta['delete']) ? (bool) $tableMeta['delete'] : true,
-                'delete_condition' => isset($tableMeta['delete_condition']) && is_array($tableMeta['delete_condition'])
+                'delete'              => isset($tableMeta['delete']) ? (bool) $tableMeta['delete'] : true,
+                'delete_condition'    => isset($tableMeta['delete_condition']) && is_array($tableMeta['delete_condition'])
                     ? $tableMeta['delete_condition']
                     : null,
-                'duplicate' => isset($tableMeta['duplicate']) ? (bool) $tableMeta['duplicate'] : false,
+                'duplicate'           => isset($tableMeta['duplicate']) ? (bool) $tableMeta['duplicate'] : false,
                 'duplicate_condition' => isset($tableMeta['duplicate_condition']) && is_array($tableMeta['duplicate_condition'])
                     ? $tableMeta['duplicate_condition']
                     : null,
-                'batch_delete' => $this->isBatchDeleteEnabled(),
+                'batch_delete'        => $this->isBatchDeleteEnabled(),
                 'batch_delete_button' => $batchDeleteConfigured,
-                'bulk_actions' => isset($tableMeta['bulk_actions']) && is_array($tableMeta['bulk_actions'])
+                'bulk_actions'        => isset($tableMeta['bulk_actions']) && is_array($tableMeta['bulk_actions'])
                     ? array_values($tableMeta['bulk_actions'])
                     : [],
-                'toolbar_actions' => $this->getNormalizedToolbarActionsConfig(),
-                'delete_confirm' => isset($tableMeta['delete_confirm']) ? (bool) $tableMeta['delete_confirm'] : true,
-                'export_csv' => isset($tableMeta['export_csv']) ? (bool) $tableMeta['export_csv'] : false,
-                'export_excel' => isset($tableMeta['export_excel']) ? (bool) $tableMeta['export_excel'] : false,
+                'toolbar_actions'     => $this->getNormalizedToolbarActionsConfig(),
+                'delete_confirm'      => isset($tableMeta['delete_confirm']) ? (bool) $tableMeta['delete_confirm'] : true,
+                'export_csv'          => isset($tableMeta['export_csv']) ? (bool) $tableMeta['export_csv'] : false,
+                'export_excel'        => isset($tableMeta['export_excel']) ? (bool) $tableMeta['export_excel'] : false,
             ],
-            'link_buttons'    => $this->getNormalizedLinkButtonsConfig(),
-            'multi_link_buttons' => $this->getNormalizedMultiLinkButtonsConfig(),
+            'link_buttons'           => $this->getNormalizedLinkButtonsConfig(),
+            'multi_link_buttons'     => $this->getNormalizedMultiLinkButtonsConfig(),
             'action_button_sequence' => $this->getActionButtonSequence(),
-            'primary_key'    => $this->getPrimaryKeyColumn(),
-            'columns'        => $columns,
-            'labels'         => $filterColumns($this->config['column_labels']),
-            'column_classes' => $filterColumns($this->config['column_classes']),
-            'column_widths'  => $filterColumns($this->config['column_widths']),
-            'limit_options'  => $this->config['limit_options'],
-            'default_limit'  => $this->config['limit_default'] ?? $this->perPage,
-            'search'         => [
+            'primary_key'            => $this->getPrimaryKeyColumn(),
+            'columns'                => $columns,
+            'labels'                 => $filterColumns($this->config['column_labels']),
+            'column_classes'         => $filterColumns($this->config['column_classes']),
+            'column_widths'          => $filterColumns($this->config['column_widths']),
+            'limit_options'          => $this->config['limit_options'],
+            'default_limit'          => $this->config['limit_default'] ?? $this->perPage,
+            'search'                 => [
                 'columns'   => $this->config['search_columns'],
                 'default'   => $this->config['search_default'],
                 'available' => array_keys($this->getWhereColumnsMapForAllSearch()),
             ],
-            'order_by'       => array_map(
-                static fn(array $order): array => [
+            'order_by'               => array_map(
+                static fn(array $order): array               => [
                     'field'     => $order['field'],
                     'direction' => $order['direction'],
                 ],
                 $this->config['order_by']
             ),
-            'sort_disabled'  => $sortDisabled,
-            'form' => $formMeta,
-            'inline_edit' => $inline,
-            'numbers_enabled' => (bool) ($this->config['numbers_enabled'] ?? false),
-            'nested_tables' => $this->buildNestedTablesClientConfigPayload(),
-            'soft_delete'   => $this->config['soft_delete'],
-            'query_builder' => $this->buildQueryBuilderClientPayload(),
+            'sort_disabled'          => $sortDisabled,
+            'form'                   => $formMeta,
+            'inline_edit'            => $inline,
+            'numbers_enabled'        => (bool) ($this->config['numbers_enabled'] ?? false),
+            'nested_tables'          => $this->buildNestedTablesClientConfigPayload(),
+            'soft_delete'            => $this->config['soft_delete'],
+            'query_builder'          => $this->buildQueryBuilderClientPayload(),
         ];
     }
 
@@ -8725,34 +8761,34 @@ HTML;
                     $title = null;
                     if (isset($entry['title']) && is_string($entry['title'])) {
                         $trimmedTitle = trim($entry['title']);
-                        $title = $trimmedTitle === '' ? null : $trimmedTitle;
+                        $title        = $trimmedTitle === '' ? null : $trimmedTitle;
                     }
 
                     $description = null;
                     if (isset($entry['description']) && is_string($entry['description'])) {
                         $trimmedDescription = trim($entry['description']);
-                        $description = $trimmedDescription === '' ? null : $trimmedDescription;
+                        $description        = $trimmedDescription === '' ? null : $trimmedDescription;
                     }
 
                     $collapsible = !empty($entry['collapsible']);
-                    $collapsed = $collapsible && !empty($entry['collapsed']);
+                    $collapsed   = $collapsible && !empty($entry['collapsed']);
 
                     $icon = null;
                     if (isset($entry['icon']) && is_string($entry['icon'])) {
                         $iconCandidate = $this->normalizeCssClassList($entry['icon']);
-                        $icon = $iconCandidate === '' ? null : $iconCandidate;
+                        $icon          = $iconCandidate === '' ? null : $iconCandidate;
                     }
 
                     $cssClass = null;
                     if (isset($entry['class']) && is_string($entry['class'])) {
                         $classCandidate = $this->normalizeCssClassList($entry['class']);
-                        $cssClass = $classCandidate === '' ? null : $classCandidate;
+                        $cssClass       = $classCandidate === '' ? null : $classCandidate;
                     }
 
                     $titleClass = null;
                     if (isset($entry['title_class']) && is_string($entry['title_class'])) {
                         $titleClassCandidate = $this->normalizeCssClassList($entry['title_class']);
-                        $titleClass = $titleClassCandidate === '' ? null : $titleClassCandidate;
+                        $titleClass          = $titleClassCandidate === '' ? null : $titleClassCandidate;
                     }
 
                     $normalizedSections[] = [
@@ -8789,14 +8825,14 @@ HTML;
         }
 
         $behaviours = [
-            'change_type' => [],
-            'pass_var' => [],
-            'pass_default' => [],
-            'readonly' => [],
-            'disabled' => [],
+            'change_type'         => [],
+            'pass_var'            => [],
+            'pass_default'        => [],
+            'readonly'            => [],
+            'disabled'            => [],
             'validation_required' => [],
-            'validation_pattern' => [],
-            'unique' => [],
+            'validation_pattern'  => [],
+            'unique'              => [],
         ];
 
         if (isset($this->config['form']['behaviours']) && is_array($this->config['form']['behaviours'])) {
@@ -8952,11 +8988,11 @@ HTML;
             return [];
         }
 
-        $primaryKey = $this->normalizeColumnReference($this->getPrimaryKeyColumn());
-        $primaryKeyRaw = $this->denormalizeColumnReference($primaryKey);
+        $primaryKey         = $this->normalizeColumnReference($this->getPrimaryKeyColumn());
+        $primaryKeyRaw      = $this->denormalizeColumnReference($primaryKey);
         $primaryKeyNameOnly = $primaryKey;
         if (strpos($primaryKey, '__') !== false) {
-            $parts = explode('__', $primaryKey);
+            $parts              = explode('__', $primaryKey);
             $primaryKeyNameOnly = (string) array_pop($parts);
         }
 
@@ -9085,10 +9121,10 @@ HTML;
             return [];
         }
 
-        $parameters = [];
+        $parameters  = [];
         $whereClause = $this->buildWhereClause($parameters, $searchTerm, $searchColumn);
-        $fromClause = $this->buildFromClause();
-        $joins = $this->buildJoinClauses();
+        $fromClause  = $this->buildFromClause();
+        $joins       = $this->buildJoinClauses();
 
         $baseSql = sprintf('FROM %s', $fromClause);
         if ($joins !== '') {
@@ -9106,7 +9142,7 @@ HTML;
             }
 
             $column = (string) $entry['column'];
-            $type = strtolower((string) $entry['type']);
+            $type   = strtolower((string) $entry['type']);
 
             if (!in_array($type, self::SUPPORTED_SUMMARY_TYPES, true)) {
                 continue;
@@ -9180,7 +9216,7 @@ HTML;
             }
 
             /** @var self $child */
-            $child = $entry['crud'];
+            $child     = $entry['crud'];
             $payload[] = [
                 'name'              => $entry['name'],
                 'parent_column'     => $entry['parent_column'],
@@ -9204,7 +9240,7 @@ HTML;
         $this->ensureFormBehaviourBuckets();
         $this->ensureDefaultTabBuckets();
 
-        $columns = $this->getColumnNames();
+        $columns    = $this->getColumnNames();
         $allColumns = $this->getBaseTableColumns();
         $formConfig = $this->config['form'];
 
@@ -9247,15 +9283,17 @@ HTML;
             }
         }
 
-        $formConfig['all_columns'] = $allColumns;
+        $formConfig['all_columns']           = $allColumns;
         $this->config['form']['all_columns'] = $allColumns;
 
         $inline = array_values(array_keys(array_filter($this->config['inline_edit'] ?? [], static fn($v) => (bool) $v)));
 
-        $sortDisabled = array_values(array_filter(
-            $this->config['sort_disabled'],
-            static fn($col): bool => is_string($col) && $col !== ''
-        ));
+        $sortDisabled = array_values(
+            array_filter(
+                $this->config['sort_disabled'],
+                static fn($col): bool => is_string($col) && $col !== ''
+            )
+        );
 
         foreach (array_keys($this->config['custom_columns']) as $customColumn) {
             if (!is_string($customColumn) || $customColumn === '') {
@@ -9287,7 +9325,7 @@ HTML;
             }
         }
 
-        $batchDeleteConfigured = isset($this->config['table_meta']['batch_delete'])
+        $batchDeleteConfigured                             = isset($this->config['table_meta']['batch_delete'])
             ? (bool) $this->config['table_meta']['batch_delete']
             : false;
         $this->config['table_meta']['batch_delete_button'] = $batchDeleteConfigured;
@@ -9304,53 +9342,53 @@ HTML;
         }
 
         return [
-            'per_page'       => $this->perPage,
-            'where'          => $this->config['where'],
-            'order_by'       => $this->config['order_by'],
-            'no_quotes'      => $this->config['no_quotes'],
-            'limit_options'  => $this->config['limit_options'],
-            'limit_default'  => $this->config['limit_default'],
-            'search_columns' => $this->config['search_columns'],
-            'search_default' => $this->config['search_default'],
-            'joins'          => $this->config['joins'],
-            'relations'      => $this->config['relations'],
-            'custom_query'   => $this->config['custom_query'],
-            'subselects'     => $this->config['subselects'],
-            'visible_columns' => $this->config['visible_columns'],
-            'columns_reverse' => $this->config['columns_reverse'],
-            'column_labels'   => $this->config['column_labels'],
-            'column_patterns' => $this->config['column_patterns'],
-            'column_callbacks' => $this->config['column_callbacks'],
-            'custom_columns'   => $this->config['custom_columns'],
-            'field_callbacks'  => $this->config['field_callbacks'],
-            'lifecycle_callbacks' => $this->config['lifecycle_callbacks'],
-            'custom_fields'    => $this->config['custom_fields'],
-            'sort_disabled'    => $sortDisabled,
-            'column_classes'  => $this->config['column_classes'],
-            'column_widths'   => $this->config['column_widths'],
-            'column_cuts'     => $this->config['column_cuts'],
+            'per_page'                => $this->perPage,
+            'where'                   => $this->config['where'],
+            'order_by'                => $this->config['order_by'],
+            'no_quotes'               => $this->config['no_quotes'],
+            'limit_options'           => $this->config['limit_options'],
+            'limit_default'           => $this->config['limit_default'],
+            'search_columns'          => $this->config['search_columns'],
+            'search_default'          => $this->config['search_default'],
+            'joins'                   => $this->config['joins'],
+            'relations'               => $this->config['relations'],
+            'custom_query'            => $this->config['custom_query'],
+            'subselects'              => $this->config['subselects'],
+            'visible_columns'         => $this->config['visible_columns'],
+            'columns_reverse'         => $this->config['columns_reverse'],
+            'column_labels'           => $this->config['column_labels'],
+            'column_patterns'         => $this->config['column_patterns'],
+            'column_callbacks'        => $this->config['column_callbacks'],
+            'custom_columns'          => $this->config['custom_columns'],
+            'field_callbacks'         => $this->config['field_callbacks'],
+            'lifecycle_callbacks'     => $this->config['lifecycle_callbacks'],
+            'custom_fields'           => $this->config['custom_fields'],
+            'sort_disabled'           => $sortDisabled,
+            'column_classes'          => $this->config['column_classes'],
+            'column_widths'           => $this->config['column_widths'],
+            'column_cuts'             => $this->config['column_cuts'],
             'default_column_truncate' => $this->config['default_column_truncate'],
-            'column_highlights' => $this->config['column_highlights'],
-            'row_highlights'    => $this->config['row_highlights'],
-            'link_buttons'       => $this->config['link_buttons'],
-            'multi_link_buttons' => $this->config['multi_link_buttons'],
-            'action_button_sequence' => $this->getActionButtonSequence(),
-            'table_meta'        => $this->config['table_meta'],
-            'column_summaries'  => $this->config['column_summaries'],
-            'field_labels'      => $this->config['field_labels'],
-            'primary_key'       => $this->primaryKeyColumn,
-            'soft_delete'       => $this->config['soft_delete'],
-            'form'              => $formMeta,
-            'inline_edit'       => $inline,
-            'nested_tables'     => $this->buildNestedTablesClientConfigPayload(),
-            'rich_editor'       => [
+            'column_highlights'       => $this->config['column_highlights'],
+            'row_highlights'          => $this->config['row_highlights'],
+            'link_buttons'            => $this->config['link_buttons'],
+            'multi_link_buttons'      => $this->config['multi_link_buttons'],
+            'action_button_sequence'  => $this->getActionButtonSequence(),
+            'table_meta'              => $this->config['table_meta'],
+            'column_summaries'        => $this->config['column_summaries'],
+            'field_labels'            => $this->config['field_labels'],
+            'primary_key'             => $this->primaryKeyColumn,
+            'soft_delete'             => $this->config['soft_delete'],
+            'form'                    => $formMeta,
+            'inline_edit'             => $inline,
+            'nested_tables'           => $this->buildNestedTablesClientConfigPayload(),
+            'rich_editor'             => [
                 'upload_path' => CrudConfig::getUploadServePath(),
             ],
-            'select2'           => (bool) ($this->config['select2'] ?? false),
-            'debug'           => (bool) CrudConfig::$debug,
-            'filters_enabled'   => (bool) ($this->config['filters_enabled'] ?? true),
-            'numbers_enabled'   => (bool) ($this->config['numbers_enabled'] ?? false),
-            'query_builder'     => $this->buildQueryBuilderClientPayload(),
+            'select2'                 => (bool) ($this->config['select2'] ?? false),
+            'debug'                   => (bool) CrudConfig::$debug,
+            'filters_enabled'         => (bool) ($this->config['filters_enabled'] ?? true),
+            'numbers_enabled'         => (bool) ($this->config['numbers_enabled'] ?? false),
+            'query_builder'           => $this->buildQueryBuilderClientPayload(),
         ];
     }
 
@@ -9486,10 +9524,10 @@ HTML;
                 : ucwords(str_replace('_', ' ', $operator));
 
             $operators[] = [
-                'value' => $operator,
-                'label' => $label,
+                'value'          => $operator,
+                'label'          => $label,
                 'requires_value' => (bool) ($config['requires_value'] ?? true),
-                'multi' => (bool) ($config['multi'] ?? false),
+                'multi'          => (bool) ($config['multi'] ?? false),
             ];
         }
 
@@ -9599,12 +9637,12 @@ HTML;
      */
     private function makeQueryBuilderFieldEntry(string $fieldKey, string $qualifiedName, array $columnMeta): array
     {
-        $typeInfo = $this->detectSqlTypeInfo($columnMeta);
-        $type = $this->determineQueryBuilderFieldType($columnMeta);
-        $options = $this->extractEnumValues($columnMeta);
-        $label = $this->resolveColumnLabel($fieldKey);
+        $typeInfo       = $this->detectSqlTypeInfo($columnMeta);
+        $type           = $this->determineQueryBuilderFieldType($columnMeta);
+        $options        = $this->extractEnumValues($columnMeta);
+        $label          = $this->resolveColumnLabel($fieldKey);
         $normalizedType = $typeInfo['normalized'] !== '' ? $typeInfo['normalized'] : $typeInfo['raw'];
-        $isJsonField = $this->isJsonColumnType($normalizedType);
+        $isJsonField    = $this->isJsonColumnType($normalizedType);
 
         return [
             'id'       => $fieldKey,
@@ -9623,7 +9661,7 @@ HTML;
      */
     private function determineQueryBuilderFieldType(array $columnMeta): string
     {
-        $typeInfo = $this->detectSqlTypeInfo($columnMeta);
+        $typeInfo   = $this->detectSqlTypeInfo($columnMeta);
         $normalized = $typeInfo['normalized'];
 
         if ($normalized === '') {
@@ -9672,7 +9710,7 @@ HTML;
      */
     private function isQueryBuilderFilterable(array $columnMeta): bool
     {
-        $typeInfo = $this->detectSqlTypeInfo($columnMeta);
+        $typeInfo   = $this->detectSqlTypeInfo($columnMeta);
         $normalized = $typeInfo['normalized'];
 
         if ($normalized === '') {
@@ -9690,10 +9728,24 @@ HTML;
         $token = trim($token);
 
         $blocked = [
-            'json', 'jsonb', 'blob', 'tinyblob', 'mediumblob', 'longblob',
-            'binary', 'varbinary', 'bit', 'geometry', 'point', 'linestring',
-            'polygon', 'multipoint', 'multilinestring', 'multipolygon',
-            'geometrycollection', 'bytea'
+            'json',
+            'jsonb',
+            'blob',
+            'tinyblob',
+            'mediumblob',
+            'longblob',
+            'binary',
+            'varbinary',
+            'bit',
+            'geometry',
+            'point',
+            'linestring',
+            'polygon',
+            'multipoint',
+            'multilinestring',
+            'multipolygon',
+            'geometrycollection',
+            'bytea',
         ];
 
         if ($this->supportsJsonSearch()) {
@@ -9874,7 +9926,7 @@ HTML;
         $fieldType = isset($fieldMeta['type']) && is_string($fieldMeta['type']) ? $fieldMeta['type'] : 'string';
 
         $requiresValue = (bool) ($operatorConfig['requires_value'] ?? true);
-        $isMulti = (bool) ($operatorConfig['multi'] ?? false);
+        $isMulti       = (bool) ($operatorConfig['multi'] ?? false);
 
         if ($requiresValue) {
             $rawValue = $filter['value'] ?? null;
@@ -9922,9 +9974,9 @@ HTML;
     private function applyQueryBuilderPayload(mixed $payload): void
     {
         $state = [
-            'filters' => [],
-            'logic' => 'AND',
-            'sorts' => $this->config['order_by'],
+            'filters'     => [],
+            'logic'       => 'AND',
+            'sorts'       => $this->config['order_by'],
             'active_view' => null,
         ];
 
@@ -9962,7 +10014,7 @@ HTML;
         if (isset($payload['sorts']) && is_array($payload['sorts'])) {
             $sorts = $this->sanitizeOrderByEntries($payload['sorts']);
             if ($sorts !== []) {
-                $state['sorts'] = $sorts;
+                $state['sorts']           = $sorts;
                 $this->config['order_by'] = $sorts;
             }
         } else {
@@ -9984,7 +10036,7 @@ HTML;
             return '';
         }
 
-        $type = isset($filter['type']) && is_string($filter['type']) ? $filter['type'] : 'string';
+        $type        = isset($filter['type']) && is_string($filter['type']) ? $filter['type'] : 'string';
         $isJsonField = isset($filter['is_json']) ? (bool) $filter['is_json'] : false;
 
         $basePlaceholder = ':qb_' . $placeholderCounter;
@@ -10007,12 +10059,12 @@ HTML;
                 }
 
                 $map = [
-                    'equals' => '=',
+                    'equals'     => '=',
                     'not_equals' => '<>',
-                    'gt' => '>',
-                    'gte' => '>=',
-                    'lt' => '<',
-                    'lte' => '<=',
+                    'gt'         => '>',
+                    'gte'        => '>=',
+                    'lt'         => '<',
+                    'lte'        => '<=',
                 ];
 
                 $parameters[$basePlaceholder] = $value;
@@ -10060,9 +10112,9 @@ HTML;
                         continue;
                     }
 
-                    $placeholder = $basePlaceholder . '_' . $index;
+                    $placeholder              = $basePlaceholder . '_' . $index;
                     $parameters[$placeholder] = $value;
-                    $placeholders[] = $placeholder;
+                    $placeholders[]           = $placeholder;
                 }
 
                 if ($placeholders === []) {
@@ -10106,10 +10158,10 @@ HTML;
         if (isset($payload['per_page'])) {
             $perPageCandidate = (int) $payload['per_page'];
             if ($perPageCandidate > 0) {
-                $this->perPage = $perPageCandidate;
+                $this->perPage                 = $perPageCandidate;
                 $this->config['limit_default'] = $perPageCandidate;
             } elseif ($perPageCandidate === 0) {
-                $this->perPage = 0;
+                $this->perPage                 = 0;
                 $this->config['limit_default'] = 0;
             }
         }
@@ -10151,7 +10203,7 @@ HTML;
         }
 
         if (array_key_exists('search_default', $payload)) {
-            $default = $payload['search_default'];
+            $default                        = $payload['search_default'];
             $this->config['search_default'] = is_string($default) && $default !== '' ? $default : null;
         }
 
@@ -10164,7 +10216,7 @@ HTML;
         }
 
         if (isset($payload['visible_columns'])) {
-            $columns = $this->normalizeList($payload['visible_columns']);
+            $columns    = $this->normalizeList($payload['visible_columns']);
             $normalized = [];
             foreach ($columns as $column) {
                 $value = $this->normalizeColumnReference($column);
@@ -10188,7 +10240,7 @@ HTML;
         }
 
         if (isset($payload['table_meta']) && is_array($payload['table_meta'])) {
-            $meta = $payload['table_meta'];
+            $meta  = $payload['table_meta'];
             $title = null;
             if (isset($meta['title']) && is_string($meta['title'])) {
                 $title = $meta['title'];
@@ -10197,36 +10249,36 @@ HTML;
             }
 
             $this->config['table_meta'] = [
-                'title'   => $title,
-                'tooltip' => isset($meta['tooltip']) && is_string($meta['tooltip']) ? $meta['tooltip'] : null,
-                'icon'    => isset($meta['icon']) && is_string($meta['icon']) ? $meta['icon'] : null,
-                'hide_title' => isset($meta['hide_title'])
+                'title'               => $title,
+                'tooltip'             => isset($meta['tooltip']) && is_string($meta['tooltip']) ? $meta['tooltip'] : null,
+                'icon'                => isset($meta['icon']) && is_string($meta['icon']) ? $meta['icon'] : null,
+                'hide_title'          => isset($meta['hide_title'])
                     ? (bool) $meta['hide_title']
                     : CrudConfig::$hide_table_title,
-                'add'     => isset($meta['add']) ? (bool) $meta['add'] : true,
-                'view'    => isset($meta['view']) ? (bool) $meta['view'] : true,
-                'view_condition' => isset($meta['view_condition']) && is_array($meta['view_condition'])
+                'add'                 => isset($meta['add']) ? (bool) $meta['add'] : true,
+                'view'                => isset($meta['view']) ? (bool) $meta['view'] : true,
+                'view_condition'      => isset($meta['view_condition']) && is_array($meta['view_condition'])
                     ? $meta['view_condition']
                     : null,
-                'edit'    => isset($meta['edit']) ? (bool) $meta['edit'] : true,
-                'edit_condition' => isset($meta['edit_condition']) && is_array($meta['edit_condition'])
+                'edit'                => isset($meta['edit']) ? (bool) $meta['edit'] : true,
+                'edit_condition'      => isset($meta['edit_condition']) && is_array($meta['edit_condition'])
                     ? $meta['edit_condition']
                     : null,
-                'delete'  => isset($meta['delete']) ? (bool) $meta['delete'] : true,
-                'delete_condition' => isset($meta['delete_condition']) && is_array($meta['delete_condition'])
+                'delete'              => isset($meta['delete']) ? (bool) $meta['delete'] : true,
+                'delete_condition'    => isset($meta['delete_condition']) && is_array($meta['delete_condition'])
                     ? $meta['delete_condition']
                     : null,
-                'duplicate' => isset($meta['duplicate']) ? (bool) $meta['duplicate'] : false,
+                'duplicate'           => isset($meta['duplicate']) ? (bool) $meta['duplicate'] : false,
                 'duplicate_condition' => isset($meta['duplicate_condition']) && is_array($meta['duplicate_condition'])
                     ? $meta['duplicate_condition']
                     : null,
-                'batch_delete' => isset($meta['batch_delete']) ? (bool) $meta['batch_delete'] : false,
+                'batch_delete'        => isset($meta['batch_delete']) ? (bool) $meta['batch_delete'] : false,
                 'batch_delete_button' => isset($meta['batch_delete']) ? (bool) $meta['batch_delete'] : false,
-                'delete_confirm' => isset($meta['delete_confirm']) ? (bool) $meta['delete_confirm'] : true,
-                'export_csv' => isset($meta['export_csv']) ? (bool) $meta['export_csv'] : false,
-                'export_excel' => isset($meta['export_excel']) ? (bool) $meta['export_excel'] : false,
-                'bulk_actions' => [],
-                'toolbar_actions' => [],
+                'delete_confirm'      => isset($meta['delete_confirm']) ? (bool) $meta['delete_confirm'] : true,
+                'export_csv'          => isset($meta['export_csv']) ? (bool) $meta['export_csv'] : false,
+                'export_excel'        => isset($meta['export_excel']) ? (bool) $meta['export_excel'] : false,
+                'bulk_actions'        => [],
+                'toolbar_actions'     => [],
             ];
 
             if (isset($meta['bulk_actions']) && is_array($meta['bulk_actions'])) {
@@ -10236,7 +10288,7 @@ HTML;
                         continue;
                     }
 
-                    $name = isset($entry['name']) ? (string) $entry['name'] : '';
+                    $name  = isset($entry['name']) ? (string) $entry['name'] : '';
                     $label = isset($entry['label']) ? (string) $entry['label'] : $name;
 
                     $options = $entry;
@@ -10266,7 +10318,7 @@ HTML;
         }
 
         if (array_key_exists('toolbar_actions', $payload)) {
-            $toolbarPayload = $payload['toolbar_actions'];
+            $toolbarPayload    = $payload['toolbar_actions'];
             $normalizedToolbar = [];
             if (is_array($toolbarPayload)) {
                 foreach ($toolbarPayload as $entry) {
@@ -10285,7 +10337,7 @@ HTML;
         } elseif (array_key_exists('toolbar_action', $payload)) {
             $toolbarAction = $payload['toolbar_action'];
             if (is_array($toolbarAction)) {
-                $normalizedToolbarAction = $this->normalizeToolbarActionConfigPayload($toolbarAction);
+                $normalizedToolbarAction                       = $this->normalizeToolbarActionConfigPayload($toolbarAction);
                 $this->config['table_meta']['toolbar_actions'] = $normalizedToolbarAction !== null ? [$normalizedToolbarAction] : [];
             } elseif ($toolbarAction === null) {
                 $this->config['table_meta']['toolbar_actions'] = [];
@@ -10294,7 +10346,7 @@ HTML;
 
         if (array_key_exists('link_buttons', $payload)) {
             $linkButtonsPayload = $payload['link_buttons'];
-            $normalizedButtons = [];
+            $normalizedButtons  = [];
             if (is_array($linkButtonsPayload)) {
                 foreach ($linkButtonsPayload as $entry) {
                     if (!is_array($entry)) {
@@ -10311,7 +10363,7 @@ HTML;
         } elseif (array_key_exists('link_button', $payload)) {
             $linkConfig = $payload['link_button'];
             if (is_array($linkConfig)) {
-                $normalizedLink = $this->normalizeLinkButtonConfigPayload($linkConfig);
+                $normalizedLink               = $this->normalizeLinkButtonConfigPayload($linkConfig);
                 $this->config['link_buttons'] = $normalizedLink !== null ? [$normalizedLink] : [];
             } elseif ($linkConfig === null) {
                 $this->config['link_buttons'] = [];
@@ -10319,7 +10371,7 @@ HTML;
         }
 
         if (array_key_exists('multi_link_buttons', $payload)) {
-            $multiPayload = $payload['multi_link_buttons'];
+            $multiPayload           = $payload['multi_link_buttons'];
             $normalizedMultiButtons = [];
             if (is_array($multiPayload)) {
                 foreach ($multiPayload as $entry) {
@@ -10337,7 +10389,7 @@ HTML;
         } elseif (array_key_exists('multi_link_button', $payload)) {
             $multiLinkConfig = $payload['multi_link_button'];
             if (is_array($multiLinkConfig)) {
-                $normalizedMulti = $this->normalizeMultiLinkButtonConfigPayload($multiLinkConfig);
+                $normalizedMulti                    = $this->normalizeMultiLinkButtonConfigPayload($multiLinkConfig);
                 $this->config['multi_link_buttons'] = $normalizedMulti !== null ? [$normalizedMulti] : [];
             } elseif ($multiLinkConfig === null) {
                 $this->config['multi_link_buttons'] = [];
@@ -10652,8 +10704,8 @@ HTML;
         if (array_key_exists('default_column_truncate', $payload)) {
             $this->config['default_column_truncate'] = $this->normalizeDefaultColumnTruncateValue(
                 is_array($payload['default_column_truncate']) || is_int($payload['default_column_truncate'])
-                    ? $payload['default_column_truncate']
-                    : null,
+                ? $payload['default_column_truncate']
+                : null,
                 'default_column_truncate payload'
             );
         }
@@ -10665,14 +10717,14 @@ HTML;
                 if (!is_string($column) || !is_array($entries)) {
                     continue;
                 }
-                $normalizedColumn = $this->normalizeColumnReference($column);
+                $normalizedColumn  = $this->normalizeColumnReference($column);
                 $normalizedEntries = [];
                 foreach ($entries as $entry) {
                     if (!is_array($entry) || !isset($entry['condition'], $entry['class'])) {
                         continue;
                     }
                     $condition = $entry['condition'];
-                    $class = (string) $entry['class'];
+                    $class     = (string) $entry['class'];
                     if (!is_array($condition) || $class === '') {
                         continue;
                     }
@@ -10695,7 +10747,7 @@ HTML;
                     continue;
                 }
                 $condition = $entry['condition'];
-                $class = (string) $entry['class'];
+                $class     = (string) $entry['class'];
                 if (!is_array($condition) || $class === '') {
                     continue;
                 }
@@ -10714,7 +10766,7 @@ HTML;
                     continue;
                 }
                 $column = $this->normalizeColumnReference((string) $entry['column']);
-                $type = strtolower((string) $entry['type']);
+                $type   = strtolower((string) $entry['type']);
                 if (!in_array($type, self::SUPPORTED_SUMMARY_TYPES, true)) {
                     continue;
                 }
@@ -10742,7 +10794,7 @@ HTML;
                     continue;
                 }
 
-                $parentRaw = isset($entry['parent_column']) ? trim((string) $entry['parent_column']) : '';
+                $parentRaw        = isset($entry['parent_column']) ? trim((string) $entry['parent_column']) : '';
                 $normalizedParent = $this->normalizeColumnReference($parentRaw);
                 if ($normalizedParent === '') {
                     continue;
@@ -10781,13 +10833,13 @@ HTML;
                 }
 
                 $this->nestedTables[$name] = [
-                    'name'               => $name,
-                    'parent_column'      => $normalizedParent,
-                    'parent_column_raw'  => isset($entry['parent_column_raw']) && is_string($entry['parent_column_raw'])
+                    'name'              => $name,
+                    'parent_column'     => $normalizedParent,
+                    'parent_column_raw' => isset($entry['parent_column_raw']) && is_string($entry['parent_column_raw'])
                         ? trim($entry['parent_column_raw'])
                         : $parentRaw,
-                    'foreign_column'     => $foreignColumn,
-                    'crud'               => $child,
+                    'foreign_column'    => $foreignColumn,
+                    'crud'              => $child,
                 ];
             }
         }
@@ -10847,7 +10899,7 @@ HTML;
         $primaryKey = $this->getPrimaryKeyColumn();
 
         foreach ($rows as $index => $row) {
-            $rows[$index]['__fastcrud_primary_key'] = $primaryKey;
+            $rows[$index]['__fastcrud_primary_key']   = $primaryKey;
             $rows[$index]['__fastcrud_primary_value'] = $row[$primaryKey] ?? null;
         }
 
@@ -10872,7 +10924,7 @@ HTML;
         }
 
         $primaryKeyColumn = $this->getPrimaryKeyColumn();
-        $primaryKeySql = $this->quotePrimaryKeyColumnName($primaryKeyColumn);
+        $primaryKeySql    = $this->quotePrimaryKeyColumnName($primaryKeyColumn);
 
         $readonly = $this->gatherBehaviourForMode('readonly', 'create');
         $disabled = $this->gatherBehaviourForMode('disabled', 'create');
@@ -10908,7 +10960,7 @@ HTML;
 
             if ($needsDefault) {
                 $filtered[$column] = $this->renderTemplateValue($value, $context);
-                $context[$column] = $filtered[$column];
+                $context[$column]  = $filtered[$column];
             }
         }
 
@@ -10919,7 +10971,7 @@ HTML;
             }
 
             $filtered[$column] = $this->renderTemplateValue($value, $context);
-            $context[$column] = $filtered[$column];
+            $context[$column]  = $filtered[$column];
         }
 
         $filtered = $this->applyPasswordFieldTransformations($filtered, $fields);
@@ -10947,7 +10999,7 @@ HTML;
 
         /** @var array<string, mixed> $filtered */
         $filtered = $beforeInsert['payload'];
-        $context = array_merge($context, $filtered);
+        $context  = array_merge($context, $filtered);
 
         $errors = [];
 
@@ -10957,15 +11009,15 @@ HTML;
                 continue;
             }
 
-            $value = $filtered[$column] ?? null;
+            $value  = $filtered[$column] ?? null;
             $length = 0;
             if ($value !== null) {
                 if (is_string($value)) {
                     $normalized = trim($value);
-                    $length = function_exists('mb_strlen') ? mb_strlen($normalized) : strlen($normalized);
+                    $length     = function_exists('mb_strlen') ? mb_strlen($normalized) : strlen($normalized);
                 } elseif (is_numeric($value)) {
                     $stringValue = (string) $value;
-                    $length = function_exists('mb_strlen') ? mb_strlen($stringValue) : strlen($stringValue);
+                    $length      = function_exists('mb_strlen') ? mb_strlen($stringValue) : strlen($stringValue);
                 } elseif (is_bool($value)) {
                     $length = 1;
                 }
@@ -11053,12 +11105,12 @@ HTML;
             throw new RuntimeException('No data provided for insert.');
         }
 
-        $columnsList = array_keys($filtered);
+        $columnsList  = array_keys($filtered);
         $placeholders = [];
-        $parameters = [];
+        $parameters   = [];
         foreach ($filtered as $column => $value) {
-            $placeholder = ':col_' . $column;
-            $placeholders[] = $placeholder;
+            $placeholder              = ':col_' . $column;
+            $placeholders[]           = $placeholder;
             $parameters[$placeholder] = $value;
         }
 
@@ -11091,7 +11143,7 @@ HTML;
                 $newPk = $this->connection->lastInsertId();
                 if (is_string($newPk) && $newPk !== '' && $newPk !== '0') {
                     $primaryValue = $newPk;
-                    $row = $this->findRowByPrimaryKey($primaryKeyColumn, $newPk);
+                    $row          = $this->findRowByPrimaryKey($primaryKeyColumn, $newPk);
                 }
             } catch (PDOException) {
                 // ignore and fall back below
@@ -11100,7 +11152,7 @@ HTML;
 
         if ($row === null) {
             try {
-                $sql = sprintf('SELECT * FROM %s ORDER BY %s DESC LIMIT 1', $this->table, $primaryKeySql);
+                $sql          = sprintf('SELECT * FROM %s ORDER BY %s DESC LIMIT 1', $this->table, $primaryKeySql);
                 $fallbackStmt = $this->connection->query($sql);
                 if ($fallbackStmt !== false) {
                     $candidate = $fallbackStmt->fetch(PDO::FETCH_ASSOC);
@@ -11128,7 +11180,7 @@ HTML;
 
         if ($row !== null) {
             $afterContext['row'] = $row;
-            $after = $this->dispatchLifecycleEvent('after_insert', $row, $afterContext, true);
+            $after               = $this->dispatchLifecycleEvent('after_insert', $row, $afterContext, true);
             /** @var array<string, mixed> $resultRow */
             $resultRow = $after['payload'];
             return $resultRow;
@@ -11180,7 +11232,7 @@ HTML;
         $readonly = $this->gatherBehaviourForMode('readonly', $mode);
         $disabled = $this->gatherBehaviourForMode('disabled', $mode);
 
-        $filtered = [];
+        $filtered       = [];
         $payloadColumns = [];
         foreach ($fields as $column => $value) {
             if (!is_string($column)) {
@@ -11218,7 +11270,7 @@ HTML;
 
             if ($needsDefault) {
                 $filtered[$column] = $this->renderTemplateValue($value, $context);
-                $context[$column] = $filtered[$column];
+                $context[$column]  = $filtered[$column];
             }
         }
 
@@ -11229,7 +11281,7 @@ HTML;
             }
 
             $filtered[$column] = $this->renderTemplateValue($value, $context);
-            $context[$column] = $filtered[$column];
+            $context[$column]  = $filtered[$column];
         }
 
         $filtered = $this->applyPasswordFieldTransformations($filtered, $fields);
@@ -11273,15 +11325,15 @@ HTML;
                 continue;
             }
 
-            $value = $filtered[$column] ?? ($context[$column] ?? null);
+            $value  = $filtered[$column] ?? ($context[$column] ?? null);
             $length = 0;
             if ($value !== null) {
                 if (is_string($value)) {
                     $normalized = trim($value);
-                    $length = function_exists('mb_strlen') ? mb_strlen($normalized) : strlen($normalized);
+                    $length     = function_exists('mb_strlen') ? mb_strlen($normalized) : strlen($normalized);
                 } elseif (is_numeric($value)) {
                     $stringValue = (string) $value;
-                    $length = function_exists('mb_strlen') ? mb_strlen($stringValue) : strlen($stringValue);
+                    $length      = function_exists('mb_strlen') ? mb_strlen($stringValue) : strlen($stringValue);
                 } elseif (is_bool($value)) {
                     $length = 1;
                 }
@@ -11411,7 +11463,7 @@ HTML;
 
         if ($row !== null) {
             $afterContext['row'] = $row;
-            $after = $this->dispatchLifecycleEvent('after_update', $row, $afterContext, true);
+            $after               = $this->dispatchLifecycleEvent('after_update', $row, $afterContext, true);
             /** @var array<string, mixed> $updatedRow */
             $updatedRow = $after['payload'];
 
@@ -11453,7 +11505,7 @@ HTML;
         }
 
         $softDeleteAssignments = $this->getSoftDeleteAssignments();
-        $useSoftDelete = $softDeleteAssignments !== [];
+        $useSoftDelete         = $softDeleteAssignments !== [];
 
         $beforeContext = [
             'operation'     => 'delete',
@@ -11472,12 +11524,12 @@ HTML;
         /** @var array<string, mixed> $rowForDeletion */
         $rowForDeletion = $beforeDelete['payload'];
 
-        $parameters = [':pk' => $primaryKeyValue];
+        $parameters     = [':pk' => $primaryKeyValue];
         $resolvedValues = [];
 
         if ($useSoftDelete) {
             $updateClause = $this->buildSoftDeleteUpdateClause($softDeleteAssignments, $parameters, 'sd_single', $resolvedValues);
-            $sql = sprintf('UPDATE %s SET %s WHERE %s = :pk', $this->table, $updateClause, $primaryKeySql);
+            $sql          = sprintf('UPDATE %s SET %s WHERE %s = :pk', $this->table, $updateClause, $primaryKeySql);
         } else {
             $sql = sprintf('DELETE FROM %s WHERE %s = :pk', $this->table, $primaryKeySql);
         }
@@ -11567,11 +11619,11 @@ HTML;
         }
 
         $softDeleteAssignments = $this->getSoftDeleteAssignments();
-        $useSoftDelete = $softDeleteAssignments !== [];
+        $useSoftDelete         = $softDeleteAssignments !== [];
 
         $initialRows = $this->fetchRowsByPrimaryKeys($primaryKeyColumn, $normalizedValues);
 
-        $targets = [];
+        $targets  = [];
         $failures = [];
         $seenKeys = [];
 
@@ -11638,15 +11690,15 @@ HTML;
         }
 
         $placeholders = [];
-        $parameters = [];
+        $parameters   = [];
         foreach ($targets as $index => $target) {
-            $placeholder = ':pk_' . $index;
-            $placeholders[$index] = $placeholder;
+            $placeholder              = ':pk_' . $index;
+            $placeholders[$index]     = $placeholder;
             $parameters[$placeholder] = $target['value'];
         }
 
-        $resolvedValues = [];
-        $statement = null;
+        $resolvedValues    = [];
+        $statement         = null;
         $manageTransaction = !$this->connection->inTransaction();
 
         if ($manageTransaction) {
@@ -11656,7 +11708,7 @@ HTML;
         try {
             if ($useSoftDelete) {
                 $updateClause = $this->buildSoftDeleteUpdateClause($softDeleteAssignments, $parameters, 'sd_batch', $resolvedValues);
-                $sql = sprintf(
+                $sql          = sprintf(
                     'UPDATE %s SET %s WHERE %s IN (%s)',
                     $this->table,
                     $updateClause,
@@ -11708,8 +11760,8 @@ HTML;
         if ($useSoftDelete && $affected !== $expected) {
             $refetched = $this->fetchRowsByPrimaryKeys($primaryKeyColumn, $targetValues);
             foreach ($targets as $index => $target) {
-                $lookupKey = $this->normalizePrimaryKeyLookupKey($target['value']);
-                $row = $refetched[$lookupKey] ?? null;
+                $lookupKey            = $this->normalizePrimaryKeyLookupKey($target['value']);
+                $row                  = $refetched[$lookupKey] ?? null;
                 $perRowStatus[$index] = $this->softDeleteAssignmentsSatisfied($row, $softDeleteAssignments, $resolvedValues);
 
                 if (!$perRowStatus[$index]) {
@@ -11724,8 +11776,8 @@ HTML;
         if (!$useSoftDelete && $affected !== $expected) {
             $remaining = $this->fetchRowsByPrimaryKeys($primaryKeyColumn, $targetValues);
             foreach ($targets as $index => $target) {
-                $lookupKey = $this->normalizePrimaryKeyLookupKey($target['value']);
-                $stillExists = isset($remaining[$lookupKey]);
+                $lookupKey            = $this->normalizePrimaryKeyLookupKey($target['value']);
+                $stillExists          = isset($remaining[$lookupKey]);
                 $perRowStatus[$index] = !$stillExists;
 
                 if ($stillExists) {
@@ -11833,7 +11885,7 @@ HTML;
         }
 
         $updatedCount = 0;
-        $failures = [];
+        $failures     = [];
 
         foreach ($normalizedValues as $value) {
             try {
@@ -11933,10 +11985,10 @@ HTML;
 
         // 4) Insert new row
         $placeholders = [];
-        $parameters = [];
+        $parameters   = [];
         foreach ($fields as $column => $value) {
-            $ph = ':col_' . $column;
-            $placeholders[] = $ph;
+            $ph              = ':col_' . $column;
+            $placeholders[]  = $ph;
             $parameters[$ph] = $value;
         }
 
@@ -11962,13 +12014,13 @@ HTML;
                     $fields = $adjusted;
                     // rebuild placeholders and parameters
                     $placeholders = [];
-                    $parameters = [];
+                    $parameters   = [];
                     foreach ($fields as $column => $value) {
-                        $ph = ':col_' . $column;
-                        $placeholders[] = $ph;
+                        $ph              = ':col_' . $column;
+                        $placeholders[]  = $ph;
                         $parameters[$ph] = $value;
                     }
-                    $sql = sprintf(
+                    $sql       = sprintf(
                         'INSERT INTO %s (%s) VALUES (%s)',
                         $this->table,
                         implode(', ', array_keys($fields)),
@@ -12005,13 +12057,13 @@ HTML;
         }
 
         $primaryValue = null;
-        $row = null;
+        $row          = null;
 
         try {
             $newPk = $this->connection->lastInsertId();
             if (is_string($newPk) && $newPk !== '' && $newPk !== '0') {
                 $primaryValue = $newPk;
-                $row = $this->findRowByPrimaryKey($primaryKeyColumn, $newPk);
+                $row          = $this->findRowByPrimaryKey($primaryKeyColumn, $newPk);
             }
         } catch (PDOException) {
             // ignore, fallback below
@@ -12019,7 +12071,7 @@ HTML;
 
         if ($row === null) {
             try {
-                $sql = sprintf('SELECT * FROM %s ORDER BY %s DESC LIMIT 1', $this->table, $primaryKeySql);
+                $sql          = sprintf('SELECT * FROM %s ORDER BY %s DESC LIMIT 1', $this->table, $primaryKeySql);
                 $fallbackStmt = $this->connection->query($sql);
                 if ($fallbackStmt !== false) {
                     $candidate = $fallbackStmt->fetch(PDO::FETCH_ASSOC);
@@ -12048,7 +12100,7 @@ HTML;
 
         if ($row !== null) {
             $afterContext['row'] = $row;
-            $after = $this->dispatchLifecycleEvent('after_insert', $row, $afterContext, true);
+            $after               = $this->dispatchLifecycleEvent('after_insert', $row, $afterContext, true);
             /** @var array<string, mixed> $duplicated */
             $duplicated = $after['payload'];
             return $duplicated;
@@ -12062,10 +12114,10 @@ HTML;
     private function isDuplicateKeyException(PDOException $exception): bool
     {
         // MySQL: SQLSTATE 23000, error code 1062; generic message contains 'Duplicate entry'
-        $code = $exception->getCode();
+        $code    = $exception->getCode();
         $message = strtolower((string) $exception->getMessage());
-        $info0 = is_array($exception->errorInfo ?? null) ? ($exception->errorInfo[0] ?? null) : null;
-        $info1 = is_array($exception->errorInfo ?? null) ? ($exception->errorInfo[1] ?? null) : null;
+        $info0   = is_array($exception->errorInfo ?? null) ? ($exception->errorInfo[0] ?? null) : null;
+        $info1   = is_array($exception->errorInfo ?? null) ? ($exception->errorInfo[1] ?? null) : null;
         if ((string) $info0 === '23000' && (int) $info1 === 1062) {
             return true;
         }
@@ -12115,16 +12167,16 @@ HTML;
                 continue;
             }
             // Find an unused variant by appending (copy), (copy 2), ...
-            $base = $this->stripCopySuffix($value);
+            $base      = $this->stripCopySuffix($value);
             $candidate = $base . ' (copy)';
-            $attempt = 2;
+            $attempt   = 2;
             while ($this->valueExistsForColumn($column, $candidate) && $attempt < 100) {
                 $candidate = $base . ' (copy ' . $attempt . ')';
                 $attempt++;
             }
             if (!$this->valueExistsForColumn($column, $candidate)) {
                 $updated[$column] = $candidate;
-                $changed = true;
+                $changed          = true;
             }
         }
 
@@ -12141,7 +12193,7 @@ HTML;
 
     private function valueExistsForColumn(string $column, string $value): bool
     {
-        $sql = sprintf('SELECT COUNT(*) FROM %s WHERE %s = :v', $this->table, $column);
+        $sql  = sprintf('SELECT COUNT(*) FROM %s WHERE %s = :v', $this->table, $column);
         $stmt = $this->connection->prepare($sql);
         if ($stmt === false) {
             return false;
@@ -12161,7 +12213,7 @@ HTML;
     private function getMysqlUniqueSingleColumns(string $table): array
     {
         $columns = [];
-        $sql = sprintf('SHOW INDEX FROM `%s`', $table);
+        $sql     = sprintf('SHOW INDEX FROM `%s`', $table);
         try {
             $stmt = $this->connection->query($sql);
         } catch (PDOException) {
@@ -12174,9 +12226,9 @@ HTML;
         while (($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== false) {
             // Rows: Table, Non_unique(0=unique), Key_name, Seq_in_index, Column_name, ...
             $nonUnique = isset($row['Non_unique']) ? (int) $row['Non_unique'] : 1;
-            $keyName = isset($row['Key_name']) ? (string) $row['Key_name'] : '';
-            $seq = isset($row['Seq_in_index']) ? (int) $row['Seq_in_index'] : 0;
-            $col = isset($row['Column_name']) ? (string) $row['Column_name'] : '';
+            $keyName   = isset($row['Key_name']) ? (string) $row['Key_name'] : '';
+            $seq       = isset($row['Seq_in_index']) ? (int) $row['Seq_in_index'] : 0;
+            $col       = isset($row['Column_name']) ? (string) $row['Column_name'] : '';
             if ($nonUnique === 0 && $keyName !== 'PRIMARY' && $col !== '') {
                 if (!isset($indexes[$keyName])) {
                     $indexes[$keyName] = [];
@@ -12205,8 +12257,8 @@ HTML;
     private function findRowByPrimaryKey(string $primaryKeyColumn, mixed $primaryKeyValue, string $mode = 'edit'): ?array
     {
         $primaryKeySql = $this->quotePrimaryKeyColumnName($primaryKeyColumn);
-        $sql       = sprintf('SELECT * FROM %s WHERE %s = :pk LIMIT 1', $this->table, $primaryKeySql);
-        $statement = $this->connection->prepare($sql);
+        $sql           = sprintf('SELECT * FROM %s WHERE %s = :pk LIMIT 1', $this->table, $primaryKeySql);
+        $statement     = $this->connection->prepare($sql);
 
         if ($statement === false) {
             throw new RuntimeException('Failed to prepare record lookup.');
@@ -12224,13 +12276,13 @@ HTML;
             return null;
         }
 
-        $primaryKey = $this->getPrimaryKeyColumn();
-        $row['__fastcrud_primary_key'] = $primaryKey;
+        $primaryKey                      = $this->getPrimaryKeyColumn();
+        $row['__fastcrud_primary_key']   = $primaryKey;
         $row['__fastcrud_primary_value'] = $row[$primaryKey] ?? null;
 
         $resolvedMode = $this->normalizeRenderMode($mode) ?? 'edit';
 
-        $row = $this->applyFieldCallbacksToRow($row, $resolvedMode);
+        $row                           = $this->applyFieldCallbacksToRow($row, $resolvedMode);
         $row['__fastcrud_render_mode'] = $resolvedMode;
 
         return $row;
@@ -12345,7 +12397,7 @@ HTML;
     {
         $id = $this->escapeHtml($this->id);
 
-        $styles = $this->getStyleDefaults();
+        $styles           = $this->getStyleDefaults();
         $editViewRowClass = trim($styles['edit_view_row_highlight_class'] ?? '');
         if ($editViewRowClass === '') {
             $editViewRowClass = 'table-warning';
@@ -12360,7 +12412,7 @@ HTML;
             $styleJson = '{}';
         }
 
-        $select2ThemeCss = <<<'CSS'
+        $select2ThemeCss     = <<<'CSS'
 :root, [data-bs-theme=light]{
   --fastcrud-select2-bg:var(--bs-body-bg,#fff);
   --fastcrud-select2-border:var(--bs-border-color,#ced4da);
@@ -12527,7 +12579,7 @@ select.form-select-lg + .select2-container .select2-selection--multiple{
 [data-bs-theme=dark] .select2-dropdown .select2-results__options::-webkit-scrollbar-thumb{background-color:rgba(255,255,255,0.25);}
 [data-bs-theme=dark] .select2-dropdown .select2-results__options::-webkit-scrollbar-track{background-color:rgba(255,255,255,0.08);}
 CSS;
-        $select2ThemeCss = trim($select2ThemeCss);
+        $select2ThemeCss     = trim($select2ThemeCss);
         $select2ThemeCssJson = json_encode(
             $select2ThemeCss,
             JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP
@@ -21197,13 +21249,6 @@ CSS;
             input.prop('disabled', true);
             input.data('fastcrudUpdating', true);
 
-            var coerceBool = function(value) {
-                if (value === true || value === 1 || value === '1') { return true; }
-                if (value === false || value === 0 || value === '0') { return false; }
-                var normalized = String(value || '').toLowerCase();
-                return ['true', 't', 'yes', 'y', 'on', 'enabled', 'enable', 'active', 'checked'].indexOf(normalized) !== -1;
-            };
-
             var payloadFields = {};
             payloadFields[field] = newValue;
 
@@ -21223,28 +21268,7 @@ CSS;
                 },
                 success: function(response) {
                     if (response && response.success) {
-                        // Keep caches fresh without reloading the full table
-                        try {
-                            var pkValueString = String(pkVal);
-                            var editCacheKey = rowCacheKey(pkCol, pkValueString, 'edit');
-                            var viewCacheKey = rowCacheKey(pkCol, pkValueString, 'view');
-                            if (rowCache[editCacheKey]) { delete rowCache[editCacheKey]; }
-                            if (rowCache[viewCacheKey]) { delete rowCache[viewCacheKey]; }
-                        } catch (e) {}
-
-                        if (response.row && Object.prototype.hasOwnProperty.call(response.row, field)) {
-                            input.prop('checked', coerceBool(response.row[field]));
-                        }
-
-                        try {
-                            table.trigger('fastcrud:bool-toggle', {
-                                tableId: tableId,
-                                field: field,
-                                primaryKey: pkCol,
-                                primaryValue: pkVal,
-                                value: input.is(':checked')
-                            });
-                        } catch (e) {}
+                        loadTableData(currentPage);
                     } else {
                         var message = response && response.error ? response.error : 'Failed to update value.';
                         if (window.console && console.error) console.error('FastCrud toggle error:', message);
@@ -21844,14 +21868,14 @@ CSS;
 SCRIPT;
     }
 }
-        if (isset($payload['inline_edit'])) {
-            $fields = $this->normalizeList($payload['inline_edit']);
-            $map = [];
-            foreach ($fields as $field) {
-                $normalized = $this->normalizeColumnReference($field);
-                if ($normalized !== '') {
-                    $map[$normalized] = true;
-                }
-            }
-            $this->config['inline_edit'] = $map;
+if (isset($payload['inline_edit'])) {
+    $fields = $this->normalizeList($payload['inline_edit']);
+    $map    = [];
+    foreach ($fields as $field) {
+        $normalized = $this->normalizeColumnReference($field);
+        if ($normalized !== '') {
+            $map[$normalized] = true;
         }
+    }
+    $this->config['inline_edit'] = $map;
+}
