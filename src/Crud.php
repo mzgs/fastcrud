@@ -10938,6 +10938,11 @@ HTML;
                 continue;
             }
 
+            // Honour explicit payload values; only inject when the client did not send the field
+            if (array_key_exists($column, $fields)) {
+                continue;
+            }
+
             $filtered[$column] = $this->renderTemplateValue($value, $context);
             $context[$column] = $filtered[$column];
         }
@@ -11245,6 +11250,11 @@ HTML;
         $passVars = $this->gatherBehaviourForMode('pass_var', $mode);
         foreach ($passVars as $column => $value) {
             if (!in_array($column, $columns, true)) {
+                continue;
+            }
+
+            // Do not override explicit user input coming from the client
+            if (isset($payloadColumns[$column])) {
                 continue;
             }
 
