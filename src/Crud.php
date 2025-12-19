@@ -21212,6 +21212,9 @@ CSS;
             if (!field || !pkCol || typeof pkVal === 'undefined') {
                 // revert change if metadata is missing
                 input.prop('checked', !input.is(':checked'));
+                if (window.console && console.error) {
+                    console.error('FastCrud toggle error: missing metadata', { field: field, pkCol: pkCol, pkVal: pkVal });
+                }
                 return;
             }
 
@@ -21237,18 +21240,30 @@ CSS;
                     fields: JSON.stringify(payloadFields),
                     config: JSON.stringify(clientConfig)
                 },
-                success: function(response) {
+                success: function(response, textStatus, jqXHR) {
                     if (response && response.success) {
                         loadTableData(currentPage);
                     } else {
                         var message = response && response.error ? response.error : 'Failed to update value.';
-                        if (window.console && console.error) console.error('FastCrud toggle error:', message);
+                        if (window.console && console.error) {
+                            console.error('FastCrud toggle update rejected', {
+                                message: message,
+                                status: jqXHR ? jqXHR.status : 'n/a',
+                                response: response
+                            });
+                        }
                         window.alert(message);
                         input.prop('checked', wasChecked);
                     }
                 },
-                error: function(_, __, error) {
-                    if (window.console && console.error) console.error('FastCrud toggle request failed:', error);
+                error: function(jqXHR, textStatus, error) {
+                    if (window.console && console.error) {
+                        console.error('FastCrud toggle request failed', {
+                            status: jqXHR ? jqXHR.status : 'n/a',
+                            statusText: jqXHR ? jqXHR.statusText : textStatus,
+                            error: error
+                        });
+                    }
                     window.alert('Failed to update value: ' + error);
                     input.prop('checked', wasChecked);
                 },
