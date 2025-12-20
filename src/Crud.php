@@ -8970,6 +8970,7 @@ HTML;
             'behaviours'   => $behaviours,
             'labels'       => $fieldLabels,
             'all_columns'  => array_values($allColumns),
+            'show_primary_key_field' => $this->shouldDisplayPrimaryKeyField(),
         ];
     }
 
@@ -9008,12 +9009,17 @@ HTML;
                 continue;
             }
 
-            if (
+            $isPrimaryKey = (
                 $normalized === $primaryKey
                 || $normalized === $primaryKeyNameOnly
                 || $column === $primaryKeyRaw
                 || $column === $primaryKeyNameOnly
-            ) {
+            );
+
+            if ($isPrimaryKey) {
+                if ($this->shouldDisplayPrimaryKeyField() && $this->schemaColumnIsRequired($meta)) {
+                    $required[$normalized] = 1;
+                }
                 continue;
             }
 
@@ -9113,6 +9119,32 @@ HTML;
         }
 
         return false;
+    }
+
+    private function shouldDisplayPrimaryKeyField(): bool
+    {
+        return !$this->isPrimaryKeyNumeric();
+    }
+
+    private function isPrimaryKeyNumeric(): bool
+    {
+        $primaryKey = $this->getPrimaryKeyColumn();
+        $schema     = $this->getTableSchema($this->table);
+        if (!isset($schema[$primaryKey]) || !is_array($schema[$primaryKey])) {
+            return true;
+        }
+
+        $typeInfo = $this->detectSqlTypeInfo($schema[$primaryKey]);
+
+        if ($typeInfo['normalized'] !== '') {
+            return $this->isNumericType($typeInfo['normalized']);
+        }
+
+        if ($typeInfo['raw'] !== '') {
+            return $this->isNumericType($this->normalizeSqlType($typeInfo['raw']));
+        }
+
+        return true;
     }
 
     private function buildSummaries(?string $searchTerm, ?string $searchColumn): array
@@ -12696,6 +12728,7 @@ CSS;
         var columnsCache = [];
         var baseColumns = [];
         var primaryKeyColumn = null;
+        var showPrimaryKeyField = !!(clientConfig && clientConfig.form && clientConfig.form.show_primary_key_field);
         var metaConfig = {};
         var metaInitialized = false;
         var perPageOptions = [];
@@ -15181,6 +15214,12 @@ CSS;
             }
             clientConfig.numbers_enabled = numbersEnabled;
 
+            if (meta.form && typeof meta.form === 'object' && Object.prototype.hasOwnProperty.call(meta.form, 'show_primary_key_field')) {
+                showPrimaryKeyField = !!meta.form.show_primary_key_field;
+            } else if (clientConfig && clientConfig.form && Object.prototype.hasOwnProperty.call(clientConfig.form, 'show_primary_key_field')) {
+                showPrimaryKeyField = !!clientConfig.form.show_primary_key_field;
+            }
+
             if (formOnlyMode) {
                 if (Array.isArray(meta.columns) && meta.columns.length) {
                     columnsCache = meta.columns.slice();
@@ -15205,10 +15244,12 @@ CSS;
                         labels: meta.form.labels && typeof meta.form.labels === 'object' ? meta.form.labels : {},
                         all_columns: Array.isArray(meta.form.all_columns) ? meta.form.all_columns.slice() : [],
                         sections: meta.form.sections && typeof meta.form.sections === 'object' ? meta.form.sections : {},
-                        templates: templates
+                        templates: templates,
+                        show_primary_key_field: showPrimaryKeyField
                     };
                     formTemplates = templates;
                     clientConfig.form = $.extend(true, {}, meta.form);
+                    clientConfig.form.show_primary_key_field = showPrimaryKeyField;
                     if (Object.keys(templates).length) {
                         clientConfig.form.templates = deepClone(templates);
                     } else if (clientConfig.form && typeof clientConfig.form === 'object') {
@@ -15276,10 +15317,12 @@ CSS;
                     labels: meta.form.labels && typeof meta.form.labels === 'object' ? meta.form.labels : {},
                     all_columns: Array.isArray(meta.form.all_columns) ? meta.form.all_columns : [],
                     sections: meta.form.sections && typeof meta.form.sections === 'object' ? meta.form.sections : {},
-                    templates: liveTemplates
+                    templates: liveTemplates,
+                    show_primary_key_field: showPrimaryKeyField
                 };
                 formTemplates = liveTemplates;
                 clientConfig.form = $.extend(true, {}, meta.form);
+                clientConfig.form.show_primary_key_field = showPrimaryKeyField;
                 if (Object.keys(liveTemplates).length) {
                     clientConfig.form.templates = deepClone(liveTemplates);
                 } else if (clientConfig.form && typeof clientConfig.form === 'object') {
@@ -15294,7 +15337,8 @@ CSS;
                     labels: {},
                     all_columns: [],
                     sections: {},
-                    templates: {}
+                    templates: {},
+                    show_primary_key_field: showPrimaryKeyField
                 };
                 delete clientConfig.form;
             }
@@ -16568,7 +16612,14 @@ CSS;
             }
 
             ordering = ordering.filter(function(field) {
-                return field !== primaryKeyColumn;
+                if (!primaryKeyColumn || field !== primaryKeyColumn) {
+                    return true;
+                }
+                if (!showPrimaryKeyField) {
+                    return false;
+                }
+                var modeKey = typeof mode === 'string' ? mode.toLowerCase() : '';
+                return modeKey === 'create' || modeKey === 'edit';
             });
 
             var defaultTab = null;
