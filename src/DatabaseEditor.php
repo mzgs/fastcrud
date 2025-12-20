@@ -43,17 +43,17 @@ class DatabaseEditor
         }
 
         $connection = Database::connection();
-        $driver = self::detectDriver($connection);
+        $driver     = self::detectDriver($connection);
         self::handleRequest($connection, $driver);
 
-        $tables = self::fetchTables($connection, $driver);
+        $tables       = self::fetchTables($connection, $driver);
         $tableColumns = [];
         foreach ($tables as $table) {
             $tableColumns[$table] = self::fetchColumns($connection, $driver, $table);
         }
 
         $activeTable = self::resolveActiveTable($tables);
-        $dbConfig = CrudConfig::getDbConfig();
+        $dbConfig    = CrudConfig::getDbConfig();
 
         return self::renderHtml(
             $connection,
@@ -156,8 +156,8 @@ class DatabaseEditor
         }
 
         try {
-            $connection = Database::connection();
-            $driver = self::detectDriver($connection);
+            $connection            = Database::connection();
+            $driver                = self::detectDriver($connection);
             self::$downloadHandled = true;
             self::handleDownloadDatabase($connection, $driver);
         } catch (PDOException $exception) {
@@ -178,7 +178,7 @@ class DatabaseEditor
         if ($action === 'load_records_table') {
             try {
                 $connection = Database::connection();
-                $driver = self::detectDriver($connection);
+                $driver     = self::detectDriver($connection);
                 self::handleLoadRecordsTable($connection, $driver);
             } catch (Throwable $exception) {
                 self::respondRecordsTableError($exception->getMessage());
@@ -191,7 +191,7 @@ class DatabaseEditor
             $html = self::render();
         } catch (Throwable $exception) {
             $message = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            $html = '<div class="fastcrud-db-editor"><div class="alert alert-danger" role="alert">' . $message . '</div></div>';
+            $html    = '<div class="fastcrud-db-editor"><div class="alert alert-danger" role="alert">' . $message . '</div></div>';
             self::respondHtmlAndExit($html, 500);
             return;
         }
@@ -238,21 +238,21 @@ class DatabaseEditor
         }
 
         $quoted = self::quoteIdentifier($tableName, $driver);
-        $sql = match ($driver) {
+        $sql    = match ($driver) {
             'pgsql' => sprintf('CREATE TABLE %s (id SERIAL PRIMARY KEY)', $quoted),
             'sqlite' => sprintf('CREATE TABLE %s (id INTEGER PRIMARY KEY AUTOINCREMENT)', $quoted),
             default => sprintf('CREATE TABLE %s (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY)', $quoted),
         };
 
         $connection->exec($sql);
-        self::$messages[] = sprintf('Table "%s" created.', $tableName);
+        self::$messages[]  = sprintf('Table "%s" created.', $tableName);
         self::$activeTable = $tableName;
     }
 
     private static function handleRenameTable(PDO $connection, string $driver): void
     {
         $current = isset($_POST['current_table']) ? trim((string) $_POST['current_table']) : '';
-        $new = isset($_POST['new_table_name']) ? trim((string) $_POST['new_table_name']) : '';
+        $new     = isset($_POST['new_table_name']) ? trim((string) $_POST['new_table_name']) : '';
 
         if (!self::isValidIdentifier($current) || !self::isValidIdentifier($new)) {
             throw new RuntimeException('Table names must contain only letters, numbers, or underscores.');
@@ -268,7 +268,7 @@ class DatabaseEditor
         };
 
         $connection->exec($sql);
-        self::$messages[] = sprintf('Table "%s" renamed to "%s".', $current, $new);
+        self::$messages[]  = sprintf('Table "%s" renamed to "%s".', $current, $new);
         self::$activeTable = $new;
     }
 
@@ -280,7 +280,7 @@ class DatabaseEditor
             throw new RuntimeException('Table name must contain only letters, numbers, or underscores.');
         }
 
-        $tables = self::fetchTables($connection, $driver);
+        $tables  = self::fetchTables($connection, $driver);
         $matched = null;
         foreach ($tables as $existing) {
             if (strcasecmp($existing, $table) === 0) {
@@ -319,9 +319,9 @@ class DatabaseEditor
 
     private static function handleAddColumn(PDO $connection, string $driver): void
     {
-        $table = isset($_POST['table_name']) ? trim((string) $_POST['table_name']) : '';
+        $table  = isset($_POST['table_name']) ? trim((string) $_POST['table_name']) : '';
         $column = isset($_POST['column_name']) ? trim((string) $_POST['column_name']) : '';
-        $type = isset($_POST['column_type']) ? trim((string) $_POST['column_type']) : '';
+        $type   = isset($_POST['column_type']) ? trim((string) $_POST['column_type']) : '';
 
         if (!self::isValidIdentifier($table) || !self::isValidIdentifier($column)) {
             throw new RuntimeException('Table and column names must contain only letters, numbers, or underscores.');
@@ -346,8 +346,8 @@ class DatabaseEditor
 
     private static function handleRenameColumn(PDO $connection, string $driver): void
     {
-        $table = isset($_POST['table_name']) ? trim((string) $_POST['table_name']) : '';
-        $column = isset($_POST['column_name']) ? trim((string) $_POST['column_name']) : '';
+        $table   = isset($_POST['table_name']) ? trim((string) $_POST['table_name']) : '';
+        $column  = isset($_POST['column_name']) ? trim((string) $_POST['column_name']) : '';
         $newName = isset($_POST['new_column_name']) ? trim((string) $_POST['new_column_name']) : '';
 
         if (!self::isValidIdentifier($table) || !self::isValidIdentifier($column) || !self::isValidIdentifier($newName)) {
@@ -361,12 +361,14 @@ class DatabaseEditor
         }
 
         $sql = match ($driver) {
-            'mysql' => sprintf('ALTER TABLE %s RENAME COLUMN %s TO %s',
+            'mysql' => sprintf(
+                'ALTER TABLE %s RENAME COLUMN %s TO %s',
                 self::quoteIdentifier($table, $driver),
                 self::quoteIdentifier($column, $driver),
                 self::quoteIdentifier($newName, $driver)
             ),
-            default => sprintf('ALTER TABLE %s RENAME COLUMN %s TO %s',
+            default => sprintf(
+                'ALTER TABLE %s RENAME COLUMN %s TO %s',
                 self::quoteIdentifier($table, $driver),
                 self::quoteIdentifier($column, $driver),
                 self::quoteIdentifier($newName, $driver)
@@ -379,9 +381,9 @@ class DatabaseEditor
 
     private static function handleChangeColumnType(PDO $connection, string $driver): void
     {
-        $table = isset($_POST['table_name']) ? trim((string) $_POST['table_name']) : '';
+        $table  = isset($_POST['table_name']) ? trim((string) $_POST['table_name']) : '';
         $column = isset($_POST['column_name']) ? trim((string) $_POST['column_name']) : '';
-        $type = isset($_POST['new_column_type']) ? trim((string) $_POST['new_column_type']) : '';
+        $type   = isset($_POST['new_column_type']) ? trim((string) $_POST['new_column_type']) : '';
 
         if (!self::isValidIdentifier($table) || !self::isValidIdentifier($column)) {
             throw new RuntimeException('Table and column names must contain only letters, numbers, or underscores.');
@@ -394,18 +396,21 @@ class DatabaseEditor
         }
 
         $sql = match ($driver) {
-            'mysql' => sprintf('ALTER TABLE %s MODIFY %s %s',
+            'mysql' => sprintf(
+                'ALTER TABLE %s MODIFY %s %s',
                 self::quoteIdentifier($table, $driver),
                 self::quoteIdentifier($column, $driver),
                 $type
             ),
-            'pgsql' => sprintf('ALTER TABLE %s ALTER COLUMN %s TYPE %s',
+            'pgsql' => sprintf(
+                'ALTER TABLE %s ALTER COLUMN %s TYPE %s',
                 self::quoteIdentifier($table, $driver),
                 self::quoteIdentifier($column, $driver),
                 $type
             ),
             'sqlite' => throw new RuntimeException('Changing column types is not supported for SQLite via this editor.'),
-            default => sprintf('ALTER TABLE %s MODIFY %s %s',
+            default => sprintf(
+                'ALTER TABLE %s MODIFY %s %s',
                 self::quoteIdentifier($table, $driver),
                 self::quoteIdentifier($column, $driver),
                 $type
@@ -418,7 +423,7 @@ class DatabaseEditor
 
     private static function handleDeleteColumn(PDO $connection, string $driver): void
     {
-        $table = isset($_POST['table_name']) ? trim((string) $_POST['table_name']) : '';
+        $table  = isset($_POST['table_name']) ? trim((string) $_POST['table_name']) : '';
         $column = isset($_POST['column_name']) ? trim((string) $_POST['column_name']) : '';
 
         if (!self::isValidIdentifier($table) || !self::isValidIdentifier($column)) {
@@ -443,7 +448,7 @@ class DatabaseEditor
             throw new RuntimeException('Column reordering is currently supported only for MySQL connections.');
         }
 
-        $table = isset($_POST['table_name']) ? trim((string) $_POST['table_name']) : '';
+        $table        = isset($_POST['table_name']) ? trim((string) $_POST['table_name']) : '';
         $orderPayload = isset($_POST['column_order']) ? trim((string) $_POST['column_order']) : '';
 
         if (!self::isValidIdentifier($table)) {
@@ -456,7 +461,8 @@ class DatabaseEditor
             throw new RuntimeException('Column order payload is missing.');
         }
 
-        $requestedOrder = array_values(array_filter(array_map('trim', explode(',', $orderPayload)), static function (string $value): bool {
+        $requestedOrder = array_values(array_filter(array_map('trim', explode(',', $orderPayload)), static function (string $value): bool
+        {
             return $value !== '';
         }));
 
@@ -469,7 +475,8 @@ class DatabaseEditor
             throw new RuntimeException(sprintf('No columns found for table "%s".', $table));
         }
 
-        $existingNames = array_map(static function (array $column): string {
+        $existingNames = array_map(static function (array $column): string
+        {
             return (string) $column['name'];
         }, $columns);
 
@@ -541,7 +548,7 @@ class DatabaseEditor
 
         self::$activeTable = $matched;
 
-        $recordsHtml = self::renderRecordsTable($connection, $matched, $driver);
+        $recordsHtml = self::renderRecordsTable($connection, $matched);
         self::respondRecordsTableSuccess($recordsHtml, $matched);
     }
 
@@ -578,12 +585,12 @@ class DatabaseEditor
 
         foreach ($tables as $table) {
             $quotedTable = self::quoteIdentifier($table, 'mysql');
-            $lines[] = sprintf('-- Table structure for %s', $quotedTable);
-            $lines[] = sprintf('DROP TABLE IF EXISTS %s;', $quotedTable);
-            $lines[] = self::fetchMysqlCreateStatement($connection, $table) . ';';
-            $lines[] = '';
+            $lines[]     = sprintf('-- Table structure for %s', $quotedTable);
+            $lines[]     = sprintf('DROP TABLE IF EXISTS %s;', $quotedTable);
+            $lines[]     = self::fetchMysqlCreateStatement($connection, $table) . ';';
+            $lines[]     = '';
 
-            $rows = self::fetchTableData($connection, 'mysql', $table);
+            $rows  = self::fetchTableData($connection, 'mysql', $table);
             $lines = array_merge($lines, self::buildInsertStatements($connection, 'mysql', $table, $quotedTable, $rows));
         }
 
@@ -607,12 +614,12 @@ class DatabaseEditor
 
         foreach ($tables as $table) {
             $quotedTable = self::quoteIdentifier($table, 'sqlite');
-            $lines[] = sprintf('-- Table structure for %s', $quotedTable);
-            $lines[] = sprintf('DROP TABLE IF EXISTS %s;', $quotedTable);
-            $lines[] = self::fetchSqliteCreateStatement($connection, $table) . ';';
-            $lines[] = '';
+            $lines[]     = sprintf('-- Table structure for %s', $quotedTable);
+            $lines[]     = sprintf('DROP TABLE IF EXISTS %s;', $quotedTable);
+            $lines[]     = self::fetchSqliteCreateStatement($connection, $table) . ';';
+            $lines[]     = '';
 
-            $rows = self::fetchTableData($connection, 'sqlite', $table);
+            $rows  = self::fetchTableData($connection, 'sqlite', $table);
             $lines = array_merge($lines, self::buildInsertStatements($connection, 'sqlite', $table, $quotedTable, $rows));
         }
 
@@ -621,7 +628,7 @@ class DatabaseEditor
 
     private static function fetchMysqlCreateStatement(PDO $connection, string $table): string
     {
-        $sql = sprintf('SHOW CREATE TABLE %s', self::quoteIdentifier($table, 'mysql'));
+        $sql       = sprintf('SHOW CREATE TABLE %s', self::quoteIdentifier($table, 'mysql'));
         $statement = $connection->query($sql);
         if ($statement === false) {
             throw new RuntimeException(sprintf('Unable to fetch CREATE statement for table "%s".', $table));
@@ -676,7 +683,8 @@ class DatabaseEditor
         }
 
         $columnNames = array_keys($rows[0]);
-        $columnList = implode(', ', array_map(static function (string $column) use ($driver): string {
+        $columnList  = implode(', ', array_map(static function (string $column) use ($driver): string
+        {
             return self::quoteIdentifier($column, $driver);
         }, $columnNames));
 
@@ -709,7 +717,7 @@ class DatabaseEditor
      */
     private static function fetchTableData(PDO $connection, string $driver, string $table): array
     {
-        $sql = sprintf('SELECT * FROM %s', self::quoteIdentifier($table, $driver));
+        $sql       = sprintf('SELECT * FROM %s', self::quoteIdentifier($table, $driver));
         $statement = $connection->query($sql);
         if ($statement === false) {
             return [];
@@ -782,7 +790,7 @@ class DatabaseEditor
 
     private static function fetchPgsqlTables(PDO $connection): array
     {
-        $sql = 'SELECT tablename FROM pg_tables WHERE schemaname = current_schema() ORDER BY tablename';
+        $sql       = 'SELECT tablename FROM pg_tables WHERE schemaname = current_schema() ORDER BY tablename';
         $statement = $connection->query($sql);
         if ($statement === false) {
             return [];
@@ -800,7 +808,7 @@ class DatabaseEditor
 
     private static function fetchSqliteTables(PDO $connection): array
     {
-        $sql = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name";
+        $sql       = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name";
         $statement = $connection->query($sql);
         if ($statement === false) {
             return [];
@@ -816,103 +824,6 @@ class DatabaseEditor
         return $tables;
     }
 
-    private static function detectPrimaryKeyColumn(PDO $connection, string $driver, string $table): ?string
-    {
-        $table = trim($table);
-        if ($table === '' || !self::isValidIdentifier($table)) {
-            return null;
-        }
-
-        try {
-            return match ($driver) {
-                'pgsql' => self::detectPgsqlPrimaryKey($connection, $table),
-                'sqlite' => self::detectSqlitePrimaryKey($connection, $table),
-                default => self::detectMysqlPrimaryKey($connection, $table),
-            };
-        } catch (PDOException) {
-            return null;
-        }
-    }
-
-    private static function detectMysqlPrimaryKey(PDO $connection, string $table): ?string
-    {
-        $sql = sprintf('SHOW KEYS FROM %s WHERE Key_name = \'PRIMARY\'', self::quoteIdentifier($table, 'mysql'));
-        $statement = $connection->query($sql);
-        if ($statement === false) {
-            return null;
-        }
-
-        while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
-            $normalized = array_change_key_case($row, CASE_LOWER);
-            $column = $normalized['column_name'] ?? null;
-            if (is_string($column) && $column !== '') {
-                return $column;
-            }
-        }
-
-        return null;
-    }
-
-    private static function detectPgsqlPrimaryKey(PDO $connection, string $table): ?string
-    {
-        $sql = <<<'SQL'
-SELECT a.attname
-FROM pg_index i
-JOIN pg_class c ON c.oid = i.indrelid
-JOIN pg_namespace n ON n.oid = c.relnamespace
-JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS cols(attnum, ord) ON TRUE
-JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = cols.attnum
-WHERE i.indisprimary = TRUE
-  AND n.nspname = current_schema()
-  AND c.relname = :table
-ORDER BY cols.ord
-LIMIT 1
-SQL;
-        $statement = $connection->prepare($sql);
-        if ($statement === false) {
-            return null;
-        }
-
-        try {
-            $statement->execute(['table' => $table]);
-        } catch (PDOException) {
-            return null;
-        }
-
-        $column = $statement->fetchColumn();
-        return is_string($column) && $column !== '' ? $column : null;
-    }
-
-    private static function detectSqlitePrimaryKey(PDO $connection, string $table): ?string
-    {
-        $sql = sprintf('PRAGMA table_info(%s)', self::quoteIdentifier($table, 'sqlite'));
-        $statement = $connection->query($sql);
-        if ($statement === false) {
-            return null;
-        }
-
-        $primary = null;
-        $lowestIndex = PHP_INT_MAX;
-
-        while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
-            $normalized = array_change_key_case($row, CASE_LOWER);
-            $pkIndex = isset($normalized['pk']) ? (int) $normalized['pk'] : 0;
-            if ($pkIndex <= 0) {
-                continue;
-            }
-
-            if ($pkIndex < $lowestIndex) {
-                $candidate = $normalized['name'] ?? null;
-                if (is_string($candidate) && $candidate !== '') {
-                    $primary = $candidate;
-                    $lowestIndex = $pkIndex;
-                }
-            }
-        }
-
-        return $primary;
-    }
-
     private static function fetchColumns(PDO $connection, string $driver, string $table): array
     {
         return match ($driver) {
@@ -924,7 +835,7 @@ SQL;
 
     private static function fetchMysqlColumns(PDO $connection, string $table): array
     {
-        $sql = sprintf('SHOW FULL COLUMNS FROM %s', self::quoteIdentifier($table, 'mysql'));
+        $sql       = sprintf('SHOW FULL COLUMNS FROM %s', self::quoteIdentifier($table, 'mysql'));
         $statement = $connection->query($sql);
         if ($statement === false) {
             return [];
@@ -933,12 +844,12 @@ SQL;
         $columns = [];
         while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
             $columns[] = [
-                'name' => (string) ($row['Field'] ?? ''),
-                'type' => (string) ($row['Type'] ?? ''),
+                'name'     => (string) ($row['Field'] ?? ''),
+                'type'     => (string) ($row['Type'] ?? ''),
                 'nullable' => ($row['Null'] ?? '') === 'YES',
-                'default' => $row['Default'] ?? null,
-                'extra' => (string) ($row['Extra'] ?? ''),
-                'key' => (string) ($row['Key'] ?? ''),
+                'default'  => $row['Default'] ?? null,
+                'extra'    => (string) ($row['Extra'] ?? ''),
+                'key'      => (string) ($row['Key'] ?? ''),
             ];
         }
 
@@ -947,7 +858,7 @@ SQL;
 
     private static function fetchPgsqlColumns(PDO $connection, string $table): array
     {
-        $sql = <<<'SQL'
+        $sql       = <<<'SQL'
 SELECT column_name, data_type, is_nullable, column_default
 FROM information_schema.columns
 WHERE table_schema = current_schema()
@@ -964,12 +875,12 @@ SQL;
         $columns = [];
         while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
             $columns[] = [
-                'name' => (string) ($row['column_name'] ?? ''),
-                'type' => (string) ($row['data_type'] ?? ''),
+                'name'     => (string) ($row['column_name'] ?? ''),
+                'type'     => (string) ($row['data_type'] ?? ''),
                 'nullable' => ($row['is_nullable'] ?? '') === 'YES',
-                'default' => $row['column_default'] ?? null,
-                'extra' => '',
-                'key' => '',
+                'default'  => $row['column_default'] ?? null,
+                'extra'    => '',
+                'key'      => '',
             ];
         }
 
@@ -978,7 +889,7 @@ SQL;
 
     private static function fetchSqliteColumns(PDO $connection, string $table): array
     {
-        $sql = sprintf('PRAGMA table_info(%s)', self::quoteIdentifier($table, 'sqlite'));
+        $sql       = sprintf('PRAGMA table_info(%s)', self::quoteIdentifier($table, 'sqlite'));
         $statement = $connection->query($sql);
         if ($statement === false) {
             return [];
@@ -987,12 +898,12 @@ SQL;
         $columns = [];
         while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
             $columns[] = [
-                'name' => (string) ($row['name'] ?? ''),
-                'type' => (string) ($row['type'] ?? ''),
+                'name'     => (string) ($row['name'] ?? ''),
+                'type'     => (string) ($row['type'] ?? ''),
                 'nullable' => ((int) ($row['notnull'] ?? 0)) === 0,
-                'default' => $row['dflt_value'] ?? null,
-                'extra' => ((int) ($row['pk'] ?? 0)) === 1 ? 'PRIMARY KEY' : '',
-                'key' => ((int) ($row['pk'] ?? 0)) === 1 ? 'PRIMARY' : '',
+                'default'  => $row['dflt_value'] ?? null,
+                'extra'    => ((int) ($row['pk'] ?? 0)) === 1 ? 'PRIMARY KEY' : '',
+                'key'      => ((int) ($row['pk'] ?? 0)) === 1 ? 'PRIMARY' : '',
             ];
         }
 
@@ -1005,7 +916,7 @@ SQL;
             return;
         }
 
-        $createSql = self::fetchMysqlCreateTable($connection, $table);
+        $createSql   = self::fetchMysqlCreateTable($connection, $table);
         $definitions = self::parseMysqlCreateTableColumns($createSql);
 
         $clauses = [];
@@ -1041,7 +952,7 @@ SQL;
 
     private static function fetchMysqlCreateTable(PDO $connection, string $table): string
     {
-        $sql = sprintf('SHOW CREATE TABLE %s', self::quoteIdentifier($table, 'mysql'));
+        $sql       = sprintf('SHOW CREATE TABLE %s', self::quoteIdentifier($table, 'mysql'));
         $statement = $connection->query($sql);
         if ($statement === false) {
             throw new RuntimeException('Unable to read table definition for reordering.');
@@ -1073,12 +984,12 @@ SQL;
     private static function parseMysqlCreateTableColumns(string $createSql): array
     {
         $start = strpos($createSql, '(');
-        $end = strrpos($createSql, ')');
+        $end   = strrpos($createSql, ')');
         if ($start === false || $end === false || $end <= $start) {
             return [];
         }
 
-        $body = substr($createSql, $start + 1, $end - $start - 1);
+        $body  = substr($createSql, $start + 1, $end - $start - 1);
         $lines = preg_split('/\r?\n/', $body) ?: [];
 
         $columns = [];
@@ -1093,7 +1004,7 @@ SQL;
                 continue;
             }
 
-            $name = $matches[1];
+            $name       = $matches[1];
             $definition = trim($matches[2]);
             if ($definition === '') {
                 continue;
@@ -1247,9 +1158,8 @@ SQL;
         array $dbConfig,
         ?string $activeTable,
         bool $showHeader,
-        bool $showRecordsTable
-    ): string
-    {
+        bool $showRecordsTable,
+    ): string {
         if ($activeTable !== null && !in_array($activeTable, $tables, true)) {
             $activeTable = null;
         }
@@ -1258,29 +1168,29 @@ SQL;
             $activeTable = $tables[0] ?? null;
         }
 
-        $databaseName = self::extractConfiguredDatabaseName($dbConfig, $driver);
+        $databaseName    = self::extractConfiguredDatabaseName($dbConfig, $driver);
         $databaseHeading = htmlspecialchars(
             self::resolveDatabaseHeading($connection, $driver, $dbConfig),
             ENT_QUOTES | ENT_SUBSTITUTE,
             'UTF-8'
         );
 
-        $driverLabel = strtoupper($driver);
-        $tableCount = count($tables);
+        $driverLabel  = strtoupper($driver);
+        $tableCount   = count($tables);
         $totalColumns = 0;
         foreach ($tableColumns as $columns) {
             $totalColumns += count($columns ?? []);
         }
 
-        $host = $dbConfig['host'] ?? ($dbConfig['hostname'] ?? '');
-        $host = is_string($host) ? trim($host) : '';
-        $port = $dbConfig['port'] ?? '';
-        $port = is_scalar($port) ? (string) $port : '';
-        $schema = $dbConfig['schema'] ?? '';
-        $schema = is_string($schema) ? trim($schema) : '';
+        $host             = $dbConfig['host'] ?? ($dbConfig['hostname'] ?? '');
+        $host             = is_string($host) ? trim($host) : '';
+        $port             = $dbConfig['port'] ?? '';
+        $port             = is_scalar($port) ? (string) $port : '';
+        $schema           = $dbConfig['schema'] ?? '';
+        $schema           = is_string($schema) ? trim($schema) : '';
         $connectionPieces = [];
         if ($host !== '') {
-            $label = $port !== '' ? $host . ':' . $port : $host;
+            $label              = $port !== '' ? $host . ':' . $port : $host;
             $connectionPieces[] = $label;
         }
         if ($driver === 'sqlite') {
@@ -1294,10 +1204,10 @@ SQL;
         }
         $connectionDisplay = $connectionPieces !== [] ? htmlspecialchars(implode(' • ', array_unique($connectionPieces)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : '';
 
-        $activeTableLabel = $activeTable !== null ? htmlspecialchars($activeTable, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : null;
-        $driverLabelEscaped = htmlspecialchars($driverLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $activeTableLabel      = $activeTable !== null ? htmlspecialchars($activeTable, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : null;
+        $driverLabelEscaped    = htmlspecialchars($driverLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $totalColumnsFormatted = number_format($totalColumns);
-        $tableCountFormatted = number_format($tableCount);
+        $tableCountFormatted   = number_format($tableCount);
 
         $html = '<div class="fastcrud-db-editor">';
         $html .= '<div class="fastcrud-db-editor__feedback" data-fc-db-feedback>' . self::renderFeedbackHtml() . '</div>';
@@ -1357,7 +1267,7 @@ SQL;
             $html .= '</div>';
             $html .= '</section>';
         } else {
-            $typeOptions = self::getColumnTypeOptions($driver);
+            $typeOptions    = self::getColumnTypeOptions($driver);
             $reorderEnabled = $driver === 'mysql';
             $html .= '<section class="fc-db-editor-workspace mt-4">';
             $html .= '<div class="row g-4 align-items-start">';
@@ -1377,14 +1287,14 @@ SQL;
             $html .= '<div class="fc-db-sidebar__list" data-fc-db-sidebar-list="">';
             $html .= '<div class="fc-db-table-list" id="fc-db-editor-table-list" role="tablist" data-fc-db-table-list="">';
             foreach ($tables as $index => $table) {
-                $tableEscaped = htmlspecialchars($table, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $tabId = 'fc-db-editor-table-' . $index;
-                $isActive = $table === $activeTable ? ' active' : '';
-                $ariaSelected = $table === $activeTable ? 'true' : 'false';
-                $columnCount = count($tableColumns[$table] ?? []);
+                $tableEscaped    = htmlspecialchars($table, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $tabId           = 'fc-db-editor-table-' . $index;
+                $isActive        = $table === $activeTable ? ' active' : '';
+                $ariaSelected    = $table === $activeTable ? 'true' : 'false';
+                $columnCount     = count($tableColumns[$table] ?? []);
                 $columnCountAttr = htmlspecialchars((string) $columnCount, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $columnBadge = $columnCount === 1 ? '1 col' : $columnCount . ' cols';
-                $tableSearch = htmlspecialchars(strtolower($table), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $columnBadge     = $columnCount === 1 ? '1 col' : $columnCount . ' cols';
+                $tableSearch     = htmlspecialchars(strtolower($table), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                 $html .= '<a class="fc-db-table-link' . $isActive . '" data-fc-db-table-name="' . $tableSearch . '" data-fc-db-table-label="' . $tableEscaped . '" data-fc-db-table="' . $tableEscaped . '" data-fc-db-table-columns="' . $columnCountAttr . '" id="tab-' . $tabId . '" data-bs-toggle="list" href="#' . $tabId . '" role="tab" aria-controls="' . $tabId . '" aria-selected="' . $ariaSelected . '" title="View ' . $tableEscaped . '">';
                 $html .= '<span class="fc-db-table-link__name text-truncate"><i class="fas fa-table text-primary me-2"></i>' . $tableEscaped . '</span>';
                 $html .= '<span class="badge bg-body-secondary text-body fw-semibold">' . $columnBadge . '</span>';
@@ -1393,7 +1303,7 @@ SQL;
             $html .= '</div>';
             $html .= '<div class="fc-db-sidebar__empty text-center text-muted small py-4 d-none" data-fc-db-sidebar-empty role="status" aria-live="polite">No tables matched your search.</div>';
             $html .= '</div>';
-            $html .= '<div class="fc-db-sidebar__footer border-top p-3">'; 
+            $html .= '<div class="fc-db-sidebar__footer border-top p-3">';
             $html .= '<form method="post" class="row g-2 align-items-end" data-fc-db-editor-form>';
             $html .= '<input type="hidden" name="fc_db_editor_action" value="add_table">';
             $html .= '<div class="col">';
@@ -1411,15 +1321,15 @@ SQL;
             $html .= '<div class="col-12 col-xl-8 col-xxl-9">';
             $html .= '<div class="tab-content fc-db-editor-tab-content" id="fc-db-editor-table-content">';
             foreach ($tables as $index => $table) {
-                $tableEscaped = htmlspecialchars($table, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $tabId = 'fc-db-editor-table-' . $index;
-                $isActive = $table === $activeTable ? ' show active' : '';
-                $columns = $tableColumns[$table] ?? [];
-                $columnCount = count($columns);
+                $tableEscaped  = htmlspecialchars($table, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $tabId         = 'fc-db-editor-table-' . $index;
+                $isActive      = $table === $activeTable ? ' show active' : '';
+                $columns       = $tableColumns[$table] ?? [];
+                $columnCount   = count($columns);
                 $columnSummary = $columnCount === 1 ? '1 column' : $columnCount . ' columns';
 
                 // Generate schema string
-                $schemaLines = [];
+                $schemaLines   = [];
                 $schemaLines[] = 'CREATE TABLE ' . $table . ' (';
                 foreach ($columns as $idx => $column) {
                     $line = '  ' . $column['name'] . ' ' . $column['type'];
@@ -1438,7 +1348,7 @@ SQL;
                     $schemaLines[] = $line;
                 }
                 $schemaLines[] = ');';
-                $schemaString = implode("\n", $schemaLines);
+                $schemaString  = implode("\n", $schemaLines);
                 $schemaEscaped = htmlspecialchars($schemaString, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
                 $html .= '<div class="tab-pane fade' . $isActive . '" id="' . $tabId . '" role="tabpanel" aria-labelledby="tab-' . $tabId . '">';
@@ -1491,22 +1401,22 @@ SQL;
                     $tbodyAttributes = $reorderEnabled ? ' data-fc-db-columns data-fc-db-table="' . $tableEscaped . '"' : '';
                     $html .= '<tbody' . $tbodyAttributes . '>';
                     foreach ($columns as $column) {
-                        $columnName = $column['name'];
-                        $columnType = $column['type'];
-                        $columnEscaped = htmlspecialchars($columnName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                        $typeEscaped = htmlspecialchars($columnType, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                        $defaultEscaped = htmlspecialchars((string) ($column['default'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                        $extraRaw = (string) ($column['extra'] ?? '');
-                        $columnKey = (string) ($column['key'] ?? '');
-                        $extraEscaped = htmlspecialchars($extraRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                        $columnName      = $column['name'];
+                        $columnType      = $column['type'];
+                        $columnEscaped   = htmlspecialchars($columnName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                        $typeEscaped     = htmlspecialchars($columnType, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                        $defaultEscaped  = htmlspecialchars((string) ($column['default'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                        $extraRaw        = (string) ($column['extra'] ?? '');
+                        $columnKey       = (string) ($column['key'] ?? '');
+                        $extraEscaped    = htmlspecialchars($extraRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                         $typeOptionsHtml = self::buildTypeOptions($typeOptions, (string) $columnType);
-                        $nullableBadge = $column['nullable']
+                        $nullableBadge   = $column['nullable']
                             ? '<span class="badge bg-success-subtle text-success"><i class="fas fa-check me-1"></i>Yes</span>'
                             : '<span class="badge bg-danger-subtle text-danger"><i class="fas fa-times me-1"></i>No</span>';
-                        $isPrimary = stripos($extraRaw, 'primary') !== false
+                        $isPrimary       = stripos($extraRaw, 'primary') !== false
                             || stripos($columnKey, 'primary') !== false
                             || strcasecmp($columnKey, 'pri') === 0;
-                        $primaryIcon = $isPrimary
+                        $primaryIcon     = $isPrimary
                             ? '<span class="ms-2 text-warning fc-db-primary-key-icon" title="Primary key"><i class="fas fa-key" aria-hidden="true"></i><span class="visually-hidden">Primary key</span></span>'
                             : '';
                         $copyColumnLabel = htmlspecialchars(sprintf('Copy column name %s', $columnName), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -1554,7 +1464,7 @@ SQL;
                         $html .= '</td>';
                         $html .= '</tr>';
                     }
-                    
+
                     // Add new column row
                     $addColumnFormId = 'fc-db-add-column-form-' . $index;
 
@@ -1572,7 +1482,7 @@ SQL;
                     $html .= '<select name="column_type" class="form-select form-select-sm" required form="' . $addColumnFormId . '">';
                     foreach ($typeOptions as $option) {
                         $escapedOption = htmlspecialchars($option, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                        $selected = $option === 'VARCHAR(255)' ? ' selected' : '';
+                        $selected      = $option === 'VARCHAR(255)' ? ' selected' : '';
                         $html .= '<option value="' . $escapedOption . '"' . $selected . '>' . $escapedOption . '</option>';
                     }
                     $html .= '</select>';
@@ -1627,7 +1537,7 @@ SQL;
                 $html .= ' data-fc-db-records-table="' . $activeTableAttr . '"';
             }
             $html .= '>';
-            $html .= self::renderRecordsTable($connection, $activeTable, $driver);
+            $html .= self::renderRecordsTable($connection, $activeTable);
             $html .= '</div>';
         }
 
@@ -1641,7 +1551,7 @@ SQL;
         return $html;
     }
 
-    private static function renderRecordsTable(PDO $connection, ?string $activeTable, string $driver): string
+    private static function renderRecordsTable(PDO $connection, ?string $activeTable): string
     {
         if ($activeTable === null) {
             return '<div class="alert alert-info" role="alert">Select a table to view its records.</div>';
@@ -1649,17 +1559,13 @@ SQL;
 
         try {
             $crud = new Crud($activeTable, $connection);
-            $detectedPrimary = self::detectPrimaryKeyColumn($connection, $driver, $activeTable);
-            if ($detectedPrimary !== null) {
-                $crud->primary_key($detectedPrimary);
-            }
             $crud->limit(10);
-            $crud->limit_list([5,10, 25, 50, 100,500,1000]);
+            $crud->limit_list([5, 10, 25, 50, 100, 500, 1000]);
             $crud->hide_table_title(false);
             $crud->table_icon('fas fa-table');
             $crud->default_column_truncate(100);
             $crud->enable_filters(true);
-            
+
             return $crud->render();
         } catch (Throwable $exception) {
             $message = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -1680,7 +1586,7 @@ SQL;
         self::respondRecordsTablePayload([
             'success' => true,
             'records' => $html,
-            'table' => $table,
+            'table'   => $table,
         ]);
     }
 
@@ -1712,7 +1618,7 @@ SQL;
         }
 
         $class = $type === 'danger' ? 'alert-danger' : 'alert-success';
-        $html = '<div class="alert ' . $class . ' alert-dismissible fade show" role="alert">';
+        $html  = '<div class="alert ' . $class . ' alert-dismissible fade show" role="alert">';
         foreach ($messages as $message) {
             $html .= '<div>' . htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</div>';
         }
@@ -1724,7 +1630,7 @@ SQL;
 
     private static function renderFeedbackHtml(): string
     {
-        $errors = self::renderAlerts(self::$errors, 'danger');
+        $errors   = self::renderAlerts(self::$errors, 'danger');
         $messages = self::renderAlerts(self::$messages, 'success');
 
         return $errors . $messages;
@@ -1733,7 +1639,7 @@ SQL;
     private static function resetFeedback(): void
     {
         self::$messages = [];
-        self::$errors = [];
+        self::$errors   = [];
     }
 
     /**
@@ -1743,22 +1649,61 @@ SQL;
     {
         return match ($driver) {
             'pgsql' => [
-                'BIGINT', 'BIGSERIAL', 'BOOLEAN', 'DATE', 'DECIMAL(10,2)', 'DOUBLE PRECISION', 'INTEGER', 'JSON', 'JSONB', 'NUMERIC(10,2)', 'SERIAL', 'SMALLINT', 'TEXT', 'TIMESTAMP', 'UUID', 'VARCHAR(255)'
+                'BIGINT',
+                'BIGSERIAL',
+                'BOOLEAN',
+                'DATE',
+                'DECIMAL(10,2)',
+                'DOUBLE PRECISION',
+                'INTEGER',
+                'JSON',
+                'JSONB',
+                'NUMERIC(10,2)',
+                'SERIAL',
+                'SMALLINT',
+                'TEXT',
+                'TIMESTAMP',
+                'UUID',
+                'VARCHAR(255)',
             ],
             'sqlite' => [
-                'INTEGER', 'REAL', 'TEXT', 'BLOB', 'NUMERIC'
+                'INTEGER',
+                'REAL',
+                'TEXT',
+                'BLOB',
+                'NUMERIC',
             ],
             default => [
-                'BIGINT', 'BINARY(255)', 'BIT', 'BOOLEAN', 'CHAR(36)', 'DATE', 'DATETIME', 'DECIMAL(10,2)', 'DOUBLE', 'FLOAT', 'INT', 'JSON', 'LONGTEXT', 'MEDIUMTEXT', 'SMALLINT', 'TEXT', 'TIME', 'TIMESTAMP', 'TINYINT', 'TINYINT(1)', 'VARCHAR(255)'
+                'BIGINT',
+                'BINARY(255)',
+                'BIT',
+                'BOOLEAN',
+                'CHAR(36)',
+                'DATE',
+                'DATETIME',
+                'DECIMAL(10,2)',
+                'DOUBLE',
+                'FLOAT',
+                'INT',
+                'JSON',
+                'LONGTEXT',
+                'MEDIUMTEXT',
+                'SMALLINT',
+                'TEXT',
+                'TIME',
+                'TIMESTAMP',
+                'TINYINT',
+                'TINYINT(1)',
+                'VARCHAR(255)',
             ],
         };
     }
 
     private static function buildTypeOptions(array $options, string $current): string
     {
-        $html = '';
+        $html           = '';
         $currentTrimmed = trim($current);
-        $found = false;
+        $found          = false;
 
         foreach ($options as $option) {
             $selected = strcasecmp($option, $currentTrimmed) === 0 ? ' selected' : '';
@@ -1772,7 +1717,7 @@ SQL;
 
         if (!$found && $currentTrimmed !== '') {
             $escapedCurrent = htmlspecialchars($currentTrimmed, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            $html = '<option value="' . $escapedCurrent . '" selected>' . $escapedCurrent . '</option>' . $html;
+            $html           = '<option value="' . $escapedCurrent . '" selected>' . $escapedCurrent . '</option>' . $html;
         }
 
         return $html;
