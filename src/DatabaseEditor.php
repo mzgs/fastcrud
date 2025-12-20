@@ -541,7 +541,7 @@ class DatabaseEditor
 
         self::$activeTable = $matched;
 
-        $recordsHtml = self::renderRecordsTable($connection, $matched);
+        $recordsHtml = self::renderRecordsTable($connection, $matched, $driver);
         self::respondRecordsTableSuccess($recordsHtml, $matched);
     }
 
@@ -814,6 +814,103 @@ class DatabaseEditor
         }
 
         return $tables;
+    }
+
+    private static function detectPrimaryKeyColumn(PDO $connection, string $driver, string $table): ?string
+    {
+        $table = trim($table);
+        if ($table === '' || !self::isValidIdentifier($table)) {
+            return null;
+        }
+
+        try {
+            return match ($driver) {
+                'pgsql' => self::detectPgsqlPrimaryKey($connection, $table),
+                'sqlite' => self::detectSqlitePrimaryKey($connection, $table),
+                default => self::detectMysqlPrimaryKey($connection, $table),
+            };
+        } catch (PDOException) {
+            return null;
+        }
+    }
+
+    private static function detectMysqlPrimaryKey(PDO $connection, string $table): ?string
+    {
+        $sql = sprintf('SHOW KEYS FROM %s WHERE Key_name = \'PRIMARY\'', self::quoteIdentifier($table, 'mysql'));
+        $statement = $connection->query($sql);
+        if ($statement === false) {
+            return null;
+        }
+
+        while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
+            $normalized = array_change_key_case($row, CASE_LOWER);
+            $column = $normalized['column_name'] ?? null;
+            if (is_string($column) && $column !== '') {
+                return $column;
+            }
+        }
+
+        return null;
+    }
+
+    private static function detectPgsqlPrimaryKey(PDO $connection, string $table): ?string
+    {
+        $sql = <<<'SQL'
+SELECT a.attname
+FROM pg_index i
+JOIN pg_class c ON c.oid = i.indrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS cols(attnum, ord) ON TRUE
+JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = cols.attnum
+WHERE i.indisprimary = TRUE
+  AND n.nspname = current_schema()
+  AND c.relname = :table
+ORDER BY cols.ord
+LIMIT 1
+SQL;
+        $statement = $connection->prepare($sql);
+        if ($statement === false) {
+            return null;
+        }
+
+        try {
+            $statement->execute(['table' => $table]);
+        } catch (PDOException) {
+            return null;
+        }
+
+        $column = $statement->fetchColumn();
+        return is_string($column) && $column !== '' ? $column : null;
+    }
+
+    private static function detectSqlitePrimaryKey(PDO $connection, string $table): ?string
+    {
+        $sql = sprintf('PRAGMA table_info(%s)', self::quoteIdentifier($table, 'sqlite'));
+        $statement = $connection->query($sql);
+        if ($statement === false) {
+            return null;
+        }
+
+        $primary = null;
+        $lowestIndex = PHP_INT_MAX;
+
+        while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
+            $normalized = array_change_key_case($row, CASE_LOWER);
+            $pkIndex = isset($normalized['pk']) ? (int) $normalized['pk'] : 0;
+            if ($pkIndex <= 0) {
+                continue;
+            }
+
+            if ($pkIndex < $lowestIndex) {
+                $candidate = $normalized['name'] ?? null;
+                if (is_string($candidate) && $candidate !== '') {
+                    $primary = $candidate;
+                    $lowestIndex = $pkIndex;
+                }
+            }
+        }
+
+        return $primary;
     }
 
     private static function fetchColumns(PDO $connection, string $driver, string $table): array
@@ -1530,7 +1627,7 @@ SQL;
                 $html .= ' data-fc-db-records-table="' . $activeTableAttr . '"';
             }
             $html .= '>';
-            $html .= self::renderRecordsTable($connection, $activeTable);
+            $html .= self::renderRecordsTable($connection, $activeTable, $driver);
             $html .= '</div>';
         }
 
@@ -1544,7 +1641,7 @@ SQL;
         return $html;
     }
 
-    private static function renderRecordsTable(PDO $connection, ?string $activeTable): string
+    private static function renderRecordsTable(PDO $connection, ?string $activeTable, string $driver): string
     {
         if ($activeTable === null) {
             return '<div class="alert alert-info" role="alert">Select a table to view its records.</div>';
@@ -1552,6 +1649,10 @@ SQL;
 
         try {
             $crud = new Crud($activeTable, $connection);
+            $detectedPrimary = self::detectPrimaryKeyColumn($connection, $driver, $activeTable);
+            if ($detectedPrimary !== null) {
+                $crud->primary_key($detectedPrimary);
+            }
             $crud->limit(10);
             $crud->limit_list([5,10, 25, 50, 100,500,1000]);
             $crud->hide_table_title(false);
