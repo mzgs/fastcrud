@@ -16622,6 +16622,14 @@ CSS;
                 return modeKey === 'create' || modeKey === 'edit';
             });
 
+            if (showPrimaryKeyField && primaryKeyColumn) {
+                var hasPk = ordering.indexOf(primaryKeyColumn) !== -1;
+                var modeKeyForPk = typeof mode === 'string' ? mode.toLowerCase() : '';
+                if (!hasPk && (modeKeyForPk === 'create' || modeKeyForPk === 'edit')) {
+                    ordering.unshift(primaryKeyColumn);
+                }
+            }
+
             var defaultTab = null;
             if (formConfig.default_tabs) {
                 if (typeof formConfig.default_tabs.all === 'string' && formConfig.default_tabs.all.length) {
