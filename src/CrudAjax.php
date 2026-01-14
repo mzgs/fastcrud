@@ -1021,10 +1021,6 @@ class CrudAjax
         $size = is_array($file['size']) ? (int) ($file['size'][0] ?? 0) : (int) ($file['size'] ?? 0);
         $kind = isset($request['kind']) && is_string($request['kind']) ? strtolower($request['kind']) : 'image';
         $isImage = $kind !== 'file';
-        $maxSize = $isImage ? (8 * 1024 * 1024) : (20 * 1024 * 1024);
-        if ($size > $maxSize) {
-            throw new InvalidArgumentException(($isImage ? 'Image' : 'File') . ' exceeds the maximum allowed size of ' . ($isImage ? '8MB' : '20MB') . '.');
-        }
 
         $originalNameRaw = is_array($file['name']) ? (string) ($file['name'][0] ?? 'upload') : (string) ($file['name'] ?? 'upload');
         $originalName = $originalNameRaw === '' ? 'upload' : $originalNameRaw;
@@ -1073,6 +1069,13 @@ class CrudAjax
             } catch (\Throwable) {
                 $changeTypeParams = [];
             }
+        }
+
+        $maxSize = self::resolveUploadMaxSize($changeTypeParams, $isImage);
+        if ($size > $maxSize) {
+            throw new InvalidArgumentException(
+                ($isImage ? 'Image' : 'File') . ' exceeds the maximum allowed size of ' . self::formatUploadSize($maxSize) . '.'
+            );
         }
 
         $pathOverride = null;
@@ -1664,6 +1667,47 @@ class CrudAjax
         }
 
         return sprintf('%s-%06d.%s', $base, $randomNumber, $extension);
+    }
+
+    private static function resolveUploadMaxSize(array $params, bool $isImage): int
+    {
+        $defaultMax = $isImage ? CrudConfig::getUploadMaxImageSize() : CrudConfig::getUploadMaxFileSize();
+        $override = null;
+
+        if (array_key_exists('max_size', $params)) {
+            $override = $params['max_size'];
+        } elseif (array_key_exists('maxSize', $params)) {
+            $override = $params['maxSize'];
+        }
+
+        $parsed = CrudConfig::parseUploadSize($override);
+
+        return $parsed !== null ? $parsed : $defaultMax;
+    }
+
+    private static function formatUploadSize(int $bytes): string
+    {
+        if ($bytes < 1024) {
+            return $bytes . 'B';
+        }
+
+        $units = [
+            'GB' => 1024 * 1024 * 1024,
+            'MB' => 1024 * 1024,
+            'KB' => 1024,
+        ];
+
+        foreach ($units as $suffix => $threshold) {
+            if ($bytes >= $threshold) {
+                $value = $bytes / $threshold;
+                $precision = $value >= 10 ? 0 : 2;
+                $formatted = number_format($value, $precision, '.', '');
+                $formatted = rtrim(rtrim($formatted, '0'), '.');
+                return $formatted . $suffix;
+            }
+        }
+
+        return $bytes . 'B';
     }
 
     private static function describeUploadError(int $code): string

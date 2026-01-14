@@ -492,6 +492,7 @@ All customization options are available through the main `FastCrud\Crud` class m
   // Image upload with all options
   $crud->change_type('product_image', 'image', '', [
       'path' => 'products',
+      'max_size' => '5MB',
       'width' => 1200,
       'height' => 800,
       'crop' => false,
@@ -1060,6 +1061,22 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   CrudConfig::$upload_path = '/var/uploads/files';
   CrudConfig::$upload_serve_path = '/uploads';
+  ```
+- **`CrudConfig::$upload_max_image_size`** – Max image upload size in bytes or strings like `'8MB'` (default: `8MB`).
+  ```php
+  CrudConfig::$upload_max_image_size = '12MB';
+  ```
+- **`CrudConfig::$upload_max_file_size`** – Max file upload size in bytes or strings like `'20MB'` (default: `20MB`).
+  ```php
+  CrudConfig::$upload_max_file_size = 50 * 1024 * 1024;
+  ```
+- **`CrudConfig::getUploadMaxImageSize(): int`** – Resolve the parsed image size limit (bytes).
+  ```php
+  $maxBytes = CrudConfig::getUploadMaxImageSize();
+  ```
+- **`CrudConfig::getUploadMaxFileSize(): int`** – Resolve the parsed file size limit (bytes).
+  ```php
+  $maxBytes = CrudConfig::getUploadMaxFileSize();
   ```
 - **`CrudConfig::$images_in_grid`** – Enable/disable image thumbnails in grid view (default: `true`).
   ```php

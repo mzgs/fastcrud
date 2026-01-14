@@ -89,7 +89,7 @@ $.ajax({
 ## New Field Types
 - `change_type('image'|'images')` uses FilePond with image preview.
 - `change_type('file')` uses FilePond for a single generic file upload.
-- `change_type('files')` uses FilePond for multi-file uploads (no image preview), storing a comma-separated list of saved filenames in the DB. Restrict types via `['accept' => 'application/pdf,.docx']`.
+- `change_type('files')` uses FilePond for multi-file uploads (no image preview), storing a comma-separated list of saved filenames in the DB. Restrict types via `['accept' => 'application/pdf,.docx']`; set size limits with `['max_size' => '10MB']` or `CrudConfig::$upload_max_*_size`.
   - Saved filenames are mirrored into hidden inputs so DB writes happen via form submit.
   - Server action `upload_filepond` supports both images and generic files; images are validated against expected extensions, generic files block executable/script types.
 - `change_type('json')` renders a textarea optimized for JSON with live validation and optional pretty-print. Parameters: `['rows' => 6, 'pretty' => true]`.

@@ -13,6 +13,8 @@ class CrudConfig
 
     public static string $upload_path = 'public/uploads';
     public static ?string $upload_serve_path = null;
+    public static int|string|null $upload_max_image_size = 16 * 1024 * 1024;
+    public static int|string|null $upload_max_file_size = 100 * 1024 * 1024;
     // shows images in list view
     public static bool $images_in_grid = true;
     public static int $images_in_grid_height = 55;
@@ -92,5 +94,72 @@ class CrudConfig
         }
 
         return trim($path);
+    }
+
+    public static function getUploadMaxImageSize(): int
+    {
+        return self::normalizeUploadSize(self::$upload_max_image_size, 8 * 1024 * 1024);
+    }
+
+    public static function getUploadMaxFileSize(): int
+    {
+        return self::normalizeUploadSize(self::$upload_max_file_size, 20 * 1024 * 1024);
+    }
+
+    public static function parseUploadSize(mixed $value): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_int($value)) {
+            return $value > 0 ? $value : null;
+        }
+
+        if (is_float($value)) {
+            return $value > 0 ? (int) round($value) : null;
+        }
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return null;
+        }
+
+        if (is_numeric($trimmed)) {
+            $number = (float) $trimmed;
+            return $number > 0 ? (int) round($number) : null;
+        }
+
+        if (!preg_match('/^(\\d+(?:\\.\\d+)?)\\s*(b|kb|k|mb|m|gb|g)$/i', $trimmed, $matches)) {
+            return null;
+        }
+
+        $number = (float) $matches[1];
+        if ($number <= 0) {
+            return null;
+        }
+
+        $unit = strtolower($matches[2]);
+        $multiplier = match ($unit) {
+            'kb', 'k' => 1024,
+            'mb', 'm' => 1024 * 1024,
+            'gb', 'g' => 1024 * 1024 * 1024,
+            default => 1,
+        };
+
+        $bytes = (int) round($number * $multiplier);
+
+        return $bytes > 0 ? $bytes : null;
+    }
+
+    private static function normalizeUploadSize(int|string|null $value, int $fallback): int
+    {
+        $parsed = self::parseUploadSize($value);
+
+        return $parsed !== null ? $parsed : $fallback;
     }
 }
