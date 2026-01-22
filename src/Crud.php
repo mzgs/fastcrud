@@ -12707,6 +12707,62 @@ CSS;
             cellEl.toggleClass('fastcrud-actions-open', !!isOpen);
         }
 
+        function measureDropdownMenuHeight(menuEl) {
+            if (!menuEl || !menuEl.length) {
+                return 0;
+            }
+            var menuNode = menuEl[0];
+            if (menuNode.classList.contains('show')) {
+                return menuNode.getBoundingClientRect().height;
+            }
+            var previousDisplay = menuNode.style.display;
+            var previousVisibility = menuNode.style.visibility;
+            var previousPosition = menuNode.style.position;
+            var previousPointerEvents = menuNode.style.pointerEvents;
+            menuNode.style.visibility = 'hidden';
+            menuNode.style.display = 'block';
+            menuNode.style.position = 'absolute';
+            menuNode.style.pointerEvents = 'none';
+            var height = menuNode.getBoundingClientRect().height;
+            menuNode.style.display = previousDisplay;
+            menuNode.style.visibility = previousVisibility;
+            menuNode.style.position = previousPosition;
+            menuNode.style.pointerEvents = previousPointerEvents;
+            return height;
+        }
+
+        function updateMultiLinkDropdownPlacement(dropdownEl) {
+            var dropdown = dropdownEl && dropdownEl.jquery ? dropdownEl : $(dropdownEl);
+            if (!dropdown.length) {
+                return;
+            }
+            dropdown.removeClass('dropup');
+            var menu = dropdown.find('.dropdown-menu').first();
+            var toggle = dropdown.find('.fastcrud-multi-link-trigger').first();
+            if (!menu.length || !toggle.length) {
+                return;
+            }
+            var viewport = getTableViewport();
+            if (!viewport || !viewport.length) {
+                return;
+            }
+            var viewportRect = viewport[0].getBoundingClientRect();
+            var toggleRect = toggle[0].getBoundingClientRect();
+            var menuHeight = measureDropdownMenuHeight(menu);
+            if (!menuHeight) {
+                return;
+            }
+            var spaceBelow = viewportRect.bottom - toggleRect.bottom;
+            var spaceAbove = toggleRect.top - viewportRect.top;
+            if (spaceBelow < menuHeight && spaceAbove > spaceBelow) {
+                dropdown.addClass('dropup');
+            }
+        }
+
+        table.on('show.bs.dropdown', '.fastcrud-multi-link-trigger, .fastcrud-multi-link-btn', function() {
+            updateMultiLinkDropdownPlacement($(this).closest('.fastcrud-multi-link-btn'));
+        });
+
         table.on('shown.bs.dropdown', '.fastcrud-multi-link-trigger, .fastcrud-multi-link-btn', function() {
             toggleActionsCellZIndex(this, true);
         });
