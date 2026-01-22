@@ -12746,16 +12746,26 @@ CSS;
             if (!viewport || !viewport.length) {
                 return;
             }
+            menu.css('max-height', '');
             var viewportRect = viewport[0].getBoundingClientRect();
             var toggleRect = toggle[0].getBoundingClientRect();
             var menuHeight = measureDropdownMenuHeight(menu);
             if (!menuHeight) {
                 return;
             }
-            var spaceBelow = viewportRect.bottom - toggleRect.bottom;
-            var spaceAbove = toggleRect.top - viewportRect.top;
+            var viewportTop = Math.max(0, viewportRect.top);
+            var viewportBottom = Math.min(window.innerHeight, viewportRect.bottom);
+            var spaceBelow = viewportBottom - toggleRect.bottom;
+            var spaceAbove = toggleRect.top - viewportTop;
             if (spaceBelow < menuHeight && spaceAbove > spaceBelow) {
                 dropdown.addClass('dropup');
+            }
+            var availableSpace = dropdown.hasClass('dropup') ? spaceAbove : spaceBelow;
+            if (availableSpace > 0 && menuHeight > availableSpace) {
+                var adjustedHeight = Math.max(0, availableSpace - 8);
+                if (adjustedHeight > 0) {
+                    menu.css('max-height', adjustedHeight + 'px');
+                }
             }
         }
 
