@@ -8027,6 +8027,8 @@ CSS;
     position: relative;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    isolation: isolate;
+    z-index: 0;
 }
 
 #{$containerId} table {
@@ -13868,15 +13870,15 @@ CSS;
             }
             var css = [
                 '.fastcrud-table-container{position:relative;}',
-                '.fastcrud-table-container>table{transition:opacity .18s ease-in-out,filter .18s ease-in-out;}',
-                '.fastcrud-table-container.fastcrud-loading-active>table{opacity:0.45;filter:blur(1px);}',
+                '.fastcrud-table-container>table{transition:opacity .18s ease-in-out;}',
+                '.fastcrud-table-container.fastcrud-loading-active>table{opacity:0.45;}',
                 '.fastcrud-loading-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(255,255,255,0.7);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .18s ease-in-out;z-index:5;}',
                 '.fastcrud-loading-overlay.fastcrud-visible{opacity:1;pointer-events:auto;}',
                 '.fastcrud-loading-message{display:inline-flex;align-items:center;gap:0.5rem;font-weight:500;color:var(--bs-body-color,#212529);}',
                 '.fastcrud-loading-placeholder{vertical-align:middle;}',
                 '.fastcrud-loading-placeholder .spinner-border{width:1rem;height:1rem;}',
                 '[data-bs-theme=dark] .fastcrud-loading-overlay{background:rgba(15,23,42,0.55);}',
-                '@media (prefers-reduced-motion: reduce){.fastcrud-table-container>table{transition:none;filter:none;}.fastcrud-table-container.fastcrud-loading-active>table{opacity:1;}.fastcrud-loading-overlay{transition:none;}}'
+                '@media (prefers-reduced-motion: reduce){.fastcrud-table-container>table{transition:none;}.fastcrud-table-container.fastcrud-loading-active>table{opacity:1;}.fastcrud-loading-overlay{transition:none;}}'
             ].join('');
             var styleEl = document.createElement('style');
             styleEl.id = styleId;
@@ -13895,6 +13897,30 @@ CSS;
             }
             tableViewportCache = viewport;
             return viewport;
+        }
+
+        function requestTableRepaint() {
+            var viewport = getTableViewport();
+            var target = viewport.length ? viewport.get(0) : (table.length ? table.get(0) : null);
+            if (!target) {
+                return;
+            }
+
+            var previousOutline = target.style.outline;
+            target.style.outline = '1px solid transparent';
+            void target.offsetHeight;
+
+            var raf = window.requestAnimationFrame || function(handler) {
+                return window.setTimeout(handler, 16);
+            };
+
+            raf(function() {
+                if (previousOutline) {
+                    target.style.outline = previousOutline;
+                } else {
+                    target.style.removeProperty('outline');
+                }
+            });
         }
 
         function ensureLoadingOverlay(viewport) {
@@ -16977,6 +17003,7 @@ CSS;
             cell.append(wrapper);
             row.append(cell);
             tbody.html(row);
+            requestTableRepaint();
         }
 
         function showEmptyRow(colspan, message) {
@@ -16989,6 +17016,7 @@ CSS;
                     .text(message || 'No records found.')
             );
             tbody.append(row);
+            requestTableRepaint();
         }
 
         function showError(message) {
@@ -17003,6 +17031,7 @@ CSS;
                     .text(message)
             );
             tbody.append(row);
+            requestTableRepaint();
         }
 
         function buildPagination(pagination) {
@@ -18277,6 +18306,7 @@ CSS;
             });
 
             tbody.html(html);
+            requestTableRepaint();
             refreshSelectAllState();
             updateBatchDeleteButtonState();
 

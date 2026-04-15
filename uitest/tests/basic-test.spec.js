@@ -26,6 +26,37 @@ test('basic', async ({ page }) => {
   expect(pageErrors, formatPageErrors(pageErrors)).toEqual([]);
 });
 
+test('multiple crud containers use isolated paint-safe table styling', async ({ page }) => {
+  const { pageErrors } = setupErrorTracking(page);
+
+  const response = await page.goto(TARGET_URL, { waitUntil: 'networkidle' });
+  expect(response && response.ok(), 'Expected a successful HTTP response').toBeTruthy();
+
+  const containers = page.locator('.fastcrud-table-container');
+  await expect(containers, 'Expected the demo page to render multiple CRUD tables').toHaveCount(2);
+
+  const styles = await page.evaluate(() => {
+    return Array.from(document.querySelectorAll('.fastcrud-table-container')).map((container) => {
+      const table = container.querySelector('table');
+      const containerStyle = window.getComputedStyle(container);
+      const tableStyle = table ? window.getComputedStyle(table) : null;
+
+      return {
+        isolation: containerStyle.isolation,
+        zIndex: containerStyle.zIndex,
+        tableTransition: tableStyle ? tableStyle.transition : '',
+      };
+    });
+  });
+
+  styles.forEach((entry, index) => {
+    expect(entry.isolation, `Expected CRUD container ${index + 1} to isolate its stacking context`).toBe('isolate');
+    expect(entry.zIndex, `Expected CRUD container ${index + 1} to establish a local stacking context`).toBe('0');
+    expect(entry.tableTransition, `Expected CRUD table ${index + 1} to avoid filter-based transition compositing`).not.toContain('filter');
+  });
+  expect(pageErrors, formatPageErrors(pageErrors)).toEqual([]);
+});
+
 /**
  * Opens the edit panel, edits one field, saves, and confirms the change persisted without surfacing errors.
  */
