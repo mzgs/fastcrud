@@ -7325,13 +7325,14 @@ SQL;
 
         $containerAttributes = [
             'id'                                   => $rawId . '-container',
+            'class'                                => 'fastcrud-root',
             'data-fastcrud-config'                 => $configJson,
             'data-fastcrud-initial-primary-column' => $this->getPrimaryKeyColumn(),
             'data-fastcrud-view-storage-key'       => $viewStorageKey,
         ];
 
         if ($formOnly) {
-            $containerAttributes['class']                      = 'fastcrud-form-only';
+            $containerAttributes['class']                      = 'fastcrud-root fastcrud-form-only';
             $containerAttributes['data-fastcrud-form-only']    = '1';
             $containerAttributes['data-fastcrud-initial-mode'] = $normalizedMode;
 
@@ -8023,6 +8024,17 @@ CSS;
 
         return <<<HTML
 <style>
+#{$containerId} {
+    position: relative;
+    isolation: isolate;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+#{$containerId} > * {
+    position: relative;
+}
+
 #{$containerId} .table-responsive {
     position: relative;
     overflow-x: auto;
@@ -13899,9 +13911,7 @@ CSS;
             return viewport;
         }
 
-        function requestTableRepaint() {
-            var viewport = getTableViewport();
-            var target = viewport.length ? viewport.get(0) : (table.length ? table.get(0) : null);
+        function repaintElement(target) {
             if (!target) {
                 return;
             }
@@ -13921,6 +13931,97 @@ CSS;
                     target.style.removeProperty('outline');
                 }
             });
+        }
+
+        function requestCrudRepaint() {
+            var viewport = getTableViewport();
+            if (container && container.length) {
+                repaintElement(container.get(0));
+            }
+            if (viewport.length) {
+                repaintElement(viewport.get(0));
+            }
+            if (table && table.length) {
+                repaintElement(table.get(0));
+            }
+        }
+
+        var crudRepaintTimer = null;
+        function scheduleCrudRepaint(delay) {
+            if (crudRepaintTimer !== null) {
+                window.clearTimeout(crudRepaintTimer);
+            }
+
+            crudRepaintTimer = window.setTimeout(function() {
+                crudRepaintTimer = null;
+                requestCrudRepaint();
+
+                var raf = window.requestAnimationFrame || function(handler) {
+                    return window.setTimeout(handler, 16);
+                };
+
+                raf(function() {
+                    requestCrudRepaint();
+                });
+            }, Math.max(0, delay || 0));
+        }
+
+        function isCrudVisibleInViewport() {
+            if (!container || !container.length || !container.get(0) || typeof container.get(0).getBoundingClientRect !== 'function') {
+                return false;
+            }
+
+            var rect = container.get(0).getBoundingClientRect();
+            var viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+            var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+
+            return rect.bottom > 0 && rect.right > 0 && rect.top < viewportHeight && rect.left < viewportWidth;
+        }
+
+        function installViewportRepaintObserver() {
+            if (!container || !container.length || container.data('fastcrudViewportRepaintInstalled')) {
+                return;
+            }
+
+            container.data('fastcrudViewportRepaintInstalled', true);
+
+            var triggerVisibleRepaint = function() {
+                if (isCrudVisibleInViewport()) {
+                    scheduleCrudRepaint(0);
+                }
+            };
+
+            if ('IntersectionObserver' in window && container.get(0)) {
+                var observer = new IntersectionObserver(function(entries) {
+                    entries.forEach(function(entry) {
+                        if (!entry) {
+                            return;
+                        }
+                        if (entry.isIntersecting || entry.intersectionRatio > 0) {
+                            scheduleCrudRepaint(0);
+                        }
+                    });
+                }, {
+                    root: null,
+                    threshold: [0, 0.01, 0.25]
+                });
+
+                observer.observe(container.get(0));
+                container.data('fastcrudViewportObserver', observer);
+            }
+
+            var repaintNamespace = '.fastcrudViewportRepaint-' + tableId;
+            $(window).on('scroll' + repaintNamespace + ' resize' + repaintNamespace + ' orientationchange' + repaintNamespace, triggerVisibleRepaint);
+
+            container.on('remove.fastcrudViewportRepaintCleanup', function() {
+                var storedObserver = container.data('fastcrudViewportObserver');
+                if (storedObserver && typeof storedObserver.disconnect === 'function') {
+                    storedObserver.disconnect();
+                }
+                $(window).off(repaintNamespace);
+            });
+
+            triggerVisibleRepaint();
         }
 
         function ensureLoadingOverlay(viewport) {
@@ -13980,6 +14081,8 @@ CSS;
         }
 
         ensureLoadingStyles();
+        installViewportRepaintObserver();
+        scheduleCrudRepaint(0);
         function getFormTemplate(mode) {
             if (!mode) {
                 return null;
@@ -17003,7 +17106,7 @@ CSS;
             cell.append(wrapper);
             row.append(cell);
             tbody.html(row);
-            requestTableRepaint();
+            scheduleCrudRepaint(0);
         }
 
         function showEmptyRow(colspan, message) {
@@ -17016,7 +17119,7 @@ CSS;
                     .text(message || 'No records found.')
             );
             tbody.append(row);
-            requestTableRepaint();
+            scheduleCrudRepaint(0);
         }
 
         function showError(message) {
@@ -17031,7 +17134,7 @@ CSS;
                     .text(message)
             );
             tbody.append(row);
-            requestTableRepaint();
+            scheduleCrudRepaint(0);
         }
 
         function buildPagination(pagination) {
@@ -18306,7 +18409,7 @@ CSS;
             });
 
             tbody.html(html);
-            requestTableRepaint();
+            scheduleCrudRepaint(0);
             refreshSelectAllState();
             updateBatchDeleteButtonState();
 
