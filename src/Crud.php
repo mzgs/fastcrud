@@ -7325,14 +7325,13 @@ SQL;
 
         $containerAttributes = [
             'id'                                   => $rawId . '-container',
-            'class'                                => 'fastcrud-root',
             'data-fastcrud-config'                 => $configJson,
             'data-fastcrud-initial-primary-column' => $this->getPrimaryKeyColumn(),
             'data-fastcrud-view-storage-key'       => $viewStorageKey,
         ];
 
         if ($formOnly) {
-            $containerAttributes['class']                      = 'fastcrud-root fastcrud-form-only';
+            $containerAttributes['class']                      = 'fastcrud-form-only';
             $containerAttributes['data-fastcrud-form-only']    = '1';
             $containerAttributes['data-fastcrud-initial-mode'] = $normalizedMode;
 
@@ -8024,23 +8023,10 @@ CSS;
 
         return <<<HTML
 <style>
-#{$containerId} {
-    position: relative;
-    isolation: isolate;
-    transform: translateZ(0);
-    backface-visibility: hidden;
-}
-
-#{$containerId} > * {
-    position: relative;
-}
-
 #{$containerId} .table-responsive {
     position: relative;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    isolation: isolate;
-    z-index: 0;
 }
 
 #{$containerId} table {
@@ -13882,15 +13868,15 @@ CSS;
             }
             var css = [
                 '.fastcrud-table-container{position:relative;}',
-                '.fastcrud-table-container>table{transition:opacity .18s ease-in-out;}',
-                '.fastcrud-table-container.fastcrud-loading-active>table{opacity:0.45;}',
+                '.fastcrud-table-container>table{transition:opacity .18s ease-in-out,filter .18s ease-in-out;}',
+                '.fastcrud-table-container.fastcrud-loading-active>table{opacity:0.45;filter:blur(1px);}',
                 '.fastcrud-loading-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(255,255,255,0.7);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .18s ease-in-out;z-index:5;}',
                 '.fastcrud-loading-overlay.fastcrud-visible{opacity:1;pointer-events:auto;}',
                 '.fastcrud-loading-message{display:inline-flex;align-items:center;gap:0.5rem;font-weight:500;color:var(--bs-body-color,#212529);}',
                 '.fastcrud-loading-placeholder{vertical-align:middle;}',
                 '.fastcrud-loading-placeholder .spinner-border{width:1rem;height:1rem;}',
                 '[data-bs-theme=dark] .fastcrud-loading-overlay{background:rgba(15,23,42,0.55);}',
-                '@media (prefers-reduced-motion: reduce){.fastcrud-table-container>table{transition:none;}.fastcrud-table-container.fastcrud-loading-active>table{opacity:1;}.fastcrud-loading-overlay{transition:none;}}'
+                '@media (prefers-reduced-motion: reduce){.fastcrud-table-container>table{transition:none;filter:none;}.fastcrud-table-container.fastcrud-loading-active>table{opacity:1;}.fastcrud-loading-overlay{transition:none;}}'
             ].join('');
             var styleEl = document.createElement('style');
             styleEl.id = styleId;
@@ -13909,119 +13895,6 @@ CSS;
             }
             tableViewportCache = viewport;
             return viewport;
-        }
-
-        function repaintElement(target) {
-            if (!target) {
-                return;
-            }
-
-            var previousOutline = target.style.outline;
-            target.style.outline = '1px solid transparent';
-            void target.offsetHeight;
-
-            var raf = window.requestAnimationFrame || function(handler) {
-                return window.setTimeout(handler, 16);
-            };
-
-            raf(function() {
-                if (previousOutline) {
-                    target.style.outline = previousOutline;
-                } else {
-                    target.style.removeProperty('outline');
-                }
-            });
-        }
-
-        function requestCrudRepaint() {
-            var viewport = getTableViewport();
-            if (container && container.length) {
-                repaintElement(container.get(0));
-            }
-            if (viewport.length) {
-                repaintElement(viewport.get(0));
-            }
-            if (table && table.length) {
-                repaintElement(table.get(0));
-            }
-        }
-
-        var crudRepaintTimer = null;
-        function scheduleCrudRepaint(delay) {
-            if (crudRepaintTimer !== null) {
-                window.clearTimeout(crudRepaintTimer);
-            }
-
-            crudRepaintTimer = window.setTimeout(function() {
-                crudRepaintTimer = null;
-                requestCrudRepaint();
-
-                var raf = window.requestAnimationFrame || function(handler) {
-                    return window.setTimeout(handler, 16);
-                };
-
-                raf(function() {
-                    requestCrudRepaint();
-                });
-            }, Math.max(0, delay || 0));
-        }
-
-        function isCrudVisibleInViewport() {
-            if (!container || !container.length || !container.get(0) || typeof container.get(0).getBoundingClientRect !== 'function') {
-                return false;
-            }
-
-            var rect = container.get(0).getBoundingClientRect();
-            var viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-            var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-
-            return rect.bottom > 0 && rect.right > 0 && rect.top < viewportHeight && rect.left < viewportWidth;
-        }
-
-        function installViewportRepaintObserver() {
-            if (!container || !container.length || container.data('fastcrudViewportRepaintInstalled')) {
-                return;
-            }
-
-            container.data('fastcrudViewportRepaintInstalled', true);
-
-            var triggerVisibleRepaint = function() {
-                if (isCrudVisibleInViewport()) {
-                    scheduleCrudRepaint(0);
-                }
-            };
-
-            if ('IntersectionObserver' in window && container.get(0)) {
-                var observer = new IntersectionObserver(function(entries) {
-                    entries.forEach(function(entry) {
-                        if (!entry) {
-                            return;
-                        }
-                        if (entry.isIntersecting || entry.intersectionRatio > 0) {
-                            scheduleCrudRepaint(0);
-                        }
-                    });
-                }, {
-                    root: null,
-                    threshold: [0, 0.01, 0.25]
-                });
-
-                observer.observe(container.get(0));
-                container.data('fastcrudViewportObserver', observer);
-            }
-
-            var repaintNamespace = '.fastcrudViewportRepaint-' + tableId;
-            $(window).on('scroll' + repaintNamespace + ' resize' + repaintNamespace + ' orientationchange' + repaintNamespace, triggerVisibleRepaint);
-
-            container.on('remove.fastcrudViewportRepaintCleanup', function() {
-                var storedObserver = container.data('fastcrudViewportObserver');
-                if (storedObserver && typeof storedObserver.disconnect === 'function') {
-                    storedObserver.disconnect();
-                }
-                $(window).off(repaintNamespace);
-            });
-
-            triggerVisibleRepaint();
         }
 
         function ensureLoadingOverlay(viewport) {
@@ -14081,8 +13954,6 @@ CSS;
         }
 
         ensureLoadingStyles();
-        installViewportRepaintObserver();
-        scheduleCrudRepaint(0);
         function getFormTemplate(mode) {
             if (!mode) {
                 return null;
@@ -17106,7 +16977,6 @@ CSS;
             cell.append(wrapper);
             row.append(cell);
             tbody.html(row);
-            scheduleCrudRepaint(0);
         }
 
         function showEmptyRow(colspan, message) {
@@ -17119,7 +16989,6 @@ CSS;
                     .text(message || 'No records found.')
             );
             tbody.append(row);
-            scheduleCrudRepaint(0);
         }
 
         function showError(message) {
@@ -17134,7 +17003,6 @@ CSS;
                     .text(message)
             );
             tbody.append(row);
-            scheduleCrudRepaint(0);
         }
 
         function buildPagination(pagination) {
@@ -18409,7 +18277,6 @@ CSS;
             });
 
             tbody.html(html);
-            scheduleCrudRepaint(0);
             refreshSelectAllState();
             updateBatchDeleteButtonState();
 
