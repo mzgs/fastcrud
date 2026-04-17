@@ -113,11 +113,7 @@ class CrudAjax
             $searchColumn = null;
         }
 
-        $crud = Crud::fromAjax(
-            $table,
-            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
-            $request['config'] ?? null
-        );
+        $crud = self::createCrudFromRequest($table, $request);
         $data = $crud->getTableData($page, $perPage, $searchTerm, $searchColumn);
 
         self::respond([
@@ -150,11 +146,7 @@ class CrudAjax
         $foreignColumn = trim((string) $request['foreign_column']);
         $parentValue = $request['parent_value'];
 
-        $crud = Crud::fromAjax(
-            $table,
-            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
-            $request['config'] ?? null
-        );
+        $crud = self::createCrudFromRequest($table, $request);
 
         $isNull = is_string($parentValue) && $parentValue === '__FASTCRUD_NULL__';
         if ($isNull) {
@@ -286,11 +278,7 @@ class CrudAjax
             throw new InvalidArgumentException('Primary key value is required.');
         }
 
-        $crud = Crud::fromAjax(
-            (string) $request['table'],
-            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
-            $request['config'] ?? null
-        );
+        $crud = self::createCrudFromRequest((string) $request['table'], $request);
 
         $mode = 'edit';
         foreach (['render_mode', 'mode'] as $modeKey) {
@@ -361,11 +349,7 @@ class CrudAjax
             throw new InvalidArgumentException('Invalid fields payload.');
         }
 
-        $crud = Crud::fromAjax(
-            (string) $request['table'],
-            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
-            $request['config'] ?? null
-        );
+        $crud = self::createCrudFromRequest((string) $request['table'], $request);
 
         try {
             $newRow = $crud->createRecord($fields);
@@ -422,11 +406,7 @@ class CrudAjax
             throw new InvalidArgumentException('Invalid fields payload.');
         }
 
-        $crud = Crud::fromAjax(
-            (string) $request['table'],
-            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
-            $request['config'] ?? null
-        );
+        $crud = self::createCrudFromRequest((string) $request['table'], $request);
         try {
             $updatedRow = $crud->updateRecord(
                 (string) $request['primary_key_column'],
@@ -470,11 +450,7 @@ class CrudAjax
             throw new InvalidArgumentException('Primary key value is required.');
         }
 
-        $crud     = Crud::fromAjax(
-            (string) $request['table'],
-            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
-            $request['config'] ?? null
-        );
+        $crud     = self::createCrudFromRequest((string) $request['table'], $request);
         $deleted  = $crud->deleteRecord((string) $request['primary_key_column'], $request['primary_key_value']);
         $response = [
             'success' => $deleted,
@@ -522,11 +498,7 @@ class CrudAjax
             throw new InvalidArgumentException('At least one primary key value is required.');
         }
 
-        $crud = Crud::fromAjax(
-            (string) $request['table'],
-            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
-            $request['config'] ?? null
-        );
+        $crud = self::createCrudFromRequest((string) $request['table'], $request);
 
         $result = $crud->deleteRecords((string) $request['primary_key_column'], $values);
         $deletedCount = $result['deleted'];
@@ -607,11 +579,7 @@ class CrudAjax
         $modeRaw = $request['mode'] ?? 'edit';
         $mode = is_string($modeRaw) ? $modeRaw : 'edit';
 
-        $crud = Crud::fromAjax(
-            (string) $request['table'],
-            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
-            $request['config'] ?? null
-        );
+        $crud = self::createCrudFromRequest((string) $request['table'], $request);
 
         $result = $crud->updateRecords((string) $request['primary_key_column'], $values, $fields, $mode);
         $updatedCount = $result['updated'];
@@ -703,11 +671,7 @@ class CrudAjax
 
         $table = trim($request['table']);
 
-        $crud = Crud::fromAjax(
-            $table,
-            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
-            $request['config'] ?? null
-        );
+        $crud = self::createCrudFromRequest($table, $request);
 
         $searchTerm = isset($request['search_term']) ? (string) $request['search_term'] : null;
         if ($searchTerm !== null) {
@@ -958,11 +922,7 @@ class CrudAjax
             throw new InvalidArgumentException('Primary key value is required.');
         }
 
-        $crud = Crud::fromAjax(
-            (string) $request['table'],
-            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
-            $request['config'] ?? null
-        );
+        $crud = self::createCrudFromRequest((string) $request['table'], $request);
 
         try {
             $newRow = $crud->duplicateRecord(
@@ -1051,11 +1011,7 @@ class CrudAjax
 
         if ($table !== null && $table !== '') {
             try {
-                $crud = Crud::fromAjax(
-                    $table,
-                    isset($request['id']) && is_string($request['id']) ? (string) $request['id'] : null,
-                    $request['config'] ?? null
-                );
+                $crud = self::createCrudFromRequest($table, $request);
 
                 if ($column !== null && $column !== '') {
                     $definition = $crud->getChangeTypeDefinition($column);
@@ -1155,6 +1111,18 @@ class CrudAjax
         }
 
         return $_GET;
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     */
+    private static function createCrudFromRequest(string $table, array $request): Crud
+    {
+        return Crud::fromAjaxRequest(
+            $table,
+            isset($request['id']) && is_string($request['id']) ? $request['id'] : null,
+            $request
+        );
     }
 
     private static function detectMimeType(string $path): ?string

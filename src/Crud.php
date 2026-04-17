@@ -84,6 +84,9 @@ class Crud
     private const DEFAULT_MULTI_LINK_BUTTON_CLASS = 'btn btn-sm btn-outline-secondary dropdown-toggle';
     private const DEFAULT_MULTI_LINK_MENU_CLASS = 'dropdown-menu dropdown-menu-end';
     private const DEFAULT_MULTI_LINK_CONTAINER_CLASS = 'btn-group';
+    private const SESSION_CONFIG_NAMESPACE = '__fastcrud';
+    private const SESSION_CONFIG_BUCKET = 'configs';
+    private const SESSION_INACTIVITY_TIMEOUT = 14400;
     private const LIFECYCLE_EVENTS = [
         'before_insert',
         'after_insert',
@@ -276,23 +279,178 @@ class Crud
             $instance->id = $id;
         }
 
-        $decoded = null;
-
-        if (is_string($configPayload) && $configPayload !== '') {
-            try {
-                $decoded = json_decode($configPayload, true, 512, JSON_THROW_ON_ERROR);
-            } catch (JsonException) {
-                $decoded = null;
-            }
-        } elseif (is_array($configPayload)) {
-            $decoded = $configPayload;
-        }
+        $decoded = self::decodeClientConfigPayload($configPayload, true);
 
         if (is_array($decoded)) {
             $instance->applyClientConfig($decoded);
         }
 
         return $instance;
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     */
+    public static function fromAjaxRequest(string $table, ?string $id, array $request, ?PDO $connection = null): self
+    {
+        $configReference = null;
+        $configKeyUsed   = false;
+        if (isset($request['config_key']) && is_string($request['config_key'])) {
+            $candidate = trim($request['config_key']);
+            if ($candidate !== '') {
+                $configReference = $candidate;
+                $configKeyUsed   = true;
+            }
+        }
+
+        if ($configReference === null) {
+            $configReference = $request['config'] ?? null;
+        }
+
+        $instance = new self($table, $connection);
+
+        if ($id !== null && $id !== '') {
+            $instance->id = $id;
+        }
+
+        $decoded = self::decodeClientConfigPayload($configReference, true);
+        if ($configKeyUsed && !is_array($decoded)) {
+            throw new RuntimeException('FastCrud session configuration expired. Reload the page.');
+        }
+
+        if (is_array($decoded)) {
+            $instance->applyClientConfig($decoded);
+        }
+
+        $statePayload = self::decodeClientConfigPayload($request['config_state'] ?? null, false);
+        if (is_array($statePayload)) {
+            $instance->applyClientConfig($statePayload);
+        }
+
+        return $instance;
+    }
+
+    private static function ensureSessionStarted(): bool
+    {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            return true;
+        }
+
+        if (headers_sent()) {
+            return false;
+        }
+
+        @ini_set('session.gc_maxlifetime', (string) self::SESSION_INACTIVITY_TIMEOUT);
+        @session_start();
+
+        return session_status() === PHP_SESSION_ACTIVE;
+    }
+
+    private static function buildSessionConfigHash(array $payload): string
+    {
+        try {
+            $encoded = json_encode($payload, JSON_THROW_ON_ERROR);
+            return hash('sha256', $encoded);
+        } catch (JsonException) {
+            return sha1(serialize($payload));
+        }
+    }
+
+    private static function loadClientConfigPayloadFromSession(string $key): ?array
+    {
+        if ($key === '' || !self::ensureSessionStarted()) {
+            return null;
+        }
+
+        $bucket = $_SESSION[self::SESSION_CONFIG_NAMESPACE][self::SESSION_CONFIG_BUCKET] ?? null;
+        if (!is_array($bucket) || !isset($bucket[$key]) || !is_array($bucket[$key])) {
+            return null;
+        }
+
+        $entry = $bucket[$key];
+        if (isset($entry['payload']) && is_array($entry['payload'])) {
+            return $entry['payload'];
+        }
+
+        return $entry;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function decodeClientConfigPayload(array|string|null $payload, bool $allowSessionLookup): ?array
+    {
+        if (is_array($payload)) {
+            return $payload;
+        }
+
+        if (!is_string($payload)) {
+            return null;
+        }
+
+        $payload = trim($payload);
+        if ($payload === '') {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode($payload, true, 512, JSON_THROW_ON_ERROR);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        } catch (JsonException) {
+            // Fall through to optional session lookup.
+        }
+
+        if ($allowSessionLookup) {
+            return self::loadClientConfigPayloadFromSession($payload);
+        }
+
+        return null;
+    }
+
+    private function storeClientConfigPayloadInSession(array $payload): ?string
+    {
+        if (!self::ensureSessionStarted()) {
+            return null;
+        }
+
+        $hash = self::buildSessionConfigHash($payload);
+        $key = 'fc_' . substr($hash, 0, 40);
+
+        if (!isset($_SESSION[self::SESSION_CONFIG_NAMESPACE]) || !is_array($_SESSION[self::SESSION_CONFIG_NAMESPACE])) {
+            $_SESSION[self::SESSION_CONFIG_NAMESPACE] = [];
+        }
+
+        if (
+            !isset($_SESSION[self::SESSION_CONFIG_NAMESPACE][self::SESSION_CONFIG_BUCKET])
+            || !is_array($_SESSION[self::SESSION_CONFIG_NAMESPACE][self::SESSION_CONFIG_BUCKET])
+        ) {
+            $_SESSION[self::SESSION_CONFIG_NAMESPACE][self::SESSION_CONFIG_BUCKET] = [];
+        }
+
+        $_SESSION[self::SESSION_CONFIG_NAMESPACE][self::SESSION_CONFIG_BUCKET][$key] = [
+            'payload'    => $payload,
+            'updated_at' => time(),
+        ];
+
+        if (count($_SESSION[self::SESSION_CONFIG_NAMESPACE][self::SESSION_CONFIG_BUCKET]) > 100) {
+            uasort(
+                $_SESSION[self::SESSION_CONFIG_NAMESPACE][self::SESSION_CONFIG_BUCKET],
+                static function ($left, $right): int {
+                    $leftTime = is_array($left) && isset($left['updated_at']) ? (int) $left['updated_at'] : 0;
+                    $rightTime = is_array($right) && isset($right['updated_at']) ? (int) $right['updated_at'] : 0;
+
+                    return $leftTime <=> $rightTime;
+                }
+            );
+
+            while (count($_SESSION[self::SESSION_CONFIG_NAMESPACE][self::SESSION_CONFIG_BUCKET]) > 100) {
+                array_shift($_SESSION[self::SESSION_CONFIG_NAMESPACE][self::SESSION_CONFIG_BUCKET]);
+            }
+        }
+
+        return $key;
     }
 
     /**
@@ -7314,9 +7472,13 @@ SQL;
         $offcanvas           = $this->buildEditOffcanvas($rawId, $formOnly) . $this->buildViewOffcanvas($rawId, $formOnly);
         $queryBuilderModal   = $this->buildQueryBuilderModal($rawId, $formOnly);
 
+        $configKey  = $this->storeClientConfigPayloadInSession($clientConfigPayload);
         $configJson = '{}';
         try {
-            $configJson = json_encode($clientConfigPayload, JSON_THROW_ON_ERROR);
+            $configJson = json_encode(
+                $configKey !== null ? $this->buildClientBootstrapPayload() : $clientConfigPayload,
+                JSON_THROW_ON_ERROR
+            );
         } catch (JsonException) {
             $configJson = '{}';
         }
@@ -7329,6 +7491,10 @@ SQL;
             'data-fastcrud-initial-primary-column' => $this->getPrimaryKeyColumn(),
             'data-fastcrud-view-storage-key'       => $viewStorageKey,
         ];
+
+        if ($configKey !== null) {
+            $containerAttributes['data-fastcrud-config-key'] = $configKey;
+        }
 
         if ($formOnly) {
             $containerAttributes['class']                      = 'fastcrud-form-only';
@@ -9248,19 +9414,45 @@ HTML;
             }
 
             /** @var self $child */
-            $child     = $entry['crud'];
-            $payload[] = [
+            $child          = $entry['crud'];
+            $childConfig    = $child->buildClientConfigPayload();
+            $childConfigKey = $child->storeClientConfigPayloadInSession($childConfig);
+            $item           = [
                 'name'              => $entry['name'],
                 'parent_column'     => $entry['parent_column'],
                 'parent_column_raw' => $entry['parent_column_raw'],
                 'foreign_column'    => $entry['foreign_column'],
                 'table'             => $child->getTable(),
                 'label'             => $child->getConfiguredTableTitle(),
-                'config'            => $child->buildClientConfigPayload(),
             ];
+
+            if ($childConfigKey !== null) {
+                $item['config_key'] = $childConfigKey;
+            } else {
+                $item['config'] = $childConfig;
+            }
+
+            $payload[] = $item;
         }
 
         return $payload;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildClientBootstrapPayload(): array
+    {
+        return [
+            'primary_key'     => $this->getPrimaryKeyColumn(),
+            'select2'         => (bool) ($this->config['select2'] ?? false),
+            'filters_enabled' => (bool) ($this->config['filters_enabled'] ?? true),
+            'numbers_enabled' => (bool) ($this->config['numbers_enabled'] ?? false),
+            'rich_editor'     => [
+                'upload_path' => CrudConfig::getUploadServePath(),
+            ],
+            'debug'           => (bool) CrudConfig::$debug,
+        ];
     }
 
     /**
@@ -12672,6 +12864,7 @@ CSS;
             perPage = 5;
         }
         var container = $('#' + tableId + '-container');
+        var configKey = String(container.attr('data-fastcrud-config-key') || '');
         var rawConfig = container.attr('data-fastcrud-config');
         var clientConfig = {};
         if (rawConfig) {
@@ -12692,6 +12885,110 @@ CSS;
             }
             return false;
         }
+
+        function buildRequestConfigState() {
+            if (!configKey || !metaInitialized) {
+                return null;
+            }
+
+            return {
+                order_by: Array.isArray(clientConfig.order_by) ? deepClone(clientConfig.order_by) : [],
+                query_builder: clientConfig.query_builder && typeof clientConfig.query_builder === 'object'
+                    ? deepClone(clientConfig.query_builder)
+                    : {
+                        filters: [],
+                        logic: 'AND',
+                        sorts: [],
+                        active_view: null
+                    },
+                per_page: Object.prototype.hasOwnProperty.call(clientConfig, 'per_page')
+                    ? clientConfig.per_page
+                    : perPage
+            };
+        }
+
+        function attachCrudConfig(payload, includeState) {
+            if (!payload || typeof payload !== 'object') {
+                return payload;
+            }
+
+            if (configKey) {
+                payload.config_key = configKey;
+                if (includeState) {
+                    var statePayload = buildRequestConfigState();
+                    if (statePayload) {
+                        payload.config_state = JSON.stringify(statePayload);
+                    }
+                }
+                return payload;
+            }
+
+            if (clientConfig && typeof clientConfig === 'object' && hasObjectEntries(clientConfig)) {
+                payload.config = JSON.stringify(clientConfig);
+            }
+
+            return payload;
+        }
+
+        function appendCrudConfigToFormData(formData, includeState) {
+            if (!formData || typeof formData.append !== 'function') {
+                return;
+            }
+
+            if (configKey) {
+                formData.append('config_key', configKey);
+                if (includeState) {
+                    var statePayload = buildRequestConfigState();
+                    if (statePayload) {
+                        formData.append('config_state', JSON.stringify(statePayload));
+                    }
+                }
+                return;
+            }
+
+            if (clientConfig && typeof clientConfig === 'object' && hasObjectEntries(clientConfig)) {
+                formData.append('config', JSON.stringify(clientConfig));
+            }
+        }
+
+        function appendCrudConfigToParams(params, includeState) {
+            if (!params || typeof params.set !== 'function') {
+                return;
+            }
+
+            if (configKey) {
+                params.set('config_key', configKey);
+                if (includeState) {
+                    var statePayload = buildRequestConfigState();
+                    if (statePayload) {
+                        params.set('config_state', JSON.stringify(statePayload));
+                    }
+                }
+                return;
+            }
+
+            if (clientConfig && typeof clientConfig === 'object' && hasObjectEntries(clientConfig)) {
+                params.set('config', JSON.stringify(clientConfig));
+            }
+        }
+
+        function attachNestedCrudConfig(payload, nestedConfig) {
+            if (!payload || typeof payload !== 'object') {
+                return payload;
+            }
+
+            if (nestedConfig && typeof nestedConfig.config_key === 'string' && nestedConfig.config_key) {
+                payload.config_key = nestedConfig.config_key;
+                return payload;
+            }
+
+            if (nestedConfig && nestedConfig.config && typeof nestedConfig.config === 'object') {
+                payload.config = JSON.stringify(nestedConfig.config);
+            }
+
+            return payload;
+        }
+
         var requiresCustomFieldHtml = hasObjectEntries(clientConfig.custom_fields)
             || hasObjectEntries(clientConfig.field_callbacks);
         var debugEnabled = !!(clientConfig && clientConfig.debug);
@@ -15314,6 +15611,7 @@ CSS;
                         show_primary_key_field: showPrimaryKeyField
                     };
                     formTemplates = templates;
+                    requiresCustomFieldHtml = Object.keys(templates).length > 0;
                     clientConfig.form = $.extend(true, {}, meta.form);
                     clientConfig.form.show_primary_key_field = showPrimaryKeyField;
                     if (Object.keys(templates).length) {
@@ -15323,6 +15621,7 @@ CSS;
                     }
                 } else {
                     formTemplates = {};
+                    requiresCustomFieldHtml = false;
                 }
 
                 inlineEditFields = {};
@@ -15387,6 +15686,7 @@ CSS;
                     show_primary_key_field: showPrimaryKeyField
                 };
                 formTemplates = liveTemplates;
+                requiresCustomFieldHtml = Object.keys(liveTemplates).length > 0;
                 clientConfig.form = $.extend(true, {}, meta.form);
                 clientConfig.form.show_primary_key_field = showPrimaryKeyField;
                 if (Object.keys(liveTemplates).length) {
@@ -15396,6 +15696,7 @@ CSS;
                 }
             } else {
                 formTemplates = {};
+                requiresCustomFieldHtml = false;
                 formConfig = {
                     layouts: {},
                     default_tabs: {},
@@ -18364,9 +18665,9 @@ CSS;
                 action: 'nested_fetch',
                 table: config.table,
                 parent_column: config.parent_column_raw || config.parent_column || '',
-                foreign_column: config.foreign_column,
-                config: JSON.stringify(config.config || {})
+                foreign_column: config.foreign_column
             };
+            attachNestedCrudConfig(payload, config);
 
             if (tableId) {
                 payload.id = tableId + '--nested--' + (config.name || config.table || 'nested');
@@ -18559,12 +18860,12 @@ CSS;
                 id: tableId,
                 page: currentPage,
                 per_page: perPage > 0 ? perPage : 0,
-                search_term: currentSearchTerm,
-                config: JSON.stringify(clientConfig)
+                search_term: currentSearchTerm
             };
             if (typeof currentSearchColumn !== 'undefined' && currentSearchColumn !== null && String(currentSearchColumn).length) {
                 payload.search_column = currentSearchColumn;
             }
+            attachCrudConfig(payload, true);
 
             var request = $.ajax({
                 url: window.location.pathname,
@@ -18618,6 +18919,7 @@ CSS;
             });
 
             activeFetchRequest = request;
+            return request;
         }
 
         function showEditForm(row) {
@@ -19726,11 +20028,7 @@ CSS;
                                         if (tableName) { formData.append('table', tableName); }
                                         if (tableId) { formData.append('id', tableId); }
                                         formData.append('column', saveColumn);
-                                        try {
-                                            if (clientConfig) {
-                                                formData.append('config', JSON.stringify(clientConfig));
-                                            }
-                                        } catch (e) {}
+                                        appendCrudConfigToFormData(formData, false);
                                         xhr.send(formData);
                                         return { abort: function() { xhr.abort(); abort(); } };
                                     },
@@ -20016,11 +20314,7 @@ CSS;
                                         if (tableName) { formData.append('table', tableName); }
                                         if (tableId) { formData.append('id', tableId); }
                                         formData.append('column', saveColumn);
-                                        try {
-                                            if (clientConfig) {
-                                                formData.append('config', JSON.stringify(clientConfig));
-                                            }
-                                        } catch (e) {}
+                                        appendCrudConfigToFormData(formData, false);
                                         xhr.send(formData);
                                         return { abort: function() { xhr.abort(); abort(); } };
                                     },
@@ -20900,9 +21194,9 @@ CSS;
                     action: isCreateMode ? 'create' : 'update',
                     table: tableName,
                     id: tableId,
-                    fields: JSON.stringify(fields),
-                    config: JSON.stringify(clientConfig)
+                    fields: JSON.stringify(fields)
                 };
+                attachCrudConfig(requestData, false);
                 if (!isCreateMode) {
                     requestData.primary_key_column = primaryColumn;
                     requestData.primary_key_value = primaryValue;
@@ -21018,20 +21312,21 @@ CSS;
                 }
             }
             return new Promise(function(resolve, reject) {
+                var requestData = {
+                    fastcrud_ajax: '1',
+                    action: 'read',
+                    table: tableName,
+                    id: tableId,
+                    primary_key_column: pkCol,
+                    primary_key_value: pkVal,
+                    render_mode: normalizedMode
+                };
+                attachCrudConfig(requestData, false);
                 $.ajax({
                     url: window.location.pathname,
                     type: 'POST',
                     dataType: 'json',
-                    data: {
-                        fastcrud_ajax: '1',
-                        action: 'read',
-                        table: tableName,
-                        id: tableId,
-                        primary_key_column: pkCol,
-                        primary_key_value: pkVal,
-                        render_mode: normalizedMode,
-                        config: JSON.stringify(clientConfig)
-                    },
+                    data: requestData,
                     success: function(response) {
                         if (response && response.success && response.row) {
                             var row = response.row;
@@ -21207,20 +21502,21 @@ CSS;
                 }
                 var payload = {};
                 payload[fieldKey] = newValue;
+                var requestData = {
+                    fastcrud_ajax: '1',
+                    action: 'update',
+                    table: tableName,
+                    id: tableId,
+                    primary_key_column: pk.column,
+                    primary_key_value: pk.value,
+                    fields: JSON.stringify(payload)
+                };
+                attachCrudConfig(requestData, false);
                 $.ajax({
                     url: window.location.pathname,
                     type: 'POST',
                     dataType: 'json',
-                    data: {
-                        fastcrud_ajax: '1',
-                        action: 'update',
-                        table: tableName,
-                        id: tableId,
-                        primary_key_column: pk.column,
-                        primary_key_value: pk.value,
-                        fields: JSON.stringify(payload),
-                        config: JSON.stringify(clientConfig)
-                    },
+                    data: requestData,
                     success: function(response) {
                         if (response && response.success) {
                             try {
@@ -21363,21 +21659,22 @@ CSS;
 
             var payloadFields = {};
             payloadFields[field] = newValue;
+            var requestData = {
+                fastcrud_ajax: '1',
+                action: 'update',
+                table: tableName,
+                id: tableId,
+                primary_key_column: pkCol,
+                primary_key_value: pkVal,
+                fields: JSON.stringify(payloadFields)
+            };
+            attachCrudConfig(requestData, false);
 
             $.ajax({
                 url: window.location.pathname,
                 type: 'POST',
                 dataType: 'json',
-                data: {
-                    fastcrud_ajax: '1',
-                    action: 'update',
-                    table: tableName,
-                    id: tableId,
-                    primary_key_column: pkCol,
-                    primary_key_value: pkVal,
-                    fields: JSON.stringify(payloadFields),
-                    config: JSON.stringify(clientConfig)
-                },
+                data: requestData,
                 success: function(response) {
                     if (response && response.success) {
                         loadTableData(currentPage);
@@ -21433,19 +21730,21 @@ CSS;
                 }
             }
 
+            var requestData = {
+                fastcrud_ajax: '1',
+                action: 'delete',
+                table: tableName,
+                id: tableId,
+                primary_key_column: rowPrimaryKeyColumn,
+                primary_key_value: primaryValue
+            };
+            attachCrudConfig(requestData, false);
+
             $.ajax({
                 url: window.location.pathname,
                 type: 'POST',
                 dataType: 'json',
-                data: {
-                    fastcrud_ajax: '1',
-                    action: 'delete',
-                    table: tableName,
-                    id: tableId,
-                    primary_key_column: rowPrimaryKeyColumn,
-                    primary_key_value: primaryValue,
-                    config: JSON.stringify(clientConfig)
-                },
+                data: requestData,
                 success: function(response) {
                     if (response && response.success) {
                         loadTableData(currentPage);
@@ -21488,19 +21787,21 @@ CSS;
                 return;
             }
 
+            var requestData = {
+                fastcrud_ajax: '1',
+                action: 'duplicate',
+                table: tableName,
+                id: tableId,
+                primary_key_column: rowPrimaryKeyColumn,
+                primary_key_value: primaryValue
+            };
+            attachCrudConfig(requestData, false);
+
             $.ajax({
                 url: window.location.pathname,
                 type: 'POST',
                 dataType: 'json',
-                data: {
-                    fastcrud_ajax: '1',
-                    action: 'duplicate',
-                    table: tableName,
-                    id: tableId,
-                    primary_key_column: rowPrimaryKeyColumn,
-                    primary_key_value: primaryValue,
-                    config: JSON.stringify(clientConfig)
-                },
+                data: requestData,
                 success: function(response) {
                     if (response && response.success) {
                         // Trigger event with both source and new rows
@@ -21596,15 +21897,16 @@ CSS;
                 return;
             }
 
-            sendBulkAjax({
+            var payload = {
                 fastcrud_ajax: '1',
                 action: 'batch_delete',
                 table: tableName,
                 id: tableId,
                 primary_key_column: pkColumn,
-                primary_key_values: values,
-                config: JSON.stringify(clientConfig)
-            }, 'Failed to delete selected records.');
+                primary_key_values: values
+            };
+            attachCrudConfig(payload, false);
+            sendBulkAjax(payload, 'Failed to delete selected records.');
         }
 
         function sendBulkAjax(payload, defaultMessage) {
@@ -21664,9 +21966,9 @@ CSS;
                 id: tableId,
                 primary_key_column: selection.column,
                 primary_key_values: selection.values,
-                fields: JSON.stringify(action.fields),
-                config: JSON.stringify(clientConfig)
+                fields: JSON.stringify(action.fields)
             };
+            attachCrudConfig(payload, false);
 
             sendBulkAjax(payload, 'Failed to apply bulk update.');
         }
@@ -21678,7 +21980,7 @@ CSS;
             params.set('action', action);
             params.set('table', tableName);
             params.set('id', tableId);
-            params.set('config', JSON.stringify(clientConfig));
+            appendCrudConfigToParams(params, true);
 
             if (primaryKeyColumn) {
                 params.set('primary_key_column', primaryKeyColumn);
@@ -21959,9 +22261,13 @@ CSS;
         };
 
         if (formOnlyMode) {
-            var handledInitialMode = bootstrapInitialMode();
-            if (!handledInitialMode) {
-                loadTableData(1);
+            var bootstrapRequest = loadTableData(1);
+            if (bootstrapRequest && typeof bootstrapRequest.done === 'function') {
+                bootstrapRequest.done(function() {
+                    bootstrapInitialMode();
+                });
+            } else {
+                bootstrapInitialMode();
             }
         } else {
             loadTableData(1);
