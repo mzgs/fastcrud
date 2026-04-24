@@ -112,6 +112,7 @@ class Crud
         'limit_default'           => null,
         'search_columns'          => [],
         'search_default'          => null,
+        'hide_search'             => false,
         'joins'                   => [],
         'relations'               => [],
         'custom_query'            => null,
@@ -5369,6 +5370,13 @@ class Crud
         return $this;
     }
 
+    public function hide_search(bool $hidden = true): self
+    {
+        $this->config['hide_search'] = (bool) $hidden;
+
+        return $this;
+    }
+
     public function no_quotes(string|array $fields): self
     {
         $list = $this->normalizeList($fields);
@@ -8807,6 +8815,7 @@ HTML;
                 'columns'   => $this->config['search_columns'],
                 'default'   => $this->config['search_default'],
                 'available' => array_keys($this->getWhereColumnsMapForAllSearch()),
+                'hidden'    => (bool) ($this->config['hide_search'] ?? false),
             ],
             'order_by'               => array_map(
                 static fn(array $order): array               => [
@@ -9448,6 +9457,7 @@ HTML;
             'select2'         => (bool) ($this->config['select2'] ?? false),
             'filters_enabled' => (bool) ($this->config['filters_enabled'] ?? true),
             'numbers_enabled' => (bool) ($this->config['numbers_enabled'] ?? false),
+            'hide_search'     => (bool) ($this->config['hide_search'] ?? false),
             'rich_editor'     => [
                 'upload_path' => CrudConfig::getUploadServePath(),
             ],
@@ -9574,6 +9584,7 @@ HTML;
             'limit_default'           => $this->config['limit_default'],
             'search_columns'          => $this->config['search_columns'],
             'search_default'          => $this->config['search_default'],
+            'hide_search'             => (bool) ($this->config['hide_search'] ?? false),
             'joins'                   => $this->config['joins'],
             'relations'               => $this->config['relations'],
             'custom_query'            => $this->config['custom_query'],
@@ -10429,6 +10440,10 @@ HTML;
         if (array_key_exists('search_default', $payload)) {
             $default                        = $payload['search_default'];
             $this->config['search_default'] = is_string($default) && $default !== '' ? $default : null;
+        }
+
+        if (array_key_exists('hide_search', $payload)) {
+            $this->config['hide_search'] = (bool) $payload['hide_search'];
         }
 
         if (isset($payload['custom_query']) && is_string($payload['custom_query']) && trim($payload['custom_query']) !== '') {
@@ -13085,6 +13100,9 @@ CSS;
         var numbersEnabled = !!(clientConfig && Object.prototype.hasOwnProperty.call(clientConfig, 'numbers_enabled')
             ? clientConfig.numbers_enabled
             : false);
+        var searchHidden = !!(clientConfig && Object.prototype.hasOwnProperty.call(clientConfig, 'hide_search')
+            ? clientConfig.hide_search
+            : false);
         var richEditorConfig = clientConfig.rich_editor || {};
         var paginationContainer = $('#' + tableId + '-pagination');
         var currentPage = 1;
@@ -14371,7 +14389,8 @@ CSS;
                     search: {
                         columns: Array.isArray(clientConfig.search_columns) ? clientConfig.search_columns.slice() : [],
                         'default': clientConfig.search_default || null,
-                        available: Array.isArray(clientConfig.search_columns) ? clientConfig.search_columns.slice() : []
+                        available: Array.isArray(clientConfig.search_columns) ? clientConfig.search_columns.slice() : [],
+                        hidden: !!clientConfig.hide_search
                     },
                     nested_tables: Array.isArray(clientConfig.nested_tables) ? clientConfig.nested_tables.slice() : [],
                     link_buttons: Array.isArray(clientConfig.link_buttons) ? clientConfig.link_buttons.slice() : [],
@@ -15799,21 +15818,32 @@ CSS;
                     available: Array.isArray(meta.search.available) ? meta.search.available : [],
                     default: meta.search.default || null,
                 };
+                searchHidden = !!meta.search.hidden;
                 clientConfig.search_columns = meta.search.columns;
                 clientConfig.search_default = meta.search.default || null;
+                clientConfig.hide_search = searchHidden;
 
                 // Only apply default search column on initial load.
                 if (!metaInitialized && !currentSearchColumn && typeof searchConfig.default === 'string' && searchConfig.default !== '') {
                     currentSearchColumn = searchConfig.default;
                 }
 
-                ensureSearchControls();
+                if (searchHidden) {
+                    removeSearchControls();
+                } else {
+                    ensureSearchControls();
+                }
                 if (searchSelect) {
                     searchSelect.val(currentSearchColumn || '');
                 }
             } else {
                 searchConfig = { columns: [], default: null };
-                ensureSearchControls();
+                searchHidden = !!clientConfig.hide_search;
+                if (searchHidden) {
+                    removeSearchControls();
+                } else {
+                    ensureSearchControls();
+                }
             }
 
             var nestedMeta = Array.isArray(meta.nested_tables)
@@ -15832,8 +15862,25 @@ CSS;
             metaInitialized = true;
         }
 
+        function removeSearchControls() {
+            if (searchGroup) {
+                searchGroup.remove();
+            }
+
+            searchGroup = null;
+            searchInput = null;
+            searchSelect = null;
+            searchButton = null;
+            clearButton = null;
+        }
+
         function ensureSearchControls() {
             if (formOnlyMode) {
+                return;
+            }
+
+            if (searchHidden) {
+                removeSearchControls();
                 return;
             }
 
