@@ -163,8 +163,8 @@ DatabaseEditor::init();
                         'fields' => ['is_featured' => 1],
                         'confirm' => 'Flag all chosen records?',
                     ])
-                    ->hide_search()
-                    ->use_compact_pagination()
+                    // ->hide_search()
+                    // ->compact_pagination()
 
                     ->add_multi_link_button([
                         'icon' => 'fas fa-globe',

@@ -7559,7 +7559,7 @@ $headerHtml
             <tfoot id="{$id}-summary" class="fastcrud-summary"></tfoot>
         </table>
     </div>
-    <nav aria-label="Table pagination" class="d-flex flex-wrap align-items-center gap-2 justify-content-between mt-3">
+    <nav aria-label="Table pagination" class="d-flex flex-wrap align-items-center gap-2 justify-content-between mt-1">
         <div class="d-flex flex-wrap align-items-center gap-2">
             <ul id="{$id}-pagination" class="pagination justify-content-start mb-0 flex-wrap"></ul>
             <div id="{$id}-toolbar" class="d-flex flex-wrap align-items-center gap-2"></div>
