@@ -110,6 +110,7 @@ class Crud
         'no_quotes'               => [],
         'limit_options'           => [5, 10, 25, 50, 100],
         'limit_default'           => null,
+        'compact_pagination'      => false,
         'search_columns'          => [],
         'search_default'          => null,
         'hide_search'             => false,
@@ -3413,6 +3414,13 @@ class Crud
         if ($this->config['limit_default'] === null && isset($parsed[0]) && is_int($parsed[0])) {
             $this->setPerPage($parsed[0]);
         }
+
+        return $this;
+    }
+
+    public function compact_pagination(bool $enabled = true): self
+    {
+        $this->config['compact_pagination'] = (bool) $enabled;
 
         return $this;
     }
@@ -8811,6 +8819,7 @@ HTML;
             'column_widths'          => $filterColumns($this->config['column_widths']),
             'limit_options'          => $this->config['limit_options'],
             'default_limit'          => $this->config['limit_default'] ?? $this->perPage,
+            'compact_pagination'     => (bool) ($this->config['compact_pagination'] ?? false),
             'search'                 => [
                 'columns'   => $this->config['search_columns'],
                 'default'   => $this->config['search_default'],
@@ -9457,6 +9466,7 @@ HTML;
             'select2'         => (bool) ($this->config['select2'] ?? false),
             'filters_enabled' => (bool) ($this->config['filters_enabled'] ?? true),
             'numbers_enabled' => (bool) ($this->config['numbers_enabled'] ?? false),
+            'compact_pagination' => (bool) ($this->config['compact_pagination'] ?? false),
             'hide_search'     => (bool) ($this->config['hide_search'] ?? false),
             'rich_editor'     => [
                 'upload_path' => CrudConfig::getUploadServePath(),
@@ -9582,6 +9592,7 @@ HTML;
             'no_quotes'               => $this->config['no_quotes'],
             'limit_options'           => $this->config['limit_options'],
             'limit_default'           => $this->config['limit_default'],
+            'compact_pagination'      => (bool) ($this->config['compact_pagination'] ?? false),
             'search_columns'          => $this->config['search_columns'],
             'search_default'          => $this->config['search_default'],
             'hide_search'             => (bool) ($this->config['hide_search'] ?? false),
@@ -10431,6 +10442,10 @@ HTML;
 
         if (isset($payload['limit_default']) && is_numeric($payload['limit_default'])) {
             $this->config['limit_default'] = (int) $payload['limit_default'];
+        }
+
+        if (array_key_exists('compact_pagination', $payload)) {
+            $this->config['compact_pagination'] = (bool) $payload['compact_pagination'];
         }
 
         if (isset($payload['search_columns'])) {
@@ -13100,6 +13115,9 @@ CSS;
         var numbersEnabled = !!(clientConfig && Object.prototype.hasOwnProperty.call(clientConfig, 'numbers_enabled')
             ? clientConfig.numbers_enabled
             : false);
+        var compactPagination = !!(clientConfig && Object.prototype.hasOwnProperty.call(clientConfig, 'compact_pagination')
+            ? clientConfig.compact_pagination
+            : false);
         var searchHidden = !!(clientConfig && Object.prototype.hasOwnProperty.call(clientConfig, 'hide_search')
             ? clientConfig.hide_search
             : false);
@@ -14383,6 +14401,7 @@ CSS;
                     form: clientConfig.form || {},
                     inline_edit: Array.isArray(clientConfig.inline_edit) ? clientConfig.inline_edit.slice() : (clientConfig.inline_edit || []),
                     table: seedTableMeta,
+                    compact_pagination: !!clientConfig.compact_pagination,
                     sort_disabled: Array.isArray(clientConfig.sort_disabled) ? clientConfig.sort_disabled.slice() : [],
                     limit_options: Array.isArray(clientConfig.limit_options) ? clientConfig.limit_options.slice() : [],
                     default_limit: typeof clientConfig.limit_default !== 'undefined' ? clientConfig.limit_default : null,
@@ -15595,6 +15614,13 @@ CSS;
                 numbersEnabled = !!clientConfig.numbers_enabled;
             }
             clientConfig.numbers_enabled = numbersEnabled;
+
+            if (Object.prototype.hasOwnProperty.call(metaConfig, 'compact_pagination')) {
+                compactPagination = !!metaConfig.compact_pagination;
+            } else if (clientConfig && Object.prototype.hasOwnProperty.call(clientConfig, 'compact_pagination')) {
+                compactPagination = !!clientConfig.compact_pagination;
+            }
+            clientConfig.compact_pagination = compactPagination;
 
             if (meta.form && typeof meta.form === 'object' && Object.prototype.hasOwnProperty.call(meta.form, 'show_primary_key_field')) {
                 showPrimaryKeyField = !!meta.form.show_primary_key_field;
@@ -17366,6 +17392,17 @@ CSS;
             var totalPages = pagination.total_pages;
             var totalRows = pagination.total_rows;
 
+            if (rangeDisplay.length) {
+                rangeDisplay
+                    .removeClass('d-flex flex-wrap align-items-center gap-2 justify-content-end')
+                    .addClass('text-muted small ms-auto');
+            }
+
+            if (compactPagination) {
+                buildCompactPagination(pagination, current, totalPages, totalRows);
+                return;
+            }
+
             var options = perPageOptions.length ? perPageOptions : [5, 10, 25, 50, 100];
             var select = null;
 
@@ -17475,6 +17512,58 @@ CSS;
                 var endRange = totalRows === 0 ? 0 : Math.min(current * pagination.per_page, totalRows);
                 rangeDisplay.text('Showing ' + startRange + '-' + endRange + ' of ' + totalRows);
             }
+        }
+
+        function buildCompactPagination(pagination, current, totalPages, totalRows) {
+            paginationContainer.empty();
+
+            var target = rangeDisplay.length ? rangeDisplay : paginationContainer;
+            target.empty()
+                .removeClass('text-muted')
+                .addClass('d-flex flex-wrap align-items-center gap-2 justify-content-end ms-auto');
+
+            if (rangeDisplay.length) {
+                target.append(
+                    $('<span class="text-muted small"></span>').text(getPaginationRangeText(pagination, current, totalRows))
+                );
+            }
+
+            var buttonGroup = $('<div class="btn-group btn-group-sm" role="group" aria-label="Pagination"></div>');
+            buttonGroup
+                .append(createCompactPaginationButton('Previous', 'fas fa-chevron-left', current > 1, function() {
+                    loadTableData(current - 1);
+                }))
+                .append(createCompactPaginationButton('Next', 'fas fa-chevron-right', current < totalPages, function() {
+                    loadTableData(current + 1);
+                }));
+
+            target.append(buttonGroup);
+        }
+
+        function createCompactPaginationButton(label, iconClass, enabled, callback) {
+            var button = $('<button type="button" class="btn btn-outline-secondary"></button>')
+                .attr('aria-label', label)
+                .prop('disabled', !enabled);
+
+            button.append($('<i aria-hidden="true"></i>').addClass(iconClass));
+
+            if (enabled) {
+                button.on('click', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    callback();
+                    return false;
+                });
+            }
+
+            return button;
+        }
+
+        function getPaginationRangeText(pagination, current, totalRows) {
+            var startRange = totalRows === 0 ? 0 : ((current - 1) * pagination.per_page) + 1;
+            var endRange = totalRows === 0 ? 0 : Math.min(current * pagination.per_page, totalRows);
+
+            return 'Showing ' + startRange + '-' + endRange + ' of ' + totalRows;
         }
 
         function createPageItem(pageNumber, isActive) {

@@ -293,6 +293,10 @@ All customization options are available through the main `FastCrud\Crud` class m
   ```php
   $crud->limit_list([5, 10, 25, 'all']);
   ```
+- **`compact_pagination(bool $enabled = true): self`** – Replace the page-number and per-page controls with right-aligned previous/next icon buttons.
+  ```php
+  $crud->compact_pagination();
+  ```
 - **`setPanelWidth(string $width): self`** – Adjust the edit panel width with any CSS length (`'640px'`, `'30%'`, `'40rem'`).
   ```php
   $crud->setPanelWidth('640px');
