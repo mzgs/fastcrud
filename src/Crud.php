@@ -10533,6 +10533,18 @@ HTML;
             }
         }
 
+        if (isset($payload['inline_edit'])) {
+            $fields = $this->normalizeList($payload['inline_edit']);
+            $map    = [];
+            foreach ($fields as $field) {
+                $normalized = $this->normalizeColumnReference($field);
+                if ($normalized !== '') {
+                    $map[$normalized] = true;
+                }
+            }
+            $this->config['inline_edit'] = $map;
+        }
+
         if (isset($payload['limit_options']) && is_array($payload['limit_options'])) {
             $this->config['limit_options'] = array_values($payload['limit_options']);
         }
@@ -22560,15 +22572,4 @@ CSS;
 </script>
 SCRIPT;
     }
-}
-if (isset($payload['inline_edit'])) {
-    $fields = $this->normalizeList($payload['inline_edit']);
-    $map    = [];
-    foreach ($fields as $field) {
-        $normalized = $this->normalizeColumnReference($field);
-        if ($normalized !== '') {
-            $map[$normalized] = true;
-        }
-    }
-    $this->config['inline_edit'] = $map;
 }
