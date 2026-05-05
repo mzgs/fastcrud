@@ -7,6 +7,7 @@ require __DIR__ . '/../vendor/autoload.php';
 use FastCrud\Crud;
 use FastCrud\CrudConfig;
 use FastCrud\CrudStyle;
+use FastCrud\Database;
 use FastCrud\DatabaseEditor;
 
 function fc_before_create_defaults(array $fields, array $context, Crud $crud): array
@@ -77,12 +78,65 @@ function render_status_note_field(string $field, mixed $value, array $row, strin
     return  '<hr><span class="text-primary">Featured posts are highlighted and surface in key sections.</span>' ;
 }
 
+function fc_ensure_demo_users_table(): void
+{
+    $pdo = Database::connection();
+    $driver = (string) $pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);
+
+    if ($driver !== 'mysql') {
+        return;
+    }
+
+    $pdo->exec(<<<SQL
+        CREATE TABLE IF NOT EXISTS `users` (
+            `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `username` VARCHAR(80) NOT NULL,
+            `email` VARCHAR(160) NOT NULL,
+            `role` VARCHAR(40) NOT NULL DEFAULT 'editor',
+            `status` VARCHAR(40) NOT NULL DEFAULT 'active',
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `users_email_unique` (`email`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    SQL);
+
+    $columns = $pdo->query('SHOW COLUMNS FROM `users`')->fetchAll(\PDO::FETCH_COLUMN);
+    $columns = array_map('strtolower', array_map('strval', $columns));
+    $missingColumns = [
+        'role'       => "ALTER TABLE `users` ADD COLUMN `role` VARCHAR(40) NOT NULL DEFAULT 'editor'",
+        'status'     => "ALTER TABLE `users` ADD COLUMN `status` VARCHAR(40) NOT NULL DEFAULT 'active'",
+        'created_at' => 'ALTER TABLE `users` ADD COLUMN `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    ];
+
+    foreach ($missingColumns as $column => $sql) {
+        if (!in_array($column, $columns, true)) {
+            $pdo->exec($sql);
+        }
+    }
+
+    $count = (int) $pdo->query('SELECT COUNT(*) FROM `users`')->fetchColumn();
+    if ($count > 0) {
+        return;
+    }
+
+    $statement = $pdo->prepare('INSERT INTO `users` (`username`, `email`, `role`, `status`) VALUES (?, ?, ?, ?)');
+    foreach ([
+        ['mustafa', 'mustafa@example.com', 'admin', 'active'],
+        ['ayla', 'ayla@example.com', 'editor', 'active'],
+        ['deniz', 'deniz@example.com', 'author', 'paused'],
+    ] as $user) {
+        $statement->execute($user);
+    }
+}
+
 
 Crud::init([
     'database' => 'fastcrud',
     'username' => 'root',
     'password' => '1',
 ]);
+
+fc_ensure_demo_users_table();
 
 
 
@@ -337,8 +391,47 @@ DatabaseEditor::init();
 
                 $usersCrud = new Crud('users');
                 $usersCrud
-                ->columns('username,email')
-                ->table_icon('fas fa-users')
+                    ->columns('username,email,role,status,created_at')
+                    ->fields('username,email,role,status')
+                    ->set_column_labels([
+                        'username'   => 'User Name',
+                        'email'      => 'Email Address',
+                        'role'       => 'Role',
+                        'status'     => 'Status',
+                        'created_at' => 'Created',
+                    ])
+                    ->set_field_labels([
+                        'username' => 'User Name',
+                        'email'    => 'Email Address',
+                        'role'     => 'Role',
+                        'status'   => 'Status',
+                    ])
+                    ->change_type('role', 'select', 'editor', [
+                        'values' => [
+                            'admin'  => 'Admin',
+                            'editor' => 'Editor',
+                            'author' => 'Author',
+                        ],
+                    ])
+                    ->change_type('status', 'select', 'active', [
+                        'values' => [
+                            'active' => 'Active',
+                            'paused' => 'Paused',
+                        ],
+                    ])
+                    ->column_callback('role', 'fc_render_user_role')
+                    ->search_columns('username,email,role,status', 'username')
+                    ->order_by('id', 'desc')
+                    ->enable_export_csv()
+                    ->add_toolbar_html('
+                        <select class="form-select form-select-sm" style="width: 12rem;" aria-label="User status toolbar filter">
+                            <option value="">All statuses</option>
+                            <option value="active">Active</option>
+                            <option value="paused">Paused</option>
+                        </select>
+                    ')
+                    ->table_title('Users Overview')
+                    ->table_icon('fas fa-users')
                     ->nested_table('posts', 'id', 'posts', 'user_id', static function (Crud $nested): void {
                         $nested
                             ->table_title('Posts')
