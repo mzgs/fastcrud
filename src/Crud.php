@@ -167,6 +167,7 @@ class Crud
             'batch_delete_button' => false,
             'bulk_actions'        => [],
             'toolbar_actions'     => [],
+            'toolbar_html'        => [],
             'delete_confirm'      => true,
             'export_csv'          => false,
             'export_excel'        => false,
@@ -651,6 +652,52 @@ class Crud
 
     /**
      * @param array<string, mixed> $payload
+     * @return array{html:string}|null
+     */
+    private function normalizeToolbarHtmlConfigPayload(array $payload): ?array
+    {
+        $html = isset($payload['html']) ? trim((string) $payload['html']) : '';
+        if ($html === '') {
+            return null;
+        }
+
+        return ['html' => $html];
+    }
+
+    /**
+     * @return array<int, array{html:string}>
+     */
+    private function normalizeToolbarHtmlList(mixed $payload): array
+    {
+        if (is_string($payload)) {
+            $payload = [$payload];
+        }
+
+        if (!is_array($payload)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($payload as $entry) {
+            if (is_string($entry)) {
+                $entry = ['html' => $entry];
+            }
+
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $html = $this->normalizeToolbarHtmlConfigPayload($entry);
+            if ($html !== null) {
+                $normalized[] = $html;
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
      */
     private function normalizeMultiLinkButtonConfigPayload(array $payload): ?array
     {
@@ -1122,6 +1169,19 @@ class Crud
         }
 
         $this->config['table_meta']['toolbar_actions'] = $normalized;
+
+        return $normalized;
+    }
+
+    /**
+     * @return array<int, array{html:string}>
+     */
+    private function getNormalizedToolbarHtmlConfig(): array
+    {
+        $tableMeta = $this->config['table_meta'] ?? [];
+        $normalized = $this->normalizeToolbarHtmlList($tableMeta['toolbar_html'] ?? []);
+
+        $this->config['table_meta']['toolbar_html'] = $normalized;
 
         return $normalized;
     }
@@ -4799,6 +4859,27 @@ class Crud
         $this->config['table_meta']['toolbar_actions'][] = $normalized;
 
         return $this;
+    }
+
+    public function add_toolbar_html(string $html): self
+    {
+        $normalized = $this->normalizeToolbarHtmlConfigPayload(['html' => $html]);
+        if ($normalized === null) {
+            throw new InvalidArgumentException('Toolbar HTML requires a non-empty HTML string.');
+        }
+
+        if (!isset($this->config['table_meta']['toolbar_html']) || !is_array($this->config['table_meta']['toolbar_html'])) {
+            $this->config['table_meta']['toolbar_html'] = [];
+        }
+
+        $this->config['table_meta']['toolbar_html'][] = $normalized;
+
+        return $this;
+    }
+
+    public function add_toolbar_custom_html(string $html): self
+    {
+        return $this->add_toolbar_html($html);
     }
 
     /**
@@ -8805,6 +8886,7 @@ HTML;
                     ? array_values($tableMeta['bulk_actions'])
                     : [],
                 'toolbar_actions'     => $this->getNormalizedToolbarActionsConfig(),
+                'toolbar_html'        => $this->getNormalizedToolbarHtmlConfig(),
                 'delete_confirm'      => isset($tableMeta['delete_confirm']) ? (bool) $tableMeta['delete_confirm'] : true,
                 'export_csv'          => isset($tableMeta['export_csv']) ? (bool) $tableMeta['export_csv'] : false,
                 'export_excel'        => isset($tableMeta['export_excel']) ? (bool) $tableMeta['export_excel'] : false,
@@ -9574,6 +9656,7 @@ HTML;
             : false;
         $this->config['table_meta']['batch_delete_button'] = $batchDeleteConfigured;
         $this->getNormalizedToolbarActionsConfig();
+        $this->getNormalizedToolbarHtmlConfig();
 
         $formMeta = $this->buildFormMeta($columns);
         if (!isset($formMeta['all_columns']) || !is_array($formMeta['all_columns'])) {
@@ -10533,6 +10616,7 @@ HTML;
                 'export_excel'        => isset($meta['export_excel']) ? (bool) $meta['export_excel'] : false,
                 'bulk_actions'        => [],
                 'toolbar_actions'     => [],
+                'toolbar_html'        => [],
             ];
 
             if (isset($meta['bulk_actions']) && is_array($meta['bulk_actions'])) {
@@ -10569,6 +10653,10 @@ HTML;
 
                 $this->config['table_meta']['toolbar_actions'] = $toolbarActions;
             }
+
+            if (array_key_exists('toolbar_html', $meta)) {
+                $this->config['table_meta']['toolbar_html'] = $this->normalizeToolbarHtmlList($meta['toolbar_html']);
+            }
         }
 
         if (array_key_exists('toolbar_actions', $payload)) {
@@ -10595,6 +10683,18 @@ HTML;
                 $this->config['table_meta']['toolbar_actions'] = $normalizedToolbarAction !== null ? [$normalizedToolbarAction] : [];
             } elseif ($toolbarAction === null) {
                 $this->config['table_meta']['toolbar_actions'] = [];
+            }
+        }
+
+        if (array_key_exists('toolbar_html', $payload)) {
+            $this->config['table_meta']['toolbar_html'] = $this->normalizeToolbarHtmlList($payload['toolbar_html']);
+        } elseif (array_key_exists('toolbar_custom_html', $payload)) {
+            $toolbarHtml = $payload['toolbar_custom_html'];
+            if (is_string($toolbarHtml)) {
+                $normalizedToolbarHtml                     = $this->normalizeToolbarHtmlConfigPayload(['html' => $toolbarHtml]);
+                $this->config['table_meta']['toolbar_html'] = $normalizedToolbarHtml !== null ? [$normalizedToolbarHtml] : [];
+            } elseif ($toolbarHtml === null) {
+                $this->config['table_meta']['toolbar_html'] = [];
             }
         }
 
@@ -16184,6 +16284,31 @@ CSS;
                     return;
                 }
                 actionsWrapper.append(actionEl);
+                hasActions = true;
+            });
+
+            var toolbarHtmlList = Array.isArray(tableMeta.toolbar_html)
+                ? tableMeta.toolbar_html
+                : [];
+            toolbarHtmlList.forEach(function(htmlMeta) {
+                var html = '';
+                if (typeof htmlMeta === 'string') {
+                    html = htmlMeta;
+                } else if (htmlMeta && typeof htmlMeta === 'object' && typeof htmlMeta.html === 'string') {
+                    html = htmlMeta.html;
+                }
+
+                html = html.trim();
+                if (!html.length) {
+                    return;
+                }
+
+                var htmlEl = $(html);
+                if (!htmlEl.length) {
+                    return;
+                }
+
+                actionsWrapper.append(htmlEl);
                 hasActions = true;
             });
 
