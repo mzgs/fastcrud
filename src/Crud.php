@@ -8370,6 +8370,7 @@ CSS;
 
 #{$containerId} .fastcrud-view-controls .fastcrud-saved-view-group .btn {
     flex: 0 0 auto;
+    white-space: nowrap;
 }
 
 #{$containerId} .fastcrud-view-controls .fastcrud-open-query-builder {
@@ -8377,7 +8378,15 @@ CSS;
     align-items: center;
 }
 
-#{$containerId} .fastcrud-toolbar-action {
+#{$containerId} .fastcrud-search-btn,
+#{$containerId} .fastcrud-search-clear-btn,
+#{$containerId} .fastcrud-toolbar-action,
+#{$containerId} .fastcrud-open-query-builder,
+#{$containerId} .fastcrud-batch-delete-btn,
+#{$containerId} .fastcrud-bulk-apply-btn,
+#{$containerId} .fastcrud-export-csv-btn,
+#{$containerId} .fastcrud-export-excel-btn,
+#{$containerId} .fastcrud-add-btn {
     flex: 0 0 auto;
     white-space: nowrap;
 }
@@ -16065,13 +16074,13 @@ CSS;
             searchGroup.append(searchInput);
 
             var searchButtonClass = getStyleClass('search_button_class', 'btn btn-outline-primary');
-            searchButton = $('<button type="button">Search</button>').addClass(searchButtonClass);
+            searchButton = $('<button type="button">Search</button>').addClass(searchButtonClass).addClass('fastcrud-search-btn');
             searchButton.on('click', function() {
                 triggerSearch();
             });
 
             var clearButtonClass = getStyleClass('search_clear_button_class', 'btn btn-outline-secondary');
-            clearButton = $('<button type="button">Clear</button>').addClass(clearButtonClass);
+            clearButton = $('<button type="button">Clear</button>').addClass(clearButtonClass).addClass('fastcrud-search-clear-btn');
             clearButton.on('click', function() {
                 currentSearchTerm = '';
                 if (searchInput) {
