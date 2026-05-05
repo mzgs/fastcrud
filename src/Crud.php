@@ -8377,6 +8377,11 @@ CSS;
     align-items: center;
 }
 
+#{$containerId} .fastcrud-toolbar-action {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
 .fastcrud-query-builder .modal-body h6 {
     font-size: 0.95rem;
 }
