@@ -22,6 +22,10 @@ class Crud
      */
     private array $tableColumnCache = [];
     /**
+     * @var array<string, array<string, bool>>
+     */
+    private array $tableColumnLookupCache = [];
+    /**
      * @var array<string, array<string, array<string, mixed>>>
      */
     private array $tableSchemaCache = [];
@@ -6585,6 +6589,10 @@ class Crud
     private function getTableColumnsFor(string $table): array
     {
         if (isset($this->tableColumnCache[$table])) {
+            if (!isset($this->tableColumnLookupCache[$table])) {
+                $this->tableColumnLookupCache[$table] = array_fill_keys($this->tableColumnCache[$table], true);
+            }
+
             return $this->tableColumnCache[$table];
         }
 
@@ -6593,7 +6601,8 @@ class Crud
         try {
             $statement = $this->connection->query($sql);
         } catch (PDOException) {
-            $this->tableColumnCache[$table] = [];
+            $this->tableColumnCache[$table]       = [];
+            $this->tableColumnLookupCache[$table] = [];
             return $this->tableColumnCache[$table];
         }
 
@@ -6608,9 +6617,20 @@ class Crud
             }
         }
 
-        $this->tableColumnCache[$table] = $columns;
+        $this->tableColumnCache[$table]       = $columns;
+        $this->tableColumnLookupCache[$table] = array_fill_keys($columns, true);
 
         return $columns;
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function getTableColumnLookupFor(string $table): array
+    {
+        $this->getTableColumnsFor($table);
+
+        return $this->tableColumnLookupCache[$table] ?? [];
     }
 
     /**
@@ -7561,7 +7581,7 @@ SQL;
 
         $batchDeleteEnabled  = $this->isBatchDeleteEnabled();
         $headerHtml          = $this->buildHeader($columns);
-        $clientConfigPayload = $this->buildClientConfigPayload();
+        $clientConfigPayload = $this->buildClientConfigPayload($columns);
         $script              = $this->generateAjaxScript();
         $styles              = $this->buildActionColumnStyles($rawId, $formOnly);
         $numbersEnabled      = !empty($this->config['numbers_enabled']);
@@ -9574,25 +9594,28 @@ HTML;
     /**
      * @return array<string, mixed>
      */
-    private function buildClientConfigPayload(): array
+    private function buildClientConfigPayload(?array $columns = null): array
     {
         $this->ensureFormLayoutBuckets();
         $this->ensureFormBehaviourBuckets();
         $this->ensureDefaultTabBuckets();
 
-        $columns    = $this->getColumnNames();
-        $allColumns = $this->getBaseTableColumns();
-        $formConfig = $this->config['form'];
+        $columns    = $columns ?? $this->getColumnNames();
+        $allColumns       = $this->getBaseTableColumns();
+        $allColumnsLookup = array_fill_keys($allColumns, true);
+        $formConfig       = $this->config['form'];
 
         foreach (array_keys($this->config['custom_columns']) as $customColumn) {
-            if (is_string($customColumn) && $customColumn !== '' && !in_array($customColumn, $allColumns, true)) {
-                $allColumns[] = $customColumn;
+            if (is_string($customColumn) && $customColumn !== '' && !isset($allColumnsLookup[$customColumn])) {
+                $allColumns[]                    = $customColumn;
+                $allColumnsLookup[$customColumn] = true;
             }
         }
 
         foreach (array_keys($this->config['custom_fields']) as $customField) {
-            if (is_string($customField) && $customField !== '' && !in_array($customField, $allColumns, true)) {
-                $allColumns[] = $customField;
+            if (is_string($customField) && $customField !== '' && !isset($allColumnsLookup[$customField])) {
+                $allColumns[]                   = $customField;
+                $allColumnsLookup[$customField] = true;
             }
         }
 
@@ -9613,11 +9636,12 @@ HTML;
                         }
 
                         $normalized = $this->normalizeColumnReference($fieldName);
-                        if ($normalized === '' || in_array($normalized, $allColumns, true)) {
+                        if ($normalized === '' || isset($allColumnsLookup[$normalized])) {
                             continue;
                         }
 
-                        $allColumns[] = $normalized;
+                        $allColumns[]                  = $normalized;
+                        $allColumnsLookup[$normalized] = true;
                     }
                 }
             }
@@ -11302,6 +11326,7 @@ HTML;
         if ($columns === []) {
             throw new RuntimeException('Unable to determine table columns for insert.');
         }
+        $columnLookup = $this->getTableColumnLookupFor($this->table);
 
         $primaryKeyColumn = $this->getPrimaryKeyColumn();
         $primaryKeySql    = $this->quotePrimaryKeyColumnName($primaryKeyColumn);
@@ -11315,7 +11340,7 @@ HTML;
                 continue;
             }
 
-            if (!in_array($column, $columns, true)) {
+            if (!isset($columnLookup[$column])) {
                 continue;
             }
 
@@ -11330,7 +11355,7 @@ HTML;
 
         $passDefaults = $this->gatherBehaviourForMode('pass_default', 'create');
         foreach ($passDefaults as $column => $value) {
-            if (!in_array($column, $columns, true)) {
+            if (!isset($columnLookup[$column])) {
                 continue;
             }
 
@@ -11346,7 +11371,7 @@ HTML;
 
         $passVars = $this->gatherBehaviourForMode('pass_var', 'create');
         foreach ($passVars as $column => $value) {
-            if (!in_array($column, $columns, true)) {
+            if (!isset($columnLookup[$column])) {
                 continue;
             }
 
@@ -11385,7 +11410,7 @@ HTML;
 
         $required = $this->gatherBehaviourForMode('validation_required', 'create');
         foreach ($required as $column => $minLength) {
-            if (!in_array($column, $columns, true)) {
+            if (!isset($columnLookup[$column])) {
                 continue;
             }
 
@@ -11410,7 +11435,7 @@ HTML;
 
         $patterns = $this->gatherBehaviourForMode('validation_pattern', 'create');
         foreach ($patterns as $column => $pattern) {
-            if (!in_array($column, $columns, true)) {
+            if (!isset($columnLookup[$column])) {
                 continue;
             }
 
@@ -11435,7 +11460,7 @@ HTML;
 
         $uniqueRules = $this->gatherBehaviourForMode('unique', 'create');
         foreach ($uniqueRules as $column => $flag) {
-            if (!$flag || !in_array($column, $columns, true)) {
+            if (!$flag || !isset($columnLookup[$column])) {
                 continue;
             }
 
@@ -11587,8 +11612,8 @@ HTML;
         }
 
         // Always validate against the base table schema, not the current visible columns
-        $columns = $this->getTableColumnsFor($this->table);
-        if (!in_array($primaryKeyColumn, $columns, true)) {
+        $columnLookup = $this->getTableColumnLookupFor($this->table);
+        if (!isset($columnLookup[$primaryKeyColumn])) {
             $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
             throw new InvalidArgumentException($message);
         }
@@ -11625,7 +11650,7 @@ HTML;
                 continue;
             }
 
-            if (!in_array($column, $columns, true)) {
+            if (!isset($columnLookup[$column])) {
                 continue;
             }
 
@@ -11640,7 +11665,7 @@ HTML;
 
         $passVars = $this->gatherBehaviourForMode('pass_var', $mode);
         foreach ($passVars as $column => $value) {
-            if (!in_array($column, $columns, true)) {
+            if (!isset($columnLookup[$column])) {
                 continue;
             }
 
@@ -11681,7 +11706,7 @@ HTML;
 
         $required = $this->gatherBehaviourForMode('validation_required', $mode);
         foreach ($required as $column => $minLength) {
-            if (!in_array($column, $columns, true)) {
+            if (!isset($columnLookup[$column])) {
                 continue;
             }
 
@@ -11710,7 +11735,7 @@ HTML;
 
         $patterns = $this->gatherBehaviourForMode('validation_pattern', $mode);
         foreach ($patterns as $column => $pattern) {
-            if (!in_array($column, $columns, true)) {
+            if (!isset($columnLookup[$column])) {
                 continue;
             }
 
@@ -11735,7 +11760,7 @@ HTML;
 
         $uniqueRules = $this->gatherBehaviourForMode('unique', $mode);
         foreach ($uniqueRules as $column => $flag) {
-            if (!$flag || !in_array($column, $columns, true)) {
+            if (!$flag || !isset($columnLookup[$column])) {
                 continue;
             }
 
@@ -11851,8 +11876,8 @@ HTML;
 
         // Validate against base table columns (not just visible columns)
         // to support cases where the primary key isn't displayed in the grid.
-        $columns = $this->getTableColumnsFor($this->table);
-        if (!in_array($primaryKeyColumn, $columns, true)) {
+        $columnLookup = $this->getTableColumnLookupFor($this->table);
+        if (!isset($columnLookup[$primaryKeyColumn])) {
             $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
             throw new InvalidArgumentException($message);
         }
@@ -11954,8 +11979,8 @@ HTML;
             throw new InvalidArgumentException('Primary key column is required.');
         }
 
-        $columns = $this->getTableColumnsFor($this->table);
-        if (!in_array($primaryKeyColumn, $columns, true)) {
+        $columnLookup = $this->getTableColumnLookupFor($this->table);
+        if (!isset($columnLookup[$primaryKeyColumn])) {
             $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
             throw new InvalidArgumentException($message);
         }
@@ -12198,8 +12223,8 @@ HTML;
             $mode = 'edit';
         }
 
-        $columns = $this->getTableColumnsFor($this->table);
-        if (!in_array($primaryKeyColumn, $columns, true)) {
+        $columnLookup = $this->getTableColumnLookupFor($this->table);
+        if (!isset($columnLookup[$primaryKeyColumn])) {
             $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
             throw new InvalidArgumentException($message);
         }
@@ -12215,7 +12240,7 @@ HTML;
                 continue;
             }
 
-            if (!in_array($normalizedColumn, $columns, true)) {
+            if (!isset($columnLookup[$normalizedColumn])) {
                 continue;
             }
 
@@ -12290,7 +12315,8 @@ HTML;
         }
 
         $columns = $this->getTableColumnsFor($this->table);
-        if (!in_array($primaryKeyColumn, $columns, true)) {
+        $columnLookup = $this->getTableColumnLookupFor($this->table);
+        if (!isset($columnLookup[$primaryKeyColumn])) {
             throw new InvalidArgumentException(sprintf('Unknown primary key column "%s".', $primaryKeyColumn));
         }
 
@@ -12667,8 +12693,8 @@ HTML;
         $resolvedMode = $this->normalizeRenderMode($mode) ?? 'edit';
 
         // Validate against base table columns (not just visible columns)
-        $columns = $this->getTableColumnsFor($this->table);
-        if (!in_array($primaryKeyColumn, $columns, true)) {
+        $columnLookup = $this->getTableColumnLookupFor($this->table);
+        if (!isset($columnLookup[$primaryKeyColumn])) {
             $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
             throw new InvalidArgumentException($message);
         }
@@ -12704,7 +12730,7 @@ HTML;
             }
         }
 
-        if (!in_array($primaryKeyColumn, $columns, true)) {
+        if (!isset($columnLookup[$primaryKeyColumn])) {
             $message = sprintf('Unknown primary key column "%s".', $primaryKeyColumn);
             throw new InvalidArgumentException($message);
         }
