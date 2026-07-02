@@ -14592,24 +14592,47 @@ CSS;
                 return value.toFixed(precision) + ' ' + units[exponent];
             }
 
+            function filePondItemMatchesStoredName(item, storedName) {
+                if (!item) {
+                    return false;
+                }
+                if (item.getMetadata && typeof item.getMetadata === 'function' && item.getMetadata('storedName') === storedName) {
+                    return true;
+                }
+                return !!(item.source && typeof item.source === 'string' && item.source.indexOf(storedName) !== -1);
+            }
+
+            function updateItemsWithLabel(storedName, label) {
+                var files = typeof pond.getFiles === 'function' ? pond.getFiles() : [];
+                if (!files.length) {
+                    return false;
+                }
+                var labelUpdated = false;
+                files.forEach(function(item) {
+                    if (!filePondItemMatchesStoredName(item, storedName)) {
+                        return;
+                    }
+                    try {
+                        if (pond.element && item.id) {
+                            var selector = '[data-filepond-item-id="' + item.id + '"] .filepond--file-info-sub';
+                            var info = pond.element.querySelector(selector);
+                            if (info) {
+                                info.textContent = label;
+                                labelUpdated = true;
+                            }
+                        }
+                    } catch (e) {}
+                });
+                return labelUpdated;
+            }
+
             function updateItemsWithSize(storedName, size) {
                 var files = typeof pond.getFiles === 'function' ? pond.getFiles() : [];
                 if (!files.length) {
-                    return;
+                    return false;
                 }
-                var formatted = formatReadableFileSize(size);
                 files.forEach(function(item) {
-                    if (!item) {
-                        return;
-                    }
-                    var matches = false;
-                    if (item.getMetadata && typeof item.getMetadata === 'function') {
-                        matches = item.getMetadata('storedName') === storedName;
-                    }
-                    if (!matches && item.source && typeof item.source === 'string') {
-                        matches = item.source.indexOf(storedName) !== -1;
-                    }
-                    if (!matches) {
+                    if (!filePondItemMatchesStoredName(item, storedName)) {
                         return;
                     }
                     try {
@@ -14622,16 +14645,8 @@ CSS;
                             Object.defineProperty(item.file, 'size', { value: size, configurable: true });
                         }
                     } catch (e) {}
-                    try {
-                        if (pond.element && item.id) {
-                            var selector = '[data-filepond-item-id="' + item.id + '"] .filepond--file-info-sub';
-                            var info = pond.element.querySelector(selector);
-                            if (info) {
-                                info.textContent = formatted;
-                            }
-                        }
-                    } catch (e) {}
                 });
+                return updateItemsWithLabel(storedName, formatReadableFileSize(size));
             }
 
             try {
@@ -14653,16 +14668,37 @@ CSS;
                     if (!payload || payload.success !== true || typeof payload.sizes !== 'object' || payload.sizes === null) {
                         return;
                     }
-                    Object.keys(payload.sizes).forEach(function(key) {
-                        if (!Object.prototype.hasOwnProperty.call(payload.sizes, key)) {
-                            return;
+                    var attempts = 0;
+                    var applySizes = function() {
+                        var pending = false;
+                        var knownSizes = Object.create(null);
+                        Object.keys(payload.sizes).forEach(function(key) {
+                            if (!Object.prototype.hasOwnProperty.call(payload.sizes, key)) {
+                                return;
+                            }
+                            var size = Number(payload.sizes[key]);
+                            if (!Number.isFinite(size) || size <= 0) {
+                                return;
+                            }
+                            knownSizes[key] = true;
+                            if (!updateItemsWithSize(key, size)) {
+                                pending = true;
+                            }
+                        });
+                        uniqueNames.forEach(function(key) {
+                            if (knownSizes[key]) {
+                                return;
+                            }
+                            if (!updateItemsWithLabel(key, 'Size unavailable')) {
+                                pending = true;
+                            }
+                        });
+                        if (pending && attempts < 6) {
+                            attempts += 1;
+                            setTimeout(applySizes, 150);
                         }
-                        var size = Number(payload.sizes[key]);
-                        if (!Number.isFinite(size) || size <= 0) {
-                            return;
-                        }
-                        updateItemsWithSize(key, size);
-                    });
+                    };
+                    applySizes();
                 }).catch(function() {});
             } catch (e) {}
         }
@@ -20008,7 +20044,6 @@ CSS;
                                     source: url,
                                     options: {
                                         type: 'local',
-                                        // Provide a numeric size so FilePond formatting does not show NaN
                                         file: { name: name, size: 0 },
                                         metadata: { poster: url, storedName: name }
                                     }

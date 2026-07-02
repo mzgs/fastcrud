@@ -1262,11 +1262,13 @@ class CrudAjax
         }
 
         if (self::isAbsolutePath($normalized)) {
-            return is_file($normalized) ? $normalized : null;
+            if (is_file($normalized)) {
+                return $normalized;
+            }
         }
 
-        $relative = trim(strtr($normalized, [chr(92) => '/', '\\' => '/']), '/');
-        if ($relative === '' || str_contains($relative, '..')) {
+        $relative = self::normalizeStoredFileRelativePath($normalized);
+        if ($relative === null) {
             return null;
         }
 
@@ -1274,6 +1276,48 @@ class CrudAjax
         $fullPath = rtrim($baseDirectory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . strtr($relative, ['/' => DIRECTORY_SEPARATOR, chr(92) => DIRECTORY_SEPARATOR]);
 
         return $fullPath;
+    }
+
+    private static function normalizeStoredFileRelativePath(string $path): ?string
+    {
+        $relative = trim(str_replace('\\', '/', $path), '/');
+        if ($relative === '' || str_contains($relative, '..')) {
+            return null;
+        }
+
+        $prefixes = [];
+        foreach ([CrudConfig::getUploadServePath(), CrudConfig::getUploadPath()] as $prefix) {
+            $prefix = trim((string) $prefix);
+            if ($prefix === '') {
+                continue;
+            }
+
+            if (self::isUrl($prefix)) {
+                $prefix = parse_url($prefix, PHP_URL_PATH) ?: '';
+            }
+
+            $prefix = trim(str_replace('\\', '/', $prefix), '/');
+            if ($prefix !== '') {
+                $prefixes[$prefix] = true;
+            }
+        }
+
+        foreach (array_keys($prefixes) as $prefix) {
+            if ($relative === $prefix) {
+                return null;
+            }
+
+            if (self::startsWith($relative, $prefix . '/')) {
+                $relative = substr($relative, strlen($prefix) + 1);
+                break;
+            }
+        }
+
+        if ($relative === '' || str_contains($relative, '..')) {
+            return null;
+        }
+
+        return $relative;
     }
 
     private static function sanitizePathSegment(string $value): string
