@@ -107,10 +107,8 @@ class DatabaseEditor
             self::$downloadHandled = true;
             try {
                 self::handleDownloadDatabase($connection, $driver);
-            } catch (PDOException $exception) {
-                self::$errors[] = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            } catch (RuntimeException $exception) {
-                self::$errors[] = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            } catch (PDOException | RuntimeException $exception) {
+                self::recordException($exception);
             }
 
             return;
@@ -131,13 +129,16 @@ class DatabaseEditor
                 'load_records_table' => self::handleLoadRecordsTable($connection, $driver),
                 default => null,
             };
-        } catch (PDOException $exception) {
-            self::$errors[] = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        } catch (RuntimeException $exception) {
-            self::$errors[] = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        } catch (PDOException | RuntimeException $exception) {
+            self::recordException($exception);
         }
 
         self::respondJsonIfNeeded();
+    }
+
+    private static function recordException(Throwable $exception): void
+    {
+        self::$errors[] = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
     private static function maybeHandleDownloadEarly(): void
@@ -160,10 +161,8 @@ class DatabaseEditor
             $driver                = self::detectDriver($connection);
             self::$downloadHandled = true;
             self::handleDownloadDatabase($connection, $driver);
-        } catch (PDOException $exception) {
-            self::$errors[] = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        } catch (RuntimeException $exception) {
-            self::$errors[] = htmlspecialchars($exception->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        } catch (PDOException | RuntimeException $exception) {
+            self::recordException($exception);
         }
     }
 
@@ -262,10 +261,7 @@ class DatabaseEditor
             return;
         }
 
-        $sql = match ($driver) {
-            'mysql' => sprintf('ALTER TABLE %s RENAME TO %s', self::quoteIdentifier($current, $driver), self::quoteIdentifier($new, $driver)),
-            default => sprintf('ALTER TABLE %s RENAME TO %s', self::quoteIdentifier($current, $driver), self::quoteIdentifier($new, $driver)),
-        };
+        $sql = sprintf('ALTER TABLE %s RENAME TO %s', self::quoteIdentifier($current, $driver), self::quoteIdentifier($new, $driver));
 
         $connection->exec($sql);
         self::$messages[]  = sprintf('Table "%s" renamed to "%s".', $current, $new);
@@ -281,13 +277,7 @@ class DatabaseEditor
         }
 
         $tables  = self::fetchTables($connection, $driver);
-        $matched = null;
-        foreach ($tables as $existing) {
-            if (strcasecmp($existing, $table) === 0) {
-                $matched = $existing;
-                break;
-            }
-        }
+        $matched = self::findTableByName($tables, $table);
 
         if ($matched === null) {
             throw new RuntimeException(sprintf('Table "%s" does not exist.', $table));
@@ -360,20 +350,12 @@ class DatabaseEditor
             return;
         }
 
-        $sql = match ($driver) {
-            'mysql' => sprintf(
-                'ALTER TABLE %s RENAME COLUMN %s TO %s',
-                self::quoteIdentifier($table, $driver),
-                self::quoteIdentifier($column, $driver),
-                self::quoteIdentifier($newName, $driver)
-            ),
-            default => sprintf(
-                'ALTER TABLE %s RENAME COLUMN %s TO %s',
-                self::quoteIdentifier($table, $driver),
-                self::quoteIdentifier($column, $driver),
-                self::quoteIdentifier($newName, $driver)
-            ),
-        };
+        $sql = sprintf(
+            'ALTER TABLE %s RENAME COLUMN %s TO %s',
+            self::quoteIdentifier($table, $driver),
+            self::quoteIdentifier($column, $driver),
+            self::quoteIdentifier($newName, $driver)
+        );
 
         $connection->exec($sql);
         self::$messages[] = sprintf('Column "%s" renamed to "%s" in "%s".', $column, $newName, $table);
@@ -773,55 +755,35 @@ class DatabaseEditor
 
     private static function fetchMysqlTables(PDO $connection): array
     {
-        $statement = $connection->query('SHOW TABLES');
-        if ($statement === false) {
-            return [];
-        }
-
-        $tables = [];
-        while (($row = $statement->fetchColumn()) !== false) {
-            if (is_string($row)) {
-                $tables[] = $row;
-            }
-        }
-
-        return $tables;
+        return self::fetchStringColumn($connection->query('SHOW TABLES'));
     }
 
     private static function fetchPgsqlTables(PDO $connection): array
     {
         $sql       = 'SELECT tablename FROM pg_tables WHERE schemaname = current_schema() ORDER BY tablename';
-        $statement = $connection->query($sql);
-        if ($statement === false) {
-            return [];
-        }
-
-        $tables = [];
-        while (($row = $statement->fetchColumn()) !== false) {
-            if (is_string($row)) {
-                $tables[] = $row;
-            }
-        }
-
-        return $tables;
+        return self::fetchStringColumn($connection->query($sql));
     }
 
     private static function fetchSqliteTables(PDO $connection): array
     {
         $sql       = "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name";
-        $statement = $connection->query($sql);
+        return self::fetchStringColumn($connection->query($sql));
+    }
+
+    private static function fetchStringColumn(mixed $statement): array
+    {
         if ($statement === false) {
             return [];
         }
 
-        $tables = [];
+        $values = [];
         while (($row = $statement->fetchColumn()) !== false) {
             if (is_string($row)) {
-                $tables[] = $row;
+                $values[] = $row;
             }
         }
 
-        return $tables;
+        return $values;
     }
 
     private static function fetchColumns(PDO $connection, string $driver, string $table): array
@@ -1260,12 +1222,11 @@ SQL;
 
         $requested = self::$activeTable;
         if (is_string($requested) && $requested !== '') {
-            foreach ($tables as $table) {
-                if (strcasecmp($table, $requested) === 0) {
-                    self::$activeTable = $table;
+            $matched = self::findTableByName($tables, $requested);
+            if ($matched !== null) {
+                self::$activeTable = $matched;
 
-                    return $table;
-                }
+                return $matched;
             }
         }
 
@@ -1316,29 +1277,15 @@ SQL;
         try {
             switch ($driver) {
                 case 'mysql':
-                    $statement = $connection->query('SELECT DATABASE()');
-                    if ($statement !== false) {
-                        $value = $statement->fetchColumn();
-                        $statement->closeCursor();
-                        if (is_string($value)) {
-                            $trimmed = trim($value);
-                            if ($trimmed !== '') {
-                                return $trimmed;
-                            }
-                        }
+                    $value = self::fetchSingleString($connection, 'SELECT DATABASE()');
+                    if ($value !== null) {
+                        return $value;
                     }
                     break;
                 case 'pgsql':
-                    $statement = $connection->query('SELECT current_database()');
-                    if ($statement !== false) {
-                        $value = $statement->fetchColumn();
-                        $statement->closeCursor();
-                        if (is_string($value)) {
-                            $trimmed = trim($value);
-                            if ($trimmed !== '') {
-                                return $trimmed;
-                            }
-                        }
+                    $value = self::fetchSingleString($connection, 'SELECT current_database()');
+                    if ($value !== null) {
+                        return $value;
                     }
                     break;
                 case 'sqlite':
@@ -1382,6 +1329,23 @@ SQL;
         }
 
         return 'Database';
+    }
+
+    private static function fetchSingleString(PDO $connection, string $sql): ?string
+    {
+        $statement = $connection->query($sql);
+        if ($statement === false) {
+            return null;
+        }
+
+        $value = $statement->fetchColumn();
+        $statement->closeCursor();
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+        return $trimmed !== '' ? $trimmed : null;
     }
 
     private static function renderHtml(

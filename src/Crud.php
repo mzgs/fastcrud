@@ -539,6 +539,27 @@ class Crud
     }
 
     /**
+     * @param mixed $payload
+     * @return array<string, string>
+     */
+    private function normalizeScalarOptions(mixed $payload): array
+    {
+        if (!is_array($payload)) {
+            return [];
+        }
+
+        $options = [];
+        foreach ($payload as $key => $value) {
+            $key = is_string($key) ? trim($key) : '';
+            if ($key !== '' && is_scalar($value)) {
+                $options[$key] = (string) $value;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
      * @return array{length:int,suffix:string}|null
      */
     private function resolveDefaultColumnTruncate(): ?array
@@ -616,23 +637,7 @@ class Crud
             }
         }
 
-        $options = [];
-        if (isset($payload['options']) && is_array($payload['options'])) {
-            foreach ($payload['options'] as $key => $value) {
-                if (!is_string($key)) {
-                    continue;
-                }
-
-                $normalizedKey = trim($key);
-                if ($normalizedKey === '') {
-                    continue;
-                }
-
-                if (is_scalar($value)) {
-                    $options[$normalizedKey] = (string) $value;
-                }
-            }
-        }
+        $options = $this->normalizeScalarOptions($payload['options'] ?? null);
 
         $styles             = $this->getStyleDefaults();
         $defaultButtonClass = $styles['link_button_class'] ?? 'btn btn-sm btn-outline-secondary';
@@ -647,11 +652,27 @@ class Crud
     }
 
     /**
-     * @param array<string, mixed> $payload
+     * @return array<int, array<string, mixed>>
      */
-    private function normalizeToolbarActionConfigPayload(array $payload): ?array
+    private function normalizeLinkButtonConfigList(mixed $payload): array
     {
-        return $this->normalizeLinkButtonConfigPayload($payload);
+        if (!is_array($payload)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($payload as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $button = $this->normalizeLinkButtonConfigPayload($entry);
+            if ($button !== null) {
+                $normalized[] = $button;
+            }
+        }
+
+        return $normalized;
     }
 
     /**
@@ -774,23 +795,7 @@ class Crud
                     }
                 }
 
-                $itemOptions = [];
-                if (isset($entry['options']) && is_array($entry['options'])) {
-                    foreach ($entry['options'] as $key => $value) {
-                        if (!is_string($key)) {
-                            continue;
-                        }
-
-                        $normalizedKey = trim($key);
-                        if ($normalizedKey === '') {
-                            continue;
-                        }
-
-                        if (is_scalar($value)) {
-                            $itemOptions[$normalizedKey] = (string) $value;
-                        }
-                    }
-                }
+                $itemOptions = $this->normalizeScalarOptions($entry['options'] ?? null);
 
                 $items[]          = [
                     'type'    => 'duplicate',
@@ -825,23 +830,7 @@ class Crud
                     }
                 }
 
-                $itemOptions = [];
-                if (isset($entry['options']) && is_array($entry['options'])) {
-                    foreach ($entry['options'] as $key => $value) {
-                        if (!is_string($key)) {
-                            continue;
-                        }
-
-                        $normalizedKey = trim($key);
-                        if ($normalizedKey === '') {
-                            continue;
-                        }
-
-                        if (is_scalar($value)) {
-                            $itemOptions[$normalizedKey] = (string) $value;
-                        }
-                    }
-                }
+                $itemOptions = $this->normalizeScalarOptions($entry['options'] ?? null);
 
                 $items[]       = [
                     'type'    => 'delete',
@@ -891,23 +880,7 @@ class Crud
                     }
                 }
 
-                $itemOptions = [];
-                if (isset($entry['options']) && is_array($entry['options'])) {
-                    foreach ($entry['options'] as $key => $value) {
-                        if (!is_string($key)) {
-                            continue;
-                        }
-
-                        $normalizedKey = trim($key);
-                        if ($normalizedKey === '') {
-                            continue;
-                        }
-
-                        if (is_scalar($value)) {
-                            $itemOptions[$normalizedKey] = (string) $value;
-                        }
-                    }
-                }
+                $itemOptions = $this->normalizeScalarOptions($entry['options'] ?? null);
 
                 $items[]       = [
                     'type'       => 'input',
@@ -942,23 +915,7 @@ class Crud
                 }
             }
 
-            $itemOptions = [];
-            if (isset($entry['options']) && is_array($entry['options'])) {
-                foreach ($entry['options'] as $key => $value) {
-                    if (!is_string($key)) {
-                        continue;
-                    }
-
-                    $normalizedKey = trim($key);
-                    if ($normalizedKey === '') {
-                        continue;
-                    }
-
-                    if (is_scalar($value)) {
-                        $itemOptions[$normalizedKey] = (string) $value;
-                    }
-                }
-            }
+            $itemOptions = $this->normalizeScalarOptions($entry['options'] ?? null);
 
             $items[]       = [
                 'type'    => 'link',
@@ -1031,23 +988,7 @@ class Crud
             }
         }
 
-        $buttonOptions = [];
-        if (isset($buttonRaw['options']) && is_array($buttonRaw['options'])) {
-            foreach ($buttonRaw['options'] as $key => $value) {
-                if (!is_string($key)) {
-                    continue;
-                }
-
-                $normalizedKey = trim($key);
-                if ($normalizedKey === '') {
-                    continue;
-                }
-
-                if (is_scalar($value)) {
-                    $buttonOptions[$normalizedKey] = (string) $value;
-                }
-            }
-        }
+        $buttonOptions = $this->normalizeScalarOptions($buttonRaw['options'] ?? null);
 
         return [
             'button' => [
@@ -1060,6 +1001,30 @@ class Crud
             ],
             'items'  => $items,
         ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeMultiLinkButtonConfigList(mixed $payload): array
+    {
+        if (!is_array($payload)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($payload as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $button = $this->normalizeMultiLinkButtonConfigPayload($entry);
+            if ($button !== null) {
+                $normalized[] = $button;
+            }
+        }
+
+        return $normalized;
     }
 
     /**
@@ -1132,17 +1097,7 @@ class Crud
             unset($this->config['link_button']);
         }
 
-        $normalizedList = [];
-        foreach ($stored as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            $normalized = $this->normalizeLinkButtonConfigPayload($entry);
-            if ($normalized !== null) {
-                $normalizedList[] = $normalized;
-            }
-        }
+        $normalizedList = $this->normalizeLinkButtonConfigList($stored);
 
         $this->config['link_buttons'] = $normalizedList;
 
@@ -1160,17 +1115,7 @@ class Crud
             $stored = [];
         }
 
-        $normalized = [];
-        foreach ($stored as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            $action = $this->normalizeToolbarActionConfigPayload($entry);
-            if ($action !== null) {
-                $normalized[] = $action;
-            }
-        }
+        $normalized = $this->normalizeLinkButtonConfigList($stored);
 
         $this->config['table_meta']['toolbar_actions'] = $normalized;
 
@@ -1205,17 +1150,7 @@ class Crud
             unset($this->config['multi_link_button']);
         }
 
-        $normalizedList = [];
-        foreach ($stored as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
-
-            $normalized = $this->normalizeMultiLinkButtonConfigPayload($entry);
-            if ($normalized !== null) {
-                $normalizedList[] = $normalized;
-            }
-        }
+        $normalizedList = $this->normalizeMultiLinkButtonConfigList($stored);
 
         $this->config['multi_link_buttons'] = $normalizedList;
 
@@ -1454,6 +1389,20 @@ class Crud
         }
     }
 
+    /**
+     * @param array<int, string> $columns
+     */
+    private function addFormColumns(array $columns): void
+    {
+        $this->ensureDefaultTabBuckets();
+
+        foreach ($columns as $column) {
+            if ($column !== '' && !in_array($column, $this->config['form']['all_columns'], true)) {
+                $this->config['form']['all_columns'][] = $column;
+            }
+        }
+    }
+
     private function storeLayoutEntry(array $fields, bool $reverse, ?string $tab, array $modes, ?string $section = null): void
     {
         $this->ensureFormLayoutBuckets();
@@ -1492,9 +1441,22 @@ class Crud
         }
     }
 
-    private function storeBehaviourFlag(string $key, string $field, bool $flag, array $modes): void
+    private function applyFormBehaviour(string|array $fields, string $key, mixed $value, string|array $mode, string $emptyMessage): self
     {
-        $this->storeBehaviourValue($key, $field, $flag, $modes);
+        $list = $this->normalizeList($fields);
+        if ($list === []) {
+            throw new InvalidArgumentException($emptyMessage);
+        }
+
+        $modes = $this->normalizeFormModes($mode);
+        foreach ($list as $field) {
+            $normalized = $this->normalizeColumnReference($field);
+            if ($normalized !== '') {
+                $this->storeBehaviourValue($key, $normalized, $value, $modes);
+            }
+        }
+
+        return $this;
     }
 
     /**
@@ -2224,9 +2186,9 @@ class Crud
             case 'not_equals':
                 return $current != $value;
             case 'contains':
-                return is_string($current) && strpos($current, (string) $value) !== false;
+                return is_string($current) && str_contains($current, (string) $value);
             case 'not_contains':
-                return !is_string($current) || strpos($current, (string) $value) === false;
+                return !is_string($current) || !str_contains($current, (string) $value);
             case 'gt':
                 return (float) $current > (float) $value;
             case 'gte':
@@ -2344,12 +2306,12 @@ class Crud
         $lower      = strtolower($width);
         $styleUnits = ['px', 'rem', 'em', '%', 'vw', 'vh'];
         foreach ($styleUnits as $unit) {
-            if (substr($lower, -strlen($unit)) === $unit) {
+            if (str_ends_with($lower, $unit)) {
                 return ['class' => null, 'style' => 'width: ' . $width . ';'];
             }
         }
 
-        if (strpos($lower, 'calc(') !== false) {
+        if (str_contains($lower, 'calc(')) {
             return ['class' => null, 'style' => 'width: ' . $width . ';'];
         }
 
@@ -3236,7 +3198,7 @@ class Crud
     {
         $base = CrudConfig::getUploadServePath();
 
-        if ($name !== '' && (preg_match('/^https?:\/\//i', $name) === 1 || substr($name, 0, 1) === '/')) {
+        if ($name !== '' && (preg_match('/^https?:\/\//i', $name) === 1 || str_starts_with($name, '/'))) {
             return $name;
         }
 
@@ -3245,7 +3207,7 @@ class Crud
         }
 
         // If base is not a full URL and does not start with '/', prefix with '/'
-        if (preg_match('/^https?:\/\//i', $base) !== 1 && substr($base, 0, 1) !== '/') {
+        if (preg_match('/^https?:\/\//i', $base) !== 1 && !str_starts_with($base, '/')) {
             $base = '/' . $base;
         }
 
@@ -3261,20 +3223,9 @@ class Crud
         if ($str === '') {
             return '';
         }
-        // Strip fragment and query
-        $hashPos = strpos($str, '#');
-        if ($hashPos !== false) {
-            $str = substr($str, 0, $hashPos);
-        }
-        $queryPos = strpos($str, '?');
-        if ($queryPos !== false) {
-            $str = substr($str, 0, $queryPos);
-        }
-        // Normalize separators and take last segment
-        $str   = str_replace('\\', '/', $str);
-        $parts = explode('/', $str);
-        $last  = end($parts);
-        return $last !== false ? (string) $last : '';
+
+        $path = parse_url(str_replace('\\', '/', $str), PHP_URL_PATH);
+        return is_string($path) ? basename($path) : '';
     }
 
     /**
@@ -3340,17 +3291,11 @@ class Crud
             return '';
         }
 
-        $hashPos = strpos($str, '#');
-        if ($hashPos !== false) {
-            $str = substr($str, 0, $hashPos);
+        $str = strtok(str_replace('\\', '/', $str), '?#');
+        if ($str === false) {
+            return '';
         }
 
-        $queryPos = strpos($str, '?');
-        if ($queryPos !== false) {
-            $str = substr($str, 0, $queryPos);
-        }
-
-        $str = str_replace('\\', '/', $str);
         $str = preg_replace('#/+#', '/', $str) ?? $str;
 
         while (strncmp($str, './', 2) === 0) {
@@ -3848,14 +3793,7 @@ class Crud
         }
 
         $this->config['custom_fields'][$normalizedField] = $serialized;
-
-        if (!isset($this->config['form']['all_columns']) || !is_array($this->config['form']['all_columns'])) {
-            $this->config['form']['all_columns'] = [];
-        }
-
-        if (!in_array($normalizedField, $this->config['form']['all_columns'], true)) {
-            $this->config['form']['all_columns'][] = $normalizedField;
-        }
+        $this->addFormColumns([$normalizedField]);
 
         return $this;
     }
@@ -4624,11 +4562,6 @@ class Crud
         return $assignments;
     }
 
-    private function generateSoftDeleteTimestamp(): string
-    {
-        return date('Y-m-d H:i:s');
-    }
-
     /**
      * @param array<int, array{column: string, mode: string, value: mixed}> $assignments
      * @param array<string, mixed> $parameters
@@ -4656,7 +4589,7 @@ class Crud
             }
 
             $value = $mode === 'timestamp'
-                ? $this->generateSoftDeleteTimestamp()
+                ? date('Y-m-d H:i:s')
                 : ($assignment['value'] ?? null);
 
             $placeholder              = sprintf(':%s_%d', $parameterPrefix, $index++);
@@ -4851,7 +4784,7 @@ class Crud
             ];
         }
 
-        $normalized = $this->normalizeToolbarActionConfigPayload($payload);
+        $normalized = $this->normalizeLinkButtonConfigPayload($payload);
         if ($normalized === null) {
             throw new InvalidArgumentException('Toolbar action requires a non-empty URL and icon class.');
         }
@@ -5100,16 +5033,7 @@ class Crud
         }
 
         $this->storeLayoutEntry($normalizedFields, false, null, $modes, $sectionId);
-
-        if (!isset($this->config['form']['all_columns']) || !is_array($this->config['form']['all_columns'])) {
-            $this->config['form']['all_columns'] = [];
-        }
-
-        foreach ($normalizedFields as $field) {
-            if (!in_array($field, $this->config['form']['all_columns'], true)) {
-                $this->config['form']['all_columns'][] = $field;
-            }
-        }
+        $this->addFormColumns($normalizedFields);
 
         return $this;
     }
@@ -5198,21 +5122,7 @@ class Crud
      */
     public function pass_var(string|array $fields, mixed $value, string|array $mode = 'all'): self
     {
-        $list = $this->normalizeList($fields);
-        if ($list === []) {
-            throw new InvalidArgumentException('pass_var requires at least one field.');
-        }
-
-        $modes = $this->normalizeFormModes($mode);
-        foreach ($list as $field) {
-            $normalized = $this->normalizeColumnReference($field);
-            if ($normalized === '') {
-                continue;
-            }
-            $this->storeBehaviourValue('pass_var', $normalized, $value, $modes);
-        }
-
-        return $this;
+        return $this->applyFormBehaviour($fields, 'pass_var', $value, $mode, 'pass_var requires at least one field.');
     }
 
     /**
@@ -5221,21 +5131,7 @@ class Crud
      */
     public function pass_default(string|array $fields, mixed $value, string|array $mode = 'all'): self
     {
-        $list = $this->normalizeList($fields);
-        if ($list === []) {
-            throw new InvalidArgumentException('pass_default requires at least one field.');
-        }
-
-        $modes = $this->normalizeFormModes($mode);
-        foreach ($list as $field) {
-            $normalized = $this->normalizeColumnReference($field);
-            if ($normalized === '') {
-                continue;
-            }
-            $this->storeBehaviourValue('pass_default', $normalized, $value, $modes);
-        }
-
-        return $this;
+        return $this->applyFormBehaviour($fields, 'pass_default', $value, $mode, 'pass_default requires at least one field.');
     }
 
     /**
@@ -5244,21 +5140,7 @@ class Crud
      */
     public function readonly(string|array $fields, string|array $mode = 'all'): self
     {
-        $list = $this->normalizeList($fields);
-        if ($list === []) {
-            throw new InvalidArgumentException('readonly requires at least one field.');
-        }
-
-        $modes = $this->normalizeFormModes($mode);
-        foreach ($list as $field) {
-            $normalized = $this->normalizeColumnReference($field);
-            if ($normalized === '') {
-                continue;
-            }
-            $this->storeBehaviourFlag('readonly', $normalized, true, $modes);
-        }
-
-        return $this;
+        return $this->applyFormBehaviour($fields, 'readonly', true, $mode, 'readonly requires at least one field.');
     }
 
     /**
@@ -5267,21 +5149,7 @@ class Crud
      */
     public function disabled(string|array $fields, string|array $mode = 'all'): self
     {
-        $list = $this->normalizeList($fields);
-        if ($list === []) {
-            throw new InvalidArgumentException('disabled requires at least one field.');
-        }
-
-        $modes = $this->normalizeFormModes($mode);
-        foreach ($list as $field) {
-            $normalized = $this->normalizeColumnReference($field);
-            if ($normalized === '') {
-                continue;
-            }
-            $this->storeBehaviourFlag('disabled', $normalized, true, $modes);
-        }
-
-        return $this;
+        return $this->applyFormBehaviour($fields, 'disabled', true, $mode, 'disabled requires at least one field.');
     }
 
     /**
@@ -5294,21 +5162,7 @@ class Crud
             throw new InvalidArgumentException('Minimum length for required validation must be at least 1.');
         }
 
-        $list = $this->normalizeList($fields);
-        if ($list === []) {
-            throw new InvalidArgumentException('validation_required requires at least one field.');
-        }
-
-        $modes = $this->normalizeFormModes($mode);
-        foreach ($list as $field) {
-            $normalized = $this->normalizeColumnReference($field);
-            if ($normalized === '') {
-                continue;
-            }
-            $this->storeBehaviourValue('validation_required', $normalized, $minLength, $modes);
-        }
-
-        return $this;
+        return $this->applyFormBehaviour($fields, 'validation_required', $minLength, $mode, 'validation_required requires at least one field.');
     }
 
     /**
@@ -5322,21 +5176,7 @@ class Crud
             throw new InvalidArgumentException('Validation pattern cannot be empty.');
         }
 
-        $list = $this->normalizeList($fields);
-        if ($list === []) {
-            throw new InvalidArgumentException('validation_pattern requires at least one field.');
-        }
-
-        $modes = $this->normalizeFormModes($mode);
-        foreach ($list as $field) {
-            $normalized = $this->normalizeColumnReference($field);
-            if ($normalized === '') {
-                continue;
-            }
-            $this->storeBehaviourValue('validation_pattern', $normalized, $pattern, $modes);
-        }
-
-        return $this;
+        return $this->applyFormBehaviour($fields, 'validation_pattern', $pattern, $mode, 'validation_pattern requires at least one field.');
     }
 
     /**
@@ -5345,21 +5185,7 @@ class Crud
      */
     public function unique(string|array $fields, string|array $mode = 'all'): self
     {
-        $list = $this->normalizeList($fields);
-        if ($list === []) {
-            throw new InvalidArgumentException('unique requires at least one field.');
-        }
-
-        $modes = $this->normalizeFormModes($mode);
-        foreach ($list as $field) {
-            $normalized = $this->normalizeColumnReference($field);
-            if ($normalized === '') {
-                continue;
-            }
-            $this->storeBehaviourFlag('unique', $normalized, true, $modes);
-        }
-
-        return $this;
+        return $this->applyFormBehaviour($fields, 'unique', true, $mode, 'unique requires at least one field.');
     }
 
     /**
@@ -5682,13 +5508,7 @@ class Crud
 
     private function isAssociativeArray(array $array): bool
     {
-        foreach (array_keys($array) as $key) {
-            if (!is_int($key)) {
-                return true;
-            }
-        }
-
-        return false;
+        return function_exists('array_is_list') ? !array_is_list($array) : ($array !== [] && array_keys($array) !== range(0, count($array) - 1));
     }
 
     /**
@@ -6135,7 +5955,7 @@ class Crud
                 continue; // cannot reference subselect alias in WHERE
             }
 
-            if (strpos($displayCol, '__') !== false) {
+            if (str_contains($displayCol, '__')) {
                 [$alias, $name] = array_map('trim', explode('__', $displayCol, 2));
                 $typeMeta       = $joinSchemas[$alias][$name]['type'] ?? null;
                 $typeString     = is_string($typeMeta) ? $typeMeta : null;
@@ -6233,7 +6053,7 @@ class Crud
                 $expr         = $this->denormalizeColumnReference($normalized);
                 $isExpression = (str_contains($expr, ' ') || str_contains($expr, '(') || str_contains($expr, ')'));
                 if (!$isExpression) {
-                    if (strpos($expr, '.') === false) {
+                    if (!str_contains($expr, '.')) {
                         $expr = 'main.' . $expr;
                     }
                     $expr = $this->quoteQualifiedIdentifier($expr);
@@ -6283,7 +6103,7 @@ class Crud
         $parts = [];
         foreach ($this->config['joins'] as $index => $join) {
             $alias   = $join['alias'] ?? ('j' . $index);
-            $left    = strpos($join['field'], '.') !== false ? $join['field'] : 'main.' . $join['field'];
+            $left    = str_contains($join['field'], '.') ? $join['field'] : 'main.' . $join['field'];
             $parts[] = sprintf(
                 'LEFT JOIN %s AS %s ON %s = %s.%s',
                 $join['table'],
@@ -7528,7 +7348,7 @@ SQL;
             return '';
         }
 
-        if (strpos($column, '.') !== false && strpos($column, '__') === false) {
+        if (str_contains($column, '.') && !str_contains($column, '__')) {
             [$prefix, $name] = array_map('trim', explode('.', $column, 2));
             if ($prefix !== '' && $name !== '') {
                 return $prefix . '__' . $name;
@@ -10689,19 +10509,7 @@ HTML;
             }
 
             if (isset($meta['toolbar_actions']) && is_array($meta['toolbar_actions'])) {
-                $toolbarActions = [];
-                foreach ($meta['toolbar_actions'] as $entry) {
-                    if (!is_array($entry)) {
-                        continue;
-                    }
-
-                    $normalized = $this->normalizeToolbarActionConfigPayload($entry);
-                    if ($normalized !== null) {
-                        $toolbarActions[] = $normalized;
-                    }
-                }
-
-                $this->config['table_meta']['toolbar_actions'] = $toolbarActions;
+                $this->config['table_meta']['toolbar_actions'] = $this->normalizeLinkButtonConfigList($meta['toolbar_actions']);
             }
 
             if (array_key_exists('toolbar_html', $meta)) {
@@ -10710,26 +10518,11 @@ HTML;
         }
 
         if (array_key_exists('toolbar_actions', $payload)) {
-            $toolbarPayload    = $payload['toolbar_actions'];
-            $normalizedToolbar = [];
-            if (is_array($toolbarPayload)) {
-                foreach ($toolbarPayload as $entry) {
-                    if (!is_array($entry)) {
-                        continue;
-                    }
-
-                    $normalized = $this->normalizeToolbarActionConfigPayload($entry);
-                    if ($normalized !== null) {
-                        $normalizedToolbar[] = $normalized;
-                    }
-                }
-            }
-
-            $this->config['table_meta']['toolbar_actions'] = $normalizedToolbar;
+            $this->config['table_meta']['toolbar_actions'] = $this->normalizeLinkButtonConfigList($payload['toolbar_actions']);
         } elseif (array_key_exists('toolbar_action', $payload)) {
             $toolbarAction = $payload['toolbar_action'];
             if (is_array($toolbarAction)) {
-                $normalizedToolbarAction                       = $this->normalizeToolbarActionConfigPayload($toolbarAction);
+                $normalizedToolbarAction                       = $this->normalizeLinkButtonConfigPayload($toolbarAction);
                 $this->config['table_meta']['toolbar_actions'] = $normalizedToolbarAction !== null ? [$normalizedToolbarAction] : [];
             } elseif ($toolbarAction === null) {
                 $this->config['table_meta']['toolbar_actions'] = [];
@@ -10749,21 +10542,7 @@ HTML;
         }
 
         if (array_key_exists('link_buttons', $payload)) {
-            $linkButtonsPayload = $payload['link_buttons'];
-            $normalizedButtons  = [];
-            if (is_array($linkButtonsPayload)) {
-                foreach ($linkButtonsPayload as $entry) {
-                    if (!is_array($entry)) {
-                        continue;
-                    }
-
-                    $normalized = $this->normalizeLinkButtonConfigPayload($entry);
-                    if ($normalized !== null) {
-                        $normalizedButtons[] = $normalized;
-                    }
-                }
-            }
-            $this->config['link_buttons'] = $normalizedButtons;
+            $this->config['link_buttons'] = $this->normalizeLinkButtonConfigList($payload['link_buttons']);
         } elseif (array_key_exists('link_button', $payload)) {
             $linkConfig = $payload['link_button'];
             if (is_array($linkConfig)) {
@@ -10775,21 +10554,7 @@ HTML;
         }
 
         if (array_key_exists('multi_link_buttons', $payload)) {
-            $multiPayload           = $payload['multi_link_buttons'];
-            $normalizedMultiButtons = [];
-            if (is_array($multiPayload)) {
-                foreach ($multiPayload as $entry) {
-                    if (!is_array($entry)) {
-                        continue;
-                    }
-
-                    $normalized = $this->normalizeMultiLinkButtonConfigPayload($entry);
-                    if ($normalized !== null) {
-                        $normalizedMultiButtons[] = $normalized;
-                    }
-                }
-            }
-            $this->config['multi_link_buttons'] = $normalizedMultiButtons;
+            $this->config['multi_link_buttons'] = $this->normalizeMultiLinkButtonConfigList($payload['multi_link_buttons']);
         } elseif (array_key_exists('multi_link_button', $payload)) {
             $multiLinkConfig = $payload['multi_link_button'];
             if (is_array($multiLinkConfig)) {
@@ -10975,16 +10740,7 @@ HTML;
 
             if ($custom !== []) {
                 $this->config['custom_fields'] = $custom;
-
-                if (!isset($this->config['form']['all_columns']) || !is_array($this->config['form']['all_columns'])) {
-                    $this->config['form']['all_columns'] = [];
-                }
-
-                foreach (array_keys($custom) as $fieldName) {
-                    if (!in_array($fieldName, $this->config['form']['all_columns'], true)) {
-                        $this->config['form']['all_columns'][] = $fieldName;
-                    }
-                }
+                $this->addFormColumns(array_keys($custom));
             }
         }
 
