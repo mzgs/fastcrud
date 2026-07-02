@@ -14782,7 +14782,7 @@ CSS;
                 return !!(item.source && typeof item.source === 'string' && item.source.indexOf(storedName) !== -1);
             }
 
-            function updateItemsWithLabel(storedName, label, onlyIfMissing) {
+            function updateItemsWithLabel(storedName, label, onlyIfMissing, asBadge) {
                 var files = typeof pond.getFiles === 'function' ? pond.getFiles() : [];
                 if (!files.length) {
                     return false;
@@ -14812,6 +14812,11 @@ CSS;
                                     }
                                 }
                                 info.textContent = label;
+                                if (asBadge) {
+                                    info.classList.add('fastcrud-filepond-size-badge');
+                                } else {
+                                    info.classList.remove('fastcrud-filepond-size-badge');
+                                }
                                 labelUpdated = true;
                             }
                         }
@@ -14840,7 +14845,7 @@ CSS;
                         }
                     } catch (e) {}
                 });
-                return updateItemsWithLabel(storedName, formatReadableFileSize(size));
+                return updateItemsWithLabel(storedName, formatReadableFileSize(size), false, true);
             }
 
             function scheduleLabelUpdates(labelsByName, maxAttempts, delayMs, onlyIfMissing) {
@@ -15247,9 +15252,9 @@ CSS;
                 if (!document.getElementById(themeStyleId)) {
                     var themeStyle = document.createElement('style');
                     themeStyle.id = themeStyleId;
-                    themeStyle.textContent = ':root{--fastcrud-filepond-panel-bg:var(--bs-tertiary-bg,var(--bs-secondary-bg,#f8f9fa));--fastcrud-filepond-surface:linear-gradient(135deg,rgba(255,255,255,0.95),rgba(246,248,253,0.9));--fastcrud-filepond-border-color:var(--bs-primary-border-subtle,var(--bs-primary,#0d6efd));--fastcrud-filepond-label-color:var(--bs-secondary-color,rgba(33,37,41,0.75));--fastcrud-filepond-text-color:var(--bs-body-color,#212529);--fastcrud-filepond-subtle-color:var(--bs-secondary-color,rgba(33,37,41,0.6));--fastcrud-filepond-legend-color:var(--fastcrud-filepond-text-color);--fastcrud-filepond-shadow:rgba(15,23,42,0.12);}' +
-                        '[data-bs-theme=light]{--fastcrud-filepond-panel-bg:var(--bs-tertiary-bg,var(--bs-secondary-bg,#f8f9fa));--fastcrud-filepond-surface:linear-gradient(135deg,rgba(255,255,255,0.95),rgba(246,248,253,0.9));--fastcrud-filepond-shadow:rgba(15,23,42,0.12);--fastcrud-filepond-text-color:var(--bs-body-color,#212529);--fastcrud-filepond-subtle-color:var(--bs-secondary-color,rgba(73,80,87,0.75));--fastcrud-filepond-legend-color:var(--bs-body-color,#212529);}' +
-                        '[data-bs-theme=dark]{--fastcrud-filepond-panel-bg:var(--bs-tertiary-bg,var(--bs-secondary-bg,#2b3035));--fastcrud-filepond-border-color:var(--bs-primary-border-subtle,var(--bs-primary,#6ea8fe));--fastcrud-filepond-label-color:var(--bs-secondary-color,#adb5bd);--fastcrud-filepond-text-color:var(--bs-body-color,#dee2e6);--fastcrud-filepond-subtle-color:rgba(222,226,230,0.7);--fastcrud-filepond-legend-color:var(--bs-body-color,#dee2e6);--fastcrud-filepond-surface:linear-gradient(135deg,rgba(47,52,58,0.9),rgba(30,34,39,0.92));--fastcrud-filepond-shadow:rgba(0,0,0,0.45);}' +
+                    themeStyle.textContent = ':root{--fastcrud-filepond-panel-bg:var(--bs-tertiary-bg,var(--bs-secondary-bg,#f8f9fa));--fastcrud-filepond-surface:linear-gradient(135deg,rgba(255,255,255,0.95),rgba(246,248,253,0.9));--fastcrud-filepond-border-color:var(--bs-primary-border-subtle,var(--bs-primary,#0d6efd));--fastcrud-filepond-label-color:var(--bs-secondary-color,rgba(33,37,41,0.75));--fastcrud-filepond-text-color:var(--bs-body-color,#212529);--fastcrud-filepond-subtle-color:var(--bs-secondary-color,rgba(33,37,41,0.6));--fastcrud-filepond-legend-color:var(--fastcrud-filepond-text-color);--fastcrud-filepond-size-bg:rgba(33,37,41,0.82);--fastcrud-filepond-size-color:#fff;--fastcrud-filepond-size-border:rgba(255,255,255,0.35);--fastcrud-filepond-shadow:rgba(15,23,42,0.12);}' +
+                        '[data-bs-theme=light]{--fastcrud-filepond-panel-bg:var(--bs-tertiary-bg,var(--bs-secondary-bg,#f8f9fa));--fastcrud-filepond-surface:linear-gradient(135deg,rgba(255,255,255,0.95),rgba(246,248,253,0.9));--fastcrud-filepond-shadow:rgba(15,23,42,0.12);--fastcrud-filepond-text-color:var(--bs-body-color,#212529);--fastcrud-filepond-subtle-color:var(--bs-secondary-color,rgba(73,80,87,0.75));--fastcrud-filepond-legend-color:var(--bs-body-color,#212529);--fastcrud-filepond-size-bg:rgba(33,37,41,0.82);--fastcrud-filepond-size-color:#fff;--fastcrud-filepond-size-border:rgba(255,255,255,0.35);}' +
+                        '[data-bs-theme=dark]{--fastcrud-filepond-panel-bg:var(--bs-tertiary-bg,var(--bs-secondary-bg,#2b3035));--fastcrud-filepond-border-color:var(--bs-primary-border-subtle,var(--bs-primary,#6ea8fe));--fastcrud-filepond-label-color:var(--bs-secondary-color,#adb5bd);--fastcrud-filepond-text-color:var(--bs-body-color,#dee2e6);--fastcrud-filepond-subtle-color:rgba(222,226,230,0.7);--fastcrud-filepond-legend-color:var(--bs-body-color,#dee2e6);--fastcrud-filepond-size-bg:rgba(33,37,41,0.82);--fastcrud-filepond-size-color:#fff;--fastcrud-filepond-size-border:rgba(255,255,255,0.35);--fastcrud-filepond-surface:linear-gradient(135deg,rgba(47,52,58,0.9),rgba(30,34,39,0.92));--fastcrud-filepond-shadow:rgba(0,0,0,0.45);}' +
                         '.filepond--root{background:var(--fastcrud-filepond-surface)!important;border:2px dashed var(--fastcrud-filepond-border-color)!important;border-radius:0.85rem!important;padding:0.5rem 0.6rem!important;box-shadow:0 1.2rem 2.4rem -1.4rem var(--fastcrud-filepond-shadow);transition:background .2s ease,border-color .2s ease,box-shadow .2s ease;}' +
                         '.filepond--root:hover{box-shadow:0 1.4rem 2.8rem -1.2rem var(--fastcrud-filepond-shadow);}' +
                         '.filepond--panel-root,.filepond--panel-top,.filepond--panel-center,.filepond--panel-bottom{background-color:transparent!important;border:none!important;box-shadow:none!important;}' +
@@ -15257,9 +15262,11 @@ CSS;
                         '.filepond--drop-label{color:var(--fastcrud-filepond-label-color)!important;font-weight:500;}' +
                         '.filepond--drop-label span{color:inherit!important;}' +
                         '.filepond legend{color:var(--fastcrud-filepond-legend-color)!important;font-weight:600;}' +
-                        '.filepond--file-info{color:var(--fastcrud-filepond-text-color)!important;}' +
+                        '.filepond--file-info{color:var(--fastcrud-filepond-text-color)!important;position:relative!important;z-index:5!important;}' +
                         '.filepond--file-info span{color:inherit!important;}' +
                         '.filepond--file-info-sub{color:var(--fastcrud-filepond-subtle-color)!important;}' +
+                        '.filepond--file-poster-wrapper{z-index:1!important;}' +
+                        '.filepond--file .filepond--file-info .filepond--file-info-sub.fastcrud-filepond-size-badge{display:inline-flex!important;align-items:center;max-width:max-content;margin-top:0.2rem;padding:0.12rem 0.42rem;border:1px solid var(--fastcrud-filepond-size-border);border-radius:999px;background:var(--fastcrud-filepond-size-bg)!important;color:var(--fastcrud-filepond-size-color)!important;font-size:0.72rem;font-weight:700;line-height:1.15;letter-spacing:0;white-space:nowrap;text-shadow:none!important;box-shadow:0 0.18rem 0.55rem rgba(15,23,42,0.18);opacity:1!important;visibility:visible!important;}' +
                         '.filepond--item-panel{background-color:var(--fastcrud-filepond-panel-bg)!important;border:none!important;border-radius:0.65rem!important;box-shadow:0 0.6rem 1.4rem -1.2rem var(--fastcrud-filepond-shadow);}' +
                         '.filepond--file{border-radius:0.65rem!important;}';
                     document.head.appendChild(themeStyle);
