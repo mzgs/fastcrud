@@ -267,7 +267,7 @@ DatabaseEditor::init();
                     // ->join('user_id', 'users', 'id','user')
                     // ->columns('id,user_id,user.username,user.bio,title,content,created_at')
                     ->columns('user_id,title,is_featured,cats,file,is_slide,status_label,content,image,color')
-                    // ->fields('user_id,status,title,is_featured,json_field,image,gallery_images,file,color,content,created_at'  )
+                    // ->fields('user_id,status,title,is_featured,json_field,image,gallery_images, bfile,color,content,created_at'  )
                     // ->fields('slug,status_note,cats,radio_field' )
                     // ->fields('slug,content',false,'Content' )
                     ->fields('title,slug,image,status,cats,file,is_slide,radio_field,color,content,gallery_images,json_field,created_at' )

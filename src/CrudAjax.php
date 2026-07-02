@@ -968,9 +968,12 @@ class CrudAjax
             throw new InvalidArgumentException('Invalid upload payload.');
         }
 
+        $kind = isset($request['kind']) && is_string($request['kind']) ? strtolower($request['kind']) : 'image';
+        $isImage = $kind !== 'file';
+
         $error = is_array($file['error']) ? ($file['error'][0] ?? UPLOAD_ERR_NO_FILE) : (int) $file['error'];
         if ($error !== UPLOAD_ERR_OK) {
-            throw new InvalidArgumentException(self::describeUploadError($error));
+            throw new InvalidArgumentException(self::describeUploadError($error, $isImage));
         }
 
         $tmpName = is_array($file['tmp_name']) ? ($file['tmp_name'][0] ?? '') : ($file['tmp_name'] ?? '');
@@ -979,8 +982,6 @@ class CrudAjax
         }
 
         $size = is_array($file['size']) ? (int) ($file['size'][0] ?? 0) : (int) ($file['size'] ?? 0);
-        $kind = isset($request['kind']) && is_string($request['kind']) ? strtolower($request['kind']) : 'image';
-        $isImage = $kind !== 'file';
 
         $originalNameRaw = is_array($file['name']) ? (string) ($file['name'][0] ?? 'upload') : (string) ($file['name'] ?? 'upload');
         $originalName = $originalNameRaw === '' ? 'upload' : $originalNameRaw;
@@ -1722,17 +1723,60 @@ class CrudAjax
         return $bytes . 'B';
     }
 
-    private static function describeUploadError(int $code): string
+    private static function describeUploadError(int $code, bool $isImage = true): string
     {
+        $label = $isImage ? 'image' : 'file';
+        $title = $isImage ? 'Image' : 'File';
+
+        if ($code === UPLOAD_ERR_INI_SIZE || $code === UPLOAD_ERR_FORM_SIZE) {
+            $phpLimit = self::getPhpUploadLimitDetails();
+            if ($phpLimit !== null) {
+                return 'Uploaded ' . $label . ' is too large. PHP upload limit is ' .
+                    self::formatUploadSize($phpLimit['size']) . ' (' . $phpLimit['directive'] . ').';
+            }
+
+            return 'Uploaded ' . $label . ' is too large.';
+        }
+
         return match ($code) {
-            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'Uploaded image is too large.',
-            UPLOAD_ERR_PARTIAL => 'Uploaded image was only partially received.',
-            UPLOAD_ERR_NO_FILE => 'No image file was uploaded.',
+            UPLOAD_ERR_PARTIAL => 'Uploaded ' . $label . ' was only partially received.',
+            UPLOAD_ERR_NO_FILE => 'No ' . $label . ' was uploaded.',
             UPLOAD_ERR_NO_TMP_DIR => 'Server is missing a temporary folder for uploads.',
-            UPLOAD_ERR_CANT_WRITE => 'Server failed to write the uploaded image to disk.',
-            UPLOAD_ERR_EXTENSION => 'A PHP extension stopped the image upload.',
-            default => 'Image upload failed with error code ' . $code . '.',
+            UPLOAD_ERR_CANT_WRITE => 'Server failed to write the uploaded ' . $label . ' to disk.',
+            UPLOAD_ERR_EXTENSION => 'A PHP extension stopped the ' . $label . ' upload.',
+            default => $title . ' upload failed with error code ' . $code . '.',
         };
+    }
+
+    /**
+     * @return array{size: int, directive: string}|null
+     */
+    private static function getPhpUploadLimitDetails(): ?array
+    {
+        $limits = [];
+
+        foreach (['upload_max_filesize', 'post_max_size'] as $directive) {
+            $raw = ini_get($directive);
+            if (!is_string($raw)) {
+                continue;
+            }
+
+            $parsed = CrudConfig::parseUploadSize($raw);
+            if ($parsed !== null && $parsed > 0) {
+                $limits[] = [
+                    'size' => $parsed,
+                    'directive' => $directive,
+                ];
+            }
+        }
+
+        if ($limits === []) {
+            return null;
+        }
+
+        usort($limits, static fn(array $a, array $b): int => $a['size'] <=> $b['size']);
+
+        return $limits[0];
     }
 
     private static function isAbsolutePath(string $path): bool

@@ -9407,7 +9407,57 @@ HTML;
             'rich_editor'     => [
                 'upload_path' => CrudConfig::getUploadServePath(),
             ],
+            'upload_limits'   => $this->buildUploadLimitsClientPayload(),
             'debug'           => (bool) CrudConfig::$debug,
+        ];
+    }
+
+    /**
+     * @return array<string, array<string, int|string|null>>
+     */
+    private function buildUploadLimitsClientPayload(): array
+    {
+        return [
+            'image' => $this->getUploadLimitDetails(true),
+            'file'  => $this->getUploadLimitDetails(false),
+        ];
+    }
+
+    /**
+     * @return array<string, int|string|null>
+     */
+    private function getUploadLimitDetails(bool $isImage): array
+    {
+        $appLimit = $isImage ? CrudConfig::getUploadMaxImageSize() : CrudConfig::getUploadMaxFileSize();
+        $limits = [
+            'app' => $appLimit,
+        ];
+
+        foreach (['upload_max_filesize', 'post_max_size'] as $key) {
+            $raw = ini_get($key);
+            if (is_string($raw)) {
+                $parsed = CrudConfig::parseUploadSize($raw);
+                if ($parsed !== null && $parsed > 0) {
+                    $limits['php_' . $key] = $parsed;
+                }
+            }
+        }
+
+        $source = 'app';
+        $effective = $appLimit;
+        foreach ($limits as $key => $limit) {
+            if ($limit < $effective) {
+                $effective = $limit;
+                $source = $key;
+            }
+        }
+
+        return [
+            'app'                   => $appLimit,
+            'php_upload_max_filesize' => $limits['php_upload_max_filesize'] ?? null,
+            'php_post_max_size'     => $limits['php_post_max_size'] ?? null,
+            'effective'             => $effective,
+            'source'                => $source,
         ];
     }
 
@@ -9571,6 +9621,7 @@ HTML;
             'rich_editor'             => [
                 'upload_path' => CrudConfig::getUploadServePath(),
             ],
+            'upload_limits'           => $this->buildUploadLimitsClientPayload(),
             'select2'                 => (bool) ($this->config['select2'] ?? false),
             'debug'                   => (bool) CrudConfig::$debug,
             'filters_enabled'         => (bool) ($this->config['filters_enabled'] ?? true),
@@ -14544,6 +14595,133 @@ CSS;
             return joinPublicUrl(getUploadPublicBase(), v);
         }
 
+        function parseUploadSizeValue(value) {
+            if (value === null || typeof value === 'undefined') {
+                return null;
+            }
+            if (typeof value === 'number') {
+                return Number.isFinite(value) && value > 0 ? Math.round(value) : null;
+            }
+            var text = String(value || '').trim();
+            if (!text) {
+                return null;
+            }
+            if (/^\d+(?:\.\d+)?$/.test(text)) {
+                var numeric = Number(text);
+                return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : null;
+            }
+            var match = text.match(/^(\d+(?:\.\d+)?)\s*(b|kb|k|mb|m|gb|g)$/i);
+            if (!match) {
+                return null;
+            }
+            var amount = Number(match[1]);
+            if (!Number.isFinite(amount) || amount <= 0) {
+                return null;
+            }
+            var unit = String(match[2] || 'b').toLowerCase();
+            var multiplier = 1;
+            if (unit === 'kb' || unit === 'k') {
+                multiplier = 1024;
+            } else if (unit === 'mb' || unit === 'm') {
+                multiplier = 1024 * 1024;
+            } else if (unit === 'gb' || unit === 'g') {
+                multiplier = 1024 * 1024 * 1024;
+            }
+            return Math.round(amount * multiplier);
+        }
+
+        function formatUploadSize(bytes) {
+            var size = Number(bytes);
+            if (!Number.isFinite(size) || size <= 0) {
+                return '0B';
+            }
+            var units = [
+                { suffix: 'GB', value: 1024 * 1024 * 1024 },
+                { suffix: 'MB', value: 1024 * 1024 },
+                { suffix: 'KB', value: 1024 }
+            ];
+            for (var i = 0; i < units.length; i += 1) {
+                if (size >= units[i].value) {
+                    var amount = size / units[i].value;
+                    var precision = amount >= 10 ? 0 : 2;
+                    return amount.toFixed(precision).replace(/\.?0+$/, '') + units[i].suffix;
+                }
+            }
+            return Math.round(size) + 'B';
+        }
+
+        function resolveUploadMaxSize(params, isImage) {
+            var limits = clientConfig && clientConfig.upload_limits ? clientConfig.upload_limits : {};
+            var typeLimits = isImage ? limits.image : limits.file;
+            var candidates = [];
+            if (typeLimits && typeof typeLimits === 'object') {
+                var effective = parseUploadSizeValue(typeLimits.effective);
+                if (effective) {
+                    candidates.push({
+                        size: effective,
+                        source: String(typeLimits.source || '').trim() || 'app'
+                    });
+                }
+            }
+            if (params && typeof params === 'object') {
+                var override = Object.prototype.hasOwnProperty.call(params, 'max_size') ? params.max_size : params.maxSize;
+                var parsedOverride = parseUploadSizeValue(override);
+                if (parsedOverride) {
+                    candidates.push({
+                        size: parsedOverride,
+                        source: 'field'
+                    });
+                }
+            }
+            if (!candidates.length) {
+                return null;
+            }
+            var selected = candidates[0];
+            candidates.forEach(function(candidate) {
+                if (candidate.size < selected.size) {
+                    selected = candidate;
+                }
+            });
+            return selected;
+        }
+
+        function buildUploadTooLargeMessage(isImage, limit) {
+            var label = isImage ? 'Image' : 'File';
+            var maxSize = limit && typeof limit === 'object' ? limit.size : limit;
+            var source = limit && typeof limit === 'object' ? String(limit.source || '') : '';
+            var formatted = formatUploadSize(maxSize);
+            if (source.indexOf('php_') === 0) {
+                var directive = source.slice(4);
+                return label + ' exceeds the PHP upload limit of ' + formatted + ' (' + directive + ').';
+            }
+            if (source === 'field') {
+                return label + ' exceeds the field upload limit of ' + formatted + '.';
+            }
+            return label + ' exceeds the maximum upload size of ' + formatted + '.';
+        }
+
+        function normalizeFilePondErrorMessage(error, fallback) {
+            var message = '';
+            if (typeof error === 'string') {
+                message = error;
+            } else if (error && typeof error === 'object') {
+                if (typeof error.body === 'string') {
+                    message = error.body;
+                } else if (typeof error.message === 'string') {
+                    message = error.message;
+                } else if (typeof error.main === 'string') {
+                    message = error.main;
+                } else if (typeof error.error === 'string') {
+                    message = error.error;
+                }
+            }
+            message = String(message || '').replace(/\s+/g, ' ').trim();
+            if (message && message !== 'Error during upload') {
+                return message;
+            }
+            return String(fallback || 'Upload failed.').replace(/\s+/g, ' ').trim();
+        }
+
         function hydrateFilePondInitialSizes(pond, initialFiles) {
             if (!pond || typeof fetch !== 'function' || typeof FormData === 'undefined' || !Array.isArray(initialFiles) || !initialFiles.length) {
                 return;
@@ -17261,6 +17439,66 @@ CSS;
             if (feedback && feedback.length) {
                 feedback.remove();
             }
+        }
+
+        function setFilePondFieldError(fileInput, valueInput, message) {
+            var jqFileInput = fileInput && fileInput.jquery ? fileInput : $(fileInput || []);
+            var jqValueInput = valueInput && valueInput.jquery ? valueInput : $(valueInput || []);
+            var liveFileInput = $();
+            var fileInputId = jqFileInput.length ? String(jqFileInput.attr('id') || '') : '';
+            if (fileInputId) {
+                liveFileInput = $('#' + $.escapeSelector(fileInputId));
+            }
+            if (!liveFileInput.length) {
+                liveFileInput = jqFileInput;
+            }
+
+            var group = jqValueInput.closest('.mb-3');
+            if (!group.length) {
+                group = liveFileInput.closest('.mb-3');
+            }
+            if (!group.length) {
+                group = jqFileInput.closest('.mb-3');
+            }
+            if (!group.length) {
+                return;
+            }
+
+            var text = String(message || '').trim();
+
+            if (text === '') {
+                liveFileInput.add(jqFileInput).add(jqValueInput).removeClass('is-invalid');
+                group.removeClass('fastcrud-field-invalid');
+                group.removeData('fastcrudFilePondError');
+                group.find('.fastcrud-filepond-feedback').remove();
+                return;
+            }
+
+            group.data('fastcrudFilePondError', text);
+            group.find('.fastcrud-filepond-feedback').remove();
+            var feedback = $('<div class="alert alert-danger py-2 px-3 small mb-2 fastcrud-field-feedback fastcrud-filepond-feedback" data-fastcrud-inline="1" role="alert"></div>').text(text);
+            var pondRoot = group.find('.filepond--root').first();
+            if (pondRoot.length) {
+                pondRoot.before(feedback);
+            } else if (liveFileInput.length) {
+                liveFileInput.before(feedback);
+            } else {
+                jqValueInput.before(feedback);
+            }
+            liveFileInput.add(jqFileInput).add(jqValueInput).addClass('is-invalid');
+            group.addClass('fastcrud-field-invalid');
+
+            [0, 50, 150].forEach(function(delay) {
+                setTimeout(function() {
+                    group.find('.filepond--file-status-main').each(function() {
+                        var status = $(this);
+                        var current = String(status.text() || '').trim();
+                        if (current === '' || current === 'Error during upload' || current === 'Upload complete') {
+                            status.text(text);
+                        }
+                    });
+                }, delay);
+            });
         }
 
         function applyFieldErrors(errors) {
@@ -20061,6 +20299,14 @@ CSS;
                                 });
                             }
 
+                            var showFilePondUploadError = function(message) {
+                                setFilePondFieldError(fileInput, valueInput, message);
+                            };
+                            var clearFilePondUploadError = function() {
+                                setFilePondFieldError(fileInput, valueInput, '');
+                            };
+                            var uploadMaxSize = resolveUploadMaxSize(params, true);
+
                             var stylePanelAspect = (params.panelAspectRatio || params.aspectRatio);
                             var pond = window.FilePond.create(fileInput.get(0), {
                                 allowMultiple: isMultipleImages,
@@ -20074,6 +20320,12 @@ CSS;
                                 files: initialFiles,
                                 server: {
                                     process: function(fieldName, file, metadata, load, error, progress, abort) {
+                                        if (uploadMaxSize && file && typeof file.size === 'number' && file.size > uploadMaxSize.size) {
+                                            var sizeMessage = buildUploadTooLargeMessage(true, uploadMaxSize);
+                                            showFilePondUploadError(sizeMessage);
+                                            error(sizeMessage);
+                                            return { abort: function() { abort(); } };
+                                        }
                                         var xhr = new XMLHttpRequest();
                                         xhr.open('POST', window.location.pathname);
                                         xhr.withCredentials = true;
@@ -20082,19 +20334,25 @@ CSS;
                                         };
                                         xhr.onload = function() {
                                             if (xhr.status < 200 || xhr.status >= 300) {
-                                                error('Upload failed with status ' + xhr.status);
+                                                var statusMessage = 'Upload failed with status ' + xhr.status;
+                                                showFilePondUploadError(statusMessage);
+                                                error(statusMessage);
                                                 return;
                                             }
                                             var response;
                                             var raw = xhr.responseText || '';
                                             try { response = JSON.parse(raw || '{}'); } catch (e) {
+                                                showFilePondUploadError('Upload returned invalid JSON.');
                                                 error('Upload returned invalid JSON.');
                                                 return;
                                             }
                                             if (!response || response.success !== true || !response.location) {
-                                                error(response && response.error ? response.error : 'Upload failed.');
+                                                var responseMessage = response && response.error ? response.error : 'Upload failed.';
+                                                showFilePondUploadError(responseMessage);
+                                                error(responseMessage);
                                                 return;
                                             }
+                                            clearFilePondUploadError();
 
                                             var storedName = '';
                                             if (response.name) {
@@ -20123,7 +20381,10 @@ CSS;
 
                                             load(serverKey || storedName || '');
                                         };
-                                        xhr.onerror = function() { error('Upload failed due to a network error.'); };
+                                        xhr.onerror = function() {
+                                            showFilePondUploadError('Upload failed due to a network error.');
+                                            error('Upload failed due to a network error.');
+                                        };
                                         var formData = new FormData();
                                         formData.append('file', file, file.name);
                                         formData.append('fastcrud_ajax', '1');
@@ -20189,6 +20450,12 @@ CSS;
                                 }
                             });
                             hydrateFilePondInitialSizes(pond, initialFiles);
+                            pond.on('addfile', function() {
+                                clearFilePondUploadError();
+                            });
+                            pond.on('removefile', function() {
+                                clearFilePondUploadError();
+                            });
 
                             // Apply width: use full width for multi-image grids by default
                             var pondWidth = (function() {
@@ -20301,7 +20568,11 @@ CSS;
                             }
 
                             pond.on('processfile', function(error, file) {
-                                if (error || !file) {
+                                if (error) {
+                                    showFilePondUploadError(normalizeFilePondErrorMessage(error, group.data('fastcrudFilePondError') || 'Upload failed.'));
+                                    return;
+                                }
+                                if (!file) {
                                     return;
                                 }
                                 var key = file.serverId || file.source || '';
@@ -20367,6 +20638,14 @@ CSS;
                                 }
                             }
 
+                            var showFilePondUploadError = function(message) {
+                                setFilePondFieldError(fileInput, valueInput, message);
+                            };
+                            var clearFilePondUploadError = function() {
+                                setFilePondFieldError(fileInput, valueInput, '');
+                            };
+                            var uploadMaxSize = resolveUploadMaxSize(params, false);
+
                             var pond = window.FilePond.create(fileInput.get(0), {
                                 allowMultiple: isMultipleFiles,
                                 allowReorder: isMultipleFiles,
@@ -20376,24 +20655,36 @@ CSS;
                                 files: initialFiles,
                                 server: {
                                     process: function(fieldName, file, metadata, load, error, progress, abort) {
+                                        if (uploadMaxSize && file && typeof file.size === 'number' && file.size > uploadMaxSize.size) {
+                                            var sizeMessage = buildUploadTooLargeMessage(false, uploadMaxSize);
+                                            showFilePondUploadError(sizeMessage);
+                                            error(sizeMessage);
+                                            return { abort: function() { abort(); } };
+                                        }
                                         var xhr = new XMLHttpRequest();
                                         xhr.open('POST', window.location.pathname);
                                         xhr.withCredentials = true;
                                         xhr.upload.onprogress = function(e) { progress(e.lengthComputable, e.loaded, e.total); };
                                         xhr.onload = function() {
                                             if (xhr.status < 200 || xhr.status >= 300) {
-                                                error('Upload failed with status ' + xhr.status);
+                                                var statusMessage = 'Upload failed with status ' + xhr.status;
+                                                showFilePondUploadError(statusMessage);
+                                                error(statusMessage);
                                                 return;
                                             }
                                             var response; var raw = xhr.responseText || '';
                                             try { response = JSON.parse(raw || '{}'); } catch (e) {
+                                                showFilePondUploadError('Upload returned invalid JSON.');
                                                 error('Upload returned invalid JSON.');
                                                 return;
                                             }
                                             if (!response || response.success !== true || !response.location) {
-                                                error(response && response.error ? response.error : 'Upload failed.');
+                                                var responseMessage = response && response.error ? response.error : 'Upload failed.';
+                                                showFilePondUploadError(responseMessage);
+                                                error(responseMessage);
                                                 return;
                                             }
+                                            clearFilePondUploadError();
 
                                             var storedName = '';
                                             if (response.name) { storedName = String(response.name); }
@@ -20409,7 +20700,10 @@ CSS;
                                             if (isMultipleFiles && serverKey) { mapImageNameToKey(valueInput, serverKey, storedName); }
                                             load(serverKey || storedName || '');
                                         };
-                                        xhr.onerror = function() { error('Upload failed due to a network error.'); };
+                                        xhr.onerror = function() {
+                                            showFilePondUploadError('Upload failed due to a network error.');
+                                            error('Upload failed due to a network error.');
+                                        };
                                         var formData = new FormData();
                                         formData.append('file', file, file.name);
                                         formData.append('fastcrud_ajax', '1');
@@ -20440,6 +20734,12 @@ CSS;
                                 }
                             });
                             hydrateFilePondInitialSizes(pond, initialFiles);
+                            pond.on('addfile', function() {
+                                clearFilePondUploadError();
+                            });
+                            pond.on('removefile', function() {
+                                clearFilePondUploadError();
+                            });
 
                             if (isMultipleFiles) {
                                 pond.on('removefile', function(error, file) {
@@ -20477,7 +20777,11 @@ CSS;
                             }
 
                             pond.on('processfile', function(error, file) {
-                                if (error || !file) { return; }
+                                if (error) {
+                                    showFilePondUploadError(normalizeFilePondErrorMessage(error, group.data('fastcrudFilePondError') || 'Upload failed.'));
+                                    return;
+                                }
+                                if (!file) { return; }
                                 var key = file.serverId || file.source || '';
                                 var storedName = '';
                                 if (file.getMetadata && typeof file.getMetadata === 'function') { storedName = file.getMetadata('storedName') || ''; }
@@ -21104,7 +21408,7 @@ CSS;
 
             // Ensure FilePond uploads (if any) finish before collecting values
             function waitForFilePondUploads() {
-                return new Promise(function(resolve) {
+                return new Promise(function(resolve, reject) {
                     if (!window.FilePond || typeof window.FilePond.find !== 'function') {
                         resolve();
                         return;
@@ -21125,7 +21429,7 @@ CSS;
                         resolve();
                         return;
                     }
-                    Promise.all(tasks).then(function() { resolve(); }).catch(function() { resolve(); });
+                    Promise.all(tasks).then(function() { resolve(); }).catch(function(error) { reject(error); });
                 });
             }
 
@@ -21383,7 +21687,16 @@ CSS;
                 return false;
             }
 
-            waitForFilePondUploads().then(collectAndSubmit);
+            waitForFilePondUploads().then(collectAndSubmit).catch(function(error) {
+                var message = 'Please fix the highlighted uploads.';
+                if (error && typeof error.message === 'string' && error.message.trim() !== '') {
+                    message = error.message.trim();
+                } else if (typeof error === 'string' && error.trim() !== '') {
+                    message = error.trim();
+                }
+                showFormError(message);
+                restoreSubmitButtons();
+            });
             return false;
         }
 
