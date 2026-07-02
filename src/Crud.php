@@ -14743,12 +14743,14 @@ CSS;
 
             var uniqueNames = [];
             var seen = Object.create(null);
+            var sourceByName = Object.create(null);
             entries.forEach(function(entry) {
                 if (!entry.storedName || seen[entry.storedName]) {
                     return;
                 }
                 seen[entry.storedName] = true;
                 uniqueNames.push(entry.storedName);
+                sourceByName[entry.storedName] = entry.source || toPublicUrl(entry.storedName);
             });
 
             if (!uniqueNames.length) {
@@ -14780,7 +14782,7 @@ CSS;
                 return !!(item.source && typeof item.source === 'string' && item.source.indexOf(storedName) !== -1);
             }
 
-            function updateItemsWithLabel(storedName, label) {
+            function updateItemsWithLabel(storedName, label, onlyIfMissing) {
                 var files = typeof pond.getFiles === 'function' ? pond.getFiles() : [];
                 if (!files.length) {
                     return false;
@@ -14792,9 +14794,23 @@ CSS;
                     }
                     try {
                         if (pond.element && item.id) {
-                            var selector = '[data-filepond-item-id="' + item.id + '"] .filepond--file-info-sub';
-                            var info = pond.element.querySelector(selector);
+                            var info = null;
+                            var itemElement = pond.element.querySelector('#filepond--item-' + item.id);
+                            if (itemElement) {
+                                info = itemElement.querySelector('.filepond--file-info-sub');
+                            }
+                            if (!info) {
+                                var selector = '[data-filepond-item-id="' + item.id + '"] .filepond--file-info-sub';
+                                info = pond.element.querySelector(selector);
+                            }
                             if (info) {
+                                if (onlyIfMissing) {
+                                    var current = String(info.textContent || '').replace(/\s+/g, ' ').trim();
+                                    if (current && current !== '0 bytes' && current !== '0 B' && current !== 'Loading size...') {
+                                        labelUpdated = true;
+                                        return;
+                                    }
+                                }
                                 info.textContent = label;
                                 labelUpdated = true;
                             }
@@ -14825,6 +14841,57 @@ CSS;
                     } catch (e) {}
                 });
                 return updateItemsWithLabel(storedName, formatReadableFileSize(size));
+            }
+
+            function scheduleLabelUpdates(labelsByName, maxAttempts, delayMs, onlyIfMissing) {
+                var attempts = 0;
+                var applyLabels = function() {
+                    var pending = false;
+                    Object.keys(labelsByName).forEach(function(key) {
+                        if (!updateItemsWithLabel(key, labelsByName[key], onlyIfMissing)) {
+                            pending = true;
+                        }
+                    });
+                    if (pending && attempts < maxAttempts) {
+                        attempts += 1;
+                        setTimeout(applyLabels, delayMs);
+                    }
+                };
+                applyLabels();
+            }
+
+            var loadingLabels = {};
+            uniqueNames.forEach(function(key) {
+                loadingLabels[key] = 'Loading size...';
+            });
+            scheduleLabelUpdates(loadingLabels, 20, 250, true);
+
+            function resolveSizeFromPublicUrl(storedName, callback) {
+                if (typeof fetch !== 'function') {
+                    callback(null, false);
+                    return;
+                }
+
+                var source = sourceByName[storedName] || toPublicUrl(storedName);
+                if (!source) {
+                    callback(null, false);
+                    return;
+                }
+
+                fetch(source, {
+                    method: 'HEAD',
+                    credentials: 'same-origin'
+                }).then(function(response) {
+                    if (!response || !response.ok) {
+                        callback(null, true);
+                        return;
+                    }
+                    var contentLength = response.headers ? response.headers.get('content-length') : null;
+                    var size = contentLength ? Number(contentLength) : NaN;
+                    callback(Number.isFinite(size) && size > 0 ? size : null, false);
+                }).catch(function() {
+                    callback(null, false);
+                });
             }
 
             try {
@@ -14867,13 +14934,18 @@ CSS;
                             if (knownSizes[key]) {
                                 return;
                             }
-                            if (!updateItemsWithLabel(key, 'Size unavailable')) {
-                                pending = true;
-                            }
+                            resolveSizeFromPublicUrl(key, function(size, missing) {
+                                var label = missing ? 'File missing' : 'Size unavailable';
+                                if (size !== null) {
+                                    updateItemsWithSize(key, size);
+                                } else {
+                                    updateItemsWithLabel(key, label);
+                                }
+                            });
                         });
-                        if (pending && attempts < 6) {
+                        if (pending && attempts < 20) {
                             attempts += 1;
-                            setTimeout(applySizes, 150);
+                            setTimeout(applySizes, 250);
                         }
                     };
                     applySizes();
