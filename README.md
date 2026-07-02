@@ -1075,11 +1075,11 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   CrudConfig::$upload_path = '/var/uploads/files';
   CrudConfig::$upload_serve_path = '/uploads';
   ```
-- **`CrudConfig::$upload_max_image_size`** – Max image upload size in bytes or strings like `'8MB'` (default: `8MB`).
+- **`CrudConfig::$upload_max_image_size`** – Max image upload size in bytes or strings like `'16MB'` (default: `16MB`).
   ```php
   CrudConfig::$upload_max_image_size = '12MB';
   ```
-- **`CrudConfig::$upload_max_file_size`** – Max file upload size in bytes or strings like `'20MB'` (default: `20MB`).
+- **`CrudConfig::$upload_max_file_size`** – Max file upload size in bytes or strings like `'100MB'` (default: `100MB`).
   ```php
   CrudConfig::$upload_max_file_size = 50 * 1024 * 1024;
   ```
