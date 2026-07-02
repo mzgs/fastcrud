@@ -455,7 +455,7 @@ DatabaseEditor::init();
 
              <br>
                     <hr>
-                    <?= DatabaseEditor::render(true, false); ?>
+                    <?= DatabaseEditor::render(true, true); ?>
 
 
         </div>

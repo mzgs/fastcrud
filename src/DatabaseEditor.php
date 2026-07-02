@@ -548,7 +548,7 @@ class DatabaseEditor
 
         self::$activeTable = $matched;
 
-        $recordsHtml = self::renderRecordsTable($connection, $matched);
+        $recordsHtml = self::renderRecordsTable($connection, $driver, $matched);
         self::respondRecordsTableSuccess($recordsHtml, $matched);
     }
 
@@ -831,6 +831,240 @@ class DatabaseEditor
             'sqlite' => self::fetchSqliteColumns($connection, $table),
             default => self::fetchMysqlColumns($connection, $table),
         };
+    }
+
+    private static function resolvePrimaryKeyColumn(PDO $connection, string $driver, string $table): ?string
+    {
+        $columns        = self::fetchColumns($connection, $driver, $table);
+        $primaryColumns = [];
+
+        foreach ($columns as $column) {
+            $name = isset($column['name']) ? trim((string) $column['name']) : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $key   = strtolower(trim((string) ($column['key'] ?? '')));
+            $extra = strtolower(trim((string) ($column['extra'] ?? '')));
+            if ($key === 'pri' || $key === 'primary' || str_contains($extra, 'primary key')) {
+                $primaryColumns[] = $name;
+            }
+        }
+
+        $primaryColumns = array_values(array_unique($primaryColumns));
+        if (count($primaryColumns) === 1) {
+            return $primaryColumns[0];
+        }
+
+        if ($driver === 'pgsql') {
+            $pgsqlPrimaryKey = self::fetchPgsqlSingleColumnPrimaryKey($connection, $table);
+            if ($pgsqlPrimaryKey !== null) {
+                return $pgsqlPrimaryKey;
+            }
+        }
+
+        $uniqueColumn = self::fetchSingleColumnUniqueKey($connection, $driver, $table);
+        if ($uniqueColumn !== null) {
+            return $uniqueColumn;
+        }
+
+        foreach ($columns as $column) {
+            $name = isset($column['name']) ? trim((string) $column['name']) : '';
+            if (strcasecmp($name, 'id') === 0) {
+                return $name;
+            }
+        }
+
+        return null;
+    }
+
+    private static function fetchPgsqlSingleColumnPrimaryKey(PDO $connection, string $table): ?string
+    {
+        $sql = <<<'SQL'
+SELECT kcu.column_name
+FROM information_schema.table_constraints tc
+JOIN information_schema.key_column_usage kcu
+  ON tc.constraint_schema = kcu.constraint_schema
+ AND tc.constraint_name = kcu.constraint_name
+ AND tc.table_name = kcu.table_name
+WHERE tc.table_schema = current_schema()
+  AND tc.table_name = :table
+  AND tc.constraint_type = 'PRIMARY KEY'
+ORDER BY kcu.ordinal_position
+SQL;
+
+        $statement = $connection->prepare($sql);
+        if ($statement === false) {
+            return null;
+        }
+
+        try {
+            $statement->execute(['table' => $table]);
+        } catch (PDOException) {
+            return null;
+        }
+
+        $columns = [];
+        while (($column = $statement->fetchColumn()) !== false) {
+            if (is_string($column) && trim($column) !== '') {
+                $columns[] = trim($column);
+            }
+        }
+
+        return count($columns) === 1 ? $columns[0] : null;
+    }
+
+    private static function fetchSingleColumnUniqueKey(PDO $connection, string $driver, string $table): ?string
+    {
+        return match ($driver) {
+            'pgsql' => self::fetchPgsqlSingleColumnUniqueKey($connection, $table),
+            'sqlite' => self::fetchSqliteSingleColumnUniqueKey($connection, $table),
+            default => self::fetchMysqlSingleColumnUniqueKey($connection, $table),
+        };
+    }
+
+    private static function fetchMysqlSingleColumnUniqueKey(PDO $connection, string $table): ?string
+    {
+        $sql       = sprintf('SHOW INDEX FROM %s', self::quoteIdentifier($table, 'mysql'));
+        try {
+            $statement = $connection->query($sql);
+        } catch (PDOException) {
+            return null;
+        }
+
+        if ($statement === false) {
+            return null;
+        }
+
+        $indexes = [];
+        while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
+            $nonUnique = isset($row['Non_unique']) ? (int) $row['Non_unique'] : 1;
+            $keyName   = isset($row['Key_name']) ? (string) $row['Key_name'] : '';
+            $sequence  = isset($row['Seq_in_index']) ? (int) $row['Seq_in_index'] : 0;
+            $column    = isset($row['Column_name']) ? trim((string) $row['Column_name']) : '';
+
+            if ($nonUnique !== 0 || strcasecmp($keyName, 'PRIMARY') === 0 || $keyName === '' || $column === '') {
+                continue;
+            }
+
+            $indexes[$keyName][$sequence] = $column;
+        }
+
+        return self::firstSingleColumnIndex($indexes);
+    }
+
+    private static function fetchPgsqlSingleColumnUniqueKey(PDO $connection, string $table): ?string
+    {
+        $sql = <<<'SQL'
+SELECT index_class.relname AS index_name,
+       attr.attname AS column_name,
+       ord.ordinality AS seq
+FROM pg_class table_class
+JOIN pg_namespace namespace ON namespace.oid = table_class.relnamespace
+JOIN pg_index idx ON idx.indrelid = table_class.oid
+JOIN pg_class index_class ON index_class.oid = idx.indexrelid
+JOIN unnest(idx.indkey) WITH ORDINALITY AS ord(attnum, ordinality) ON true
+JOIN pg_attribute attr ON attr.attrelid = table_class.oid AND attr.attnum = ord.attnum
+WHERE namespace.nspname = current_schema()
+  AND table_class.relname = :table
+  AND idx.indisunique = true
+  AND idx.indisprimary = false
+ORDER BY index_class.relname, ord.ordinality
+SQL;
+
+        $statement = $connection->prepare($sql);
+        if ($statement === false) {
+            return null;
+        }
+
+        try {
+            $statement->execute(['table' => $table]);
+        } catch (PDOException) {
+            return null;
+        }
+
+        $indexes = [];
+        while (($row = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
+            $keyName  = isset($row['index_name']) ? (string) $row['index_name'] : '';
+            $sequence = isset($row['seq']) ? (int) $row['seq'] : 0;
+            $column   = isset($row['column_name']) ? trim((string) $row['column_name']) : '';
+
+            if ($keyName === '' || $column === '') {
+                continue;
+            }
+
+            $indexes[$keyName][$sequence] = $column;
+        }
+
+        return self::firstSingleColumnIndex($indexes);
+    }
+
+    private static function fetchSqliteSingleColumnUniqueKey(PDO $connection, string $table): ?string
+    {
+        $sql       = sprintf('PRAGMA index_list(%s)', self::quoteIdentifier($table, 'sqlite'));
+        try {
+            $statement = $connection->query($sql);
+        } catch (PDOException) {
+            return null;
+        }
+
+        if ($statement === false) {
+            return null;
+        }
+
+        while (($index = $statement->fetch(PDO::FETCH_ASSOC)) !== false) {
+            $isUnique = isset($index['unique']) && (int) $index['unique'] === 1;
+            $name     = isset($index['name']) ? trim((string) $index['name']) : '';
+            $origin   = isset($index['origin']) ? strtolower(trim((string) $index['origin'])) : '';
+
+            if (!$isUnique || $name === '' || $origin === 'pk') {
+                continue;
+            }
+
+            $indexSql = sprintf('PRAGMA index_info(%s)', self::quoteIdentifier($name, 'sqlite'));
+            try {
+                $indexStatement = $connection->query($indexSql);
+            } catch (PDOException) {
+                continue;
+            }
+
+            if ($indexStatement === false) {
+                continue;
+            }
+
+            $columns = [];
+            while (($column = $indexStatement->fetch(PDO::FETCH_ASSOC)) !== false) {
+                $columnName = isset($column['name']) ? trim((string) $column['name']) : '';
+                $sequence   = isset($column['seqno']) ? (int) $column['seqno'] : count($columns);
+                if ($columnName !== '') {
+                    $columns[$sequence] = $columnName;
+                }
+            }
+
+            ksort($columns, SORT_NUMERIC);
+            $columns = array_values($columns);
+            if (count($columns) === 1) {
+                return $columns[0];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, array<int, string>> $indexes
+     */
+    private static function firstSingleColumnIndex(array $indexes): ?string
+    {
+        foreach ($indexes as $columnsBySequence) {
+            ksort($columnsBySequence, SORT_NUMERIC);
+            $columns = array_values(array_unique($columnsBySequence));
+            if (count($columns) === 1) {
+                return $columns[0];
+            }
+        }
+
+        return null;
     }
 
     private static function fetchMysqlColumns(PDO $connection, string $table): array
@@ -1537,7 +1771,7 @@ SQL;
                 $html .= ' data-fc-db-records-table="' . $activeTableAttr . '"';
             }
             $html .= '>';
-            $html .= self::renderRecordsTable($connection, $activeTable);
+            $html .= self::renderRecordsTable($connection, $driver, $activeTable);
             $html .= '</div>';
         }
 
@@ -1551,7 +1785,7 @@ SQL;
         return $html;
     }
 
-    private static function renderRecordsTable(PDO $connection, ?string $activeTable): string
+    private static function renderRecordsTable(PDO $connection, string $driver, ?string $activeTable): string
     {
         if ($activeTable === null) {
             return '<div class="alert alert-info" role="alert">Select a table to view its records.</div>';
@@ -1565,6 +1799,16 @@ SQL;
             $crud->table_icon('fas fa-table');
             $crud->default_column_truncate(100);
             $crud->enable_filters(true);
+
+            $primaryKeyColumn = self::resolvePrimaryKeyColumn($connection, $driver, $activeTable);
+            if ($primaryKeyColumn !== null) {
+                $crud->primary_key($primaryKeyColumn);
+            } else {
+                $crud->enable_view(false);
+                $crud->enable_edit(false);
+                $crud->enable_delete(false);
+                $crud->enable_batch_delete(false);
+            }
 
             return $crud->render();
         } catch (Throwable $exception) {
