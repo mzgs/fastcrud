@@ -384,6 +384,31 @@ DatabaseEditor::init();
 
             </div>
 
+            <div class="card shadow-sm mb-4">
+                <?php
+                $categoriesCrud = new Crud('categories');
+                $categoriesCrud
+                    ->table_title('Categories Drag Ordering')
+                    ->table_icon('fas fa-grip-vertical')
+                    ->columns('id,name,slug,sort_order,is_active')
+                    ->fields('name,slug,sort_order,parent_id,is_active,description')
+                    ->set_column_labels([
+                        'sort_order' => 'Order',
+                        'is_active'  => 'Active',
+                    ])
+                    ->change_type('is_active', 'switch', true)
+                    ->enable_row_ordering('sort_order')
+                    ->limit_list('5,10,25,all');
+                ?>
+                <div class="card-header bg-secondary">
+                    <h2 class="h5 mb-1">Categories Row Ordering</h2>
+                    <p class="card-text mb-0">Drag the handle column to update the <code>sort_order</code> values for the visible page.</p>
+                </div>
+                <div class="card-body">
+                    <?= $categoriesCrud->render(); ?>
+                </div>
+            </div>
+
             
             <div class="card">
                

@@ -131,6 +131,10 @@ class Crud
         'field_callbacks'         => [],
         'custom_fields'           => [],
         'soft_delete'             => null,
+        'row_ordering'            => [
+            'enabled' => false,
+            'column'  => null,
+        ],
         'audit_log'               => [
             'enabled'          => false,
             'user_id'          => null,
@@ -4433,6 +4437,124 @@ class Crud
         return $this;
     }
 
+    public function enableRowOrdering(string $column = 'sort_order'): self
+    {
+        $column = $this->normalizeColumnReference($column);
+        if ($column === '') {
+            throw new InvalidArgumentException('Row ordering column cannot be empty.');
+        }
+
+        $columnLookup = $this->getTableColumnLookupFor($this->table);
+        if (!isset($columnLookup[$column])) {
+            throw new InvalidArgumentException(sprintf('Unknown row ordering column "%s".', $column));
+        }
+
+        $this->config['row_ordering'] = [
+            'enabled' => true,
+            'column'  => $column,
+        ];
+
+        $this->applyRowOrderingSort();
+
+        return $this;
+    }
+
+    public function enable_row_ordering(string $column = 'sort_order'): self
+    {
+        return $this->enableRowOrdering($column);
+    }
+
+    public function disableRowOrdering(): self
+    {
+        $this->config['row_ordering'] = [
+            'enabled' => false,
+            'column'  => null,
+        ];
+
+        return $this;
+    }
+
+    public function disable_row_ordering(): self
+    {
+        return $this->disableRowOrdering();
+    }
+
+    private function isRowOrderingEnabled(): bool
+    {
+        $config = $this->config['row_ordering'] ?? [];
+
+        return is_array($config)
+            && (bool) ($config['enabled'] ?? false)
+            && isset($config['column'])
+            && is_string($config['column'])
+            && $config['column'] !== '';
+    }
+
+    private function getRowOrderingColumn(): ?string
+    {
+        $config = $this->config['row_ordering'] ?? [];
+        if (!is_array($config) || !isset($config['column']) || !is_string($config['column'])) {
+            return null;
+        }
+
+        $column = $this->normalizeColumnReference($config['column']);
+
+        return $column === '' ? null : $column;
+    }
+
+    private function applyRowOrderingSort(): void
+    {
+        if (!$this->isRowOrderingEnabled()) {
+            return;
+        }
+
+        $column = $this->getRowOrderingColumn();
+        if ($column === null) {
+            return;
+        }
+
+        $orders = [];
+        foreach ($this->config['order_by'] as $order) {
+            if (!is_array($order) || !isset($order['field'])) {
+                continue;
+            }
+
+            if ($this->normalizeColumnReference((string) $order['field']) === $column) {
+                continue;
+            }
+
+            $orders[] = $order;
+        }
+
+        array_unshift($orders, [
+            'field'     => $column,
+            'direction' => 'ASC',
+        ]);
+
+        $this->config['order_by'] = $orders;
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @return array{enabled: bool, column: string|null}
+     */
+    private function normalizeRowOrderingConfig(array $config): array
+    {
+        $enabled = (bool) ($config['enabled'] ?? false);
+        $column  = isset($config['column']) && is_string($config['column'])
+            ? $this->normalizeColumnReference($config['column'])
+            : null;
+
+        if ($enabled && ($column === null || $column === '')) {
+            throw new InvalidArgumentException('row_ordering configuration requires a column when enabled.');
+        }
+
+        return [
+            'enabled' => $enabled,
+            'column'  => $column === '' ? null : $column,
+        ];
+    }
+
     /**
      * Enable persistent audit logging for create, update, delete, and duplicate operations.
      *
@@ -6247,6 +6369,8 @@ class Crud
      */
     private function buildSelectQuery(?int $limit = null, ?int $offset = null, ?string $searchTerm = null, ?string $searchColumn = null): array
     {
+        $this->applyRowOrderingSort();
+
         $selectParts = ['main.*'];
 
         foreach ($this->config['subselects'] as $subselect) {
@@ -7653,7 +7777,8 @@ SQL;
         $script              = $this->generateAjaxScript();
         $styles              = $this->buildActionColumnStyles($rawId, $formOnly);
         $numbersEnabled      = !empty($this->config['numbers_enabled']);
-        $colspan             = $this->escapeHtml((string) (count($columns) + 1 + ($batchDeleteEnabled ? 1 : 0) + ($this->hasNestedTables() ? 1 : 0) + ($numbersEnabled ? 1 : 0)));
+        $rowOrderingEnabled  = $this->isRowOrderingEnabled();
+        $colspan             = $this->escapeHtml((string) (count($columns) + 1 + ($batchDeleteEnabled ? 1 : 0) + ($this->hasNestedTables() ? 1 : 0) + ($numbersEnabled ? 1 : 0) + ($rowOrderingEnabled ? 1 : 0)));
         $offcanvas           = $this->buildEditOffcanvas($rawId, $formOnly) . $this->buildViewOffcanvas($rawId, $formOnly);
         $queryBuilderModal   = $this->buildQueryBuilderModal($rawId, $formOnly);
 
@@ -7902,6 +8027,10 @@ HTML;
     private function buildHeader(array $columns): string
     {
         $cells = [];
+
+        if ($this->isRowOrderingEnabled()) {
+            $cells[] = '            <th scope="col" class="text-center fastcrud-row-order fastcrud-row-order-header" aria-label="Reorder rows"></th>';
+        }
 
         if ($this->hasNestedTables()) {
             $cells[] = '            <th scope="col" class="text-center fastcrud-nested fastcrud-nested-header" aria-label="Toggle nested rows"></th>';
@@ -8410,6 +8539,36 @@ CSS;
     width: 2.75rem;
     min-width: 2.75rem;
     text-align: center;
+}
+
+#{$containerId} table thead th.fastcrud-row-order,
+#{$containerId} table tbody td.fastcrud-row-order-cell {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    text-align: center;
+    vertical-align: middle;
+}
+
+#{$containerId} .fastcrud-row-order-handle {
+    cursor: grab;
+    touch-action: none;
+}
+
+#{$containerId} .fastcrud-row-order-handle:active {
+    cursor: grabbing;
+}
+
+#{$containerId} table tbody tr.fastcrud-row-order-chosen {
+    background: var(--bs-tertiary-bg, rgba(13, 110, 253, .08));
+}
+
+#{$containerId} table tbody tr.fastcrud-row-order-dragging,
+#{$containerId} table tbody tr.fastcrud-row-order-ghost {
+    opacity: .55;
+}
+
+#{$containerId} table tbody tr.fastcrud-row-order-ghost {
+    outline: 1px dashed var(--bs-primary, #0d6efd);
 }
 
 #{$containerId} table tbody td.fastcrud-nested-cell {
@@ -9018,6 +9177,7 @@ HTML;
             'numbers_enabled'        => (bool) ($this->config['numbers_enabled'] ?? false),
             'nested_tables'          => $this->buildNestedTablesClientConfigPayload(),
             'soft_delete'            => $this->config['soft_delete'],
+            'row_ordering'           => $this->config['row_ordering'],
             'query_builder'          => $this->buildQueryBuilderClientPayload(),
         ];
     }
@@ -9710,6 +9870,7 @@ HTML;
      */
     private function buildClientConfigPayload(?array $columns = null): array
     {
+        $this->applyRowOrderingSort();
         $this->ensureFormLayoutBuckets();
         $this->ensureFormBehaviourBuckets();
         $this->ensureDefaultTabBuckets();
@@ -9860,6 +10021,7 @@ HTML;
             'field_labels'            => $this->config['field_labels'],
             'primary_key'             => $this->primaryKeyColumn,
             'soft_delete'             => $this->config['soft_delete'],
+            'row_ordering'            => $this->config['row_ordering'],
             'form'                    => $formMeta,
             'inline_edit'             => $inline,
             'nested_tables'           => $this->buildNestedTablesClientConfigPayload(),
@@ -10947,6 +11109,18 @@ HTML;
             }
         }
 
+        if (array_key_exists('row_ordering', $payload)) {
+            $rowOrderingConfig = $payload['row_ordering'];
+            if ($rowOrderingConfig === null || $rowOrderingConfig === false) {
+                $this->disableRowOrdering();
+            } elseif (is_array($rowOrderingConfig)) {
+                $this->config['row_ordering'] = $this->normalizeRowOrderingConfig($rowOrderingConfig);
+                $this->applyRowOrderingSort();
+            } else {
+                throw new InvalidArgumentException('row_ordering configuration must be an array or null.');
+            }
+        }
+
         if (array_key_exists('audit_log', $payload)) {
             $auditConfig = $payload['audit_log'];
             if ($auditConfig === null || $auditConfig === false) {
@@ -11317,6 +11491,7 @@ HTML;
         $this->config['order_by'] = $this->sanitizeOrderByEntries($orderByConfig);
 
         $this->applyQueryBuilderPayload($payload['query_builder'] ?? null);
+        $this->applyRowOrderingSort();
 
         if (isset($payload['form']) && is_array($payload['form'])) {
             $this->mergeFormConfig($payload['form']);
@@ -12385,6 +12560,107 @@ HTML;
     }
 
     /**
+     * Reorder the currently submitted row slice by updating the configured ordering column.
+     *
+     * @param array<int, mixed> $primaryKeyValues
+     * @return array{updated: int}
+     */
+    public function reorderRecords(string $primaryKeyColumn, array $primaryKeyValues, int $startPosition = 1): array
+    {
+        if (!$this->isRowOrderingEnabled()) {
+            throw new RuntimeException('Row ordering is not enabled for this table.');
+        }
+
+        $orderColumn = $this->getRowOrderingColumn();
+        if ($orderColumn === null) {
+            throw new RuntimeException('Row ordering column is not configured.');
+        }
+
+        $primaryKeyColumn = trim($primaryKeyColumn);
+        if ($primaryKeyColumn === '') {
+            throw new InvalidArgumentException('Primary key column is required.');
+        }
+
+        $columnLookup = $this->getTableColumnLookupFor($this->table);
+        if (!isset($columnLookup[$primaryKeyColumn])) {
+            throw new InvalidArgumentException(sprintf('Unknown primary key column "%s".', $primaryKeyColumn));
+        }
+        if (!isset($columnLookup[$orderColumn])) {
+            throw new InvalidArgumentException(sprintf('Unknown row ordering column "%s".', $orderColumn));
+        }
+
+        $values = [];
+        $seen   = [];
+        foreach ($primaryKeyValues as $value) {
+            if ($value === null) {
+                continue;
+            }
+
+            if (is_string($value)) {
+                $value = trim($value);
+                if ($value === '') {
+                    continue;
+                }
+            }
+
+            $lookupKey = $this->normalizePrimaryKeyLookupKey($value);
+            if (isset($seen[$lookupKey])) {
+                continue;
+            }
+
+            $seen[$lookupKey] = true;
+            $values[]         = $value;
+        }
+
+        if ($values === []) {
+            return ['updated' => 0];
+        }
+
+        $primaryKeySql = $this->quotePrimaryKeyColumnName($primaryKeyColumn);
+        $orderColumnSql = $this->quoteIdentifierPart($orderColumn);
+        $startPosition = max(1, $startPosition);
+        $manageTransaction = !$this->connection->inTransaction();
+        $updated = 0;
+
+        if ($manageTransaction) {
+            $this->connection->beginTransaction();
+        }
+
+        try {
+            $statement = $this->connection->prepare(sprintf(
+                'UPDATE %s SET %s = :position WHERE %s = :pk',
+                $this->table,
+                $orderColumnSql,
+                $primaryKeySql
+            ));
+
+            if ($statement === false) {
+                throw new RuntimeException('Failed to prepare row ordering statement.');
+            }
+
+            foreach ($values as $index => $value) {
+                $statement->execute([
+                    ':position' => $startPosition + $index,
+                    ':pk'       => $value,
+                ]);
+                $updated += $statement->rowCount();
+            }
+
+            if ($manageTransaction) {
+                $this->connection->commit();
+            }
+        } catch (Throwable $exception) {
+            if ($manageTransaction && $this->connection->inTransaction()) {
+                $this->connection->rollBack();
+            }
+
+            throw new RuntimeException('Failed to reorder rows.', 0, $exception);
+        }
+
+        return ['updated' => $updated];
+    }
+
+    /**
      * Duplicate a record by copying its fields into a new row.
      * Returns the newly created row, or null on failure.
      *
@@ -13382,6 +13658,28 @@ CSS;
         var columnWidths = {};
         var nestedTablesConfig = Array.isArray(clientConfig.nested_tables) ? clientConfig.nested_tables : [];
         var nestedRowStates = {};
+        var rowOrderingConfig = clientConfig.row_ordering && typeof clientConfig.row_ordering === 'object'
+            ? deepClone(clientConfig.row_ordering)
+            : { enabled: false, column: null };
+        var rowOrderingSaving = false;
+        var rowOrderingSortable = null;
+        var currentPagination = null;
+        var sortableState = window.FastCrudSortable || {};
+        if (!sortableState.scriptUrl) {
+            sortableState.scriptUrl = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js';
+        }
+        if (!Array.isArray(sortableState.queue)) {
+            sortableState.queue = [];
+        }
+        if (typeof sortableState.loaded !== 'boolean') {
+            sortableState.loaded = (typeof window.Sortable !== 'undefined' && typeof window.Sortable.create === 'function');
+        } else if (sortableState.loaded && (typeof window.Sortable === 'undefined' || typeof window.Sortable.create !== 'function')) {
+            sortableState.loaded = false;
+        }
+        if (typeof sortableState.loading !== 'boolean') {
+            sortableState.loading = false;
+        }
+        window.FastCrudSortable = sortableState;
         var orderBy = [];
         var queryBuilderConfig = clientConfig.query_builder && typeof clientConfig.query_builder === 'object'
             ? deepClone(clientConfig.query_builder)
@@ -15495,6 +15793,49 @@ CSS;
             document.head.appendChild(link);
         }
 
+        function withSortableAssets(callback) {
+            if (!isRowOrderingActive() || typeof callback !== 'function') {
+                return;
+            }
+            if (typeof window.Sortable !== 'undefined' && typeof window.Sortable.create === 'function') {
+                sortableState.loaded = true;
+                callback();
+                return;
+            }
+            sortableState.queue.push(callback);
+            if (sortableState.loading) {
+                return;
+            }
+            sortableState.loading = true;
+
+            var script = document.createElement('script');
+            script.src = sortableState.scriptUrl;
+            script.async = true;
+            script.onload = function() {
+                sortableState.loading = false;
+                sortableState.loaded = (typeof window.Sortable !== 'undefined' && typeof window.Sortable.create === 'function');
+                var queued = sortableState.queue.slice();
+                sortableState.queue.length = 0;
+                if (!sortableState.loaded) {
+                    if (window.console && console.error) {
+                        console.error('FastCrud: SortableJS loaded but did not expose Sortable.create');
+                    }
+                    return;
+                }
+                queued.forEach(function(fn) {
+                    try { fn(); } catch (error) { if (window.console && console.error) { console.error(error); } }
+                });
+            };
+            script.onerror = function() {
+                sortableState.loading = false;
+                sortableState.queue.length = 0;
+                if (window.console && console.error) {
+                    console.error('FastCrud: failed to load SortableJS script');
+                }
+            };
+            document.head.appendChild(script);
+        }
+
         function withFilePondAssets(callback) {
             if (typeof callback !== 'function') {
                 return;
@@ -16186,6 +16527,14 @@ CSS;
                 clientConfig.soft_delete = meta.soft_delete;
             }
 
+            if (meta.row_ordering && typeof meta.row_ordering === 'object') {
+                rowOrderingConfig = deepClone(meta.row_ordering);
+                clientConfig.row_ordering = deepClone(meta.row_ordering);
+            } else {
+                rowOrderingConfig = { enabled: false, column: null };
+                clientConfig.row_ordering = rowOrderingConfig;
+            }
+
             if (Array.isArray(meta.columns)) {
                 columnsCache = meta.columns;
             }
@@ -16787,7 +17136,7 @@ CSS;
         }
 
         function applyHeaderMetadata() {
-            var headerCells = table.find('thead th').not('.fastcrud-actions, .fastcrud-select-header, .fastcrud-nested, .fastcrud-number-header');
+            var headerCells = table.find('thead th').not('.fastcrud-actions, .fastcrud-select-header, .fastcrud-nested, .fastcrud-number-header, .fastcrud-row-order-header');
             headerCells.each(function(index) {
                 var column = columnsCache[index];
                 if (!column) {
@@ -16857,7 +17206,7 @@ CSS;
         }
 
         function updateSortIndicators() {
-            var headerCells = table.find('thead th').not('.fastcrud-actions, .fastcrud-select-header, .fastcrud-nested, .fastcrud-number-header');
+            var headerCells = table.find('thead th').not('.fastcrud-actions, .fastcrud-select-header, .fastcrud-nested, .fastcrud-number-header, .fastcrud-row-order-header');
             headerCells.each(function(index) {
                 var cell = $(this);
                 var column = columnsCache[index];
@@ -16970,6 +17319,10 @@ CSS;
                 var renderedValue = summary.value === null || typeof summary.value === 'undefined' || summary.value === ''
                     ? '—'
                     : String(summary.value);
+
+                if (isRowOrderingActive()) {
+                    row.append('<td class="fastcrud-row-order-cell">&nbsp;</td>');
+                }
 
                 if (hasNestedTablesConfigured()) {
                     row.append('<td class="fastcrud-nested-cell">&nbsp;</td>');
@@ -19052,6 +19405,156 @@ CSS;
             return '<td class="text-end fastcrud-actions-cell"><div class="fastcrud-actions-stack">' + buttonsHtml + '</div></td>';
         }
 
+        function isRowOrderingActive() {
+            return !!(rowOrderingConfig && rowOrderingConfig.enabled && rowOrderingConfig.column);
+        }
+
+        function clearRowOrderingDragState() {
+            table.find('tbody tr.fastcrud-row-order-dragging').removeClass('fastcrud-row-order-dragging');
+            table.find('tbody tr.fastcrud-row-order-chosen').removeClass('fastcrud-row-order-chosen');
+            table.find('tbody tr.fastcrud-row-order-ghost').removeClass('fastcrud-row-order-ghost');
+        }
+
+        function destroyRowOrderingSortable() {
+            if (!rowOrderingSortable) {
+                return;
+            }
+            try {
+                rowOrderingSortable.destroy();
+            } catch (error) {
+            }
+            rowOrderingSortable = null;
+        }
+
+        function setRowOrderingSortableDisabled(disabled) {
+            if (!rowOrderingSortable || typeof rowOrderingSortable.option !== 'function') {
+                return;
+            }
+            try {
+                rowOrderingSortable.option('disabled', !!disabled);
+            } catch (error) {
+            }
+        }
+
+        function collectVisibleRowOrder() {
+            var values = [];
+            table.find('tbody tr').not('.fastcrud-nested-row').each(function() {
+                var row = $(this);
+                var value = row.attr('data-fastcrud-pk-value');
+                if (typeof value !== 'undefined' && value !== '') {
+                    values.push(value);
+                }
+            });
+            return values;
+        }
+
+        function getRowOrderingStartPosition() {
+            var start = 1;
+            if (currentPagination && typeof currentPagination === 'object') {
+                var pageValue = parseInt(currentPagination.current_page, 10);
+                var perPageValue = parseInt(currentPagination.per_page, 10);
+                if (!isNaN(pageValue) && pageValue > 0 && !isNaN(perPageValue) && perPageValue > 0) {
+                    start = ((pageValue - 1) * perPageValue) + 1;
+                }
+            }
+            return start;
+        }
+
+        function persistVisibleRowOrder() {
+            if (!isRowOrderingActive() || rowOrderingSaving) {
+                return;
+            }
+
+            var values = collectVisibleRowOrder();
+            if (!values.length || !primaryKeyColumn) {
+                return;
+            }
+
+            rowOrderingSaving = true;
+            setRowOrderingSortableDisabled(true);
+
+            var payload = {
+                fastcrud_ajax: '1',
+                action: 'row_order',
+                table: tableName,
+                id: tableId,
+                primary_key_column: primaryKeyColumn,
+                primary_key_values: values,
+                position_start: getRowOrderingStartPosition()
+            };
+            attachCrudConfig(payload, false);
+
+            $.ajax({
+                url: window.location.pathname,
+                type: 'POST',
+                dataType: 'json',
+                data: payload,
+                success: function(response) {
+                    if (response && response.success) {
+                        loadTableData(currentPage);
+                    } else {
+                        showError(response && response.error ? response.error : 'Failed to reorder rows.');
+                        loadTableData(currentPage);
+                    }
+                },
+                error: function(_, __, error) {
+                    showError('Failed to reorder rows. ' + error);
+                    loadTableData(currentPage);
+                },
+                complete: function() {
+                    rowOrderingSaving = false;
+                    setRowOrderingSortableDisabled(false);
+                }
+            });
+        }
+
+        function ensureRowOrderingHandlers() {
+            if (!isRowOrderingActive()) {
+                destroyRowOrderingSortable();
+                return;
+            }
+
+            var tbody = table.find('tbody').get(0);
+            if (!tbody || !table.find('tbody .fastcrud-row-order-handle').length) {
+                return;
+            }
+
+            if (rowOrderingSortable) {
+                setRowOrderingSortableDisabled(rowOrderingSaving);
+                return;
+            }
+
+            withSortableAssets(function() {
+                var sortableBody = table.find('tbody').get(0);
+                if (!isRowOrderingActive() || !sortableBody || rowOrderingSortable) {
+                    return;
+                }
+                if (typeof window.Sortable === 'undefined' || typeof window.Sortable.create !== 'function') {
+                    return;
+                }
+
+                rowOrderingSortable = window.Sortable.create(sortableBody, {
+                    animation: 150,
+                    handle: '.fastcrud-row-order-handle',
+                    draggable: 'tr:not(.fastcrud-nested-row)',
+                    ghostClass: 'fastcrud-row-order-ghost',
+                    chosenClass: 'fastcrud-row-order-chosen',
+                    dragClass: 'fastcrud-row-order-dragging',
+                    disabled: rowOrderingSaving,
+                    onStart: function() {
+                        table.find('tbody tr.fastcrud-nested-row').remove();
+                        nestedRowStates = {};
+                    },
+                    onEnd: function(event) {
+                        clearRowOrderingDragState();
+                        if (event && event.oldIndex !== event.newIndex) {
+                            persistVisibleRowOrder();
+                        }
+                    }
+                });
+            });
+        }
+
         function populateTableRows(rows, pagination) {
             var tbody = table.find('tbody');
             var totalColumns = table.find('thead th').length || 1;
@@ -19132,6 +19635,15 @@ CSS;
                 var rowEditAllowed = editEnabled;
                 if (rowEditAllowed && Object.prototype.hasOwnProperty.call(rowMeta, 'edit_allowed')) {
                     rowEditAllowed = !!rowMeta.edit_allowed;
+                }
+
+                if (rowOrderingConfig && rowOrderingConfig.enabled) {
+                    var orderable = rowPrimaryKeyColumn && primaryValueString !== '' && rowEditAllowed;
+                    if (orderable) {
+                        cells += '<td class="text-center fastcrud-row-order-cell"><button type="button" class="btn btn-sm btn-link text-muted fastcrud-row-order-handle" aria-label="Drag to reorder row" title="Drag to reorder row" data-fastcrud-pk="' + escapeHtml(String(rowPrimaryKeyColumn)) + '" data-fastcrud-pk-value="' + escapeHtml(primaryValueString) + '"><i class="fas fa-grip-vertical" aria-hidden="true"></i></button></td>';
+                    } else {
+                        cells += '<td class="text-center fastcrud-row-order-cell text-muted"></td>';
+                    }
                 }
 
                 if (hasNested) {
@@ -19291,6 +19803,7 @@ CSS;
             tbody.html(html);
             refreshSelectAllState();
             updateBatchDeleteButtonState();
+            ensureRowOrderingHandlers();
 
             if (hasNested && expandQueue.length) {
                 expandQueue.forEach(function(entry) {
@@ -19594,7 +20107,8 @@ CSS;
                             primaryKeyColumn = findPrimaryKey(columnsCache);
                         }
 
-                        populateTableRows(response.data || [], response.pagination || null);
+                        currentPagination = response.pagination || null;
+                        populateTableRows(response.data || [], currentPagination);
                         refreshTooltips();
                         renderSummaries(metaConfig.summaries || []);
 

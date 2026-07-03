@@ -42,6 +42,9 @@ class CrudAjax
                 case 'bulk_update':
                     self::handleBulkUpdate($request);
                     break;
+                case 'row_order':
+                    self::handleRowOrder($request);
+                    break;
                 case 'bulk_action':
                     self::handleBulkAction($request);
                     break;
@@ -598,6 +601,54 @@ class CrudAjax
         }
 
         self::respond($response, $success ? 200 : 400);
+    }
+
+    /**
+     * Handle drag-and-drop row ordering via AJAX.
+     *
+     * @param array<string, mixed> $request
+     */
+    private static function handleRowOrder(array $request): void
+    {
+        if (!isset($request['table'])) {
+            throw new InvalidArgumentException('Table parameter is required');
+        }
+
+        if (!isset($request['primary_key_column']) || !is_string($request['primary_key_column'])) {
+            throw new InvalidArgumentException('Primary key column is required.');
+        }
+
+        if (!array_key_exists('primary_key_values', $request)) {
+            throw new InvalidArgumentException('Primary key values are required.');
+        }
+
+        $rawValues = $request['primary_key_values'];
+        if (is_string($rawValues)) {
+            $rawValues = [$rawValues];
+        }
+
+        if (!is_array($rawValues)) {
+            throw new InvalidArgumentException('Primary key values must be provided as an array.');
+        }
+
+        $values = array_values($rawValues);
+        if ($values === []) {
+            throw new InvalidArgumentException('At least one primary key value is required.');
+        }
+
+        $startPosition = 1;
+        if (isset($request['position_start']) && is_numeric($request['position_start'])) {
+            $startPosition = max(1, (int) $request['position_start']);
+        }
+
+        $crud = self::createCrudFromRequest((string) $request['table'], $request);
+        $result = $crud->reorderRecords((string) $request['primary_key_column'], $values, $startPosition);
+
+        self::respond([
+            'success' => true,
+            'updated' => $result['updated'],
+            'id' => $request['id'] ?? null,
+        ]);
     }
 
     /**
