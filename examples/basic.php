@@ -199,6 +199,7 @@ DatabaseEditor::init();
                 <?php
                 $postsCrud = new Crud('posts');
                 $postsCrud
+                    ->enableAuditLog()
                     ->before_create('fc_before_create_defaults')
                     ->limit_list('5,10,25,all')
                     ->where('deleted_at IS NULL')    

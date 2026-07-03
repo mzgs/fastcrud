@@ -131,6 +131,11 @@ class Crud
         'field_callbacks'         => [],
         'custom_fields'           => [],
         'soft_delete'             => null,
+        'audit_log'               => [
+            'enabled'          => false,
+            'user_id'          => null,
+            'user_id_callback' => null,
+        ],
         'lifecycle_callbacks'     => [
             'before_insert' => [],
             'after_insert'  => [],
@@ -216,10 +221,22 @@ class Crud
      */
     public static function init(PDO|array|null $dbConfig = null): void
     {
+        $shouldEnsureAuditTable = false;
+
         if ($dbConfig instanceof PDO) {
             Database::setConnection($dbConfig);
+            $shouldEnsureAuditTable = true;
         } elseif ($dbConfig !== null) {
             CrudConfig::setDbConfig($dbConfig);
+            $shouldEnsureAuditTable = true;
+        } else {
+            $config = CrudConfig::getDbConfig();
+            $database = $config['database'] ?? null;
+            $shouldEnsureAuditTable = is_string($database) && trim($database) !== '';
+        }
+
+        if ($shouldEnsureAuditTable) {
+            Database::ensureAuditLogTable();
         }
 
         CrudAjax::autoHandle();
@@ -4415,6 +4432,178 @@ class Crud
         $this->config['soft_delete'] = null;
 
         return $this;
+    }
+
+    /**
+     * Enable persistent audit logging for create, update, delete, and duplicate operations.
+     *
+     * Supported options:
+     * - user_id: scalar identifier stored with every audit row
+     * - user_id_callback: callable string or [ClassName, method] returning the current user id
+     *
+     * @param array{user_id?: mixed, user_id_callback?: string|array<int, string>} $options
+     */
+    public function enableAuditLog(array $options = []): self
+    {
+        $this->config['audit_log'] = $this->normalizeAuditLogConfig(array_replace(
+            ['enabled' => true],
+            $options
+        ));
+
+        Database::ensureAuditLogTable($this->connection);
+
+        return $this;
+    }
+
+    public function enable_audit_log(array $options = []): self
+    {
+        return $this->enableAuditLog($options);
+    }
+
+    public function disableAuditLog(): self
+    {
+        $this->config['audit_log'] = $this->normalizeAuditLogConfig(['enabled' => false]);
+
+        return $this;
+    }
+
+    public function disable_audit_log(): self
+    {
+        return $this->disableAuditLog();
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     * @return array{enabled: bool, user_id: mixed, user_id_callback: string|null}
+     */
+    private function normalizeAuditLogConfig(array $config): array
+    {
+        $enabled = isset($config['enabled']) ? (bool) $config['enabled'] : true;
+
+        $userId = $config['user_id'] ?? null;
+        if ($userId !== null && !is_scalar($userId)) {
+            throw new InvalidArgumentException('audit_log user_id must be a scalar value or null.');
+        }
+
+        $callback = null;
+        if (isset($config['user_id_callback'])) {
+            $callbackConfig = $config['user_id_callback'];
+            if (!is_string($callbackConfig) && !is_array($callbackConfig)) {
+                throw new InvalidArgumentException('audit_log user_id_callback must be a callable string or [ClassName, method] pair.');
+            }
+
+            $callback = $this->normalizeCallable($callbackConfig);
+            if (!is_callable($callback)) {
+                throw new InvalidArgumentException('audit_log user_id_callback is not callable: ' . $callback);
+            }
+        }
+
+        return [
+            'enabled'          => $enabled,
+            'user_id'          => $userId,
+            'user_id_callback' => $callback,
+        ];
+    }
+
+    private function isAuditLogEnabled(): bool
+    {
+        $config = $this->config['audit_log'] ?? [];
+
+        return $this->table !== 'fastcrud_audit_logs' && is_array($config) && (bool) ($config['enabled'] ?? false);
+    }
+
+    private function resolveAuditUserId(): ?string
+    {
+        $config = $this->config['audit_log'] ?? [];
+        if (!is_array($config)) {
+            return null;
+        }
+
+        $callback = $config['user_id_callback'] ?? null;
+        if (is_string($callback) && $callback !== '' && is_callable($callback)) {
+            $value = call_user_func($callback);
+            return $value === null ? null : $this->stringifyValue($value);
+        }
+
+        $userId = $config['user_id'] ?? null;
+
+        return $userId === null ? null : $this->stringifyValue($userId);
+    }
+
+    private function resolveAuditIpAddress(): ?string
+    {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? null;
+
+        return is_string($ip) && trim($ip) !== '' ? trim($ip) : null;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function writeAuditLog(string $action, mixed $recordId, ?string $fieldName, mixed $oldValue, mixed $newValue, array $metadata = []): void
+    {
+        if (!$this->isAuditLogEnabled()) {
+            return;
+        }
+
+        try {
+            Database::ensureAuditLogTable($this->connection);
+
+            $statement = $this->connection->prepare(
+                'INSERT INTO fastcrud_audit_logs
+                    (table_name, record_id, action, field_name, old_value, new_value, user_id, ip_address, metadata)
+                 VALUES
+                    (:table_name, :record_id, :action, :field_name, :old_value, :new_value, :user_id, :ip_address, :metadata)'
+            );
+
+            if ($statement === false) {
+                throw new RuntimeException('Failed to prepare audit log statement.');
+            }
+
+            $statement->execute([
+                ':table_name' => $this->table,
+                ':record_id'  => $recordId === null ? null : $this->stringifyValue($recordId),
+                ':action'     => $action,
+                ':field_name' => $fieldName,
+                ':old_value'  => $this->encodeAuditValue($oldValue),
+                ':new_value'  => $this->encodeAuditValue($newValue),
+                ':user_id'    => $this->resolveAuditUserId(),
+                ':ip_address' => $this->resolveAuditIpAddress(),
+                ':metadata'   => $metadata === [] ? null : $this->encodeAuditJson($metadata),
+            ]);
+        } catch (Throwable $exception) {
+            if (CrudConfig::$debug) {
+                throw new RuntimeException('Failed to write audit log.', 0, $exception);
+            }
+        }
+    }
+
+    private function encodeAuditValue(mixed $value): ?string
+    {
+        return match (true) {
+            $value === null => null,
+            is_string($value), is_int($value), is_float($value) => (string) $value,
+            is_bool($value) => $value ? 'true' : 'false',
+            default => $this->encodeAuditJson($value),
+        };
+    }
+
+    private function encodeAuditJson(mixed $value): string
+    {
+        try {
+            return json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (JsonException) {
+            return $this->stringifyValue($value);
+        }
+    }
+
+    private function auditValuesEqual(mixed $oldValue, mixed $newValue): bool
+    {
+        if ($oldValue === null || $newValue === null) {
+            return $oldValue === $newValue;
+        }
+
+        return $this->stringifyValue($oldValue) === $this->stringifyValue($newValue);
     }
 
     /**
@@ -9660,6 +9849,7 @@ HTML;
             'custom_query'            => $this->config['custom_query'],
             'subselects'              => $this->config['subselects'],
             'visible_columns'         => $this->config['visible_columns'],
+            'audit_log'               => $this->config['audit_log'],
             'columns_reverse'         => $this->config['columns_reverse'],
             'column_labels'           => $this->config['column_labels'],
             'column_patterns'         => $this->config['column_patterns'],
@@ -10771,6 +10961,17 @@ HTML;
             }
         }
 
+        if (array_key_exists('audit_log', $payload)) {
+            $auditConfig = $payload['audit_log'];
+            if ($auditConfig === null || $auditConfig === false) {
+                $this->disableAuditLog();
+            } elseif (is_array($auditConfig)) {
+                $this->config['audit_log'] = $this->normalizeAuditLogConfig($auditConfig);
+            } else {
+                throw new InvalidArgumentException('audit_log configuration must be an array or null.');
+            }
+        }
+
         if (isset($payload['lifecycle_callbacks']) && is_array($payload['lifecycle_callbacks'])) {
             $normalized = [];
             foreach (self::LIFECYCLE_EVENTS as $event) {
@@ -11449,6 +11650,11 @@ HTML;
             'fields'        => $filtered,
         ];
 
+        $this->writeAuditLog('create', $primaryValue ?? ($row[$primaryKeyColumn] ?? null), null, null, $row ?? $filtered, [
+            'primary_key' => $primaryKeyColumn,
+            'mode'        => 'create',
+        ]);
+
         if ($row !== null) {
             $afterContext['row'] = $row;
             $after               = $this->dispatchLifecycleEvent('after_insert', $row, $afterContext, true);
@@ -11707,6 +11913,23 @@ HTML;
             'previous_row'  => $currentRow,
         ];
 
+        $newRowForAudit = $row ?? array_merge($currentRow, $filtered);
+        foreach ($filtered as $column => $newValue) {
+            $oldValue = $currentRow[$column] ?? null;
+            $persistedValue = is_array($newRowForAudit) && array_key_exists($column, $newRowForAudit)
+                ? $newRowForAudit[$column]
+                : $newValue;
+
+            if ($this->auditValuesEqual($oldValue, $persistedValue)) {
+                continue;
+            }
+
+            $this->writeAuditLog('update', $primaryKeyValue, $column, $oldValue, $persistedValue, [
+                'primary_key' => $primaryKeyColumn,
+                'mode'        => $mode,
+            ]);
+        }
+
         if ($row !== null) {
             $afterContext['row'] = $row;
             $after               = $this->dispatchLifecycleEvent('after_update', $row, $afterContext, true);
@@ -11797,10 +12020,11 @@ HTML;
         }
 
         $deleted = $statement->rowCount() > 0;
+        $postRow = null;
 
-        if ($useSoftDelete && !$deleted) {
+        if ($useSoftDelete) {
             $postRow = $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue);
-            if ($this->softDeleteAssignmentsSatisfied($postRow, $softDeleteAssignments, $resolvedValues)) {
+            if (!$deleted && $this->softDeleteAssignmentsSatisfied($postRow, $softDeleteAssignments, $resolvedValues)) {
                 $deleted = true;
             }
         }
@@ -11816,6 +12040,13 @@ HTML;
         ];
 
         $afterContext['row'] = $rowForDeletion;
+
+        if ($deleted) {
+            $this->writeAuditLog('delete', $primaryKeyValue, null, $rowForDeletion, $postRow, [
+                'primary_key' => $primaryKeyColumn,
+                'mode'        => $useSoftDelete ? 'soft' : 'hard',
+            ]);
+        }
 
         $this->dispatchLifecycleEvent('after_delete', $rowForDeletion, $afterContext, true);
 
@@ -12036,6 +12267,9 @@ HTML;
         }
 
         $deletedCount = 0;
+        $postDeleteRows = $useSoftDelete
+            ? $this->fetchRowsByPrimaryKeys($primaryKeyColumn, $targetValues)
+            : [];
 
         foreach ($targets as $index => $target) {
             $deleted = $perRowStatus[$index] ?? false;
@@ -12054,6 +12288,15 @@ HTML;
             ];
 
             $afterContext['row'] = $target['row'];
+
+            if ($deleted) {
+                $lookupKey = $this->normalizePrimaryKeyLookupKey($target['value']);
+                $this->writeAuditLog('delete', $target['value'], null, $target['row'], $postDeleteRows[$lookupKey] ?? null, [
+                    'primary_key' => $primaryKeyColumn,
+                    'mode'        => $useSoftDelete ? 'soft' : 'hard',
+                    'batch'       => true,
+                ]);
+            }
 
             $this->dispatchLifecycleEvent('after_delete', $target['row'], $afterContext, true);
         }
@@ -12344,6 +12587,11 @@ HTML;
             'fields'        => $fields,
             'source_row'    => $source,
         ];
+
+        $this->writeAuditLog('duplicate', $primaryValue ?? ($row[$primaryKeyColumn] ?? null), null, $source, $row ?? $fields, [
+            'primary_key'       => $primaryKeyColumn,
+            'source_record_id'  => $primaryKeyValue,
+        ]);
 
         if ($row !== null) {
             $afterContext['row'] = $row;

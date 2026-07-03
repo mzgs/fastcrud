@@ -133,6 +133,50 @@ echo $users->render();
 echo $orders->render();
 ```
 
+### 🧾 Audit Logs
+
+`Crud::init()` automatically ensures the `fastcrud_audit_logs` table exists when a PDO instance or database configuration is available. Enable logging per CRUD table:
+
+```php
+$users = (new Crud('users'))->enableAuditLog([
+    'user_id' => $_SESSION['user_id'] ?? null,
+]);
+
+echo $users->render();
+```
+
+FastCRUD writes audit rows for successful create, update, delete, batch delete, and duplicate operations. Update operations store one row per changed field; create, delete, and duplicate operations store the full row payload. Logs are saved in the same database:
+
+```text
+fastcrud_audit_logs
+- table_name
+- record_id
+- action
+- field_name
+- old_value
+- new_value
+- user_id
+- ip_address
+- metadata
+- created_at
+```
+
+You can also pass a callable user resolver that survives AJAX requests:
+
+```php
+class CurrentUser
+{
+    public static function id(): ?int
+    {
+        return $_SESSION['user_id'] ?? null;
+    }
+}
+
+$users = (new Crud('users'))->enableAuditLog([
+    'user_id_callback' => [CurrentUser::class, 'id'],
+]);
+```
+
 
 
 ## 🗃️ Database Editor

@@ -65,6 +65,77 @@ class Database
         self::$connection = null;
     }
 
+    public static function ensureAuditLogTable(?PDO $connection = null): void
+    {
+        $connection ??= self::connection();
+
+        $driver = (string) $connection->getAttribute(PDO::ATTR_DRIVER_NAME);
+        $schema = match ($driver) {
+            'mysql' => [
+                'id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY',
+                'VARCHAR(255)',
+                'LONGTEXT',
+                'TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP',
+            ],
+            'pgsql' => [
+                'id BIGSERIAL PRIMARY KEY',
+                'VARCHAR(255)',
+                'TEXT',
+                'TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP',
+            ],
+            'sqlite' => [
+                'id INTEGER PRIMARY KEY AUTOINCREMENT',
+                'TEXT',
+                'TEXT',
+                'TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP',
+            ],
+            default => throw new InvalidArgumentException("Unsupported PDO driver: {$driver}"),
+        };
+
+        [$idColumn, $shortTextType, $longTextType, $createdAtType] = $schema;
+        $actionType  = $driver === 'sqlite' ? 'TEXT' : 'VARCHAR(50)';
+        $ipType      = $driver === 'sqlite' ? 'TEXT' : 'VARCHAR(45)';
+        $tableExtras = $driver === 'mysql'
+            ? ",\n                INDEX fastcrud_audit_lookup (table_name, record_id),\n                INDEX fastcrud_audit_created_at (created_at)"
+            : '';
+        $indexes     = $driver === 'mysql' ? [] : [
+            'CREATE INDEX IF NOT EXISTS fastcrud_audit_lookup ON fastcrud_audit_logs (table_name, record_id)',
+            'CREATE INDEX IF NOT EXISTS fastcrud_audit_created_at ON fastcrud_audit_logs (created_at)',
+        ];
+
+        $connection->exec(sprintf(
+            'CREATE TABLE IF NOT EXISTS fastcrud_audit_logs (
+                %s,
+                table_name %s NOT NULL,
+                record_id %s NULL,
+                action %s NOT NULL,
+                field_name %s NULL,
+                old_value %s NULL,
+                new_value %s NULL,
+                user_id %s NULL,
+                ip_address %s NULL,
+                metadata %s NULL,
+                created_at %s%s
+            )',
+            $idColumn,
+            $shortTextType,
+            $shortTextType,
+            $actionType,
+            $shortTextType,
+            $longTextType,
+            $longTextType,
+            $shortTextType,
+            $ipType,
+            $longTextType,
+            $createdAtType,
+            $tableExtras
+        ));
+
+        foreach ($indexes as $sql) {
+            $connection->exec($sql);
+        }
+    }
+
     private static function buildDsn(array $config): string
     {
         $driver = $config['driver'] ?? 'mysql';
@@ -123,4 +194,5 @@ class Database
 
         return 'sqlite:' . $database;
     }
+
 }
