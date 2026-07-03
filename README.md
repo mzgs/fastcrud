@@ -21,6 +21,7 @@
 - [📦 Installation](#installation)
 - [🚀 Quick Start](#quick-start)
 - [🔧 Configuration](#configuration)
+- [💡 Common Recipes](#common-recipes)
 - [🗃️ Database Editor](#database-editor)
 - [📜 API Reference & Customization](#api-reference--customization)
 - [📝 License](#license)
@@ -175,6 +176,194 @@ class CurrentUser
 $users = (new Crud('users'))->enableAuditLog([
     'user_id_callback' => [CurrentUser::class, 'id'],
 ]);
+```
+
+## 💡 Common Recipes
+
+These examples show complete, copy-pasteable patterns for the features most projects configure first.
+
+### Admin Table With Search, Sorting, Export, and Bulk Actions
+
+```php
+$orders = (new Crud('orders'))
+    ->table_title('Orders')
+    ->table_icon('fas fa-receipt')
+    ->columns(['id', 'customer_id', 'status', 'total', 'created_at'])
+    ->set_column_labels([
+        'customer_id' => 'Customer',
+        'created_at' => 'Created',
+    ])
+    ->relation('customer_id', 'customers', 'id', 'name', [], 'name ASC')
+    ->search_columns(['status', 'created_at'])
+    ->order_by('created_at', 'desc')
+    ->limit_list([10, 25, 50, 'all'])
+    ->enable_export_csv()
+    ->enable_batch_delete()
+    ->add_bulk_action('mark_paid', 'Mark paid', [
+        'fields' => ['status' => 'paid'],
+        'confirm' => 'Mark selected orders as paid?',
+    ]);
+
+echo $orders->render();
+```
+
+### Forms With Validation, Defaults, and Read-Only Fields
+
+```php
+$users = (new Crud('users'))
+    ->fields(['name', 'email', 'role', 'status', 'created_by'])
+    ->change_type('role', 'select', 'member', [
+        'options' => [
+            'admin' => 'Admin',
+            'member' => 'Member',
+            'viewer' => 'Viewer',
+        ],
+    ])
+    ->change_type('status', 'switch', true)
+    ->validation_required(['name', 'email'])
+    ->validation_pattern('email', '/^[^@\s]+@[^@\s]+\.[^@\s]+$/')
+    ->unique('email', 'create')
+    ->pass_default('status', 'active', 'create')
+    ->pass_var('created_by', $_SESSION['user_id'] ?? null, 'create')
+    ->readonly(['email'], 'edit')
+    ->disabled('created_by', ['edit', 'view']);
+
+echo $users->render();
+```
+
+### Upload Fields
+
+```php
+use FastCrud\CrudConfig;
+
+CrudConfig::$upload_path = __DIR__ . '/public/uploads';
+CrudConfig::$upload_serve_path = '/uploads';
+CrudConfig::$upload_max_image_size = '5MB';
+CrudConfig::$upload_max_file_size = '20MB';
+
+$products = (new Crud('products'))
+    ->change_type('image', 'image', '', [
+        'path' => 'products',
+        'max_size' => '5MB',
+        'width' => 1200,
+        'height' => 800,
+        'previewHeight' => 180,
+    ])
+    ->change_type('manual', 'file', '', [
+        'path' => 'manuals',
+        'accept' => 'application/pdf,.pdf',
+        'max_size' => '20MB',
+    ]);
+
+echo $products->render();
+```
+
+### Soft Delete With Audit Log
+
+```php
+class CurrentUser
+{
+    public static function id(): ?int
+    {
+        return $_SESSION['user_id'] ?? null;
+    }
+}
+
+$posts = (new Crud('posts'))
+    ->where('deleted_at IS NULL')
+    ->enable_soft_delete('deleted_at')
+    ->enableAuditLog([
+        'user_id_callback' => [CurrentUser::class, 'id'],
+    ]);
+
+echo $posts->render();
+```
+
+### Lifecycle Callbacks
+
+```php
+use FastCrud\Crud;
+
+function fillPostDefaults(array $fields, array $context, Crud $crud): array
+{
+    $fields['slug'] ??= strtolower(preg_replace('/[^a-z0-9]+/i', '-', $fields['title'] ?? ''));
+    $fields['created_by'] ??= $_SESSION['user_id'] ?? null;
+
+    return $fields;
+}
+
+function notifyPostUpdate(array $row, array $context, Crud $crud): array
+{
+    error_log('Post updated: ' . ($context['primary_value'] ?? 'unknown'));
+
+    return $row;
+}
+
+$posts = (new Crud('posts'))
+    ->before_create('fillPostDefaults')
+    ->after_update('notifyPostUpdate');
+
+echo $posts->render();
+```
+
+### Custom Columns and Row Styling
+
+```php
+function order_status_badge($value, array $row, string $column, string $display): string
+{
+    $class = match ($value) {
+        'paid' => 'success',
+        'cancelled' => 'danger',
+        default => 'secondary',
+    };
+
+    return '<span class="badge text-bg-' . $class . '">' . htmlspecialchars($display) . '</span>';
+}
+
+$orders = (new Crud('orders'))
+    ->column_callback('status', 'order_status_badge')
+    ->column_summary('total', 'sum', 'Total', 2)
+    ->highlight_row('status', '=', 'cancelled', 'table-danger')
+    ->column_truncate('notes', 80);
+
+echo $orders->render();
+```
+
+### Row Buttons and Toolbar Actions
+
+```php
+$invoices = (new Crud('invoices'))
+    ->add_link_button([
+        'url' => '/invoices/{id}/preview',
+        'icon' => 'fas fa-eye',
+        'label' => 'Preview',
+        'button_class' => 'btn btn-sm btn-outline-primary',
+        'options' => ['target' => '_blank'],
+    ])
+    ->add_toolbar_action([
+        'url' => '/invoices/create',
+        'icon' => 'fas fa-plus',
+        'label' => 'New Invoice',
+        'button_class' => 'btn btn-primary',
+    ]);
+
+echo $invoices->render();
+```
+
+### Nested Tables
+
+```php
+$customers = (new Crud('customers'))
+    ->columns(['id', 'name', 'email']);
+
+$customers->nested_table('customer_orders', 'id', 'orders', 'customer_id', function (Crud $orders): void {
+    $orders
+        ->columns(['id', 'status', 'total', 'created_at'])
+        ->order_by('created_at', 'desc')
+        ->limit(5);
+});
+
+echo $customers->render();
 ```
 
 
