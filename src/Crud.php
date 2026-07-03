@@ -200,6 +200,7 @@ class Crud
                 'disabled'            => [],
                 'validation_required' => [],
                 'validation_pattern'  => [],
+                'max_length'          => [],
                 'unique'              => [],
             ],
             'all_columns'  => [],
@@ -1359,6 +1360,7 @@ class Crud
                 'disabled'            => [],
                 'validation_required' => [],
                 'validation_pattern'  => [],
+                'max_length'          => [],
                 'unique'              => [],
             ];
             return;
@@ -1372,6 +1374,7 @@ class Crud
             'disabled'            => [],
             'validation_required' => [],
             'validation_pattern'  => [],
+            'max_length'          => [],
             'unique'              => [],
         ];
 
@@ -1627,6 +1630,48 @@ class Crud
         }
 
         return $resolved;
+    }
+
+    private function measureValidationLength(mixed $value, bool $trim = false): int
+    {
+        if ($value === null) {
+            return 0;
+        }
+
+        if (is_string($value) || is_numeric($value)) {
+            $stringValue = (string) $value;
+            if ($trim) {
+                $stringValue = trim($stringValue);
+            }
+
+            return function_exists('mb_strlen') ? mb_strlen($stringValue) : strlen($stringValue);
+        }
+
+        if (is_bool($value)) {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param array<string, mixed> $fields
+     * @param array<string, bool> $columnLookup
+     * @param array<string, string> $errors
+     */
+    private function collectMaxLengthErrors(array $fields, array $columnLookup, string $mode, array &$errors): void
+    {
+        foreach ($this->gatherBehaviourForMode('max_length', $mode) as $column => $maxLength) {
+            $limit = (int) $maxLength;
+            if ($limit < 1 || !isset($columnLookup[$column]) || !array_key_exists($column, $fields)) {
+                continue;
+            }
+
+            $value = $fields[$column];
+            if ($value !== null && $value !== '' && $this->measureValidationLength($value) > $limit) {
+                $errors[$column] = sprintf('Must be %d characters or fewer.', $limit);
+            }
+        }
     }
 
     private function compileValidationPattern(string $pattern): ?string
@@ -1899,7 +1944,7 @@ class Crud
                 }
             }
 
-            $modeAwareKeys = ['pass_var', 'pass_default', 'readonly', 'disabled', 'validation_required', 'validation_pattern', 'unique'];
+            $modeAwareKeys = ['pass_var', 'pass_default', 'readonly', 'disabled', 'validation_required', 'validation_pattern', 'max_length', 'unique'];
             foreach ($modeAwareKeys as $key) {
                 if (!isset($behaviours[$key]) || !is_array($behaviours[$key])) {
                     continue;
@@ -5177,6 +5222,28 @@ class Crud
         }
 
         return $this->applyFormBehaviour($fields, 'validation_pattern', $pattern, $mode, 'validation_pattern requires at least one field.');
+    }
+
+    /**
+     * @param string|array<int, string> $fields
+     * @param string|array<int, string> $mode
+     */
+    public function max_char(string|array $fields, int $length, string|array $mode = 'all'): self
+    {
+        if ($length < 1) {
+            throw new InvalidArgumentException('Maximum character length must be at least 1.');
+        }
+
+        return $this->applyFormBehaviour($fields, 'max_length', $length, $mode, 'max_char requires at least one field.');
+    }
+
+    /**
+     * @param string|array<int, string> $fields
+     * @param string|array<int, string> $mode
+     */
+    public function max_chars(string|array $fields, int $length, string|array $mode = 'all'): self
+    {
+        return $this->max_char($fields, $length, $mode);
     }
 
     /**
@@ -8952,6 +9019,7 @@ HTML;
             'disabled'            => [],
             'validation_required' => [],
             'validation_pattern'  => [],
+            'max_length'          => [],
             'unique'              => [],
         ];
 
@@ -8977,7 +9045,7 @@ HTML;
                 }
             }
 
-            $modeAwareKeys = ['pass_var', 'pass_default', 'readonly', 'disabled', 'validation_required', 'validation_pattern', 'unique'];
+            $modeAwareKeys = ['pass_var', 'pass_default', 'readonly', 'disabled', 'validation_required', 'validation_pattern', 'max_length', 'unique'];
             foreach ($modeAwareKeys as $key) {
                 if (!isset($sourceBehaviours[$key]) || !is_array($sourceBehaviours[$key])) {
                     continue;
@@ -11222,23 +11290,14 @@ HTML;
             }
 
             $value  = $filtered[$column] ?? null;
-            $length = 0;
-            if ($value !== null) {
-                if (is_string($value)) {
-                    $normalized = trim($value);
-                    $length     = function_exists('mb_strlen') ? mb_strlen($normalized) : strlen($normalized);
-                } elseif (is_numeric($value)) {
-                    $stringValue = (string) $value;
-                    $length      = function_exists('mb_strlen') ? mb_strlen($stringValue) : strlen($stringValue);
-                } elseif (is_bool($value)) {
-                    $length = 1;
-                }
-            }
+            $length = $this->measureValidationLength($value, true);
 
             if ($length < (int) $minLength) {
                 $errors[$column] = 'This field is required.';
             }
         }
+
+        $this->collectMaxLengthErrors($filtered, $columnLookup, 'create', $errors);
 
         $patterns = $this->gatherBehaviourForMode('validation_pattern', 'create');
         foreach ($patterns as $column => $pattern) {
@@ -11522,23 +11581,14 @@ HTML;
             }
 
             $value  = $filtered[$column] ?? ($context[$column] ?? null);
-            $length = 0;
-            if ($value !== null) {
-                if (is_string($value)) {
-                    $normalized = trim($value);
-                    $length     = function_exists('mb_strlen') ? mb_strlen($normalized) : strlen($normalized);
-                } elseif (is_numeric($value)) {
-                    $stringValue = (string) $value;
-                    $length      = function_exists('mb_strlen') ? mb_strlen($stringValue) : strlen($stringValue);
-                } elseif (is_bool($value)) {
-                    $length = 1;
-                }
-            }
+            $length = $this->measureValidationLength($value, true);
 
             if ($length < (int) $minLength) {
                 $errors[$column] = 'This field is required.';
             }
         }
+
+        $this->collectMaxLengthErrors($filtered, $columnLookup, $mode, $errors);
 
         $patterns = $this->gatherBehaviourForMode('validation_pattern', $mode);
         foreach ($patterns as $column => $pattern) {
@@ -17049,7 +17099,7 @@ CSS;
                 behaviours.change_type = formConfig.behaviours.change_type[field];
             }
 
-            var keys = ['pass_var', 'pass_default', 'readonly', 'disabled', 'validation_required', 'validation_pattern', 'unique'];
+            var keys = ['pass_var', 'pass_default', 'readonly', 'disabled', 'validation_required', 'validation_pattern', 'max_length', 'unique'];
             keys.forEach(function(key) {
                 var value = resolveBehaviour(key, field, mode);
                 if (typeof value !== 'undefined') {
@@ -17446,6 +17496,26 @@ CSS;
 
             editFieldsContainer.find('.is-invalid').removeClass('is-invalid');
             editFieldsContainer.find('.fastcrud-field-feedback').remove();
+        }
+
+        function updateCharCounter(input) {
+            var jqInput = input && input.jquery ? input : $(input || []);
+            if (!jqInput.length) {
+                return;
+            }
+
+            var limit = parseInt(jqInput.attr('data-fastcrud-max-length') || '', 10);
+            var counter = jqInput.data && typeof jqInput.data === 'function'
+                ? jqInput.data('fastcrudCharCounter')
+                : null;
+            if (Number.isNaN(limit) || limit < 1 || !counter || !counter.length) {
+                return;
+            }
+
+            var count = String(jqInput.val() || '').length;
+            counter.text(count + ' / ' + limit);
+            counter.toggleClass('text-danger', count > limit);
+            counter.toggleClass('text-muted', count <= limit);
         }
 
         function buildJsonErrorMessage(error) {
@@ -20237,8 +20307,21 @@ CSS;
                     input.attr('placeholder', params.placeholder);
                 }
 
-                if (params.maxlength && input.is('input, textarea')) {
-                    input.attr('maxlength', params.maxlength);
+                var hasBehaviourMaxLength = typeof behaviours.max_length !== 'undefined';
+                var maxLength = parseInt(hasBehaviourMaxLength ? behaviours.max_length : params.maxlength, 10);
+                if (!Number.isNaN(maxLength) && maxLength > 0 && input.is('input, textarea')) {
+                    input.attr('data-fastcrud-max-length', maxLength);
+                    if (!hasBehaviourMaxLength) {
+                        input.attr('maxlength', maxLength);
+                    }
+
+                    var charCounter = $('<div class="form-text fastcrud-char-counter text-muted"></div>');
+                    input.data('fastcrudCharCounter', charCounter);
+                    input.on('input change', function() {
+                        updateCharCounter($(this));
+                    });
+                    group.append(charCounter);
+                    updateCharCounter(input);
                 }
 
                 if (params.class) {
@@ -21636,6 +21719,20 @@ CSS;
                             if (attachedControls && attachedControls.length) {
                                 attachedControls.addClass('is-invalid');
                             }
+                        }
+                    }
+
+                    var maxLength = parseInt(input.attr('data-fastcrud-max-length') || '', 10);
+                    var maxLengthValidationCount = lengthForValidation;
+                    if (input.is('input, textarea')) {
+                        maxLengthValidationCount = String(input.val() || '').length;
+                    }
+                    if (!Number.isNaN(maxLength) && maxLength > 0 && maxLengthValidationCount > maxLength) {
+                        validationPassed = false;
+                        fieldErrors[column] = 'Must be ' + maxLength + ' characters or fewer.';
+                        input.addClass('is-invalid');
+                        if (attachedControls && attachedControls.length) {
+                            attachedControls.addClass('is-invalid');
                         }
                     }
 

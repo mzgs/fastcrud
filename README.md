@@ -581,6 +581,11 @@ All customization options are available through the main `FastCrud\Crud` class m
   ```php
   $crud->validation_pattern('phone', '/^\+?[0-9]{7,15}$/');
   ```
+- **`max_char(string|array $fields, int $length, string|array $mode = 'all'): self`** – Limit generated text inputs/textareas to a maximum character count, show a live `current / max` counter that turns red when exceeded, and enforce the same limit when saving. `max_chars()` is also available as an alias.
+  ```php
+  $crud->max_char('title', 120);
+  $crud->max_chars(['first_name', 'last_name'], 60, ['create', 'edit']);
+  ```
 - **`unique(string|array $fields, string|array $mode = 'all'): self`** – Ensure values remain unique when saving; scope to modes `'create'`, `'edit'`, `'view'`, or `'all'`.
   ```php
   $crud->unique('email', ['create', 'edit']);

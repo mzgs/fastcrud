@@ -315,6 +315,7 @@ DatabaseEditor::init();
                 
                     ->search_columns('title,content', 'title')
                     ->validation_required('slug')
+                    ->max_char('title', 30)
                     ->change_type('json_field', 'json', '', ['rows' => 8])
                     ->inline_edit('title,color,user_id')
                     ->custom_field('status_note', 'render_status_note_field')
