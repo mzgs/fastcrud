@@ -15874,23 +15874,39 @@ CSS;
                 if (!document.getElementById(themeStyleId)) {
                     var themeStyle = document.createElement('style');
                     themeStyle.id = themeStyleId;
-                    themeStyle.textContent = ':root{--fastcrud-filepond-panel-bg:var(--bs-tertiary-bg,var(--bs-secondary-bg,#f8f9fa));--fastcrud-filepond-surface:linear-gradient(135deg,rgba(255,255,255,0.95),rgba(246,248,253,0.9));--fastcrud-filepond-border-color:var(--bs-primary-border-subtle,var(--bs-primary,#0d6efd));--fastcrud-filepond-label-color:var(--bs-secondary-color,rgba(33,37,41,0.75));--fastcrud-filepond-text-color:var(--bs-body-color,#212529);--fastcrud-filepond-subtle-color:var(--bs-secondary-color,rgba(33,37,41,0.6));--fastcrud-filepond-legend-color:var(--fastcrud-filepond-text-color);--fastcrud-filepond-size-bg:rgba(33,37,41,0.82);--fastcrud-filepond-size-color:#fff;--fastcrud-filepond-size-border:rgba(255,255,255,0.35);--fastcrud-filepond-shadow:rgba(15,23,42,0.12);}' +
-                        '[data-bs-theme=light]{--fastcrud-filepond-panel-bg:var(--bs-tertiary-bg,var(--bs-secondary-bg,#f8f9fa));--fastcrud-filepond-surface:linear-gradient(135deg,rgba(255,255,255,0.95),rgba(246,248,253,0.9));--fastcrud-filepond-shadow:rgba(15,23,42,0.12);--fastcrud-filepond-text-color:var(--bs-body-color,#212529);--fastcrud-filepond-subtle-color:var(--bs-secondary-color,rgba(73,80,87,0.75));--fastcrud-filepond-legend-color:var(--bs-body-color,#212529);--fastcrud-filepond-size-bg:rgba(33,37,41,0.82);--fastcrud-filepond-size-color:#fff;--fastcrud-filepond-size-border:rgba(255,255,255,0.35);}' +
-                        '[data-bs-theme=dark]{--fastcrud-filepond-panel-bg:var(--bs-tertiary-bg,var(--bs-secondary-bg,#2b3035));--fastcrud-filepond-border-color:var(--bs-primary-border-subtle,var(--bs-primary,#6ea8fe));--fastcrud-filepond-label-color:var(--bs-secondary-color,#adb5bd);--fastcrud-filepond-text-color:var(--bs-body-color,#dee2e6);--fastcrud-filepond-subtle-color:rgba(222,226,230,0.7);--fastcrud-filepond-legend-color:var(--bs-body-color,#dee2e6);--fastcrud-filepond-size-bg:rgba(33,37,41,0.82);--fastcrud-filepond-size-color:#fff;--fastcrud-filepond-size-border:rgba(255,255,255,0.35);--fastcrud-filepond-surface:linear-gradient(135deg,rgba(47,52,58,0.9),rgba(30,34,39,0.92));--fastcrud-filepond-shadow:rgba(0,0,0,0.45);}' +
-                        '.filepond--root{background:var(--fastcrud-filepond-surface)!important;border:2px dashed var(--fastcrud-filepond-border-color)!important;border-radius:0.85rem!important;padding:0.5rem 0.6rem!important;box-shadow:0 1.2rem 2.4rem -1.4rem var(--fastcrud-filepond-shadow);transition:background .2s ease,border-color .2s ease,box-shadow .2s ease;}' +
-                        '.filepond--root:hover{box-shadow:0 1.4rem 2.8rem -1.2rem var(--fastcrud-filepond-shadow);}' +
+                    themeStyle.textContent = ':root{--fastcrud-filepond-panel-bg:var(--bs-body-bg,#fff);--fastcrud-filepond-surface:var(--bs-tertiary-bg,#f8f9fa);--fastcrud-filepond-border-color:var(--bs-border-color,#dee2e6);--fastcrud-filepond-border-hover:var(--bs-primary,#0d6efd);--fastcrud-filepond-label-color:var(--bs-secondary-color,rgba(33,37,41,0.75));--fastcrud-filepond-text-color:var(--bs-body-color,#212529);--fastcrud-filepond-subtle-color:var(--bs-secondary-color,rgba(33,37,41,0.6));--fastcrud-filepond-legend-color:var(--fastcrud-filepond-text-color);--fastcrud-filepond-action-bg:var(--bs-primary-bg-subtle,rgba(13,110,253,0.12));--fastcrud-filepond-action-color:var(--bs-primary,#0d6efd);--fastcrud-filepond-size-bg:rgba(33,37,41,0.82);--fastcrud-filepond-size-color:#fff;--fastcrud-filepond-size-border:rgba(255,255,255,0.35);--fastcrud-filepond-shadow:rgba(15,23,42,0.1);}' +
+                        '[data-bs-theme=light]{--fastcrud-filepond-panel-bg:var(--bs-body-bg,#fff);--fastcrud-filepond-surface:var(--bs-tertiary-bg,#f8f9fa);--fastcrud-filepond-shadow:rgba(15,23,42,0.1);--fastcrud-filepond-text-color:var(--bs-body-color,#212529);--fastcrud-filepond-subtle-color:var(--bs-secondary-color,rgba(73,80,87,0.75));--fastcrud-filepond-legend-color:var(--bs-body-color,#212529);--fastcrud-filepond-size-bg:rgba(33,37,41,0.82);--fastcrud-filepond-size-color:#fff;--fastcrud-filepond-size-border:rgba(255,255,255,0.35);}' +
+                        '[data-bs-theme=dark]{--fastcrud-filepond-panel-bg:var(--bs-body-bg,#212529);--fastcrud-filepond-surface:var(--bs-tertiary-bg,#2b3035);--fastcrud-filepond-border-color:rgba(255,255,255,0.14);--fastcrud-filepond-border-hover:var(--bs-primary,#6ea8fe);--fastcrud-filepond-label-color:var(--bs-secondary-color,#adb5bd);--fastcrud-filepond-text-color:var(--bs-body-color,#dee2e6);--fastcrud-filepond-subtle-color:rgba(222,226,230,0.7);--fastcrud-filepond-legend-color:var(--bs-body-color,#dee2e6);--fastcrud-filepond-action-bg:rgba(110,168,254,0.16);--fastcrud-filepond-action-color:var(--bs-primary,#6ea8fe);--fastcrud-filepond-size-bg:rgba(33,37,41,0.86);--fastcrud-filepond-size-color:#fff;--fastcrud-filepond-size-border:rgba(255,255,255,0.35);--fastcrud-filepond-shadow:rgba(0,0,0,0.35);}' +
+                        '.filepond--root{margin-top:0.25rem;background:var(--fastcrud-filepond-surface)!important;border:1px dashed var(--fastcrud-filepond-border-color)!important;border-radius:0.75rem!important;padding:0.65rem!important;box-shadow:0 0.8rem 1.8rem -1.5rem var(--fastcrud-filepond-shadow);transition:background .2s ease,border-color .2s ease,box-shadow .2s ease;}' +
+                        '.filepond--root:hover,.filepond--root[data-hopper-state=drag-over]{border-color:var(--fastcrud-filepond-border-hover)!important;box-shadow:0 1rem 2rem -1.45rem var(--fastcrud-filepond-shadow);}' +
+                        '.filepond--root[data-hopper-state=drag-over]{background:var(--fastcrud-filepond-panel-bg)!important;}' +
                         '.filepond--panel-root,.filepond--panel-top,.filepond--panel-center,.filepond--panel-bottom{background-color:transparent!important;border:none!important;box-shadow:none!important;}' +
                         '.filepond--panel-root::before,.filepond--panel-root::after{background:transparent!important;}' +
-                        '.filepond--drop-label{color:var(--fastcrud-filepond-label-color)!important;font-weight:500;}' +
+                        '.filepond--drop-label{min-height:6rem;color:var(--fastcrud-filepond-label-color)!important;font-weight:500;line-height:1.35;}' +
+                        '.filepond--drop-label label{padding:0.5rem 0.75rem!important;}' +
                         '.filepond--drop-label span{color:inherit!important;}' +
+                        '.filepond--label-action{display:inline-flex!important;align-items:center;justify-content:center;margin-left:0.18rem;padding:0.18rem 0.52rem;border-radius:999px;background:var(--fastcrud-filepond-action-bg);color:var(--fastcrud-filepond-action-color)!important;font-weight:700;text-decoration:none!important;}' +
                         '.filepond legend{color:var(--fastcrud-filepond-legend-color)!important;font-weight:600;}' +
                         '.filepond--file-info{color:var(--fastcrud-filepond-text-color)!important;position:relative!important;z-index:5!important;}' +
                         '.filepond--file-info span{color:inherit!important;}' +
                         '.filepond--file-info-sub{color:var(--fastcrud-filepond-subtle-color)!important;}' +
                         '.filepond--file-poster-wrapper{z-index:1!important;}' +
                         '.filepond--file .filepond--file-info .filepond--file-info-sub.fastcrud-filepond-size-badge{display:inline-flex!important;align-items:center;max-width:max-content;margin-top:0.2rem;padding:0.12rem 0.42rem;border:1px solid var(--fastcrud-filepond-size-border);border-radius:999px;background:var(--fastcrud-filepond-size-bg)!important;color:var(--fastcrud-filepond-size-color)!important;font-size:0.72rem;font-weight:700;line-height:1.15;letter-spacing:0;white-space:nowrap;text-shadow:none!important;box-shadow:0 0.18rem 0.55rem rgba(15,23,42,0.18);opacity:1!important;visibility:visible!important;}' +
-                        '.filepond--item-panel{background-color:var(--fastcrud-filepond-panel-bg)!important;border:none!important;border-radius:0.65rem!important;box-shadow:0 0.6rem 1.4rem -1.2rem var(--fastcrud-filepond-shadow);}' +
-                        '.filepond--file{border-radius:0.65rem!important;}';
+                        '.filepond--item-panel{background-color:var(--fastcrud-filepond-panel-bg)!important;border:1px solid var(--fastcrud-filepond-border-color)!important;border-radius:0.65rem!important;box-shadow:0 0.55rem 1.2rem -1rem var(--fastcrud-filepond-shadow);}' +
+                        '.filepond--file{border-radius:0.65rem!important;}' +
+                        '.fastcrud-filepond--single-image.filepond--root{max-width:22rem!important;width:100%!important;display:block;}' +
+                        '.fastcrud-filepond--single-image .filepond--drop-label{min-height:9rem;}' +
+                        '.fastcrud-filepond--single-image .filepond--item{width:100%;}' +
+                        '.fastcrud-filepond--multi-image.filepond--root,.fastcrud-filepond--multi-file.filepond--root{width:100%!important;max-width:100%!important;display:block;}' +
+                        '.fastcrud-filepond--multi-image .filepond--drop-label{min-height:7.25rem;}' +
+                        '.fastcrud-filepond--multi-image .filepond--list{left:0.5em;right:0.5em;}' +
+                        '.fastcrud-filepond--multi-image .filepond--item{width:calc(50% - 0.5em);}' +
+                        '@media (min-width: 720px){.fastcrud-filepond--multi-image .filepond--item{width:calc(33.333% - 0.5em);}}' +
+                        '@media (min-width: 1200px){.fastcrud-filepond--multi-image .filepond--item{width:calc(25% - 0.5em);}}' +
+                        '.fastcrud-filepond--file .filepond--drop-label,.fastcrud-filepond--multi-file .filepond--drop-label{min-height:4.75rem;}' +
+                        '.fastcrud-filepond--file .filepond--item,.fastcrud-filepond--multi-file .filepond--item{width:100%;}' +
+                        '.fastcrud-filepond--file .filepond--file,.fastcrud-filepond--multi-file .filepond--file{min-height:3.1rem;}' +
+                        '.fastcrud-filepond--file .filepond--file-info,.fastcrud-filepond--multi-file .filepond--file-info{margin-left:0.75rem;}';
                     document.head.appendChild(themeStyle);
                 }
             } catch (e) {}
@@ -21203,14 +21219,27 @@ CSS;
                             var uploadMaxSize = resolveUploadMaxSize(params, true);
 
                             var stylePanelAspect = (params.panelAspectRatio || params.aspectRatio);
+                            var imageIdleLabel = isMultipleImages
+                                ? 'Drop images here or <span class="filepond--label-action">Browse</span>'
+                                : 'Drop an image here or <span class="filepond--label-action">Browse</span>';
                             var pond = window.FilePond.create(fileInput.get(0), {
                                 allowMultiple: isMultipleImages,
                                 allowReorder: isMultipleImages,
                                 allowImagePreview: true,
-                                imagePreviewHeight: params.previewHeight ? Number(params.previewHeight) : 170,
+                                imagePreviewHeight: params.previewHeight ? Number(params.previewHeight) : (isMultipleImages ? 150 : 190),
                                 allowFilePoster: true,
-                                filePosterHeight: params.posterHeight ? Number(params.posterHeight) : 120,
+                                filePosterHeight: params.posterHeight ? Number(params.posterHeight) : (isMultipleImages ? 120 : 170),
                                 stylePanelAspectRatio: stylePanelAspect || undefined,
+                                labelIdle: imageIdleLabel,
+                                labelFileLoading: 'Loading',
+                                labelFileProcessing: 'Uploading',
+                                labelFileProcessingComplete: 'Uploaded',
+                                labelFileProcessingAborted: 'Upload cancelled',
+                                labelFileProcessingError: 'Upload failed',
+                                labelTapToCancel: 'tap to cancel',
+                                labelTapToRetry: 'tap to retry',
+                                labelTapToUndo: 'tap to remove',
+                                labelButtonRemoveItem: 'Remove',
                                 credits: false,
                                 files: initialFiles,
                                 server: {
@@ -21345,6 +21374,11 @@ CSS;
                                 }
                             });
                             hydrateFilePondInitialSizes(pond, initialFiles);
+                            try {
+                                $(pond.element)
+                                    .addClass('fastcrud-filepond-uploader')
+                                    .addClass(isMultipleImages ? 'fastcrud-filepond--multi-image' : 'fastcrud-filepond--single-image');
+                            } catch (e) {}
                             pond.on('addfile', function() {
                                 clearFilePondUploadError();
                             });
@@ -21356,7 +21390,7 @@ CSS;
                             var pondWidth = (function() {
                                 var explicit = (params.width || params.pondWidth || params.previewWidth || '').toString().trim();
                                 if (explicit) return explicit;
-                                return isMultipleImages ? '100%' : '200px';
+                                return isMultipleImages ? '100%' : '22rem';
                             })();
                             // Try to enforce max width robustly (some FilePond updates adjust inline styles)
                             try {
@@ -21375,42 +21409,6 @@ CSS;
                                     pond.on('ready', function() { applyPondWidth(pond.element, pondWidth); });
                                 }
                             } catch (e) {}
-
-                            // Provide a CSS fallback for single-image ponds so width sticks even if inline styles change
-                            if (!isMultipleImages) {
-                                try {
-                                    $(pond.element).addClass('fastcrud-filepond-single');
-                                    var singleCssId = 'fastcrud-filepond-single-css';
-                                    if (!document.getElementById(singleCssId)) {
-                                        var styleSingle = document.createElement('style');
-                                        styleSingle.id = singleCssId;
-                                        styleSingle.type = 'text/css';
-                                        styleSingle.appendChild(document.createTextNode(
-                                            '.fastcrud-filepond-single.filepond--root{max-width:200px !important;width:100% !important;display:block;}'
-                                        ));
-                                        document.head.appendChild(styleSingle);
-                                    }
-                                } catch (e) {}
-                            }
-
-                            // For multi-image fields, add a responsive grid layout for previews
-                            if (isMultipleImages) {
-                                try {
-                                    $(pond.element).addClass('fastcrud-filepond-grid');
-                                    var gridCssId = 'fastcrud-filepond-grid-css';
-                                    if (!document.getElementById(gridCssId)) {
-                                        var style = document.createElement('style');
-                                        style.id = gridCssId;
-                                        style.type = 'text/css';
-                                        style.appendChild(document.createTextNode(
-                                            '.fastcrud-filepond-grid .filepond--item{width:calc(33.333% - 0.5em)}' +
-                                            '@media (max-width: 640px){.fastcrud-filepond-grid .filepond--item{width:calc(50% - 0.5em)}}' +
-                                            '@media (min-width: 1200px){.fastcrud-filepond-grid .filepond--item{width:calc(20% - 0.5em)}}'
-                                        ));
-                                        document.head.appendChild(style);
-                                    }
-                                } catch (e) {}
-                            }
 
                             if (isMultipleImages) {
                                 pond.on('removefile', function(error, file) {
@@ -21541,11 +21539,24 @@ CSS;
                             };
                             var uploadMaxSize = resolveUploadMaxSize(params, false);
 
+                            var fileIdleLabel = isMultipleFiles
+                                ? 'Drop files here or <span class="filepond--label-action">Browse</span>'
+                                : 'Drop a file here or <span class="filepond--label-action">Browse</span>';
                             var pond = window.FilePond.create(fileInput.get(0), {
                                 allowMultiple: isMultipleFiles,
                                 allowReorder: isMultipleFiles,
                                 allowImagePreview: false,
                                 allowFilePoster: false,
+                                labelIdle: fileIdleLabel,
+                                labelFileLoading: 'Loading',
+                                labelFileProcessing: 'Uploading',
+                                labelFileProcessingComplete: 'Uploaded',
+                                labelFileProcessingAborted: 'Upload cancelled',
+                                labelFileProcessingError: 'Upload failed',
+                                labelTapToCancel: 'tap to cancel',
+                                labelTapToRetry: 'tap to retry',
+                                labelTapToUndo: 'tap to remove',
+                                labelButtonRemoveItem: 'Remove',
                                 credits: false,
                                 files: initialFiles,
                                 server: {
@@ -21629,6 +21640,11 @@ CSS;
                                 }
                             });
                             hydrateFilePondInitialSizes(pond, initialFiles);
+                            try {
+                                $(pond.element)
+                                    .addClass('fastcrud-filepond-uploader')
+                                    .addClass(isMultipleFiles ? 'fastcrud-filepond--multi-file' : 'fastcrud-filepond--file');
+                            } catch (e) {}
                             pond.on('addfile', function() {
                                 clearFilePondUploadError();
                             });
