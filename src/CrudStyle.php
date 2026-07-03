@@ -39,9 +39,6 @@ class CrudStyle
     /** @var string Default button classes for the export CSV toolbar button. */
     public static string $export_csv_button_class = '';
 
-    /** @var string Default button classes for the export Excel toolbar button. */
-    public static string $export_excel_button_class = '';
-
     /** @var string Default button classes for the add record toolbar button. */
     public static string $add_button_class = '';
 

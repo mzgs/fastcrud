@@ -48,9 +48,6 @@ class CrudAjax
                 case 'export_csv':
                     self::handleExportCsv($request);
                     break;
-                case 'export_excel':
-                    self::handleExportExcel($request);
-                    break;
                 case 'duplicate':
                     self::handleDuplicate($request);
                     break;
@@ -635,28 +632,6 @@ class CrudAjax
         $filename = self::buildExportFilename($dataset['table'], 'csv');
 
         self::respondFile($filename, 'text/csv; charset=utf-8', $content);
-    }
-
-    /**
-     * @param array<string, mixed> $request
-     */
-    private static function handleExportExcel(array $request): void
-    {
-        $dataset = self::buildExportDataset($request);
-        // Excel is more consistent with tab-delimited content across locales.
-        // Include a `sep=\t` directive so Excel honors the delimiter even on locales
-        // that default to semicolons.
-        $content = self::generateCsvContent(
-            $dataset['columns'],
-            $dataset['rows'],
-            $dataset['labels'],
-            "\t",
-            '"',
-            'sep=\t'
-        );
-        $filename = self::buildExportFilename($dataset['table'], 'xls');
-
-        self::respondFile($filename, 'application/vnd.ms-excel; charset=utf-8', $content);
     }
 
     /**

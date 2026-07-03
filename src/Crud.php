@@ -179,7 +179,6 @@ class Crud
             'toolbar_html'        => [],
             'delete_confirm'      => true,
             'export_csv'          => false,
-            'export_excel'        => false,
         ],
         'column_summaries'        => [],
         'field_labels'            => [],
@@ -4890,13 +4889,6 @@ class Crud
         return $this;
     }
 
-    public function enable_export_excel(bool $enabled = true): self
-    {
-        $this->config['table_meta']['export_excel'] = (bool) $enabled;
-
-        return $this;
-    }
-
     public function enable_numbers(bool $enabled = true): self
     {
         $this->config['numbers_enabled'] = (bool) $enabled;
@@ -8016,7 +8008,6 @@ HTML;
             'batch_delete_button_class'     => 'btn btn-sm btn-danger',
             'bulk_apply_button_class'       => 'btn btn-sm btn-outline-primary',
             'export_csv_button_class'       => 'btn btn-sm btn-outline-secondary',
-            'export_excel_button_class'     => 'btn btn-sm btn-outline-secondary',
             'add_button_class'              => 'btn btn-sm btn-success',
             'duplicate_action_button_class' => 'btn btn-sm btn-info',
             'view_action_button_class'      => 'btn btn-sm btn-secondary',
@@ -8050,7 +8041,6 @@ HTML;
             'batch_delete_button_class'     => CrudStyle::$batch_delete_button_class ?? '',
             'bulk_apply_button_class'       => CrudStyle::$bulk_apply_button_class ?? '',
             'export_csv_button_class'       => CrudStyle::$export_csv_button_class ?? '',
-            'export_excel_button_class'     => CrudStyle::$export_excel_button_class ?? '',
             'add_button_class'              => CrudStyle::$add_button_class ?? '',
             'duplicate_action_button_class' => CrudStyle::$duplicate_action_button_class ?? '',
             'view_action_button_class'      => CrudStyle::$view_action_button_class ?? '',
@@ -8110,7 +8100,6 @@ HTML;
                 'batch_delete_button_class',
                 'bulk_apply_button_class',
                 'export_csv_button_class',
-                'export_excel_button_class',
                 'search_button_class',
                 'search_clear_button_class',
                 'filters_button_class',
@@ -8481,7 +8470,6 @@ CSS;
 #{$containerId} .fastcrud-batch-delete-btn,
 #{$containerId} .fastcrud-bulk-apply-btn,
 #{$containerId} .fastcrud-export-csv-btn,
-#{$containerId} .fastcrud-export-excel-btn,
 #{$containerId} .fastcrud-add-btn {
     flex: 0 0 auto;
     white-space: nowrap;
@@ -8999,7 +8987,6 @@ HTML;
                 'toolbar_html'        => $this->getNormalizedToolbarHtmlConfig(),
                 'delete_confirm'      => isset($tableMeta['delete_confirm']) ? (bool) $tableMeta['delete_confirm'] : true,
                 'export_csv'          => isset($tableMeta['export_csv']) ? (bool) $tableMeta['export_csv'] : false,
-                'export_excel'        => isset($tableMeta['export_excel']) ? (bool) $tableMeta['export_excel'] : false,
             ],
             'link_buttons'           => $this->getNormalizedLinkButtonsConfig(),
             'multi_link_buttons'     => $this->getNormalizedMultiLinkButtonsConfig(),
@@ -10792,7 +10779,6 @@ HTML;
                 'batch_delete_button' => isset($meta['batch_delete']) ? (bool) $meta['batch_delete'] : false,
                 'delete_confirm'      => isset($meta['delete_confirm']) ? (bool) $meta['delete_confirm'] : true,
                 'export_csv'          => isset($meta['export_csv']) ? (bool) $meta['export_csv'] : false,
-                'export_excel'        => isset($meta['export_excel']) ? (bool) $meta['export_excel'] : false,
                 'bulk_actions'        => [],
                 'toolbar_actions'     => [],
                 'toolbar_html'        => [],
@@ -14648,9 +14634,6 @@ CSS;
                 if (!Object.prototype.hasOwnProperty.call(seedTableMeta, 'export_csv')) {
                     seedTableMeta.export_csv = false;
                 }
-                if (!Object.prototype.hasOwnProperty.call(seedTableMeta, 'export_excel')) {
-                    seedTableMeta.export_excel = false;
-                }
 
                 var seedMeta = {
                     columns: Array.isArray(clientConfig.columns) ? clientConfig.columns.slice() : [],
@@ -16767,18 +16750,6 @@ CSS;
                     .attr('aria-label', 'Export as CSV')
                     .text('Export CSV');
                 actionsWrapper.append(exportCsvBtn);
-                hasActions = true;
-            }
-
-            if (tableMeta.export_excel) {
-                var exportExcelClass = getStyleClass('export_excel_button_class', 'btn btn-sm btn-outline-secondary');
-                var exportExcelBtn = $('<button type="button"></button>')
-                    .addClass(exportExcelClass)
-                    .addClass('fastcrud-export-excel-btn')
-                    .attr('title', 'Export for Excel')
-                    .attr('aria-label', 'Export for Excel')
-                    .text('Export Excel');
-                actionsWrapper.append(exportExcelBtn);
                 hasActions = true;
             }
 
@@ -22814,11 +22785,10 @@ CSS;
             sendBulkAjax(payload, 'Failed to apply bulk update.');
         }
 
-        function startExport(format) {
-            var action = format === 'excel' ? 'export_excel' : 'export_csv';
+        function startExport() {
             var params = new URLSearchParams();
             params.set('fastcrud_ajax', '1');
-            params.set('action', action);
+            params.set('action', 'export_csv');
             params.set('table', tableName);
             params.set('id', tableId);
             appendCrudConfigToParams(params, true);
@@ -22909,15 +22879,7 @@ CSS;
             event.preventDefault();
             event.stopPropagation();
             syncQueryBuilderToConfig();
-            startExport('csv');
-            return false;
-        });
-
-        metaContainer.on('click', '.fastcrud-export-excel-btn', function(event) {
-            event.preventDefault();
-            event.stopPropagation();
-            syncQueryBuilderToConfig();
-            startExport('excel');
+            startExport();
             return false;
         });
 

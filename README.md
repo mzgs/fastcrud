@@ -31,7 +31,7 @@
 🔄 **AJAX-powered forms**, inline editing, bulk updates, and real-time validation feedback  
 🔗 **Nested tables, relations**, and subselect support for modelling complex data  
 🪝 **Lifecycle callbacks**, custom columns, and field modifiers for fine-grained control  
-📊 **Built-in CSV/Excel export**, soft-delete helpers, and configurable action buttons  
+📊 **Built-in CSV export**, soft-delete helpers, and configurable action buttons  
 🔍 **Visual query builder** to compose filters & sorts with reusable saved views  
 🎨 **Global styling hooks** and upload helpers so you can align the UI with your project
 
@@ -81,7 +81,7 @@ echo new Crud('users')->render();
 📊 **Data Table** with sorting, searching, and pagination  
 ✏️ **Inline Editing** for quick updates  
 📝 **Forms** for create/edit operations  
-📋 **Export** to CSV/Excel  
+📋 **Export** to CSV  
 🗑️ **Bulk Actions** for mass operations
 
 ### 🌍 Complete HTML Example
@@ -889,10 +889,6 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $crud->enable_export_csv();
   ```
-- **`enable_export_excel(bool $enabled = true): self`** – Show or hide the Excel export button.
-  ```php
-  $crud->enable_export_excel();
-  ```
 - **`add_link_button(string|array $urlOrConfig, ?string $iconClass = null, ?string $label = null, ?string $buttonClass = null, array $options = []): self`** – Append a custom toolbar button; call it multiple times to stack more buttons. You can keep the legacy positional arguments or pass a full array payload (keys such as `'url'`, `'icon'`, `'label'`, `'button_class'`, `'options'`) for consistency with other configuration helpers. The `$options` array lets you set arbitrary HTML attributes like `['target' => '_blank']`.
   ```php
   // Array payload for better readability
@@ -1071,7 +1067,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 ### 🔄 FastCrud\CrudAjax - AJAX Request Handler
 
-- **`CrudAjax::handle(): void`** – Process the current FastCRUD AJAX request (`fastcrud_ajax=1`) and emit JSON/CSV/Excel responses as needed.
+- **`CrudAjax::handle(): void`** – Process the current FastCRUD AJAX request (`fastcrud_ajax=1`) and emit JSON/CSV responses as needed.
   ```php
   if (CrudAjax::isAjaxRequest()) {
       CrudAjax::handle();
@@ -1192,7 +1188,6 @@ Customize default CSS classes for buttons, rows, and components throughout FastC
 - **`CrudStyle::$batch_delete_button_class`** – Bulk delete button (default: `'btn btn-sm btn-danger'`)
 - **`CrudStyle::$bulk_apply_button_class`** – Bulk actions apply button (default: `'btn btn-sm btn-outline-primary'`)
 - **`CrudStyle::$export_csv_button_class`** – CSV export button (default: `'btn btn-sm btn-outline-secondary'`)
-- **`CrudStyle::$export_excel_button_class`** – Excel export button (default: `'btn btn-sm btn-outline-secondary'`)
 
 #### 🎯 Row Action Buttons
 
@@ -1240,7 +1235,6 @@ CrudStyle::$edit_view_row_highlight_class = 'table-dark';
 // 🌈 Customize for colorful theme
 CrudStyle::$search_button_class = 'btn btn-info';
 CrudStyle::$export_csv_button_class = 'btn btn-success';
-CrudStyle::$export_excel_button_class = 'btn btn-warning';
 CrudStyle::$bools_in_grid_color = 'success';
 
 // 📱 Customize for mobile/compact theme

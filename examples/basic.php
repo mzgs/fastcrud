@@ -261,7 +261,6 @@ DatabaseEditor::init();
                     ])
                    
                     ->enable_export_csv()
-                    ->enable_export_excel()
                     ->enable_numbers(true)
                   
                     // sdsd
