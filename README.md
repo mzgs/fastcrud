@@ -231,6 +231,26 @@ $users = (new Crud('users'))
 echo $users->render();
 ```
 
+### Field and Column Permissions
+
+Use static booleans or callbacks to hide columns, hide form fields, or make fields read-only by mode or row.
+
+```php
+function canEditRole(array $row, array $context, Crud $crud): bool
+{
+    return ($_SESSION['role'] ?? '') === 'admin';
+}
+
+$users = (new Crud('users'))
+    ->column_visible_if('internal_notes', ($_SESSION['role'] ?? '') === 'admin')
+    ->field_visible_if('salary', ($_SESSION['role'] ?? '') === 'admin', ['edit', 'view'])
+    ->field_editable_if('role', 'canEditRole', 'edit');
+
+echo $users->render();
+```
+
+Permission callbacks receive the current row, a context array with `field` or `column`, `table`, and `mode`, plus the `Crud` instance. Hidden and non-editable fields are also ignored server-side during create/update requests.
+
 ### Upload Fields
 
 ```php
@@ -800,6 +820,18 @@ All customization options are available through the main `FastCrud\Crud` class m
 - **`disabled(string|array $fields, string|array $mode = 'all'): self`** – Disable inputs entirely for certain modes (`'create'`, `'edit'`, `'view'`, `'all'`).
   ```php
   $crud->disabled('type', 'create');
+  ```
+- **`field_visible_if(string|array $fields, bool|string|array $condition, string|array $mode = 'all'): self`** – Hide form fields by static boolean or callback. Callback signature: `(array $row, array $context, Crud $crud): bool`.
+  ```php
+  $crud->field_visible_if('salary', 'canViewSalary', ['edit', 'view']);
+  ```
+- **`field_editable_if(string|array $fields, bool|string|array $condition, string|array $mode = 'all'): self`** – Keep fields visible but non-editable when the condition is false.
+  ```php
+  $crud->field_editable_if('role', ($_SESSION['role'] ?? '') === 'admin', 'edit');
+  ```
+- **`column_visible_if(string|array $columns, bool|string|array $condition): self`** – Hide grid columns by static boolean or callback. Callback signature: `(array $row, array $context, Crud $crud): bool`.
+  ```php
+  $crud->column_visible_if('internal_notes', ($_SESSION['role'] ?? '') === 'admin');
   ```
 
 ---

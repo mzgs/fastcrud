@@ -123,6 +123,7 @@ class Crud
         'custom_query'            => null,
         'subselects'              => [],
         'visible_columns'         => null,
+        'column_visibility_rules' => [],
         'columns_reverse'         => false,
         'column_labels'           => [],
         'column_patterns'         => [],
@@ -206,6 +207,8 @@ class Crud
                 'pass_default'        => [],
                 'readonly'            => [],
                 'disabled'            => [],
+                'visible_if'          => [],
+                'editable_if'         => [],
                 'validation_required' => [],
                 'validation_pattern'  => [],
                 'max_length'          => [],
@@ -1243,6 +1246,20 @@ class Crud
         return $class . '::' . $method;
     }
 
+    private function normalizePermissionRule(bool|string|array $condition): bool|string
+    {
+        if (is_bool($condition)) {
+            return $condition;
+        }
+
+        $serialized = $this->normalizeCallable($condition);
+        if (!is_callable($serialized)) {
+            throw new InvalidArgumentException('Provided permission callback is not callable: ' . $serialized);
+        }
+
+        return $serialized;
+    }
+
     /**
      * @param mixed $payload
      * @param array<string, mixed> $context
@@ -1378,6 +1395,8 @@ class Crud
                 'pass_default'        => [],
                 'readonly'            => [],
                 'disabled'            => [],
+                'visible_if'          => [],
+                'editable_if'         => [],
                 'validation_required' => [],
                 'validation_pattern'  => [],
                 'max_length'          => [],
@@ -1392,6 +1411,8 @@ class Crud
             'pass_default'        => [],
             'readonly'            => [],
             'disabled'            => [],
+            'visible_if'          => [],
+            'editable_if'         => [],
             'validation_required' => [],
             'validation_pattern'  => [],
             'max_length'          => [],
@@ -1480,6 +1501,106 @@ class Crud
         }
 
         return $this;
+    }
+
+    private function applyFormPermissionRule(string|array $fields, string $key, bool|string|array $condition, string|array $mode, string $emptyMessage): self
+    {
+        return $this->applyFormBehaviour(
+            $fields,
+            $key,
+            $this->normalizePermissionRule($condition),
+            $mode,
+            $emptyMessage
+        );
+    }
+
+    /**
+     * @param array<string, mixed>|null $row
+     */
+    private function evaluatePermissionRule(mixed $rule, string $scope, string $name, string $mode = 'all', ?array $row = null): bool
+    {
+        if (is_bool($rule)) {
+            return $rule;
+        }
+
+        if ($rule === null) {
+            return true;
+        }
+
+        if (!is_string($rule) || trim($rule) === '') {
+            return (bool) $rule;
+        }
+
+        $callable = trim($rule);
+        if (!is_callable($callable)) {
+            return true;
+        }
+
+        $context = [
+            'scope' => $scope,
+            'name'  => $name,
+            'table' => $this->table,
+            'mode'  => $mode,
+        ];
+
+        if ($scope === 'field') {
+            $context['field'] = $name;
+        } elseif ($scope === 'column') {
+            $context['column'] = $name;
+        }
+
+        return (bool) call_user_func($callable, $row ?? [], $context, $this);
+    }
+
+    /**
+     * @param array<string, mixed>|null $row
+     */
+    private function isFieldVisible(string $field, string $mode, ?array $row = null): bool
+    {
+        $rules = $this->gatherBehaviourForMode('visible_if', $mode);
+
+        return !isset($rules[$field]) || $this->evaluatePermissionRule($rules[$field], 'field', $field, $mode, $row);
+    }
+
+    /**
+     * @param array<string, mixed>|null $row
+     */
+    private function isFieldEditable(string $field, string $mode, ?array $row = null): bool
+    {
+        $rules = $this->gatherBehaviourForMode('editable_if', $mode);
+
+        return !isset($rules[$field]) || $this->evaluatePermissionRule($rules[$field], 'field', $field, $mode, $row);
+    }
+
+    /**
+     * @param array<string, mixed>|null $row
+     * @return array<string, array{visible: bool, editable: bool}>
+     */
+    private function buildFieldPermissionState(array $fields, string $mode, ?array $row = null): array
+    {
+        $state = [];
+        foreach ($fields as $field) {
+            if (!is_string($field)) {
+                continue;
+            }
+
+            $normalized = $this->normalizeColumnReference($field);
+            if ($normalized === '') {
+                continue;
+            }
+
+            $visible  = $this->isFieldVisible($normalized, $mode, $row);
+            $editable = $visible && $this->isFieldEditable($normalized, $mode, $row);
+
+            if (!$visible || !$editable) {
+                $state[$normalized] = [
+                    'visible'  => $visible,
+                    'editable' => $editable,
+                ];
+            }
+        }
+
+        return $state;
     }
 
     /**
@@ -1964,7 +2085,7 @@ class Crud
                 }
             }
 
-            $modeAwareKeys = ['pass_var', 'pass_default', 'readonly', 'disabled', 'validation_required', 'validation_pattern', 'max_length', 'unique'];
+            $modeAwareKeys = ['pass_var', 'pass_default', 'readonly', 'disabled', 'visible_if', 'editable_if', 'validation_required', 'validation_pattern', 'max_length', 'unique'];
             foreach ($modeAwareKeys as $key) {
                 if (!isset($behaviours[$key]) || !is_array($behaviours[$key])) {
                     continue;
@@ -3521,6 +3642,37 @@ class Crud
 
         $this->config['visible_columns'] = $transformed;
         $this->config['columns_reverse'] = $reverse;
+
+        return $this;
+    }
+
+    /**
+     * @param string|array<int, string> $columns
+     * @param bool|string|array<int, string> $condition Boolean or callable receiving (array $row, array $context, Crud $crud)
+     */
+    public function column_visible_if(string|array $columns, bool|string|array $condition): self
+    {
+        $list = $this->normalizeList($columns);
+        if ($list === []) {
+            throw new InvalidArgumentException('column_visible_if requires at least one column.');
+        }
+
+        $rule    = $this->normalizePermissionRule($condition);
+        $applied = false;
+
+        foreach ($list as $column) {
+            $normalized = $this->normalizeColumnReference($column);
+            if ($normalized === '') {
+                continue;
+            }
+
+            $this->config['column_visibility_rules'][$normalized] = $rule;
+            $applied                                              = true;
+        }
+
+        if (!$applied) {
+            throw new InvalidArgumentException('column_visible_if requires at least one valid column name.');
+        }
 
         return $this;
     }
@@ -5502,6 +5654,26 @@ class Crud
 
     /**
      * @param string|array<int, string> $fields
+     * @param bool|string|array<int, string> $condition Boolean or callable receiving (array $row, array $context, Crud $crud)
+     * @param string|array<int, string> $mode
+     */
+    public function field_visible_if(string|array $fields, bool|string|array $condition, string|array $mode = 'all'): self
+    {
+        return $this->applyFormPermissionRule($fields, 'visible_if', $condition, $mode, 'field_visible_if requires at least one field.');
+    }
+
+    /**
+     * @param string|array<int, string> $fields
+     * @param bool|string|array<int, string> $condition Boolean or callable receiving (array $row, array $context, Crud $crud)
+     * @param string|array<int, string> $mode
+     */
+    public function field_editable_if(string|array $fields, bool|string|array $condition, string|array $mode = 'all'): self
+    {
+        return $this->applyFormPermissionRule($fields, 'editable_if', $condition, $mode, 'field_editable_if requires at least one field.');
+    }
+
+    /**
+     * @param string|array<int, string> $fields
      * @param string|array<int, string> $mode
      */
     public function validation_required(string|array $fields, int $minLength = 1, string|array $mode = 'all'): self
@@ -6708,7 +6880,7 @@ class Crud
     {
         $configured = $this->config['visible_columns'];
         if ($configured === null) {
-            return $available;
+            return $this->applyColumnVisibilityRules($available);
         }
 
         $availableLookup = array_flip($available);
@@ -6721,7 +6893,7 @@ class Crud
                 }
             }
 
-            return $result !== [] ? $result : $available;
+            return $this->applyColumnVisibilityRules($result !== [] ? $result : $available);
         }
 
         $result = [];
@@ -6744,7 +6916,39 @@ class Crud
             }
         }
 
-        return $result !== [] ? $result : $available;
+        return $this->applyColumnVisibilityRules($result !== [] ? $result : $available);
+    }
+
+    /**
+     * @param array<int, string> $columns
+     * @return array<int, string>
+     */
+    private function applyColumnVisibilityRules(array $columns): array
+    {
+        $rules = $this->config['column_visibility_rules'] ?? [];
+        if (!is_array($rules) || $rules === []) {
+            return $columns;
+        }
+
+        $visible = [];
+        foreach ($columns as $column) {
+            if (!is_string($column)) {
+                continue;
+            }
+
+            $normalized = $this->normalizeColumnReference($column);
+            if ($normalized === '') {
+                continue;
+            }
+
+            if (isset($rules[$normalized]) && !$this->evaluatePermissionRule($rules[$normalized], 'column', $normalized)) {
+                continue;
+            }
+
+            $visible[] = $column;
+        }
+
+        return $visible;
     }
 
     /**
@@ -9013,8 +9217,22 @@ HTML;
     {
         $hasFieldCallbacks = $this->config['field_callbacks'] ?? [];
         $hasCustomFields   = $this->config['custom_fields'] ?? [];
+        $behaviours        = $this->config['form']['behaviours'] ?? [];
+        $hasPermissionRules = false;
+        if (is_array($behaviours)) {
+            foreach (['visible_if', 'editable_if'] as $permissionKey) {
+                if (!isset($behaviours[$permissionKey]) || !is_array($behaviours[$permissionKey])) {
+                    continue;
+                }
 
-        if ($hasFieldCallbacks === [] && $hasCustomFields === []) {
+                if ($behaviours[$permissionKey] !== []) {
+                    $hasPermissionRules = true;
+                    break;
+                }
+            }
+        }
+
+        if ($hasFieldCallbacks === [] && $hasCustomFields === [] && !$hasPermissionRules) {
             return [];
         }
 
@@ -9048,7 +9266,12 @@ HTML;
         foreach ($templateRows as $mode) {
             $row                        = $baseRow;
             $row['__fastcrud_template'] = true;
-            $templates[$mode]           = $this->applyFieldCallbacksToRow($row, $mode);
+            $row                        = $this->applyFieldCallbacksToRow($row, $mode);
+            $permissions                = $this->buildFieldPermissionState($allColumns, $mode, $row);
+            if ($permissions !== []) {
+                $row['__fastcrud_field_permissions'] = $permissions;
+            }
+            $templates[$mode] = $row;
         }
 
         return $templates;
@@ -9353,6 +9576,8 @@ HTML;
             'pass_default'        => [],
             'readonly'            => [],
             'disabled'            => [],
+            'visible_if'          => [],
+            'editable_if'         => [],
             'validation_required' => [],
             'validation_pattern'  => [],
             'max_length'          => [],
@@ -9381,7 +9606,7 @@ HTML;
                 }
             }
 
-            $modeAwareKeys = ['pass_var', 'pass_default', 'readonly', 'disabled', 'validation_required', 'validation_pattern', 'max_length', 'unique'];
+            $modeAwareKeys = ['pass_var', 'pass_default', 'readonly', 'disabled', 'visible_if', 'editable_if', 'validation_required', 'validation_pattern', 'max_length', 'unique'];
             foreach ($modeAwareKeys as $key) {
                 if (!isset($sourceBehaviours[$key]) || !is_array($sourceBehaviours[$key])) {
                     continue;
@@ -9997,6 +10222,7 @@ HTML;
             'custom_query'            => $this->config['custom_query'],
             'subselects'              => $this->config['subselects'],
             'visible_columns'         => $this->config['visible_columns'],
+            'column_visibility_rules' => $this->config['column_visibility_rules'],
             'audit_log'               => $this->config['audit_log'],
             'columns_reverse'         => $this->config['columns_reverse'],
             'column_labels'           => $this->config['column_labels'],
@@ -10819,6 +11045,7 @@ HTML;
             'joins',
             'relations',
             'subselects',
+            'column_visibility_rules',
             'column_labels',
             'column_patterns',
             'column_callbacks',
@@ -11572,6 +11799,7 @@ HTML;
         $disabled = $this->gatherBehaviourForMode('disabled', 'create');
 
         $filtered = [];
+        $submittedContext = $fields;
         foreach ($fields as $column => $value) {
             if (!is_string($column)) {
                 continue;
@@ -11581,7 +11809,16 @@ HTML;
                 continue;
             }
 
-            if (isset($readonly[$column]) || isset($disabled[$column])) {
+            $normalizedColumn = $this->normalizeColumnReference($column);
+            if ($normalizedColumn === '') {
+                continue;
+            }
+
+            if (isset($readonly[$normalizedColumn]) || isset($disabled[$normalizedColumn])) {
+                continue;
+            }
+
+            if (!$this->isFieldVisible($normalizedColumn, 'create', $submittedContext) || !$this->isFieldEditable($normalizedColumn, 'create', $submittedContext)) {
                 continue;
             }
 
@@ -11887,7 +12124,17 @@ HTML;
                 continue;
             }
 
-            if (isset($readonly[$column]) || isset($disabled[$column])) {
+            $normalizedColumn = $this->normalizeColumnReference($column);
+            if ($normalizedColumn === '') {
+                continue;
+            }
+
+            if (isset($readonly[$normalizedColumn]) || isset($disabled[$normalizedColumn])) {
+                continue;
+            }
+
+            $permissionContext = array_merge($currentRow, $fields);
+            if (!$this->isFieldVisible($normalizedColumn, $mode, $permissionContext) || !$this->isFieldEditable($normalizedColumn, $mode, $permissionContext)) {
                 continue;
             }
 
@@ -13142,6 +13389,14 @@ HTML;
         $row = is_array($row) ? $row : null;
         if ($row !== null) {
             $row['__fastcrud_render_mode'] = $resolvedMode;
+            $permissionColumns = $this->config['form']['all_columns'] ?? [];
+            if (!is_array($permissionColumns) || $permissionColumns === []) {
+                $permissionColumns = $this->getBaseTableColumns();
+            }
+            $permissions = $this->buildFieldPermissionState($permissionColumns, $resolvedMode, $row);
+            if ($permissions !== []) {
+                $row['__fastcrud_field_permissions'] = $permissions;
+            }
         }
 
         return $row;
@@ -17687,7 +17942,7 @@ CSS;
                 behaviours.change_type = formConfig.behaviours.change_type[field];
             }
 
-            var keys = ['pass_var', 'pass_default', 'readonly', 'disabled', 'validation_required', 'validation_pattern', 'max_length', 'unique'];
+            var keys = ['pass_var', 'pass_default', 'readonly', 'disabled', 'visible_if', 'editable_if', 'validation_required', 'validation_pattern', 'max_length', 'unique'];
             keys.forEach(function(key) {
                 var value = resolveBehaviour(key, field, mode);
                 if (typeof value !== 'undefined') {
@@ -17696,6 +17951,55 @@ CSS;
             });
 
             return behaviours;
+        }
+
+        function normalizePermissionValue(value, fallback) {
+            if (typeof value === 'boolean') {
+                return value;
+            }
+            if (typeof value === 'number') {
+                return value !== 0;
+            }
+            if (typeof value === 'string') {
+                var normalized = value.trim().toLowerCase();
+                if (['1', 'true', 'yes', 'y', 'on', 'enabled', 'enable', 'active'].indexOf(normalized) !== -1) {
+                    return true;
+                }
+                if (['0', 'false', 'no', 'n', 'off', 'disabled', 'disable', 'inactive', 'hidden'].indexOf(normalized) !== -1) {
+                    return false;
+                }
+            }
+
+            return fallback;
+        }
+
+        function getRowFieldPermission(row, field) {
+            if (!row || typeof row !== 'object' || !row.__fastcrud_field_permissions || typeof row.__fastcrud_field_permissions !== 'object') {
+                return null;
+            }
+
+            var permission = row.__fastcrud_field_permissions[field];
+            return permission && typeof permission === 'object' ? permission : null;
+        }
+
+        function isFieldVisibleForRow(field, mode, row) {
+            var permission = getRowFieldPermission(row, field);
+            if (permission && Object.prototype.hasOwnProperty.call(permission, 'visible')) {
+                return normalizePermissionValue(permission.visible, true);
+            }
+
+            var value = resolveBehaviour('visible_if', field, mode);
+            return normalizePermissionValue(value, true);
+        }
+
+        function isFieldEditableForRow(field, mode, row) {
+            var permission = getRowFieldPermission(row, field);
+            if (permission && Object.prototype.hasOwnProperty.call(permission, 'editable')) {
+                return normalizePermissionValue(permission.editable, true);
+            }
+
+            var value = resolveBehaviour('editable_if', field, mode);
+            return normalizePermissionValue(value, true);
         }
 
         function resolveSectionsForMode(mode, availableFields) {
@@ -19760,7 +20064,10 @@ CSS;
                     if (widthAttr.className) { classParts.push(widthAttr.className); }
                     try {
                         var baseKey = String(column).indexOf('__') !== -1 ? String(column).split('__').pop() : String(column);
-                        if (inlineEditFields[String(column)] || inlineEditFields[String(baseKey)]) {
+                        var inlineFieldKey = inlineEditFields[String(column)] ? String(column) : String(baseKey);
+                        if ((inlineEditFields[String(column)] || inlineEditFields[String(baseKey)])
+                            && isFieldVisibleForRow(inlineFieldKey, 'edit', row)
+                            && isFieldEditableForRow(inlineFieldKey, 'edit', row)) {
                             classParts.push('fastcrud-inline-cell');
                         }
                     } catch (e) {}
@@ -19768,7 +20075,10 @@ CSS;
                     var styleEnhance = '';
                     try {
                         var baseKey2 = String(column).indexOf('__') !== -1 ? String(column).split('__').pop() : String(column);
-                        if (inlineEditFields[String(column)] || inlineEditFields[String(baseKey2)]) {
+                        var inlineFieldKey2 = inlineEditFields[String(column)] ? String(column) : String(baseKey2);
+                        if ((inlineEditFields[String(column)] || inlineEditFields[String(baseKey2)])
+                            && isFieldVisibleForRow(inlineFieldKey2, 'edit', row)
+                            && isFieldEditableForRow(inlineFieldKey2, 'edit', row)) {
                             styleEnhance = 'cursor: text;';
                         }
                     } catch (e) {}
@@ -20261,6 +20571,19 @@ CSS;
                 });
                 row.__fastcrud_field_html = deepClone(customFieldHtml);
             }
+            if (templateForMode && typeof templateForMode === 'object' && templateForMode.__fastcrud_field_permissions
+                && typeof templateForMode.__fastcrud_field_permissions === 'object') {
+                var templatePermissions = deepClone(templateForMode.__fastcrud_field_permissions);
+                var rowPermissions = row.__fastcrud_field_permissions && typeof row.__fastcrud_field_permissions === 'object'
+                    ? deepClone(row.__fastcrud_field_permissions)
+                    : {};
+                Object.keys(templatePermissions).forEach(function(key) {
+                    if (!Object.prototype.hasOwnProperty.call(rowPermissions, key)) {
+                        rowPermissions[key] = templatePermissions[key];
+                    }
+                });
+                row.__fastcrud_field_permissions = rowPermissions;
+            }
 
             var layout = buildFormLayout(formMode);
             var fields = layout.fields.slice();
@@ -20284,6 +20607,9 @@ CSS;
             var visibleFields = [];
             fields.forEach(function(field) {
                 if (field.name === rowPrimaryKeyColumn) {
+                    return;
+                }
+                if (!isFieldVisibleForRow(field.name, formMode, row)) {
                     return;
                 }
                 visibleFields.push(field);
@@ -20495,6 +20821,9 @@ CSS;
             visibleFields.forEach(function(field) {
                 var column = field.name;
                 var behaviours = resolveBehavioursForField(column, formMode);
+                if (!isFieldEditableForRow(column, formMode, row)) {
+                    behaviours.readonly = true;
+                }
                 var changeMeta = behaviours.change_type || {};
                 var changeType = String(changeMeta.type || 'text').toLowerCase();
                 if (changeType === 'dropdown') {
@@ -21862,6 +22191,9 @@ CSS;
                 if (field.name === viewPrimaryKeyColumn) {
                     return;
                 }
+                if (!isFieldVisibleForRow(field.name, 'view', row)) {
+                    return;
+                }
                 viewVisibleFields.push(field);
             });
 
@@ -22789,6 +23121,11 @@ CSS;
             var skipInitialCommit = true;
 
             fetchRowByPk(pk.column, pk.value, 'edit').then(function(row){
+                if (!isFieldVisibleForRow(fieldKey, 'edit', row) || !isFieldEditableForRow(fieldKey, 'edit', row)) {
+                    restore();
+                    return;
+                }
+
                 var startValue = row && Object.prototype.hasOwnProperty.call(row, fieldKey) ? (row[fieldKey] == null ? '' : String(row[fieldKey])) : '';
                 if (changeType === 'color') {
                     input.val(ensureColor(startValue)).focus();
