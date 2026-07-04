@@ -92,4 +92,13 @@ class CrudStyle
 
     /** @var string Icon class used for generic dismiss/remove buttons. */
     public static string $x_icon_class = 'fas fa-xmark';
+
+    /**
+     * Global UI text overrides. Keys match Crud::text(), for example:
+     * `add`, `edit`, `delete`, `search`, `clear`, `export_csv`, `no_records`,
+     * `loading`, `delete_selected`, `bulk_actions`, and `apply`.
+     *
+     * @var array<string, string>
+     */
+    public static array $texts = [];
 }

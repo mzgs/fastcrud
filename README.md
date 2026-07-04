@@ -329,24 +329,42 @@ echo $posts->render();
 ### Custom Columns and Row Styling
 
 ```php
-function order_status_badge($value, array $row, string $column, string $display): string
-{
-    $class = match ($value) {
-        'paid' => 'success',
-        'cancelled' => 'danger',
-        default => 'secondary',
-    };
-
-    return '<span class="badge text-bg-' . $class . '">' . htmlspecialchars($display) . '</span>';
-}
-
 $orders = (new Crud('orders'))
-    ->column_callback('status', 'order_status_badge')
+    ->asBadge('status', [
+        'paid' => ['label' => 'Paid', 'class' => 'text-bg-success'],
+        'cancelled' => ['label' => 'Cancelled', 'class' => 'text-bg-danger'],
+    ])
+    ->asMoney('total', '$')
     ->column_summary('total', 'sum', 'Total', 2)
     ->highlight_row('status', '=', 'cancelled', 'table-danger')
     ->column_truncate('notes', 80);
 
 echo $orders->render();
+```
+
+### Reusable Admin Presets
+
+```php
+use FastCrud\Crud;
+
+Crud::preset('admin_table', function (Crud $crud): void {
+    $crud
+        ->limit_list([10, 25, 50, 'all'])
+        ->enable_filters()
+        ->enable_export_csv()
+        ->style('add_button_class', 'btn btn-sm btn-primary')
+        ->text([
+            'add' => 'New',
+            'export_csv' => 'Download CSV',
+            'no_records' => 'Nothing to show.',
+        ]);
+});
+
+echo (new Crud('orders'))
+    ->usePreset('admin_table')
+    ->asBadge('status', ['paid' => 'text-bg-success', 'draft' => 'text-bg-secondary'])
+    ->asDateTime('created_at', 'd.m.Y H:i')
+    ->render();
 ```
 
 ### Row Buttons and Toolbar Actions
@@ -522,6 +540,14 @@ All customization options are available through the main `FastCrud\Crud` class m
   ```php
   $crud = Crud::fromAjax('users', $_GET['fastcrud_id'] ?? null, $_POST['config'] ?? null);
   ```
+- **`Crud::preset(string $name, callable|array $definition): void`** – Register a reusable preset. Callbacks receive the `Crud` instance; array presets use FastCRUD's serializable config payload shape.
+  ```php
+  Crud::preset('admin_table', fn (Crud $crud) => $crud->enable_export_csv()->enable_filters());
+  ```
+- **`usePreset(string|array $names): self`** – Apply one or more registered presets to an instance.
+  ```php
+  echo (new Crud('users'))->usePreset('admin_table')->render();
+  ```
 - **`__construct(string $table, ?PDO $connection = null)`** – Build a CRUD controller for the given table.
   ```php
   $crud = new Crud('users', $customPdo);
@@ -586,6 +612,27 @@ All customization options are available through the main `FastCrud\Crud` class m
 
 ### 📊 Column Presentation
 
+- **`asMoney(string|array $columns, string $currency = '', array $options = []): self`** – Format numeric values as money. Options include `precision`, `decimal_separator`, `thousands_separator`, `position` (`before`/`after`), and `space`.
+  ```php
+  $crud->asMoney('total', '$');
+  $crud->as_money('price', 'TRY', ['position' => 'after', 'precision' => 2]);
+  ```
+- **`asDate(string|array $columns, string $format = 'Y-m-d', array $options = []): self`** and **`asDateTime(string|array $columns, string $format = 'Y-m-d H:i', array $options = []): self`** – Format date and datetime values with PHP date format strings.
+  ```php
+  $crud->asDate('birthday', 'd.m.Y');
+  $crud->asDateTime('created_at', 'd.m.Y H:i');
+  ```
+- **`asBadge(string|array $columns, array $map = [], array $options = []): self`** – Render values as badges. Map values to a class string or to `['label' => ..., 'class' => ...]`.
+  ```php
+  $crud->asBadge('status', [
+      'active' => ['label' => 'Active', 'class' => 'text-bg-success'],
+      'draft' => 'text-bg-secondary',
+  ]);
+  ```
+- **`asBoolean(string|array $columns, array $options = []): self`** – Render boolean-like values as labelled badges. Options include `true_label`, `false_label`, `true_class`, and `false_class`.
+  ```php
+  $crud->asBoolean('is_active', ['true_label' => 'Active', 'false_label' => 'Inactive']);
+  ```
 - **`column_pattern(string|array $columns, string $pattern): self`** – Render column values with template tokens like `{value}`, `{formatted}`, `{raw}`, `{column}`, `{label}`, and any column name from the row.
   ```php
   $crud->column_pattern('email', '<a href="mailto:{raw}">{value}</a>');
@@ -1399,9 +1446,175 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 ---
 
+### 🎛️ Per-Table Text and Theme
+
+- **`text(array|string $texts, ?string $value = null): self`** – Override UI text for one table.
+  ```php
+  $crud->text([
+      'add' => 'New',
+      'search' => 'Find',
+      'export_csv' => 'Download',
+      'no_records' => 'No matching rows.',
+  ]);
+  ```
+- **`style(array|string $styles, ?string $value = null): self`** – Override style classes for one table. Keys match the style option names listed below.
+  ```php
+  $crud->style('add_button_class', 'btn btn-sm btn-primary');
+  ```
+- **`theme(array $theme): self`** – Apply `styles` and `texts` together.
+  ```php
+  $crud->theme([
+      'styles' => ['toolbar_action_button_global_class' => 'btn btn-sm btn-outline-dark'],
+      'texts' => ['filters' => 'Advanced filters'],
+  ]);
+  ```
+
+All per-table `style()` / `theme(['styles' => ...])` keys:
+
+```php
+[
+    'link_button_class',
+    'panel_cancel_button_class',
+    'panel_save_button_class',
+    'search_button_class',
+    'search_clear_button_class',
+    'filters_button_class',
+    'batch_delete_button_class',
+    'bulk_apply_button_class',
+    'export_csv_button_class',
+    'add_button_class',
+    'action_button_global_class',
+    'toolbar_action_button_global_class',
+    'duplicate_action_button_class',
+    'view_action_button_class',
+    'edit_action_button_class',
+    'delete_action_button_class',
+    'nested_toggle_button_classes',
+    'edit_view_row_highlight_class',
+    'bools_in_grid_color',
+    'x_icon_class',
+]
+```
+
+All `text()` / `theme(['texts' => ...])` keys:
+
+```php
+[
+    'add',
+    'add_record',
+    'add_new_record',
+    'edit',
+    'edit_record',
+    'edit_record_with_id',
+    'view',
+    'view_record',
+    'delete',
+    'delete_record',
+    'duplicate',
+    'duplicate_record',
+    'search',
+    'search_placeholder',
+    'clear',
+    'filters',
+    'saved_views',
+    'default_view',
+    'delete_selected_view',
+    'delete_selected',
+    'delete_selected_title',
+    'bulk_actions',
+    'apply',
+    'save_changes',
+    'create_record_new',
+    'changes_saved',
+    'cancel',
+    'close',
+    'export_csv',
+    'export_csv_title',
+    'all_columns',
+    'all',
+    'loading',
+    'loading_data',
+    'loading_nested',
+    'fetching_nested_records',
+    'no_records',
+    'no_record_selected',
+    'no_columns',
+    'pagination',
+    'previous',
+    'next',
+    'showing_range',
+    'open_link',
+    'query_builder',
+    'match_conditions',
+    'all_conditions',
+    'any_condition',
+    'conditions',
+    'filter_help',
+    'sort_order',
+    'sort_help',
+    'add_condition',
+    'add_sort',
+    'save_view',
+]
+```
+
+Template-style text values support these placeholders where relevant:
+
+```php
+[
+    'edit_record_with_id' => 'Edit Record {id}',
+    'loading_nested' => 'Loading {title}...',
+    'showing_range' => 'Showing {start}-{end} of {total}',
+]
+```
+
+---
+
 ### 🎨 FastCrud\CrudStyle - Global Styling Configuration
 
 Customize default CSS classes for buttons, rows, and components throughout FastCRUD by modifying these public static properties. All properties use Bootstrap 5 classes by default but can be overridden with any CSS framework.
+
+- **`CrudStyle::$texts`** – Global UI text overrides using the same keys as `Crud::text()`.
+  ```php
+  CrudStyle::$texts = [
+      'add' => 'New',
+      'save_changes' => 'Save',
+      'no_records' => 'Nothing found.',
+  ];
+  ```
+
+All global `CrudStyle` options:
+
+```php
+CrudStyle::$link_button_class;
+CrudStyle::$panel_cancel_button_class;
+CrudStyle::$panel_save_button_class;
+CrudStyle::$search_button_class;
+CrudStyle::$search_clear_button_class;
+CrudStyle::$filters_button_class;
+CrudStyle::$batch_delete_button_class;
+CrudStyle::$bulk_apply_button_class;
+CrudStyle::$export_csv_button_class;
+CrudStyle::$add_button_class;
+CrudStyle::$action_button_global_class;
+CrudStyle::$toolbar_action_button_global_class;
+CrudStyle::$duplicate_action_button_class;
+CrudStyle::$view_action_button_class;
+CrudStyle::$edit_action_button_class;
+CrudStyle::$delete_action_button_class;
+CrudStyle::$nested_toggle_button_classes;
+CrudStyle::$edit_view_row_highlight_class;
+CrudStyle::$bools_in_grid_color;
+CrudStyle::$view_action_icon;
+CrudStyle::$edit_action_icon;
+CrudStyle::$delete_action_icon;
+CrudStyle::$duplicate_action_icon;
+CrudStyle::$expand_action_icon;
+CrudStyle::$collapse_action_icon;
+CrudStyle::$action_icon_size;
+CrudStyle::$x_icon_class;
+CrudStyle::$texts;
+```
 
 #### 🔘 Toolbar & Action Buttons
 

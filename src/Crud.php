@@ -13,6 +13,11 @@ use Throwable;
 
 class Crud
 {
+    /**
+     * @var array<string, callable|array<string, mixed>>
+     */
+    private static array $presets = [];
+
     private string $table;
     private PDO $connection;
     private string $id;
@@ -87,6 +92,7 @@ class Crud
     private const SUPPORTED_FORM_DISPLAY_MODES = ['offcanvas', 'modal', 'side'];
     private const DEFAULT_FORM_DISPLAY_MODE = 'offcanvas';
     private const SUPPORTED_SOFT_DELETE_MODES = ['timestamp', 'literal', 'expression'];
+    private const SUPPORTED_COLUMN_FORMATTERS = ['money', 'date', 'datetime', 'badge', 'boolean'];
     private const DEFAULT_MULTI_LINK_BUTTON_CLASS = 'btn btn-sm btn-outline-secondary dropdown-toggle';
     private const DEFAULT_MULTI_LINK_MENU_CLASS = 'dropdown-menu dropdown-menu-end';
     private const DEFAULT_MULTI_LINK_CONTAINER_CLASS = 'btn-group';
@@ -129,6 +135,7 @@ class Crud
         'columns_reverse'         => false,
         'column_labels'           => [],
         'column_patterns'         => [],
+        'column_formatters'       => [],
         'column_callbacks'        => [],
         'custom_columns'          => [],
         'field_callbacks'         => [],
@@ -188,6 +195,8 @@ class Crud
             'export_csv'          => false,
         ],
         'column_summaries'        => [],
+        'ui_text'                 => [],
+        'style_overrides'         => [],
         'field_labels'            => [],
         'form_width'              => '30%',
         'form_display_mode'       => self::DEFAULT_FORM_DISPLAY_MODE,
@@ -280,6 +289,169 @@ class Crud
     public function getTable(): string
     {
         return $this->table;
+    }
+
+    /**
+     * Register a reusable CRUD preset.
+     *
+     * Preset callbacks receive the Crud instance and may call any fluent API. Array presets
+     * use the same serializable configuration shape that FastCRUD stores for AJAX requests.
+     *
+     * @param callable|array<string, mixed> $definition
+     */
+    public static function preset(string $name, callable|array $definition): void
+    {
+        $name = trim($name);
+        if ($name === '') {
+            throw new InvalidArgumentException('Preset name cannot be empty.');
+        }
+
+        self::$presets[$name] = $definition;
+    }
+
+    public static function hasPreset(string $name): bool
+    {
+        return isset(self::$presets[trim($name)]);
+    }
+
+    public static function clearPreset(?string $name = null): void
+    {
+        if ($name === null) {
+            self::$presets = [];
+            return;
+        }
+
+        unset(self::$presets[trim($name)]);
+    }
+
+    /**
+     * Apply one or more named presets to this CRUD instance.
+     *
+     * @param string|array<int, string> $names
+     */
+    public function usePreset(string|array $names): self
+    {
+        $presetNames = is_array($names) ? $names : $this->normalizeList($names);
+        if ($presetNames === []) {
+            throw new InvalidArgumentException('usePreset requires at least one preset name.');
+        }
+
+        foreach ($presetNames as $name) {
+            $name = trim((string) $name);
+            if ($name === '') {
+                continue;
+            }
+
+            if (!array_key_exists($name, self::$presets)) {
+                throw new InvalidArgumentException(sprintf('Unknown FastCRUD preset "%s".', $name));
+            }
+
+            $preset = self::$presets[$name];
+            if (is_callable($preset)) {
+                $result = $preset($this);
+                if ($result !== null && !$result instanceof self) {
+                    throw new RuntimeException(sprintf('FastCRUD preset "%s" must return null or a Crud instance.', $name));
+                }
+                continue;
+            }
+
+            if (is_array($preset)) {
+                $this->applyClientConfig($preset);
+                continue;
+            }
+        }
+
+        return $this;
+    }
+
+    public function use_preset(string|array $names): self
+    {
+        return $this->usePreset($names);
+    }
+
+    /**
+     * Override UI text for this table. Pass an associative array, or a single key/value pair.
+     *
+     * @param array<string, string>|string $texts
+     */
+    public function text(array|string $texts, ?string $value = null): self
+    {
+        $updates = is_array($texts) ? $texts : [$texts => $value ?? ''];
+        foreach ($updates as $key => $text) {
+            if (!is_string($key)) {
+                continue;
+            }
+
+            $normalizedKey = $this->normalizeUiTextKey($key);
+            if ($normalizedKey === '' || !is_scalar($text)) {
+                continue;
+            }
+
+            $this->config['ui_text'][$normalizedKey] = (string) $text;
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param array<string, string>|string $texts
+     */
+    public function texts(array|string $texts, ?string $value = null): self
+    {
+        return $this->text($texts, $value);
+    }
+
+    /**
+     * Override style classes for this table. Keys match CrudStyle property names.
+     *
+     * @param array<string, string>|string $styles
+     */
+    public function style(array|string $styles, ?string $value = null): self
+    {
+        $updates = is_array($styles) ? $styles : [$styles => $value ?? ''];
+        foreach ($updates as $key => $style) {
+            if (!is_string($key) || !is_scalar($style)) {
+                continue;
+            }
+
+            $normalizedKey = trim($key);
+            if ($normalizedKey === '') {
+                continue;
+            }
+
+            $classList = $this->normalizeCssClassList((string) $style);
+            if ($classList !== '') {
+                $this->config['style_overrides'][$normalizedKey] = $classList;
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * Apply theme settings with optional `styles` and `texts` keys.
+     *
+     * @param array<string, mixed> $theme
+     */
+    public function theme(array $theme): self
+    {
+        if (isset($theme['styles']) && is_array($theme['styles'])) {
+            $this->style($theme['styles']);
+        }
+
+        if (isset($theme['style']) && is_array($theme['style'])) {
+            $this->style($theme['style']);
+        }
+
+        if (isset($theme['texts']) && is_array($theme['texts'])) {
+            $this->text($theme['texts']);
+        }
+
+        if (isset($theme['text']) && is_array($theme['text'])) {
+            $this->text($theme['text']);
+        }
+
+        return $this;
     }
 
     private function getConfiguredTableTitle(): string
@@ -613,6 +785,234 @@ class Crud
         return $options;
     }
 
+    private function normalizeUiTextKey(string $key): string
+    {
+        $key = strtolower(trim($key));
+        if ($key === '') {
+            return '';
+        }
+
+        $key = str_replace(['-', ' '], '_', $key);
+        $key = preg_replace('/[^a-z0-9_.]+/', '_', $key);
+        if (!is_string($key)) {
+            return '';
+        }
+
+        return trim($key, '_');
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array{type: string, options: array<string, mixed>}
+     */
+    private function normalizeColumnFormatterConfig(string $type, array $options = []): array
+    {
+        $normalizedOptions = [];
+
+        foreach ($options as $key => $value) {
+            if (!is_string($key) || $key === '') {
+                continue;
+            }
+
+            if (is_scalar($value) || $value === null) {
+                $normalizedOptions[$key] = $value;
+                continue;
+            }
+
+            if ($key === 'map' && is_array($value)) {
+                $normalizedMap = [];
+                foreach ($value as $mapValue => $definition) {
+                    if (!is_scalar($mapValue)) {
+                        continue;
+                    }
+
+                    $mapKey = (string) $mapValue;
+                    if (is_scalar($definition) || $definition === null) {
+                        $normalizedMap[$mapKey] = $definition;
+                        continue;
+                    }
+
+                    if (is_array($definition)) {
+                        $entry = [];
+                        foreach (['label', 'class', 'text_class'] as $entryKey) {
+                            if (isset($definition[$entryKey]) && is_scalar($definition[$entryKey])) {
+                                $entry[$entryKey] = (string) $definition[$entryKey];
+                            }
+                        }
+                        if ($entry !== []) {
+                            $normalizedMap[$mapKey] = $entry;
+                        }
+                    }
+                }
+
+                $normalizedOptions['map'] = $normalizedMap;
+            }
+        }
+
+        return [
+            'type'    => $type,
+            'options' => $normalizedOptions,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array{display: string, html: string|null}|null
+     */
+    private function applyColumnFormatter(string $column, mixed $value, array $row): ?array
+    {
+        $formatter = $this->config['column_formatters'][$column] ?? null;
+        if (!is_array($formatter)) {
+            return null;
+        }
+
+        $type = isset($formatter['type']) ? strtolower((string) $formatter['type']) : '';
+        if (!in_array($type, self::SUPPORTED_COLUMN_FORMATTERS, true)) {
+            return null;
+        }
+
+        $options = isset($formatter['options']) && is_array($formatter['options'])
+            ? $formatter['options']
+            : [];
+
+        return match ($type) {
+            'money' => $this->formatMoneyValue($value, $options),
+            'date', 'datetime' => $this->formatDateValue($value, $options),
+            'badge' => $this->formatBadgeValue($value, $options),
+            'boolean' => $this->formatBooleanValue($value, $options),
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array{display: string, html: string|null}
+     */
+    private function formatMoneyValue(mixed $value, array $options): array
+    {
+        if ($value === null || $value === '') {
+            return ['display' => '', 'html' => null];
+        }
+
+        if (!is_numeric($value)) {
+            return ['display' => $this->stringifyValue($value), 'html' => null];
+        }
+
+        $precision = isset($options['precision']) && is_numeric($options['precision'])
+            ? max(0, (int) $options['precision'])
+            : 2;
+        $decimalSeparator  = isset($options['decimal_separator']) && is_scalar($options['decimal_separator']) ? (string) $options['decimal_separator'] : '.';
+        $thousandsSeparator = isset($options['thousands_separator']) && is_scalar($options['thousands_separator']) ? (string) $options['thousands_separator'] : ',';
+        $currency          = isset($options['currency']) && is_scalar($options['currency']) ? trim((string) $options['currency']) : '';
+        $position          = isset($options['position']) && strtolower((string) $options['position']) === 'after' ? 'after' : 'before';
+
+        $formatted = number_format((float) $value, $precision, $decimalSeparator, $thousandsSeparator);
+        if ($currency !== '') {
+            $space     = isset($options['space']) ? (bool) $options['space'] : true;
+            $separator = $space ? ' ' : '';
+            $formatted = $position === 'after'
+                ? $formatted . $separator . $currency
+                : $currency . $separator . $formatted;
+        }
+
+        return ['display' => $formatted, 'html' => null];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array{display: string, html: string|null}
+     */
+    private function formatDateValue(mixed $value, array $options): array
+    {
+        if ($value === null || $value === '') {
+            return ['display' => '', 'html' => null];
+        }
+
+        $raw = $this->stringifyValue($value);
+        try {
+            $date = is_numeric($raw)
+                ? (new \DateTimeImmutable())->setTimestamp((int) $raw)
+                : new \DateTimeImmutable($raw);
+        } catch (\Exception) {
+            return ['display' => $raw, 'html' => null];
+        }
+
+        $format = isset($options['format']) && is_scalar($options['format']) && trim((string) $options['format']) !== ''
+            ? (string) $options['format']
+            : 'Y-m-d';
+
+        return ['display' => $date->format($format), 'html' => null];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array{display: string, html: string|null}
+     */
+    private function formatBadgeValue(mixed $value, array $options): array
+    {
+        $raw       = $this->stringifyValue($value);
+        $map       = isset($options['map']) && is_array($options['map']) ? $options['map'] : [];
+        $entry     = array_key_exists($raw, $map) ? $map[$raw] : null;
+        $label     = $raw;
+        $className = isset($options['default_class']) && is_scalar($options['default_class'])
+            ? trim((string) $options['default_class'])
+            : 'bg-secondary';
+
+        if (is_scalar($entry) && $entry !== '') {
+            $className = (string) $entry;
+        } elseif (is_array($entry)) {
+            if (isset($entry['label']) && is_scalar($entry['label'])) {
+                $label = (string) $entry['label'];
+            }
+            if (isset($entry['class']) && is_scalar($entry['class']) && trim((string) $entry['class']) !== '') {
+                $className = (string) $entry['class'];
+            }
+        }
+
+        if ($label === '' && isset($options['empty_label']) && is_scalar($options['empty_label'])) {
+            $label = (string) $options['empty_label'];
+        }
+
+        $className = $this->normalizeCssClassList($className);
+        if ($className === '') {
+            $className = 'bg-secondary';
+        }
+        if (!str_contains(' ' . $className . ' ', ' badge ')) {
+            $className = 'badge ' . $className;
+        }
+
+        $html = '<span class="' . $this->escapeHtml($className) . '">' . $this->escapeHtml($label) . '</span>';
+
+        return ['display' => $label, 'html' => $html];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array{display: string, html: string|null}
+     */
+    private function formatBooleanValue(mixed $value, array $options): array
+    {
+        $truthy = $this->isTruthy($value);
+        $label  = $truthy
+            ? (isset($options['true_label']) && is_scalar($options['true_label']) ? (string) $options['true_label'] : 'Yes')
+            : (isset($options['false_label']) && is_scalar($options['false_label']) ? (string) $options['false_label'] : 'No');
+
+        $className = $truthy
+            ? (isset($options['true_class']) && is_scalar($options['true_class']) ? (string) $options['true_class'] : 'bg-success')
+            : (isset($options['false_class']) && is_scalar($options['false_class']) ? (string) $options['false_class'] : 'bg-secondary');
+        $className = $this->normalizeCssClassList($className);
+        if ($className === '') {
+            $className = $truthy ? 'bg-success' : 'bg-secondary';
+        }
+        if (!str_contains(' ' . $className . ' ', ' badge ')) {
+            $className = 'badge ' . $className;
+        }
+
+        $html = '<span class="' . $this->escapeHtml($className) . '">' . $this->escapeHtml($label) . '</span>';
+
+        return ['display' => $label, 'html' => $html];
+    }
+
     /**
      * @return array{length:int,suffix:string}|null
      */
@@ -828,7 +1228,7 @@ class Crud
             }
 
             if ($entryType === 'duplicate') {
-                $label = 'Duplicate';
+                $label = $this->uiText('duplicate');
                 if (array_key_exists('label', $entry) && $entry['label'] !== null) {
                     $labelCandidate = trim((string) $entry['label']);
                     if ($labelCandidate !== '') {
@@ -863,7 +1263,7 @@ class Crud
             }
 
             if ($entryType === 'delete') {
-                $label = 'Delete';
+                $label = $this->uiText('delete');
                 if (array_key_exists('label', $entry) && $entry['label'] !== null) {
                     $labelCandidate = trim((string) $entry['label']);
                     if ($labelCandidate !== '') {
@@ -3133,16 +3533,23 @@ class Crud
         $display          = $this->stringifyValue($value);
         $displayOriginal  = $display;
         $formattedDisplay = $display;
+        $html             = null;
+
+        $formatterResult = $this->applyColumnFormatter($column, $value, $row);
+        if ($formatterResult !== null) {
+            $display          = $formatterResult['display'];
+            $displayOriginal  = $display;
+            $formattedDisplay = $display;
+            $html             = $formatterResult['html'];
+        }
 
         $cut = $this->config['column_cuts'][$column]
             ?? $this->config['default_column_truncate']
             ?? null;
-        if (is_array($cut) && isset($cut['length'])) {
+        if ($html === null && is_array($cut) && isset($cut['length'])) {
             $suffix           = isset($cut['suffix']) ? (string) $cut['suffix'] : '…';
             $formattedDisplay = $this->truncateString($formattedDisplay, (int) $cut['length'], $suffix);
         }
-
-        $html = null;
 
         $patternEntry = $this->config['column_patterns'][$column] ?? null;
         if ($patternEntry !== null) {
@@ -4314,6 +4721,132 @@ class Crud
     public function column_cut(string|array $columns, int $length, string $suffix = '…'): self
     {
         return $this->column_truncate($columns, $length, $suffix);
+    }
+
+    /**
+     * Format numeric columns as currency/money values.
+     *
+     * @param string|array<int, string> $columns
+     */
+    public function asMoney(string|array $columns, string $currency = '', array $options = []): self
+    {
+        $options['currency'] = $currency;
+
+        return $this->columnFormatter($columns, 'money', $options);
+    }
+
+    public function as_money(string|array $columns, string $currency = '', array $options = []): self
+    {
+        return $this->asMoney($columns, $currency, $options);
+    }
+
+    /**
+     * Format date columns.
+     *
+     * @param string|array<int, string> $columns
+     */
+    public function asDate(string|array $columns, string $format = 'Y-m-d', array $options = []): self
+    {
+        $options['format'] = $format;
+
+        return $this->columnFormatter($columns, 'date', $options);
+    }
+
+    public function as_date(string|array $columns, string $format = 'Y-m-d', array $options = []): self
+    {
+        return $this->asDate($columns, $format, $options);
+    }
+
+    /**
+     * Format datetime columns.
+     *
+     * @param string|array<int, string> $columns
+     */
+    public function asDateTime(string|array $columns, string $format = 'Y-m-d H:i', array $options = []): self
+    {
+        $options['format'] = $format;
+
+        return $this->columnFormatter($columns, 'datetime', $options);
+    }
+
+    public function as_datetime(string|array $columns, string $format = 'Y-m-d H:i', array $options = []): self
+    {
+        return $this->asDateTime($columns, $format, $options);
+    }
+
+    /**
+     * Render column values as Bootstrap badges.
+     *
+     * `$map` may be `['active' => 'success']` or
+     * `['active' => ['label' => 'Active', 'class' => 'bg-success']]`.
+     *
+     * @param string|array<int, string> $columns
+     * @param array<string, mixed> $map
+     */
+    public function asBadge(string|array $columns, array $map = [], array $options = []): self
+    {
+        $options['map'] = $map;
+
+        return $this->columnFormatter($columns, 'badge', $options);
+    }
+
+    public function as_badge(string|array $columns, array $map = [], array $options = []): self
+    {
+        return $this->asBadge($columns, $map, $options);
+    }
+
+    /**
+     * Render boolean-like values with labels/badges instead of raw database values.
+     *
+     * @param string|array<int, string> $columns
+     */
+    public function asBoolean(string|array $columns, array $options = []): self
+    {
+        return $this->columnFormatter($columns, 'boolean', $options);
+    }
+
+    public function as_boolean(string|array $columns, array $options = []): self
+    {
+        return $this->asBoolean($columns, $options);
+    }
+
+    /**
+     * @param string|array<int, string> $columns
+     * @param array<string, mixed> $options
+     */
+    public function columnFormatter(string|array $columns, string $type, array $options = []): self
+    {
+        $columnList = $this->normalizeList($columns);
+        if ($columnList === []) {
+            throw new InvalidArgumentException('columnFormatter requires at least one column.');
+        }
+
+        $type = strtolower(trim($type));
+        if (!in_array($type, self::SUPPORTED_COLUMN_FORMATTERS, true)) {
+            throw new InvalidArgumentException(sprintf('Unsupported column formatter "%s".', $type));
+        }
+
+        $applied = false;
+        foreach ($columnList as $column) {
+            $normalized = $this->normalizeColumnReference($column);
+            if ($normalized === '') {
+                continue;
+            }
+
+            $this->config['column_formatters'][$normalized] = $this->normalizeColumnFormatterConfig($type, $options);
+            $applied                                       = true;
+        }
+
+        if (!$applied) {
+            throw new InvalidArgumentException('columnFormatter requires at least one valid column name.');
+        }
+
+        return $this;
+    }
+
+    public function column_formatter(string|array $columns, string $type, array $options = []): self
+    {
+        return $this->columnFormatter($columns, $type, $options);
     }
 
 
@@ -8002,7 +8535,7 @@ SQL;
         $columns = $this->getColumnNames();
 
         if ($columns === []) {
-            return '<div class="alert alert-warning">No columns available for this table.</div>';
+            return '<div class="alert alert-warning">' . $this->escapeHtml($this->uiText('no_columns')) . '</div>';
         }
 
         $batchDeleteEnabled  = $this->isBatchDeleteEnabled();
@@ -8032,6 +8565,9 @@ SQL;
         }
 
         $viewStorageKey = $this->buildViewStorageKey($clientConfigPayload);
+        $loadingText    = $this->escapeHtml($this->uiText('loading'));
+        $loadingDataText = $this->escapeHtml($this->uiText('loading_data'));
+        $paginationText = $this->escapeHtml($this->uiText('pagination'));
 
         $containerAttributes = [
             'id'                                   => $rawId . '-container',
@@ -8083,9 +8619,9 @@ $headerHtml
                     <td colspan="{$colspan}" class="text-center fastcrud-loading-placeholder">
                         <div class="d-inline-flex align-items-center gap-2">
                             <div class="spinner-border spinner-border-sm" role="status">
-                                <span class="visually-hidden">Loading...</span>
+                                <span class="visually-hidden">{$loadingText}</span>
                             </div>
-                            <span class="fastcrud-loading-text">Loading data...</span>
+                            <span class="fastcrud-loading-text">{$loadingDataText}</span>
                         </div>
                     </td>
                 </tr>
@@ -8093,7 +8629,7 @@ $headerHtml
             <tfoot id="{$id}-summary" class="fastcrud-summary"></tfoot>
         </table>
     </div>
-    <nav aria-label="Table pagination" class="d-flex flex-wrap align-items-center gap-2 justify-content-between mt-1">
+    <nav aria-label="{$paginationText}" class="d-flex flex-wrap align-items-center gap-2 justify-content-between mt-1">
         <div class="d-flex flex-wrap align-items-center gap-2">
             <ul id="{$id}-pagination" class="pagination justify-content-start mb-0 flex-wrap"></ul>
             <div id="{$id}-toolbar" class="d-flex flex-wrap align-items-center gap-2"></div>
@@ -8386,6 +8922,112 @@ HTML;
     }
 
     /**
+     * @return array<string, string>
+     */
+    private function getUiTextDefaults(): array
+    {
+        $defaults = [
+            'add'                  => 'Add',
+            'add_record'           => 'Add Record',
+            'add_new_record'       => 'Add new record',
+            'edit'                 => 'Edit',
+            'edit_record'          => 'Edit Record',
+            'edit_record_with_id'   => 'Edit Record {id}',
+            'view'                 => 'View',
+            'view_record'          => 'View Record',
+            'delete'               => 'Delete',
+            'delete_record'        => 'Delete record',
+            'duplicate'            => 'Duplicate',
+            'duplicate_record'     => 'Duplicate record',
+            'search'               => 'Search',
+            'search_placeholder'   => 'Search...',
+            'clear'                => 'Clear',
+            'filters'              => 'Filters',
+            'saved_views'          => 'Saved views',
+            'default_view'         => 'Default view',
+            'delete_selected_view' => 'Delete selected view',
+            'delete_selected'      => 'Delete Selected',
+            'delete_selected_title' => 'Delete selected records',
+            'bulk_actions'         => 'Bulk actions',
+            'apply'                => 'Apply',
+            'save_changes'          => 'Save Changes',
+            'create_record_new'     => 'Create Record & New',
+            'changes_saved'         => 'Changes saved successfully.',
+            'cancel'                => 'Cancel',
+            'close'                 => 'Close',
+            'export_csv'           => 'Export CSV',
+            'export_csv_title'     => 'Export as CSV',
+            'all_columns'          => 'All Columns',
+            'all'                  => 'All',
+            'loading'              => 'Loading...',
+            'loading_data'         => 'Loading data...',
+            'loading_nested'       => 'Loading {title}...',
+            'fetching_nested_records' => 'Fetching nested records...',
+            'no_records'           => 'No records found.',
+            'no_record_selected'   => 'No record selected.',
+            'no_columns'           => 'No columns available for this table.',
+            'pagination'           => 'Table pagination',
+            'previous'             => 'Previous',
+            'next'                 => 'Next',
+            'showing_range'        => 'Showing {start}-{end} of {total}',
+            'open_link'            => 'Open link',
+            'query_builder'        => 'Query Builder',
+            'match_conditions'     => 'Match Conditions',
+            'all_conditions'       => 'All conditions (AND)',
+            'any_condition'        => 'Any condition (OR)',
+            'conditions'           => 'Conditions',
+            'filter_help'          => 'Add one or more conditions to filter results',
+            'sort_order'           => 'Sort Order',
+            'sort_help'            => 'Define the priority of ordering',
+            'add_condition'        => 'Add Condition',
+            'add_sort'             => 'Add Sort',
+            'save_view'            => 'Save as View',
+        ];
+
+        $globalTexts = CrudStyle::$texts ?? [];
+        if (is_array($globalTexts)) {
+            foreach ($globalTexts as $key => $value) {
+                if (!is_string($key) || !is_scalar($value)) {
+                    continue;
+                }
+
+                $normalizedKey = $this->normalizeUiTextKey($key);
+                if ($normalizedKey !== '') {
+                    $defaults[$normalizedKey] = (string) $value;
+                }
+            }
+        }
+
+        $instanceTexts = $this->config['ui_text'] ?? [];
+        if (is_array($instanceTexts)) {
+            foreach ($instanceTexts as $key => $value) {
+                if (!is_string($key) || !is_scalar($value)) {
+                    continue;
+                }
+
+                $normalizedKey = $this->normalizeUiTextKey($key);
+                if ($normalizedKey !== '') {
+                    $defaults[$normalizedKey] = (string) $value;
+                }
+            }
+        }
+
+        return $defaults;
+    }
+
+    private function uiText(string $key, ?string $fallback = null): string
+    {
+        $texts         = $this->getUiTextDefaults();
+        $normalizedKey = $this->normalizeUiTextKey($key);
+
+        if ($normalizedKey !== '' && array_key_exists($normalizedKey, $texts)) {
+            return $texts[$normalizedKey];
+        }
+
+        return $fallback ?? $key;
+    }
+
+    /**
      * Merge CrudStyle overrides with library defaults.
      *
      * @return array<string, string>
@@ -8464,6 +9106,23 @@ HTML;
 
             $defaults[$key]         = $trimmed;
             $appliedOverrides[$key] = true;
+        }
+
+        $instanceOverrides = $this->config['style_overrides'] ?? [];
+        if (is_array($instanceOverrides)) {
+            foreach ($instanceOverrides as $key => $value) {
+                if (!is_string($key) || !is_string($value) || !array_key_exists($key, $defaults)) {
+                    continue;
+                }
+
+                $trimmed = trim($value);
+                if ($trimmed === '') {
+                    continue;
+                }
+
+                $defaults[$key]         = $trimmed;
+                $appliedOverrides[$key] = true;
+            }
         }
 
         if ($globalActionClass !== '') {
@@ -8553,26 +9212,32 @@ HTML;
         $styles      = $this->getStyleDefaults();
         $cancelClass = $this->escapeHtml($styles['panel_cancel_button_class']);
         $saveClass   = $this->escapeHtml($styles['panel_save_button_class']);
+        $editRecordText = $this->escapeHtml($this->uiText('edit_record'));
+        $saveChangesText = $this->escapeHtml($this->uiText('save_changes'));
+        $createRecordNewText = $this->escapeHtml($this->uiText('create_record_new'));
+        $changesSavedText = $this->escapeHtml($this->uiText('changes_saved'));
+        $cancelText = $this->escapeHtml($this->uiText('cancel'));
+        $closeText = $this->escapeHtml($this->uiText('close'));
 
         if ($inline) {
             $panelClasses = 'fastcrud-inline-panel card shadow-sm border-0';
             return <<<HTML
 <div class="{$panelClasses}" id="{$panelId}" data-fastcrud-inline="1">
     <div class="card-header border-bottom d-flex align-items-center justify-content-between">
-        <h5 class="mb-0" id="{$labelId}">Edit Record</h5>
+        <h5 class="mb-0" id="{$labelId}">{$editRecordText}</h5>
         <div class="d-flex flex-wrap gap-2 justify-content-end">
-            <button type="submit" form="{$formId}" class="{$saveClass} fastcrud-submit-close" data-fastcrud-submit-action="close">Save Changes</button>
-            <button type="submit" form="{$formId}" class="{$saveClass} fastcrud-submit-new d-none" data-fastcrud-submit-action="new">Create Record &amp; New</button>
+            <button type="submit" form="{$formId}" class="{$saveClass} fastcrud-submit-close" data-fastcrud-submit-action="close">{$saveChangesText}</button>
+            <button type="submit" form="{$formId}" class="{$saveClass} fastcrud-submit-new d-none" data-fastcrud-submit-action="new">{$createRecordNewText}</button>
         </div>
     </div>
     <div class="card-body">
         <form id="{$formId}" novalidate class="d-flex flex-column gap-3">
             <div class="alert alert-danger d-none" id="{$errorId}" role="alert"></div>
-            <div class="alert alert-success d-none" id="{$successId}" role="alert">Changes saved successfully.</div>
+            <div class="alert alert-success d-none" id="{$successId}" role="alert">{$changesSavedText}</div>
             <div id="{$fieldsId}" class="fastcrud-inline-fields"></div>
             <div class="d-flex justify-content-end gap-2 pt-2">
-                <button type="submit" class="{$saveClass} fastcrud-submit-close" data-fastcrud-submit-action="close">Save Changes</button>
-                <button type="submit" class="{$saveClass} fastcrud-submit-new d-none" data-fastcrud-submit-action="new">Create Record &amp; New</button>
+                <button type="submit" class="{$saveClass} fastcrud-submit-close" data-fastcrud-submit-action="close">{$saveChangesText}</button>
+                <button type="submit" class="{$saveClass} fastcrud-submit-new d-none" data-fastcrud-submit-action="new">{$createRecordNewText}</button>
             </div>
         </form>
     </div>
@@ -8586,17 +9251,17 @@ HTML;
     <div class="modal-dialog modal-dialog-scrollable modal-lg"{$modalDialogStyle}>
         <form id="{$formId}" novalidate class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="{$labelId}">Edit Record</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="{$labelId}">{$editRecordText}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{$closeText}"></button>
             </div>
             <div class="modal-body">
                 <div class="alert alert-danger d-none" id="{$errorId}" role="alert"></div>
-                <div class="alert alert-success d-none" id="{$successId}" role="alert">Changes saved successfully.</div>
+                <div class="alert alert-success d-none" id="{$successId}" role="alert">{$changesSavedText}</div>
                 <div id="{$fieldsId}"></div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="{$cancelClass}" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="{$saveClass}">Save Changes</button>
+                <button type="button" class="{$cancelClass}" data-bs-dismiss="modal">{$cancelText}</button>
+                <button type="submit" class="{$saveClass}">{$saveChangesText}</button>
             </div>
         </form>
     </div>
@@ -8608,17 +9273,17 @@ HTML;
             return <<<HTML
 <div class="fastcrud-side-panel card shadow-sm" id="{$panelId}" data-fastcrud-side-panel="1" aria-labelledby="{$labelId}">
     <div class="card-header border-bottom d-flex align-items-center justify-content-between gap-3">
-        <h5 class="mb-0" id="{$labelId}">Edit Record</h5>
-        <button type="button" class="btn-close" data-fastcrud-side-close="1" aria-label="Close"></button>
+        <h5 class="mb-0" id="{$labelId}">{$editRecordText}</h5>
+        <button type="button" class="btn-close" data-fastcrud-side-close="1" aria-label="{$closeText}"></button>
     </div>
     <div class="card-body">
         <form id="{$formId}" novalidate class="d-flex flex-column h-100">
             <div class="alert alert-danger d-none" id="{$errorId}" role="alert"></div>
-            <div class="alert alert-success d-none" id="{$successId}" role="alert">Changes saved successfully.</div>
+            <div class="alert alert-success d-none" id="{$successId}" role="alert">{$changesSavedText}</div>
             <div id="{$fieldsId}" class="fastcrud-side-fields flex-grow-1 overflow-auto"></div>
             <div class="d-flex justify-content-end gap-2 mt-auto pt-3 border-top sticky-bottom">
-                <button type="button" class="{$cancelClass}" data-fastcrud-side-close="1">Cancel</button>
-                <button type="submit" class="{$saveClass}">Save Changes</button>
+                <button type="button" class="{$cancelClass}" data-fastcrud-side-close="1">{$cancelText}</button>
+                <button type="submit" class="{$saveClass}">{$saveChangesText}</button>
             </div>
         </form>
     </div>
@@ -8632,17 +9297,17 @@ HTML;
         return <<<HTML
 <div class="{$panelClasses}" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}"{$widthStyle}{$inlineAttr}>
     <div class="offcanvas-header border-bottom">
-        <h5 class="offcanvas-title" id="{$labelId}">Edit Record</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        <h5 class="offcanvas-title" id="{$labelId}">{$editRecordText}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="{$closeText}"></button>
     </div>
     <div class="offcanvas-body d-flex flex-column">
         <form id="{$formId}" novalidate class="d-flex flex-column h-100">
             <div class="alert alert-danger d-none" id="{$errorId}" role="alert"></div>
-            <div class="alert alert-success d-none" id="{$successId}" role="alert">Changes saved successfully.</div>
+            <div class="alert alert-success d-none" id="{$successId}" role="alert">{$changesSavedText}</div>
             <div id="{$fieldsId}" class="flex-grow-1 overflow-auto"></div>
             <div class="d-flex justify-content-end gap-2 mt-auto pt-3 border-top sticky-bottom">
-                <button type="button" class="{$cancelClass}" data-bs-dismiss="offcanvas">Cancel</button>
-                <button type="submit" class="{$saveClass}">Save Changes</button>
+                <button type="button" class="{$cancelClass}" data-bs-dismiss="offcanvas">{$cancelText}</button>
+                <button type="submit" class="{$saveClass}">{$saveChangesText}</button>
             </div>
         </form>
     </div>
@@ -8663,16 +9328,19 @@ HTML;
             $width      = $this->escapeHtml($this->config['form_width']);
             $widthStyle = " style=\"width: {$width};\"";
         }
+        $viewRecordText       = $this->escapeHtml($this->uiText('view_record'));
+        $noRecordSelectedText = $this->escapeHtml($this->uiText('no_record_selected'));
+        $closeText            = $this->escapeHtml($this->uiText('close'));
 
         if ($inline) {
             $panelClasses = 'fastcrud-inline-panel card shadow-sm border-0';
             return <<<HTML
 <div class="{$panelClasses}" id="{$panelId}" data-fastcrud-inline="1">
     <div class="card-header border-bottom">
-        <h5 class="mb-0" id="{$labelId}">View Record</h5>
+        <h5 class="mb-0" id="{$labelId}">{$viewRecordText}</h5>
     </div>
     <div class="card-body">
-        <div class="alert alert-info d-none" id="{$emptyId}" role="alert">No record selected.</div>
+        <div class="alert alert-info d-none" id="{$emptyId}" role="alert">{$noRecordSelectedText}</div>
         <div id="{$contentId}" class="list-group list-group-flush"></div>
     </div>
 </div>
@@ -8685,11 +9353,11 @@ HTML;
         return <<<HTML
 <div class="{$panelClasses}" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}"{$widthStyle}{$inlineAttr}>
     <div class="offcanvas-header border-bottom">
-        <h5 class="offcanvas-title" id="{$labelId}">View Record</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        <h5 class="offcanvas-title" id="{$labelId}">{$viewRecordText}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="{$closeText}"></button>
     </div>
     <div class="offcanvas-body d-flex flex-column">
-        <div class="alert alert-info d-none" id="{$emptyId}" role="alert">No record selected.</div>
+        <div class="alert alert-info d-none" id="{$emptyId}" role="alert">{$noRecordSelectedText}</div>
         <div id="{$contentId}" class="list-group list-group-flush flex-grow-1 overflow-auto"></div>
     </div>
 </div>
@@ -8710,45 +9378,57 @@ HTML;
         $applyId   = $escapedId . '-qb-apply';
         $clearId   = $escapedId . '-qb-clear';
         $saveId    = $escapedId . '-qb-save';
+        $queryBuilderText = $this->escapeHtml($this->uiText('query_builder'));
+        $matchConditionsText = $this->escapeHtml($this->uiText('match_conditions'));
+        $allConditionsText = $this->escapeHtml($this->uiText('all_conditions'));
+        $anyConditionText = $this->escapeHtml($this->uiText('any_condition'));
+        $conditionsText = $this->escapeHtml($this->uiText('conditions'));
+        $filterHelpText = $this->escapeHtml($this->uiText('filter_help'));
+        $sortOrderText = $this->escapeHtml($this->uiText('sort_order'));
+        $sortHelpText = $this->escapeHtml($this->uiText('sort_help', 'Define the priority of ordering'));
+        $clearText = $this->escapeHtml($this->uiText('clear'));
+        $saveViewText = $this->escapeHtml($this->uiText('save_view'));
+        $applyText = $this->escapeHtml($this->uiText('apply'));
+        $closeText = $this->escapeHtml($this->uiText('close'));
 
         return <<<HTML
 <div class="modal fade fastcrud-query-builder" id="{$modalId}" tabindex="-1" aria-labelledby="{$modalId}-label" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="{$modalId}-label">Query Builder</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title" id="{$modalId}-label">{$queryBuilderText}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{$closeText}"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label for="{$logicId}" class="form-label">Match Conditions</label>
+                    <label for="{$logicId}" class="form-label">{$matchConditionsText}</label>
                     <select id="{$logicId}" class="form-select form-select-sm" style="max-width: 14rem;">
-                        <option value="AND">All conditions (AND)</option>
-                        <option value="OR">Any condition (OR)</option>
+                        <option value="AND">{$allConditionsText}</option>
+                        <option value="OR">{$anyConditionText}</option>
                     </select>
                 </div>
                 <div class="mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="mb-0">Filters</h6>
-                        <small class="text-muted">Add one or more conditions to filter results</small>
+                        <h6 class="mb-0">{$conditionsText}</h6>
+                        <small class="text-muted">{$filterHelpText}</small>
                     </div>
                     <div id="{$filtersId}"></div>
                 </div>
                 <div class="mb-2">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="mb-0">Sort Order</h6>
-                        <small class="text-muted">Define the priority of ordering</small>
+                        <h6 class="mb-0">{$sortOrderText}</h6>
+                        <small class="text-muted">{$sortHelpText}</small>
                     </div>
                     <div id="{$sortsId}"></div>
                 </div>
             </div>
             <div class="modal-footer d-flex align-items-center">
                 <div class="me-auto d-flex gap-2">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="{$clearId}">Clear</button>
-                    <button type="button" class="btn btn-sm btn-outline-primary" id="{$saveId}">Save as View</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="{$clearId}">{$clearText}</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="{$saveId}">{$saveViewText}</button>
                 </div>
                 <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-primary" id="{$applyId}">Apply</button>
+                    <button type="button" class="btn btn-primary" id="{$applyId}">{$applyText}</button>
                 </div>
             </div>
         </div>
@@ -10209,6 +10889,8 @@ HTML;
                 'upload_path' => CrudConfig::getUploadServePath(),
             ],
             'upload_limits'   => $this->buildUploadLimitsClientPayload(),
+            'ui_text'         => $this->config['ui_text'],
+            'style_overrides' => $this->config['style_overrides'],
             'debug'           => (bool) CrudConfig::$debug,
         ];
     }
@@ -10399,6 +11081,7 @@ HTML;
             'columns_reverse'         => $this->config['columns_reverse'],
             'column_labels'           => $this->config['column_labels'],
             'column_patterns'         => $this->config['column_patterns'],
+            'column_formatters'       => $this->config['column_formatters'],
             'column_callbacks'        => $this->config['column_callbacks'],
             'custom_columns'          => $this->config['custom_columns'],
             'field_callbacks'         => $this->config['field_callbacks'],
@@ -10416,6 +11099,8 @@ HTML;
             'action_button_sequence'  => $this->getActionButtonSequence(),
             'table_meta'              => $this->config['table_meta'],
             'column_summaries'        => $this->config['column_summaries'],
+            'ui_text'                 => $this->config['ui_text'],
+            'style_overrides'         => $this->config['style_overrides'],
             'field_labels'            => $this->config['field_labels'],
             'form_display_mode'       => $this->normalizeFormDisplayMode((string) ($this->config['form_display_mode'] ?? self::DEFAULT_FORM_DISPLAY_MODE)),
             'primary_key'             => $this->primaryKeyColumn,
@@ -11221,6 +11906,7 @@ HTML;
             'column_visibility_rules',
             'column_labels',
             'column_patterns',
+            'column_formatters',
             'column_callbacks',
             'column_classes',
             'column_widths',
@@ -11228,6 +11914,8 @@ HTML;
             'column_highlights',
             'row_highlights',
             'column_summaries',
+            'ui_text',
+            'style_overrides',
         ];
         foreach ($arrayKeys as $key) {
             if (isset($payload[$key]) && is_array($payload[$key])) {
@@ -11729,6 +12417,64 @@ HTML;
                 $patterns[$normalizedColumn] = $template;
             }
             $this->config['column_patterns'] = $patterns;
+        }
+
+        if (isset($payload['column_formatters']) && is_array($payload['column_formatters'])) {
+            $formatters = [];
+            foreach ($payload['column_formatters'] as $column => $definition) {
+                if (!is_string($column) || !is_array($definition)) {
+                    continue;
+                }
+
+                $normalizedColumn = $this->normalizeColumnReference($column);
+                if ($normalizedColumn === '') {
+                    continue;
+                }
+
+                $type = isset($definition['type']) ? strtolower(trim((string) $definition['type'])) : '';
+                if (!in_array($type, self::SUPPORTED_COLUMN_FORMATTERS, true)) {
+                    continue;
+                }
+
+                $options = isset($definition['options']) && is_array($definition['options'])
+                    ? $definition['options']
+                    : [];
+                $formatters[$normalizedColumn] = $this->normalizeColumnFormatterConfig($type, $options);
+            }
+
+            $this->config['column_formatters'] = $formatters;
+        }
+
+        if (isset($payload['ui_text']) && is_array($payload['ui_text'])) {
+            $texts = [];
+            foreach ($payload['ui_text'] as $key => $value) {
+                if (!is_string($key) || !is_scalar($value)) {
+                    continue;
+                }
+
+                $normalizedKey = $this->normalizeUiTextKey($key);
+                if ($normalizedKey !== '') {
+                    $texts[$normalizedKey] = (string) $value;
+                }
+            }
+
+            $this->config['ui_text'] = $texts;
+        }
+
+        if (isset($payload['style_overrides']) && is_array($payload['style_overrides'])) {
+            $styles = [];
+            foreach ($payload['style_overrides'] as $key => $value) {
+                if (!is_string($key) || !is_scalar($value)) {
+                    continue;
+                }
+
+                $normalizedStyle = $this->normalizeCssClassList((string) $value);
+                if ($normalizedStyle !== '') {
+                    $styles[trim($key)] = $normalizedStyle;
+                }
+            }
+
+            $this->config['style_overrides'] = $styles;
         }
 
         if (isset($payload['column_cuts']) && is_array($payload['column_cuts'])) {
@@ -13600,6 +14346,13 @@ HTML;
         if (!is_string($styleJson)) {
             $styleJson = '{}';
         }
+        $textJson = json_encode(
+            $this->getUiTextDefaults(),
+            JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP
+        );
+        if (!is_string($textJson)) {
+            $textJson = '{}';
+        }
 
         $select2ThemeCss     = <<<'CSS'
 :root, [data-bs-theme=light]{
@@ -13836,6 +14589,7 @@ CSS;
 
         var tableId = '$id';
         var styleDefaults = {$styleJson};
+        var textDefaults = {$textJson};
         var editViewHighlightClass = getStyleClass('edit_view_row_highlight_class', 'table-warning');
         var dismissIconClass = getStyleClass('x_icon_class', 'fas fa-xmark');
         var table = $('#' + tableId);
@@ -13855,6 +14609,29 @@ CSS;
                 clientConfig = {};
             }
         }
+
+        function t(key, fallback, replacements) {
+            var value = '';
+            var found = false;
+            if (clientConfig && clientConfig.ui_text && Object.prototype.hasOwnProperty.call(clientConfig.ui_text, key)) {
+                value = String(clientConfig.ui_text[key] || '');
+                found = true;
+            }
+            if (!found && textDefaults && Object.prototype.hasOwnProperty.call(textDefaults, key)) {
+                value = String(textDefaults[key] || '');
+                found = true;
+            }
+            if (!found) {
+                value = typeof fallback === 'string' ? fallback : key;
+            }
+            if (replacements && typeof replacements === 'object') {
+                Object.keys(replacements).forEach(function(token) {
+                    value = value.replace(new RegExp('\\{' + token + '\\}', 'g'), String(replacements[token]));
+                });
+            }
+            return value;
+        }
+
         function hasObjectEntries(value) {
             if (!value || typeof value !== 'object') {
                 return false;
@@ -14425,7 +15202,7 @@ CSS;
 
             var current = viewSelect.val() || '';
             viewSelect.empty();
-            viewSelect.append('<option value="">Default view</option>');
+            viewSelect.append($('<option></option>').attr('value', '').text(t('default_view', 'Default view')));
             savedViews.forEach(function(view) {
                 if (!view || typeof view.name !== 'string') {
                     return;
@@ -15213,8 +15990,8 @@ CSS;
                 overlay = $('<div class="fastcrud-loading-overlay" aria-live="polite"></div>');
                 var message = $('<div class="fastcrud-loading-message"></div>');
                 var spinner = $('<span class="spinner-border spinner-border-sm" role="status"></span>');
-                spinner.append('<span class="visually-hidden">Loading...</span>');
-                var text = $('<span class="fastcrud-loading-text"></span>').text('Loading...');
+                spinner.append($('<span class="visually-hidden"></span>').text(t('loading', 'Loading...')));
+                var text = $('<span class="fastcrud-loading-text"></span>').text(t('loading', 'Loading...'));
                 message.append(spinner).append(text);
                 overlay.append(message);
                 target.append(overlay);
@@ -15231,7 +16008,7 @@ CSS;
             if (!text.length) {
                 return;
             }
-            text.text(message || 'Loading...');
+            text.text(message || t('loading', 'Loading...'));
         }
 
         function beginLoadingState() {
@@ -17261,7 +18038,7 @@ CSS;
             // Always render the select and include an "All" option first
             searchSelect = $('<select class="form-select"></select>');
             // "All" option: empty value so it maps to null in state
-            var allOption = $('<option></option>').attr('value', '').text('All Columns');
+            var allOption = $('<option></option>').attr('value', '').text(t('all_columns', 'All Columns'));
             if (!currentSearchColumn) {
                 allOption.attr('selected', 'selected');
             }
@@ -17286,7 +18063,9 @@ CSS;
             });
             searchGroup.append(searchSelect);
 
-            searchInput = $('<input type="search" class="form-control" placeholder="Search..." aria-label="Search">');
+            searchInput = $('<input type="search" class="form-control">')
+                .attr('placeholder', t('search_placeholder', 'Search...'))
+                .attr('aria-label', t('search', 'Search'));
             searchInput.on('keydown', function(event) {
                 if (event.key === 'Enter') {
                     event.preventDefault();
@@ -17297,13 +18076,13 @@ CSS;
             searchGroup.append(searchInput);
 
             var searchButtonClass = getStyleClass('search_button_class', 'btn btn-outline-primary');
-            searchButton = $('<button type="button">Search</button>').addClass(searchButtonClass).addClass('fastcrud-search-btn');
+            searchButton = $('<button type="button"></button>').text(t('search', 'Search')).addClass(searchButtonClass).addClass('fastcrud-search-btn');
             searchButton.on('click', function() {
                 triggerSearch();
             });
 
             var clearButtonClass = getStyleClass('search_clear_button_class', 'btn btn-outline-secondary');
-            clearButton = $('<button type="button">Clear</button>').addClass(clearButtonClass).addClass('fastcrud-search-clear-btn');
+            clearButton = $('<button type="button"></button>').text(t('clear', 'Clear')).addClass(clearButtonClass).addClass('fastcrud-search-clear-btn');
             clearButton.on('click', function() {
                 currentSearchTerm = '';
                 if (searchInput) {
@@ -17367,21 +18146,26 @@ CSS;
                 var savedViewGroup = $('<div class="input-group input-group-sm fastcrud-saved-view-group"></div>');
                 viewControlsWrapper.append(savedViewGroup);
 
-                viewSelect = $('<select class="form-select fastcrud-view-select" aria-label="Saved views"></select>');
+                viewSelect = $('<select class="form-select fastcrud-view-select"></select>')
+                    .attr('aria-label', t('saved_views', 'Saved views'));
                 viewSelect.on('change', function() {
                     applySavedViewByName($(this).val() ? String($(this).val()) : '');
                 });
                 savedViewGroup.append(viewSelect);
 
-                deleteViewButton = $('<button type="button" class="btn btn-outline-danger" title="Delete selected view" aria-label="Delete selected view"></button>');
+                deleteViewButton = $('<button type="button" class="btn btn-outline-danger"></button>')
+                    .attr('title', t('delete_selected_view', 'Delete selected view'))
+                    .attr('aria-label', t('delete_selected_view', 'Delete selected view'));
                 deleteViewButton.append($('<i aria-hidden="true"></i>').addClass(dismissIconClass));
-                deleteViewButton.append('<span class="visually-hidden">Delete</span>');
+                deleteViewButton.append($('<span class="visually-hidden"></span>').text(t('delete', 'Delete')));
                 deleteViewButton.on('click', function() {
                     deleteCurrentView();
                 });
                 savedViewGroup.append(deleteViewButton);
 
-                filtersButton = $('<button type="button" class="fastcrud-open-query-builder align-self-stretch">Filters <span class="badge bg-primary ms-2 fastcrud-filter-count d-none"></span></button>');
+                filtersButton = $('<button type="button" class="fastcrud-open-query-builder align-self-stretch"></button>');
+                filtersButton.append(document.createTextNode(t('filters', 'Filters') + ' '));
+                filtersButton.append('<span class="badge bg-primary ms-2 fastcrud-filter-count d-none"></span>');
                 filtersButton.addClass(getStyleClass('filters_button_class', 'btn btn-sm btn-outline-secondary'));
                 filtersButtonBadge = filtersButton.find('.fastcrud-filter-count');
                 filtersButton.on('click', function() {
@@ -17496,14 +18280,14 @@ CSS;
                     }
                     button.append(labelSpan);
                 } else if (!hasIcon) {
-                    button.append('<span class="visually-hidden">Open link</span>');
+                    button.append($('<span class="visually-hidden"></span>').text(t('open_link', 'Open link')));
                 }
 
                 if (!hasTitle && labelText.length) {
                     button.attr('title', labelText);
                 }
                 if (!hasAriaLabel) {
-                    button.attr('aria-label', labelText.length ? labelText : 'Open link');
+                    button.attr('aria-label', labelText.length ? labelText : t('open_link', 'Open link'));
                 }
                 if (!hasRole) {
                     button.attr('role', 'button');
@@ -17554,9 +18338,9 @@ CSS;
                 var batchDeleteEl = $('<button type="button" disabled></button>')
                     .addClass(batchDeleteButtonClass)
                     .addClass('fastcrud-batch-delete-btn d-none')
-                    .attr('title', 'Delete selected records')
-                    .attr('aria-label', 'Delete selected records')
-                    .text('Delete Selected');
+                    .attr('title', t('delete_selected_title', 'Delete selected records'))
+                    .attr('aria-label', t('delete_selected_title', 'Delete selected records'))
+                    .text(t('delete_selected', 'Delete Selected'));
                 actionsWrapper.append(batchDeleteEl);
                 hasActions = true;
             }
@@ -17565,7 +18349,7 @@ CSS;
             if (localBulkActions.length) {
                 var bulkWrapper = $('<div class="d-flex align-items-center gap-2 fastcrud-bulk-actions"></div>');
                 var bulkSelect = $('<select class="form-select form-select-sm fastcrud-bulk-action-select"></select>');
-                bulkSelect.append('<option value="">Bulk actions</option>');
+                bulkSelect.append($('<option></option>').attr('value', '').text(t('bulk_actions', 'Bulk actions')));
 
                 localBulkActions.forEach(function(action, index) {
                     if (!action || typeof action !== 'object') {
@@ -17588,7 +18372,8 @@ CSS;
 
                 bulkWrapper.append(bulkSelect);
                 var bulkApplyButtonClass = getStyleClass('bulk_apply_button_class', 'btn btn-sm btn-outline-primary');
-                var bulkApplyBtn = $('<button type="button" disabled>Apply</button>')
+                var bulkApplyBtn = $('<button type="button" disabled></button>')
+                    .text(t('apply', 'Apply'))
                     .addClass(bulkApplyButtonClass)
                     .addClass('fastcrud-bulk-apply-btn');
                 bulkWrapper.append(bulkApplyBtn);
@@ -17601,9 +18386,9 @@ CSS;
                 var exportCsvBtn = $('<button type="button"></button>')
                     .addClass(exportCsvClass)
                     .addClass('fastcrud-export-csv-btn')
-                    .attr('title', 'Export as CSV')
-                    .attr('aria-label', 'Export as CSV')
-                    .text('Export CSV');
+                    .attr('title', t('export_csv_title', 'Export as CSV'))
+                    .attr('aria-label', t('export_csv_title', 'Export as CSV'))
+                    .text(t('export_csv', 'Export CSV'));
                 actionsWrapper.append(exportCsvBtn);
                 hasActions = true;
             }
@@ -17613,10 +18398,10 @@ CSS;
                 var addButton = $('<button type="button"></button>')
                     .addClass(addButtonClass)
                     .addClass('fastcrud-add-btn')
-                    .attr('title', 'Add new record')
-                    .attr('aria-label', 'Add new record')
+                    .attr('title', t('add_new_record', 'Add new record'))
+                    .attr('aria-label', t('add_new_record', 'Add new record'))
                     .append('<i class="fas fa-plus"></i> ')
-                    .append(document.createTextNode('Add'));
+                    .append(document.createTextNode(t('add', 'Add')));
 
                 actionsWrapper.append(addButton);
                 hasActions = true;
@@ -18828,9 +19613,9 @@ CSS;
                 .addClass('text-center fastcrud-loading-placeholder');
             var wrapper = $('<div class="d-inline-flex align-items-center gap-2"></div>');
             var spinner = $('<span class="spinner-border spinner-border-sm" role="status"></span>');
-            spinner.append('<span class="visually-hidden">Loading...</span>');
+            spinner.append($('<span class="visually-hidden"></span>').text(t('loading', 'Loading...')));
             wrapper.append(spinner);
-            wrapper.append($('<span class="fastcrud-loading-text"></span>').text(message || 'Loading...'));
+            wrapper.append($('<span class="fastcrud-loading-text"></span>').text(message || t('loading', 'Loading...')));
             cell.append(wrapper);
             row.append(cell);
             tbody.html(row);
@@ -18843,7 +19628,7 @@ CSS;
                 $('<td></td>')
                     .attr('colspan', colspan)
                     .addClass('text-center text-muted')
-                    .text(message || 'No records found.')
+                    .text(message || t('no_records', 'No records found.'))
             );
             tbody.append(row);
         }
@@ -18900,7 +19685,7 @@ CSS;
 
                     if (value === 'all') {
                         optionValue = 'all';
-                        optionLabel = 'All';
+                        optionLabel = t('all', 'All');
                     }
 
                     var option = $('<option></option>')
@@ -18940,7 +19725,8 @@ CSS;
                 prevItem.addClass('disabled');
             }
             prevItem.append(
-                $('<a class="page-link rounded-start" href="javascript:void(0)" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a>')
+                $('<a class="page-link rounded-start" href="javascript:void(0)"><span aria-hidden="true">&laquo;</span></a>')
+                    .attr('aria-label', t('previous', 'Previous'))
                     .on('click', function(event) {
                         event.preventDefault();
                         event.stopPropagation();
@@ -18978,7 +19764,8 @@ CSS;
                 nextItem.addClass('disabled');
             }
             nextItem.append(
-                $('<a class="page-link rounded-end" href="javascript:void(0)" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>')
+                $('<a class="page-link rounded-end" href="javascript:void(0)"><span aria-hidden="true">&raquo;</span></a>')
+                    .attr('aria-label', t('next', 'Next'))
                     .on('click', function(event) {
                         event.preventDefault();
                         event.stopPropagation();
@@ -18993,7 +19780,11 @@ CSS;
             if (rangeDisplay.length) {
                 var startRange = totalRows === 0 ? 0 : ((current - 1) * pagination.per_page) + 1;
                 var endRange = totalRows === 0 ? 0 : Math.min(current * pagination.per_page, totalRows);
-                rangeDisplay.text('Showing ' + startRange + '-' + endRange + ' of ' + totalRows);
+                rangeDisplay.text(t('showing_range', 'Showing {start}-{end} of {total}', {
+                    start: startRange,
+                    end: endRange,
+                    total: totalRows
+                }));
             }
         }
 
@@ -19013,10 +19804,10 @@ CSS;
 
             var buttonGroup = $('<div class="btn-group btn-group-sm" role="group" aria-label="Pagination"></div>');
             buttonGroup
-                .append(createCompactPaginationButton('Previous', 'fas fa-chevron-left', current > 1, function() {
+                .append(createCompactPaginationButton(t('previous', 'Previous'), 'fas fa-chevron-left', current > 1, function() {
                     loadTableData(current - 1);
                 }))
-                .append(createCompactPaginationButton('Next', 'fas fa-chevron-right', current < totalPages, function() {
+                .append(createCompactPaginationButton(t('next', 'Next'), 'fas fa-chevron-right', current < totalPages, function() {
                     loadTableData(current + 1);
                 }));
 
@@ -19046,7 +19837,11 @@ CSS;
             var startRange = totalRows === 0 ? 0 : ((current - 1) * pagination.per_page) + 1;
             var endRange = totalRows === 0 ? 0 : Math.min(current * pagination.per_page, totalRows);
 
-            return 'Showing ' + startRange + '-' + endRange + ' of ' + totalRows;
+            return t('showing_range', 'Showing {start}-{end} of {total}', {
+                start: startRange,
+                end: endRange,
+                total: totalRows
+            });
         }
 
         function createPageItem(pageNumber, isActive) {
@@ -19228,7 +20023,7 @@ CSS;
                 });
 
                 if (!hasAriaAttr) {
-                    var ariaLabel = labelText ? labelText : 'Open link';
+                    var ariaLabel = labelText ? labelText : t('open_link', 'Open link');
                     attrString += ' aria-label="' + escapeHtml(ariaLabel) + '"';
                 }
                 if (!hasTitleAttr && labelText) {
@@ -19248,7 +20043,7 @@ CSS;
                 } else if (labelText) {
                     contentHtml = escapeHtml(labelText);
                 } else {
-                    contentHtml = '<span class="visually-hidden">Open link</span>';
+                    contentHtml = '<span class="visually-hidden">' + escapeHtml(t('open_link', 'Open link')) + '</span>';
                 }
 
                 var classAttr = classParts.join(' ');
@@ -19299,7 +20094,7 @@ CSS;
                         var duplicateLabelRaw = typeof item.label === 'string' ? item.label : '';
                         var duplicateLabel = duplicateLabelRaw.trim();
                         if (!duplicateLabel) {
-                            duplicateLabel = 'Duplicate';
+                            duplicateLabel = t('duplicate', 'Duplicate');
                         }
 
                         var duplicateClassParts = ['dropdown-item', 'fastcrud-multi-link-item', 'fastcrud-duplicate-btn'];
@@ -19387,7 +20182,7 @@ CSS;
                         var deleteLabelRaw = typeof item.label === 'string' ? item.label : '';
                         var deleteLabel = deleteLabelRaw.trim();
                         if (!deleteLabel) {
-                            deleteLabel = 'Delete';
+                            deleteLabel = t('delete', 'Delete');
                         }
 
                         var deleteClassParts = ['dropdown-item', 'fastcrud-multi-link-item', 'fastcrud-delete-btn'];
@@ -19919,7 +20714,7 @@ CSS;
                 if (allowDuplicate) {
                     // Place duplicate button to the left of other action buttons
                     var duplicateClassAttr = (duplicateActionClass + ' fastcrud-action-button fastcrud-duplicate-btn').trim();
-                    fragments.push('<button type="button" class="' + escapeHtml(duplicateClassAttr) + '" title="Duplicate" aria-label="Duplicate record">' + actionIcons.duplicate + '</button>');
+                    fragments.push('<button type="button" class="' + escapeHtml(duplicateClassAttr) + '" title="' + escapeHtml(t('duplicate', 'Duplicate')) + '" aria-label="' + escapeHtml(t('duplicate_record', 'Duplicate record')) + '">' + actionIcons.duplicate + '</button>');
                 }
             }
 
@@ -19930,7 +20725,7 @@ CSS;
 
                 if (allowView) {
                     var viewClassAttr = (viewActionClass + ' fastcrud-action-button fastcrud-view-btn').trim();
-                    fragments.push('<button type="button" class="' + escapeHtml(viewClassAttr) + '" title="View" aria-label="View record">' + actionIcons.view + '</button>');
+                    fragments.push('<button type="button" class="' + escapeHtml(viewClassAttr) + '" title="' + escapeHtml(t('view', 'View')) + '" aria-label="' + escapeHtml(t('view_record', 'View record')) + '">' + actionIcons.view + '</button>');
                 }
             }
 
@@ -19941,7 +20736,7 @@ CSS;
 
                 if (allowEdit) {
                     var editClassAttr = (editActionClass + ' fastcrud-action-button fastcrud-edit-btn').trim();
-                    fragments.push('<button type="button" class="' + escapeHtml(editClassAttr) + '" title="Edit" aria-label="Edit record">' + actionIcons.edit + '</button>');
+                    fragments.push('<button type="button" class="' + escapeHtml(editClassAttr) + '" title="' + escapeHtml(t('edit', 'Edit')) + '" aria-label="' + escapeHtml(t('edit_record', 'Edit record')) + '">' + actionIcons.edit + '</button>');
                 }
             }
 
@@ -19952,7 +20747,7 @@ CSS;
 
                 if (allowDelete) {
                     var deleteClassAttr = (deleteActionClass + ' fastcrud-action-button fastcrud-delete-btn').trim();
-                    fragments.push('<button type="button" class="' + escapeHtml(deleteClassAttr) + '" title="Delete" aria-label="Delete record">' + actionIcons.delete + '</button>');
+                    fragments.push('<button type="button" class="' + escapeHtml(deleteClassAttr) + '" title="' + escapeHtml(t('delete', 'Delete')) + '" aria-label="' + escapeHtml(t('delete_record', 'Delete record')) + '">' + actionIcons.delete + '</button>');
                 }
             }
 
@@ -20118,7 +20913,7 @@ CSS;
 
             if (!rows || rows.length === 0) {
                 tbody.html('');
-                showEmptyRow(totalColumns, 'No records found.');
+                showEmptyRow(totalColumns, t('no_records', 'No records found.'));
                 refreshSelectAllState();
                 updateBatchDeleteButtonState();
                 return;
@@ -20478,7 +21273,7 @@ CSS;
                     if (response && response.success && response.html) {
                         container.html(response.html);
                     } else {
-                        var message = response && response.error ? response.error : 'No records found.';
+                        var message = response && response.error ? response.error : t('no_records', 'No records found.');
                         container.html('<div class="text-muted">' + escapeHtml(String(message)) + '</div>');
                     }
                 },
@@ -20510,8 +21305,9 @@ CSS;
 
                 var body = $('<div class="fastcrud-nested-body border rounded p-3 bg-body"></div>');
                 var placeholder = $('<div class="d-flex align-items-center gap-2 text-muted"></div>');
-                placeholder.append('<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div>');
-                placeholder.append($('<span></span>').text('Loading ' + title + '...'));
+                var nestedLoadingText = t('loading_nested', 'Loading {title}...', { title: title });
+                placeholder.append($('<div class="spinner-border spinner-border-sm" role="status"></div>').append($('<span class="visually-hidden"></span>').text(t('loading', 'Loading...'))));
+                placeholder.append($('<span></span>').text(nestedLoadingText));
                 body.append(placeholder);
                 section.append(body);
                 wrapper.append(section);
@@ -20563,8 +21359,8 @@ CSS;
             buttonEl.attr('data-fastcrud-expanded', 'true').attr('aria-expanded', 'true').html(actionIcons.collapse);
 
             var loadingNotice = $('<div class="d-flex align-items-center gap-2 text-muted"></div>');
-            loadingNotice.append('<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div>');
-            loadingNotice.append($('<span></span>').text('Fetching nested records...'));
+            loadingNotice.append($('<div class="spinner-border spinner-border-sm" role="status"></div>').append($('<span class="visually-hidden"></span>').text(t('loading', 'Loading...'))));
+            loadingNotice.append($('<span></span>').text(t('fetching_nested_records', 'Fetching nested records...')));
             wrapper.append(loadingNotice);
 
             fetchRowByPk(pkInfo.column, pkInfo.value, 'edit').then(function(rowData) {
@@ -20630,7 +21426,7 @@ CSS;
 
             var tbody = table.find('tbody');
             var totalColumns = table.find('thead th').length || 1;
-            var loadingMessage = 'Loading data...';
+            var loadingMessage = t('loading_data', 'Loading data...');
 
             if (!tableHasRendered) {
                 showLoadingRow(totalColumns, loadingMessage);
@@ -20750,9 +21546,9 @@ CSS;
 
             if (editLabel.length) {
                 if (isCreateMode) {
-                    editLabel.text('Add Record');
+                    editLabel.text(t('add_record', 'Add Record'));
                 } else {
-                    editLabel.text('Edit Record ' + primaryKeyValue);
+                    editLabel.text(t('edit_record_with_id', 'Edit Record {id}', { id: primaryKeyValue }));
                 }
             }
 
@@ -22366,7 +23162,7 @@ CSS;
             viewContentContainer.removeData('fastcrud-view-section-keys');
 
             viewContentContainer.empty();
-            viewEmptyNotice.addClass('d-none').text('No record selected.');
+            viewEmptyNotice.addClass('d-none').text(t('no_record_selected', 'No record selected.'));
 
             if (!row || $.isEmptyObject(row)) {
                 viewEmptyNotice.removeClass('d-none');
@@ -22386,7 +23182,7 @@ CSS;
             }
 
             if (viewHeading.length) {
-                var headingText = 'View Record';
+                var headingText = t('view_record', 'View Record');
                 var primaryValue;
                 if (Object.prototype.hasOwnProperty.call(row, '__fastcrud_primary_value') && typeof row.__fastcrud_primary_value !== 'undefined') {
                     primaryValue = row.__fastcrud_primary_value;
