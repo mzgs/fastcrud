@@ -1443,6 +1443,9 @@ class Crud
         }
 
         $buttonOptions = $this->normalizeScalarOptions($buttonRaw['options'] ?? null);
+        $enableFilter  = array_key_exists('enable_filter', $buttonRaw)
+            ? (bool) $buttonRaw['enable_filter']
+            : false;
 
         return [
             'button' => [
@@ -1452,6 +1455,7 @@ class Crud
                 'menu_class'      => $menuClass ?? self::DEFAULT_MULTI_LINK_MENU_CLASS,
                 'container_class' => $containerClass ?? self::DEFAULT_MULTI_LINK_CONTAINER_CLASS,
                 'options'         => $buttonOptions,
+                'enable_filter'   => $enableFilter,
             ],
             'items'  => $items,
         ];
@@ -3516,6 +3520,7 @@ class Crud
                     'button_class'    => $buttonConfig['button_class'],
                     'menu_class'      => $buttonConfig['menu_class'],
                     'container_class' => $buttonConfig['container_class'],
+                    'enable_filter'   => !empty($buttonConfig['enable_filter']),
                 ],
                 'items'  => $items,
             ];
@@ -9802,6 +9807,22 @@ CSS;
     overscroll-behavior: contain;
 }
 
+#{$containerId} .fastcrud-multi-link-menu.fastcrud-multi-link-filterable {
+    min-width: 14rem;
+}
+
+#{$containerId} .fastcrud-multi-link-filter-wrapper {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 0.35rem 0.5rem 0.4rem;
+    background: var(--bs-dropdown-bg, #fff);
+}
+
+#{$containerId} .fastcrud-multi-link-filter-input {
+    width: 100%;
+}
+
 /* Align boolean switches neatly inside cells */
 #{$containerId} table tbody td .fastcrud-bool-cell {
     display: flex;
@@ -14824,16 +14845,72 @@ CSS;
             }
         }
 
+        function updateMultiLinkFilterMenu(menuEl) {
+            var menu = menuEl && menuEl.jquery ? menuEl : $(menuEl);
+            if (!menu.length) {
+                return;
+            }
+            var input = menu.find('.fastcrud-multi-link-filter-input').first();
+            var query = input.length ? String(input.val() || '').trim().toLowerCase() : '';
+            var actionWrappers = menu.find('.fastcrud-multi-link-item-wrapper');
+
+            actionWrappers.each(function() {
+                var wrapper = $(this);
+                var haystack = String(wrapper.attr('data-fastcrud-filter-text') || wrapper.text() || '').toLowerCase();
+                wrapper.toggle(!query || haystack.indexOf(query) !== -1);
+            });
+
+            menu.find('.fastcrud-multi-link-divider-wrapper').each(function() {
+                var divider = $(this);
+                if (!query) {
+                    divider.show();
+                    return;
+                }
+
+                var hasVisibleItem = false;
+                var cursor = divider.next();
+                while (cursor.length) {
+                    if (cursor.hasClass('fastcrud-multi-link-divider-wrapper')) {
+                        break;
+                    }
+                    if (cursor.hasClass('fastcrud-multi-link-item-wrapper') && cursor.is(':visible')) {
+                        hasVisibleItem = true;
+                        break;
+                    }
+                    cursor = cursor.next();
+                }
+                divider.toggle(hasVisibleItem);
+            });
+        }
+
         table.on('show.bs.dropdown', '.fastcrud-multi-link-trigger, .fastcrud-multi-link-btn', function() {
-            updateMultiLinkDropdownPlacement($(this).closest('.fastcrud-multi-link-btn'));
+            var dropdown = $(this).closest('.fastcrud-multi-link-btn');
+            updateMultiLinkFilterMenu(dropdown.find('.fastcrud-multi-link-menu').first());
+            updateMultiLinkDropdownPlacement(dropdown);
         });
 
         table.on('shown.bs.dropdown', '.fastcrud-multi-link-trigger, .fastcrud-multi-link-btn', function() {
             toggleActionsCellZIndex(this, true);
+            var dropdown = $(this).closest('.fastcrud-multi-link-btn');
+            var filterInput = dropdown.find('.fastcrud-multi-link-filter-input').first();
+            if (filterInput.length) {
+                filterInput.trigger('focus');
+            }
         });
 
         table.on('hidden.bs.dropdown', '.fastcrud-multi-link-trigger, .fastcrud-multi-link-btn', function() {
             toggleActionsCellZIndex(this, false);
+        });
+
+        table.on('click mousedown', '.fastcrud-multi-link-filter-input', function(event) {
+            event.stopPropagation();
+        });
+
+        table.on('input', '.fastcrud-multi-link-filter-input', function() {
+            var input = $(this);
+            var menu = input.closest('.fastcrud-multi-link-menu');
+            updateMultiLinkFilterMenu(menu);
+            updateMultiLinkDropdownPlacement(input.closest('.fastcrud-multi-link-btn'));
         });
         var select2Enabled = !!(clientConfig && clientConfig.select2);
         var filtersEnabled = true;
@@ -20174,7 +20251,7 @@ CSS;
                             duplicateContent = escapeHtml(duplicateLabel);
                         }
 
-                        dropdownItems.push('<li><button type="button" class="' + escapeHtml(duplicateClassAttr) + '"' + duplicateAttrString + '>' + duplicateContent + '</button></li>');
+                        dropdownItems.push('<li class="fastcrud-multi-link-item-wrapper" data-fastcrud-filter-text="' + escapeHtml(duplicateLabel) + '"><button type="button" class="' + escapeHtml(duplicateClassAttr) + '"' + duplicateAttrString + '>' + duplicateContent + '</button></li>');
                         return;
                     }
 
@@ -20262,7 +20339,7 @@ CSS;
                             deleteContent = escapeHtml(deleteLabel);
                         }
 
-                        dropdownItems.push('<li><button type="button" class="' + escapeHtml(deleteClassAttr) + '"' + deleteAttrString + '>' + deleteContent + '</button></li>');
+                        dropdownItems.push('<li class="fastcrud-multi-link-item-wrapper" data-fastcrud-filter-text="' + escapeHtml(deleteLabel) + '"><button type="button" class="' + escapeHtml(deleteClassAttr) + '"' + deleteAttrString + '>' + deleteContent + '</button></li>');
                         return;
                     }
 
@@ -20378,7 +20455,7 @@ CSS;
                             inputContent = escapeHtml(inputLabel);
                         }
 
-                        dropdownItems.push('<li><button type="button" class="' + escapeHtml(inputClassAttr) + '"' + inputAttrString + '>' + inputContent + '</button></li>');
+                        dropdownItems.push('<li class="fastcrud-multi-link-item-wrapper" data-fastcrud-filter-text="' + escapeHtml(inputLabel) + '"><button type="button" class="' + escapeHtml(inputClassAttr) + '"' + inputAttrString + '>' + inputContent + '</button></li>');
                         return;
                     }
 
@@ -20466,11 +20543,24 @@ CSS;
                         itemContent = escapeHtml(itemLabel);
                     }
 
-                    dropdownItems.push('<li><a href="' + escapeHtml(itemHref) + '" class="' + escapeHtml(itemClassAttr) + '"' + itemAttrString + '>' + itemContent + '</a></li>');
+                    dropdownItems.push('<li class="fastcrud-multi-link-item-wrapper" data-fastcrud-filter-text="' + escapeHtml(itemLabel) + '"><a href="' + escapeHtml(itemHref) + '" class="' + escapeHtml(itemClassAttr) + '"' + itemAttrString + '>' + itemContent + '</a></li>');
                 });
 
                 if (!dropdownItems.length) {
                     return;
+                }
+
+                var filterEnabled = !!buttonMeta.enable_filter;
+                if (filterEnabled) {
+                    var filterLabel = t('search', 'Search');
+                    var filterPlaceholder = t('search_placeholder', 'Search...');
+                    var filterHtml = '<li class="fastcrud-multi-link-filter-wrapper" role="none">'
+                        + '<input type="search" class="form-control form-control-sm fastcrud-multi-link-filter-input"'
+                        + ' aria-label="' + escapeHtml(filterLabel) + '"'
+                        + ' placeholder="' + escapeHtml(filterPlaceholder) + '"'
+                        + ' autocomplete="off">'
+                        + '</li>';
+                    dropdownItems.unshift(filterHtml);
                 }
 
                 var triggerClassSource = String(buttonMeta.button_class || '').trim();
@@ -20602,6 +20692,9 @@ CSS;
                 }
                 if (menuClassParts.indexOf('fastcrud-multi-link-menu') === -1) {
                     menuClassParts.push('fastcrud-multi-link-menu');
+                }
+                if (filterEnabled && menuClassParts.indexOf('fastcrud-multi-link-filterable') === -1) {
+                    menuClassParts.push('fastcrud-multi-link-filterable');
                 }
                 var uniqueMenuClassParts = [];
                 menuClassParts.forEach(function(part) {

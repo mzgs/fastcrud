@@ -226,7 +226,8 @@ DatabaseEditor::init();
                     ->add_multi_link_button([
                         'icon' => 'fas fa-globe',
                         'label' => '',   
-                        'button_class' => 'btn btn-sm btn-success'
+                        'button_class' => 'btn btn-sm btn-success',
+                        'enable_filter' => true
                     ], [
                         ['url' => '/customers/{id}', 'label' => 'Profile', 'icon' => 'fas fa-user'],
                         ['type' => 'input', 'url' => '/customers/search/{id}', 'label' => 'Email Lookup', 'input_name' => 'email', 'icon' => 'fas fa-search', 'prompt' => 'Enter email to search'],
