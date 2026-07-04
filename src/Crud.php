@@ -89,7 +89,7 @@ class Crud
     private const SUPPORTED_SUMMARY_TYPES = ['sum', 'avg', 'min', 'max', 'count'];
     private const SUPPORTED_FORM_MODES = ['all', 'create', 'edit', 'view'];
     private const DEFAULT_FORM_MODE = 'all';
-    private const SUPPORTED_FORM_DISPLAY_MODES = ['offcanvas', 'modal', 'side'];
+    private const SUPPORTED_FORM_DISPLAY_MODES = ['offcanvas', 'modal', 'side', 'inline'];
     private const DEFAULT_FORM_DISPLAY_MODE = 'offcanvas';
     private const SUPPORTED_SOFT_DELETE_MODES = ['timestamp', 'literal', 'expression'];
     private const SUPPORTED_COLUMN_FORMATTERS = ['money', 'date', 'datetime', 'badge', 'boolean'];
@@ -705,7 +705,7 @@ class Crud
         }
 
         throw new InvalidArgumentException(
-            'Unsupported form display mode. Use offcanvas, modal, or side.'
+            'Unsupported form display mode. Use offcanvas, modal, side, or inline.'
         );
     }
 
@@ -8555,12 +8555,13 @@ SQL;
         $formDisplayMode     = $formOnly
             ? self::DEFAULT_FORM_DISPLAY_MODE
             : $this->normalizeFormDisplayMode((string) ($this->config['form_display_mode'] ?? self::DEFAULT_FORM_DISPLAY_MODE));
+        $inlineFormDisplay   = $formOnly || $formDisplayMode === 'inline';
         $styles              = $this->buildActionColumnStyles($rawId, $formOnly, $formDisplayMode);
         $numbersEnabled      = !empty($this->config['numbers_enabled']);
         $rowOrderingEnabled  = $this->isRowOrderingEnabled();
         $colspan             = $this->escapeHtml((string) (count($columns) + 1 + ($batchDeleteEnabled ? 1 : 0) + ($this->hasNestedTables() ? 1 : 0) + ($numbersEnabled ? 1 : 0) + ($rowOrderingEnabled ? 1 : 0)));
-        $editPanel           = $this->buildEditOffcanvas($rawId, $formOnly, $formDisplayMode);
-        $viewPanel           = $this->buildViewOffcanvas($rawId, $formOnly, $formDisplayMode);
+        $editPanel           = $this->buildEditOffcanvas($rawId, $inlineFormDisplay, $formDisplayMode);
+        $viewPanel           = $this->buildViewOffcanvas($rawId, $inlineFormDisplay, $formDisplayMode);
         $queryBuilderModal   = $this->buildQueryBuilderModal($rawId, $formOnly);
 
         $configKey  = $this->storeClientConfigPayloadInSession($clientConfigPayload);
@@ -8603,6 +8604,8 @@ SQL;
             }
         } elseif ($formDisplayMode === 'side') {
             $containerAttributes['class'] = 'fastcrud-has-side-form';
+        } elseif ($formDisplayMode === 'inline') {
+            $containerAttributes['class'] = 'fastcrud-has-inline-form';
         }
 
         $attributePairs = [];
@@ -8673,6 +8676,23 @@ $editPanel
 $viewPanel
         </div>
     </div>
+{$paginationHtml}
+</div>
+$queryBuilderModal
+$styles
+$script
+HTML;
+        }
+
+        if (!$formOnly && $formDisplayMode === 'inline') {
+            return <<<HTML
+<div {$attributesHtml}>
+{$metaHtml}
+    <div class="fastcrud-inline-panel-slot">
+$editPanel
+$viewPanel
+    </div>
+{$tableViewportHtml}
 {$paginationHtml}
 </div>
 $queryBuilderModal
@@ -9245,13 +9265,24 @@ HTML;
 
         if ($inline) {
             $panelClasses = 'fastcrud-inline-panel card shadow-sm border-0';
+            $inlineCloseButton = $displayMode === 'inline'
+                ? <<<HTML
+            <button type="button" class="btn-close" data-fastcrud-inline-close="1" aria-label="{$closeText}"></button>
+HTML
+                : '';
+            $inlineCancelButton = $displayMode === 'inline'
+                ? <<<HTML
+                <button type="button" class="{$cancelClass}" data-fastcrud-inline-close="1">{$cancelText}</button>
+HTML
+                : '';
             return <<<HTML
 <div class="{$panelClasses}" id="{$panelId}" data-fastcrud-inline="1">
     <div class="card-header border-bottom d-flex align-items-center justify-content-between">
         <h5 class="mb-0" id="{$labelId}">{$editRecordText}</h5>
-        <div class="d-flex flex-wrap gap-2 justify-content-end">
+        <div class="d-flex flex-wrap align-items-center gap-2 justify-content-end">
             <button type="submit" form="{$formId}" class="{$saveClass} fastcrud-submit-close" data-fastcrud-submit-action="close">{$saveChangesText}</button>
             <button type="submit" form="{$formId}" class="{$saveClass} fastcrud-submit-new d-none" data-fastcrud-submit-action="new">{$createRecordNewText}</button>
+{$inlineCloseButton}
         </div>
     </div>
     <div class="card-body">
@@ -9260,6 +9291,7 @@ HTML;
             <div class="alert alert-success d-none" id="{$successId}" role="alert">{$changesSavedText}</div>
             <div id="{$fieldsId}" class="fastcrud-inline-fields"></div>
             <div class="d-flex justify-content-end gap-2 pt-2">
+{$inlineCancelButton}
                 <button type="submit" class="{$saveClass} fastcrud-submit-close" data-fastcrud-submit-action="close">{$saveChangesText}</button>
                 <button type="submit" class="{$saveClass} fastcrud-submit-new d-none" data-fastcrud-submit-action="new">{$createRecordNewText}</button>
             </div>
@@ -9358,10 +9390,16 @@ HTML;
 
         if ($inline) {
             $panelClasses = 'fastcrud-inline-panel card shadow-sm border-0';
+            $inlineCloseButton = $displayMode === 'inline'
+                ? <<<HTML
+        <button type="button" class="btn-close" data-fastcrud-inline-close="1" aria-label="{$closeText}"></button>
+HTML
+                : '';
             return <<<HTML
 <div class="{$panelClasses}" id="{$panelId}" data-fastcrud-inline="1">
-    <div class="card-header border-bottom">
+    <div class="card-header border-bottom d-flex align-items-center justify-content-between gap-3">
         <h5 class="mb-0" id="{$labelId}">{$viewRecordText}</h5>
+{$inlineCloseButton}
     </div>
     <div class="card-body">
         <div class="alert alert-info d-none" id="{$emptyId}" role="alert">{$noRecordSelectedText}</div>
@@ -9488,7 +9526,10 @@ HTML;
         $switchColor = $this->resolveAccentColor($styles['bools_in_grid_color'] ?? 'primary');
 
         $additionalCss = '';
-        if ($formOnly) {
+        if ($formOnly || $formDisplayMode === 'inline') {
+            $inlineWidth = $this->config['form_width'] !== null
+                ? $this->escapeHtml((string) $this->config['form_width'])
+                : '100%';
             $additionalCss = <<<CSS
 #{$containerId}.fastcrud-form-only .table-responsive,
 #{$containerId}.fastcrud-form-only nav,
@@ -9498,12 +9539,21 @@ HTML;
 #{$containerId}.fastcrud-form-only #{$metaId} {
     display: none !important;
 }
+#{$containerId}.fastcrud-has-inline-form .fastcrud-inline-panel-slot {
+    margin-bottom: 1rem;
+}
+#{$containerId}.fastcrud-has-inline-form.fastcrud-inline-open #{$metaId},
+#{$containerId}.fastcrud-has-inline-form.fastcrud-inline-open .fastcrud-table-container,
+#{$containerId}.fastcrud-has-inline-form.fastcrud-inline-open > nav,
+#{$containerId}.fastcrud-has-inline-form.fastcrud-inline-open #{$summaryId} {
+    display: none !important;
+}
 #{$editPanelId}.fastcrud-inline-panel,
 #{$viewPanelId}.fastcrud-inline-panel {
     position: static;
     visibility: hidden;
     transform: none !important;
-    width: 100%;
+    width: {$inlineWidth};
     max-width: 100%;
     border-radius: 0.5rem;
     border: 1px solid var(--bs-border-color, #dee2e6);
@@ -16256,7 +16306,7 @@ CSS;
         var rowCache = {};
         var formOnlyMode = container.attr('data-fastcrud-form-only') === '1';
         var formDisplayMode = String(container.attr('data-fastcrud-form-display-mode') || clientConfig.form_display_mode || 'offcanvas').toLowerCase();
-        if (['offcanvas', 'modal', 'side'].indexOf(formDisplayMode) === -1) {
+        if (['offcanvas', 'modal', 'side', 'inline'].indexOf(formDisplayMode) === -1) {
             formDisplayMode = 'offcanvas';
         }
         if (formOnlyMode) {
@@ -16494,6 +16544,13 @@ CSS;
                     instance.hide();
                 }
             });
+            editOffcanvasElement.on('click', '[data-fastcrud-inline-close="1"]', function(event) {
+                event.preventDefault();
+                var instance = getEditOffcanvasInstance();
+                if (instance && typeof instance.hide === 'function') {
+                    instance.hide();
+                }
+            });
         }
 
         var viewOffcanvasElement = $('#' + tableId + '-view-panel');
@@ -16507,6 +16564,13 @@ CSS;
                 clearRowHighlight();
             });
             viewOffcanvasElement.on('click', '[data-fastcrud-side-close="1"]', function(event) {
+                event.preventDefault();
+                var instance = getViewOffcanvasInstance();
+                if (instance && typeof instance.hide === 'function') {
+                    instance.hide();
+                }
+            });
+            viewOffcanvasElement.on('click', '[data-fastcrud-inline-close="1"]', function(event) {
                 event.preventDefault();
                 var instance = getViewOffcanvasInstance();
                 if (instance && typeof instance.hide === 'function') {
@@ -17702,7 +17766,7 @@ CSS;
                 return;
             }
 
-            if (offcanvasElement.attr('data-fastcrud-side-panel') === '1') {
+            if (offcanvasElement.attr('data-fastcrud-side-panel') === '1' || offcanvasElement.attr('data-fastcrud-inline') === '1') {
                 return;
             }
 
@@ -17758,12 +17822,14 @@ CSS;
                 return null;
             }
 
-            if (formOnlyMode || formDisplayMode === 'side') {
+            if (formOnlyMode || formDisplayMode === 'side' || formDisplayMode === 'inline') {
                 editOffcanvasInstance = createInlinePanelController(element, {
                     onShow: function() {
                         if (formDisplayMode === 'side') {
                             container.addClass('fastcrud-side-open');
                             scheduleSidePanelHeightSync();
+                        } else if (formDisplayMode === 'inline') {
+                            container.addClass('fastcrud-inline-open');
                         }
                     },
                     onHide: function() {
@@ -17771,6 +17837,8 @@ CSS;
                         if (formDisplayMode === 'side') {
                             container.removeClass('fastcrud-side-open');
                             editOffcanvasElement.css({ height: '', marginTop: '' });
+                        } else if (formDisplayMode === 'inline') {
+                            container.removeClass('fastcrud-inline-open');
                         }
                         if (typeof cleanupEditPanelWidgets === 'function') {
                             cleanupEditPanelWidgets();
@@ -17807,12 +17875,14 @@ CSS;
                 return null;
             }
 
-            if (formOnlyMode || formDisplayMode === 'side') {
+            if (formOnlyMode || formDisplayMode === 'side' || formDisplayMode === 'inline') {
                 viewOffcanvasInstance = createInlinePanelController(element, {
                     onShow: function() {
                         if (formDisplayMode === 'side') {
                             container.addClass('fastcrud-side-open');
                             scheduleSidePanelHeightSync();
+                        } else if (formDisplayMode === 'inline') {
+                            container.addClass('fastcrud-inline-open');
                         }
                     },
                     onHide: function() {
@@ -17820,6 +17890,8 @@ CSS;
                         if (formDisplayMode === 'side') {
                             container.removeClass('fastcrud-side-open');
                             viewOffcanvasElement.css({ height: '', marginTop: '' });
+                        } else if (formDisplayMode === 'inline') {
+                            container.removeClass('fastcrud-inline-open');
                         }
                     }
                 });

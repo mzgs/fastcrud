@@ -203,7 +203,8 @@ DatabaseEditor::init();
                     ->before_create('fc_before_create_defaults')
                     ->limit_list('5,10,25,all')
                     ->where('deleted_at IS NULL')    
-                    ->setFormDisplayMode('side', '50%')
+                    // ->setFormDisplayMode('side', '50%')
+                    // ->setFormDisplayMode('inline', '100%')
 
                     
                     // ->enable_add(true)
