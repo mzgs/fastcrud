@@ -8560,7 +8560,7 @@ SQL;
         $rowOrderingEnabled  = $this->isRowOrderingEnabled();
         $colspan             = $this->escapeHtml((string) (count($columns) + 1 + ($batchDeleteEnabled ? 1 : 0) + ($this->hasNestedTables() ? 1 : 0) + ($numbersEnabled ? 1 : 0) + ($rowOrderingEnabled ? 1 : 0)));
         $editPanel           = $this->buildEditOffcanvas($rawId, $formOnly, $formDisplayMode);
-        $viewPanel           = $this->buildViewOffcanvas($rawId, $formOnly);
+        $viewPanel           = $this->buildViewOffcanvas($rawId, $formOnly, $formDisplayMode);
         $queryBuilderModal   = $this->buildQueryBuilderModal($rawId, $formOnly);
 
         $configKey  = $this->storeClientConfigPayloadInSession($clientConfigPayload);
@@ -8670,13 +8670,13 @@ HTML;
         </div>
         <div class="fastcrud-side-panel-slot">
 $editPanel
+$viewPanel
         </div>
     </div>
 {$paginationHtml}
 </div>
 $queryBuilderModal
 $styles
-$viewPanel
 $script
 HTML;
         }
@@ -9339,7 +9339,7 @@ HTML;
 HTML;
     }
 
-    private function buildViewOffcanvas(string $id, bool $inline = false): string
+    private function buildViewOffcanvas(string $id, bool $inline = false, string $displayMode = self::DEFAULT_FORM_DISPLAY_MODE): string
     {
         $escapedId = $this->escapeHtml($id);
         $labelId   = $escapedId . '-view-label';
@@ -9366,6 +9366,21 @@ HTML;
     <div class="card-body">
         <div class="alert alert-info d-none" id="{$emptyId}" role="alert">{$noRecordSelectedText}</div>
         <div id="{$contentId}" class="list-group list-group-flush"></div>
+    </div>
+</div>
+HTML;
+        }
+
+        if ($displayMode === 'side') {
+            return <<<HTML
+<div class="fastcrud-side-panel card shadow-sm" id="{$panelId}" data-fastcrud-side-panel="1" aria-labelledby="{$labelId}">
+    <div class="card-header border-bottom d-flex align-items-center justify-content-between gap-3">
+        <h5 class="mb-0" id="{$labelId}">{$viewRecordText}</h5>
+        <button type="button" class="btn-close" data-fastcrud-side-close="1" aria-label="{$closeText}"></button>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info d-none" id="{$emptyId}" role="alert">{$noRecordSelectedText}</div>
+        <div id="{$contentId}" class="list-group list-group-flush fastcrud-side-fields flex-grow-1 overflow-auto"></div>
     </div>
 </div>
 HTML;
@@ -9542,7 +9557,8 @@ CSS;
 #{$containerId}.fastcrud-has-side-form.fastcrud-side-open .fastcrud-side-panel-slot {
     display: flex;
 }
-#{$editPanelId}.fastcrud-side-panel {
+#{$editPanelId}.fastcrud-side-panel,
+#{$viewPanelId}.fastcrud-side-panel {
     display: none;
     position: sticky;
     top: 1rem;
@@ -9554,11 +9570,14 @@ CSS;
     background-color: var(--bs-body-bg, #ffffff);
 }
 #{$editPanelId}.fastcrud-side-panel.fastcrud-inline-visible,
-#{$editPanelId}.fastcrud-side-panel.show {
+#{$editPanelId}.fastcrud-side-panel.show,
+#{$viewPanelId}.fastcrud-side-panel.fastcrud-inline-visible,
+#{$viewPanelId}.fastcrud-side-panel.show {
     display: flex;
     flex-direction: column;
 }
-#{$editPanelId}.fastcrud-side-panel .card-body {
+#{$editPanelId}.fastcrud-side-panel .card-body,
+#{$viewPanelId}.fastcrud-side-panel .card-body {
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
@@ -9569,7 +9588,8 @@ CSS;
     flex: 1 1 auto;
     min-height: 0;
 }
-#{$editPanelId}.fastcrud-side-panel .fastcrud-side-fields {
+#{$editPanelId}.fastcrud-side-panel .fastcrud-side-fields,
+#{$viewPanelId}.fastcrud-side-panel .fastcrud-side-fields {
     min-height: 0;
     overflow: auto;
 }
@@ -9577,7 +9597,8 @@ CSS;
     #{$containerId}.fastcrud-has-side-form.fastcrud-side-open .fastcrud-side-layout {
         grid-template-columns: minmax(0, 1fr);
     }
-    #{$editPanelId}.fastcrud-side-panel {
+    #{$editPanelId}.fastcrud-side-panel,
+    #{$viewPanelId}.fastcrud-side-panel {
         position: static;
         height: auto !important;
     }
@@ -16485,6 +16506,13 @@ CSS;
             viewOffcanvasElement.on('hide.bs.offcanvas', function() {
                 clearRowHighlight();
             });
+            viewOffcanvasElement.on('click', '[data-fastcrud-side-close="1"]', function(event) {
+                event.preventDefault();
+                var instance = getViewOffcanvasInstance();
+                if (instance && typeof instance.hide === 'function') {
+                    instance.hide();
+                }
+            });
         }
 
         if (!formOnlyMode && container.length && !container.data('fastcrud-offcanvas-cleanup')) {
@@ -17590,9 +17618,9 @@ CSS;
                 return;
             }
 
-            var panel = editOffcanvasElement;
-            if (!container.hasClass('fastcrud-side-open') || !panel.hasClass('show')) {
-                panel.css({ height: '', marginTop: '' });
+            var panel = container.find('.fastcrud-side-panel.show').first();
+            if (!container.hasClass('fastcrud-side-open') || !panel.length) {
+                container.find('.fastcrud-side-panel').css({ height: '', marginTop: '' });
                 return;
             }
 
@@ -17615,6 +17643,7 @@ CSS;
             }
 
             if (targetHeight > 0) {
+                container.find('.fastcrud-side-panel').not(panel).css({ height: '', marginTop: '' });
                 panel.css({
                     height: targetHeight + 'px',
                     marginTop: topOffset > 0 ? topOffset + 'px' : ''
@@ -17778,10 +17807,20 @@ CSS;
                 return null;
             }
 
-            if (formOnlyMode) {
+            if (formOnlyMode || formDisplayMode === 'side') {
                 viewOffcanvasInstance = createInlinePanelController(element, {
+                    onShow: function() {
+                        if (formDisplayMode === 'side') {
+                            container.addClass('fastcrud-side-open');
+                            scheduleSidePanelHeightSync();
+                        }
+                    },
                     onHide: function() {
                         clearRowHighlight();
+                        if (formDisplayMode === 'side') {
+                            container.removeClass('fastcrud-side-open');
+                            viewOffcanvasElement.css({ height: '', marginTop: '' });
+                        }
                     }
                 });
                 return viewOffcanvasInstance;
