@@ -203,6 +203,8 @@ DatabaseEditor::init();
                     ->before_create('fc_before_create_defaults')
                     ->limit_list('5,10,25,all')
                     ->where('deleted_at IS NULL')    
+                    ->setFormDisplayMode('side', '50%')
+
                     
                     // ->enable_add(true)
                     // ->enable_view(true, 'user_id', '=', '1')
@@ -349,8 +351,7 @@ DatabaseEditor::init();
                     ->column_class('user_id', 'text-muted')
                     // ->column_width('title', '30%')
                     ->column_truncate('content', 30)
-                    ->setPanelWidth('30%')
-                    
+                     
                     ->add_link_button('example.com?id={id}', 'fas fa-user', '', 'btn btn-info text-white', ['target' => '_blank', 'class' => 'me-2'] )
                     ->add_toolbar_action('/reports/summary', 'fas fa-chart-line', 'Reports', 'btn btn-sm btn-outline-primary', ['target' => '_blank'])
                   

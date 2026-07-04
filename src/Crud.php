@@ -84,6 +84,8 @@ class Crud
     private const SUPPORTED_SUMMARY_TYPES = ['sum', 'avg', 'min', 'max', 'count'];
     private const SUPPORTED_FORM_MODES = ['all', 'create', 'edit', 'view'];
     private const DEFAULT_FORM_MODE = 'all';
+    private const SUPPORTED_FORM_DISPLAY_MODES = ['offcanvas', 'modal', 'side'];
+    private const DEFAULT_FORM_DISPLAY_MODE = 'offcanvas';
     private const SUPPORTED_SOFT_DELETE_MODES = ['timestamp', 'literal', 'expression'];
     private const DEFAULT_MULTI_LINK_BUTTON_CLASS = 'btn btn-sm btn-outline-secondary dropdown-toggle';
     private const DEFAULT_MULTI_LINK_MENU_CLASS = 'dropdown-menu dropdown-menu-end';
@@ -187,7 +189,8 @@ class Crud
         ],
         'column_summaries'        => [],
         'field_labels'            => [],
-        'panel_width'             => '30%',
+        'form_width'              => '30%',
+        'form_display_mode'       => self::DEFAULT_FORM_DISPLAY_MODE,
         'select2'                 => false,
         'filters_enabled'         => true,
         'numbers_enabled'         => false,
@@ -501,10 +504,37 @@ class Crud
         return $this;
     }
 
-    public function setPanelWidth(string $width): self
+    public function setFormWidth(string $width): self
     {
-        $this->config['panel_width'] = $width;
+        $this->config['form_width'] = $width;
         return $this;
+    }
+
+    public function setFormDisplayMode(string $mode, ?string $width = null): self
+    {
+        $this->config['form_display_mode'] = $this->normalizeFormDisplayMode($mode);
+        if ($width !== null) {
+            $this->setFormWidth($width);
+        }
+        return $this;
+    }
+
+    public function form_display_mode(string $mode, ?string $width = null): self
+    {
+        return $this->setFormDisplayMode($mode, $width);
+    }
+
+    private function normalizeFormDisplayMode(string $mode): string
+    {
+        $normalized = strtolower(trim($mode));
+
+        if (in_array($normalized, self::SUPPORTED_FORM_DISPLAY_MODES, true)) {
+            return $normalized;
+        }
+
+        throw new InvalidArgumentException(
+            'Unsupported form display mode. Use offcanvas, modal, or side.'
+        );
     }
 
     /**
@@ -7979,11 +8009,15 @@ SQL;
         $headerHtml          = $this->buildHeader($columns);
         $clientConfigPayload = $this->buildClientConfigPayload($columns);
         $script              = $this->generateAjaxScript();
-        $styles              = $this->buildActionColumnStyles($rawId, $formOnly);
+        $formDisplayMode     = $formOnly
+            ? self::DEFAULT_FORM_DISPLAY_MODE
+            : $this->normalizeFormDisplayMode((string) ($this->config['form_display_mode'] ?? self::DEFAULT_FORM_DISPLAY_MODE));
+        $styles              = $this->buildActionColumnStyles($rawId, $formOnly, $formDisplayMode);
         $numbersEnabled      = !empty($this->config['numbers_enabled']);
         $rowOrderingEnabled  = $this->isRowOrderingEnabled();
         $colspan             = $this->escapeHtml((string) (count($columns) + 1 + ($batchDeleteEnabled ? 1 : 0) + ($this->hasNestedTables() ? 1 : 0) + ($numbersEnabled ? 1 : 0) + ($rowOrderingEnabled ? 1 : 0)));
-        $offcanvas           = $this->buildEditOffcanvas($rawId, $formOnly) . $this->buildViewOffcanvas($rawId, $formOnly);
+        $editPanel           = $this->buildEditOffcanvas($rawId, $formOnly, $formDisplayMode);
+        $viewPanel           = $this->buildViewOffcanvas($rawId, $formOnly);
         $queryBuilderModal   = $this->buildQueryBuilderModal($rawId, $formOnly);
 
         $configKey  = $this->storeClientConfigPayloadInSession($clientConfigPayload);
@@ -8004,6 +8038,7 @@ SQL;
             'data-fastcrud-config'                 => $configJson,
             'data-fastcrud-initial-primary-column' => $this->getPrimaryKeyColumn(),
             'data-fastcrud-view-storage-key'       => $viewStorageKey,
+            'data-fastcrud-form-display-mode'      => $formDisplayMode,
         ];
 
         if ($configKey !== null) {
@@ -8020,6 +8055,8 @@ SQL;
                     ? (string) $primaryKeyValue
                     : json_encode($primaryKeyValue);
             }
+        } elseif ($formDisplayMode === 'side') {
+            $containerAttributes['class'] = 'fastcrud-has-side-form';
         }
 
         $attributePairs = [];
@@ -8032,8 +8069,7 @@ SQL;
         }
         $attributesHtml = implode(' ', $attributePairs);
 
-        return <<<HTML
-<div {$attributesHtml}>
+        $tableHtml = <<<HTML
     <div id="{$id}-meta" class="d-flex flex-wrap align-items-center gap-2 mb-2"></div>
     <div class="table-responsive fastcrud-table-container">
         <table id="$id" class="table align-middle" data-table="$table" data-per-page="$perPage">
@@ -8064,10 +8100,35 @@ $headerHtml
         </div>
         <div id="{$id}-range" class="text-muted small ms-auto"></div>
     </nav>
+HTML;
+
+        if (!$formOnly && $formDisplayMode === 'side') {
+            return <<<HTML
+<div {$attributesHtml}>
+    <div class="fastcrud-side-layout">
+        <div class="fastcrud-side-table">
+$tableHtml
+        </div>
+        <div class="fastcrud-side-panel-slot">
+$editPanel
+        </div>
+    </div>
 </div>
 $queryBuilderModal
 $styles
-$offcanvas
+$viewPanel
+$script
+HTML;
+        }
+
+        return <<<HTML
+<div {$attributesHtml}>
+$tableHtml
+</div>
+$queryBuilderModal
+$styles
+$editPanel
+$viewPanel
 $script
 HTML;
     }
@@ -8468,7 +8529,7 @@ HTML;
         return 'fastcrud-' . $suffix;
     }
 
-    private function buildEditOffcanvas(string $id, bool $inline = false): string
+    private function buildEditOffcanvas(string $id, bool $inline = false, string $displayMode = self::DEFAULT_FORM_DISPLAY_MODE): string
     {
         $escapedId = $this->escapeHtml($id);
         $labelId   = $escapedId . '-edit-label';
@@ -8479,9 +8540,14 @@ HTML;
         $fieldsId  = $escapedId . '-edit-fields';
 
         $widthStyle = '';
-        if ($this->config['panel_width'] !== null) {
-            $width      = $this->escapeHtml($this->config['panel_width']);
+        if ($this->config['form_width'] !== null) {
+            $width      = $this->escapeHtml($this->config['form_width']);
             $widthStyle = " style=\"width: {$width};\"";
+        }
+        $modalDialogStyle = '';
+        if ($this->config['form_width'] !== null) {
+            $width            = $this->escapeHtml($this->config['form_width']);
+            $modalDialogStyle = " style=\"--bs-modal-width: {$width}; width: {$width}; max-width: calc(100% - 1rem);\"";
         }
 
         $styles      = $this->getStyleDefaults();
@@ -8507,6 +8573,52 @@ HTML;
             <div class="d-flex justify-content-end gap-2 pt-2">
                 <button type="submit" class="{$saveClass} fastcrud-submit-close" data-fastcrud-submit-action="close">Save Changes</button>
                 <button type="submit" class="{$saveClass} fastcrud-submit-new d-none" data-fastcrud-submit-action="new">Create Record &amp; New</button>
+            </div>
+        </form>
+    </div>
+</div>
+HTML;
+        }
+
+        if ($displayMode === 'modal') {
+            return <<<HTML
+<div class="modal fade fastcrud-edit-modal" tabindex="-1" id="{$panelId}" aria-labelledby="{$labelId}" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg"{$modalDialogStyle}>
+        <form id="{$formId}" novalidate class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="{$labelId}">Edit Record</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger d-none" id="{$errorId}" role="alert"></div>
+                <div class="alert alert-success d-none" id="{$successId}" role="alert">Changes saved successfully.</div>
+                <div id="{$fieldsId}"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="{$cancelClass}" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="{$saveClass}">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+HTML;
+        }
+
+        if ($displayMode === 'side') {
+            return <<<HTML
+<div class="fastcrud-side-panel card shadow-sm" id="{$panelId}" data-fastcrud-side-panel="1" aria-labelledby="{$labelId}">
+    <div class="card-header border-bottom d-flex align-items-center justify-content-between gap-3">
+        <h5 class="mb-0" id="{$labelId}">Edit Record</h5>
+        <button type="button" class="btn-close" data-fastcrud-side-close="1" aria-label="Close"></button>
+    </div>
+    <div class="card-body">
+        <form id="{$formId}" novalidate class="d-flex flex-column h-100">
+            <div class="alert alert-danger d-none" id="{$errorId}" role="alert"></div>
+            <div class="alert alert-success d-none" id="{$successId}" role="alert">Changes saved successfully.</div>
+            <div id="{$fieldsId}" class="fastcrud-side-fields flex-grow-1 overflow-auto"></div>
+            <div class="d-flex justify-content-end gap-2 mt-auto pt-3 border-top sticky-bottom">
+                <button type="button" class="{$cancelClass}" data-fastcrud-side-close="1">Cancel</button>
+                <button type="submit" class="{$saveClass}">Save Changes</button>
             </div>
         </form>
     </div>
@@ -8547,8 +8659,8 @@ HTML;
         $emptyId   = $escapedId . '-view-empty';
 
         $widthStyle = '';
-        if ($this->config['panel_width'] !== null) {
-            $width      = $this->escapeHtml($this->config['panel_width']);
+        if ($this->config['form_width'] !== null) {
+            $width      = $this->escapeHtml($this->config['form_width']);
             $widthStyle = " style=\"width: {$width};\"";
         }
 
@@ -8645,7 +8757,7 @@ HTML;
 HTML;
     }
 
-    private function buildActionColumnStyles(string $id, bool $formOnly = false): string
+    private function buildActionColumnStyles(string $id, bool $formOnly = false, string $formDisplayMode = self::DEFAULT_FORM_DISPLAY_MODE): string
     {
         $containerId = $this->escapeHtml($id . '-container');
         $fieldsId    = $this->escapeHtml($id . '-edit-fields');
@@ -8698,6 +8810,64 @@ HTML;
 }
 #{$editPanelId}.fastcrud-inline-panel .fastcrud-inline-fields {
     min-height: 10rem;
+}
+CSS;
+        } elseif ($formDisplayMode === 'side') {
+            $sideWidth = $this->config['form_width'] !== null
+                ? $this->escapeHtml((string) $this->config['form_width'])
+                : '420px';
+            $additionalCss = <<<CSS
+#{$containerId}.fastcrud-has-side-form .fastcrud-side-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+#{$containerId}.fastcrud-has-side-form .fastcrud-side-table {
+    min-width: 0;
+}
+#{$containerId}.fastcrud-has-side-form .fastcrud-side-panel-slot {
+    display: none;
+    min-width: 0;
+}
+#{$containerId}.fastcrud-has-side-form.fastcrud-side-open .fastcrud-side-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, {$sideWidth});
+}
+#{$containerId}.fastcrud-has-side-form.fastcrud-side-open .fastcrud-side-panel-slot {
+    display: block;
+}
+#{$editPanelId}.fastcrud-side-panel {
+    display: none;
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow: hidden;
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    background-color: var(--bs-body-bg, #ffffff);
+}
+#{$editPanelId}.fastcrud-side-panel.fastcrud-inline-visible,
+#{$editPanelId}.fastcrud-side-panel.show {
+    display: flex;
+    flex-direction: column;
+}
+#{$editPanelId}.fastcrud-side-panel .card-body {
+    min-height: 0;
+    overflow: hidden;
+}
+#{$editPanelId}.fastcrud-side-panel form {
+    min-height: 0;
+}
+#{$editPanelId}.fastcrud-side-panel .fastcrud-side-fields {
+    min-height: 12rem;
+}
+@media (max-width: 991.98px) {
+    #{$containerId}.fastcrud-has-side-form.fastcrud-side-open .fastcrud-side-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    #{$editPanelId}.fastcrud-side-panel {
+        position: static;
+        max-height: none;
+    }
 }
 CSS;
         }
@@ -9396,6 +9566,7 @@ HTML;
             ),
             'sort_disabled'          => $sortDisabled,
             'form'                   => $formMeta,
+            'form_display_mode'      => $this->normalizeFormDisplayMode((string) ($this->config['form_display_mode'] ?? self::DEFAULT_FORM_DISPLAY_MODE)),
             'inline_edit'            => $inline,
             'numbers_enabled'        => (bool) ($this->config['numbers_enabled'] ?? false),
             'nested_tables'          => $this->buildNestedTablesClientConfigPayload(),
@@ -10033,6 +10204,7 @@ HTML;
             'numbers_enabled' => (bool) ($this->config['numbers_enabled'] ?? false),
             'compact_pagination' => (bool) ($this->config['compact_pagination'] ?? false),
             'hide_search'     => (bool) ($this->config['hide_search'] ?? false),
+            'form_display_mode' => $this->normalizeFormDisplayMode((string) ($this->config['form_display_mode'] ?? self::DEFAULT_FORM_DISPLAY_MODE)),
             'rich_editor'     => [
                 'upload_path' => CrudConfig::getUploadServePath(),
             ],
@@ -10245,6 +10417,7 @@ HTML;
             'table_meta'              => $this->config['table_meta'],
             'column_summaries'        => $this->config['column_summaries'],
             'field_labels'            => $this->config['field_labels'],
+            'form_display_mode'       => $this->normalizeFormDisplayMode((string) ($this->config['form_display_mode'] ?? self::DEFAULT_FORM_DISPLAY_MODE)),
             'primary_key'             => $this->primaryKeyColumn,
             'soft_delete'             => $this->config['soft_delete'],
             'row_ordering'            => $this->config['row_ordering'],
@@ -11097,6 +11270,10 @@ HTML;
 
         if (array_key_exists('hide_search', $payload)) {
             $this->config['hide_search'] = (bool) $payload['hide_search'];
+        }
+
+        if (isset($payload['form_display_mode']) && is_string($payload['form_display_mode'])) {
+            $this->config['form_display_mode'] = $this->normalizeFormDisplayMode($payload['form_display_mode']);
         }
 
         if (isset($payload['custom_query']) && is_string($payload['custom_query']) && trim($payload['custom_query']) !== '') {
@@ -15123,6 +15300,13 @@ CSS;
         // Cache for on-demand row fetches (keyed by tableId + '::' + pkCol + '::' + pkVal)
         var rowCache = {};
         var formOnlyMode = container.attr('data-fastcrud-form-only') === '1';
+        var formDisplayMode = String(container.attr('data-fastcrud-form-display-mode') || clientConfig.form_display_mode || 'offcanvas').toLowerCase();
+        if (['offcanvas', 'modal', 'side'].indexOf(formDisplayMode) === -1) {
+            formDisplayMode = 'offcanvas';
+        }
+        if (formOnlyMode) {
+            formDisplayMode = 'inline';
+        }
         var initialMode = String(container.attr('data-fastcrud-initial-mode') || '').toLowerCase();
         if (['create', 'edit', 'view'].indexOf(initialMode) === -1) {
             initialMode = '';
@@ -15331,15 +15515,29 @@ CSS;
         editForm.data('mode', 'edit');
         var editOffcanvasInstance = null;
         if (editOffcanvasElement.length) {
-            // Clear highlight as soon as the panel starts closing (no wait for animation)
-            editOffcanvasElement.on('hide.bs.offcanvas', function() {
-                clearRowHighlight();
-            });
-            // Cleanup heavy widgets after the panel is fully hidden
-            editOffcanvasElement.on('hidden.bs.offcanvas', function() {
+            var cleanupEditPanelWidgets = function() {
                 destroyRichEditors(editFieldsContainer);
                 destroySelect2(editFieldsContainer);
                 destroyFilePonds(editFieldsContainer);
+            };
+            var clearEditPanelState = function() {
+                clearRowHighlight();
+            };
+
+            if (formDisplayMode === 'modal') {
+                editOffcanvasElement.on('hide.bs.modal', clearEditPanelState);
+                editOffcanvasElement.on('hidden.bs.modal', cleanupEditPanelWidgets);
+            } else if (formDisplayMode === 'offcanvas') {
+                editOffcanvasElement.on('hide.bs.offcanvas', clearEditPanelState);
+                editOffcanvasElement.on('hidden.bs.offcanvas', cleanupEditPanelWidgets);
+            }
+
+            editOffcanvasElement.on('click', '[data-fastcrud-side-close="1"]', function(event) {
+                event.preventDefault();
+                var instance = getEditOffcanvasInstance();
+                if (instance && typeof instance.hide === 'function') {
+                    instance.hide();
+                }
             });
         }
 
@@ -15363,11 +15561,20 @@ CSS;
                     if (!panel || !panel.length) {
                         return;
                     }
-                    var instance = panel.data('bs.offcanvas');
-                    if (instance && typeof instance.dispose === 'function') {
-                        try {
-                            instance.dispose();
-                        } catch (error) {}
+                    var node = panel.get(0);
+                    if (node && typeof bootstrap !== 'undefined') {
+                        var instance = null;
+                        if (bootstrap.Offcanvas && typeof bootstrap.Offcanvas.getInstance === 'function') {
+                            instance = bootstrap.Offcanvas.getInstance(node);
+                        }
+                        if (!instance && bootstrap.Modal && typeof bootstrap.Modal.getInstance === 'function') {
+                            instance = bootstrap.Modal.getInstance(node);
+                        }
+                        if (instance && typeof instance.dispose === 'function') {
+                            try {
+                                instance.dispose();
+                            } catch (error) {}
+                        }
                     }
                     panel.remove();
                 });
@@ -16444,6 +16651,9 @@ CSS;
             return {
                 show: function() {
                     elementRef.addClass('fastcrud-inline-visible show');
+                    if (hooks.onShow && typeof hooks.onShow === 'function') {
+                        hooks.onShow();
+                    }
                 },
                 hide: function() {
                     elementRef.removeClass('fastcrud-inline-visible show');
@@ -16460,6 +16670,10 @@ CSS;
             }
 
             if (!offcanvasElement || !offcanvasElement.length) {
+                return;
+            }
+
+            if (offcanvasElement.attr('data-fastcrud-side-panel') === '1') {
                 return;
             }
 
@@ -16515,15 +16729,32 @@ CSS;
                 return null;
             }
 
-            if (formOnlyMode) {
+            if (formOnlyMode || formDisplayMode === 'side') {
                 editOffcanvasInstance = createInlinePanelController(element, {
+                    onShow: function() {
+                        if (formDisplayMode === 'side') {
+                            container.addClass('fastcrud-side-open');
+                        }
+                    },
                     onHide: function() {
                         clearRowHighlight();
-                        destroyRichEditors(editFieldsContainer);
-                        destroySelect2(editFieldsContainer);
-                        destroyFilePonds(editFieldsContainer);
+                        if (formDisplayMode === 'side') {
+                            container.removeClass('fastcrud-side-open');
+                        }
+                        if (typeof cleanupEditPanelWidgets === 'function') {
+                            cleanupEditPanelWidgets();
+                        } else {
+                            destroyRichEditors(editFieldsContainer);
+                            destroySelect2(editFieldsContainer);
+                            destroyFilePonds(editFieldsContainer);
+                        }
                     }
                 });
+                return editOffcanvasInstance;
+            }
+
+            if (formDisplayMode === 'modal' && typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                editOffcanvasInstance = bootstrap.Modal.getOrCreateInstance(element);
                 return editOffcanvasInstance;
             }
 
@@ -16701,6 +16932,10 @@ CSS;
             }
 
             metaConfig = meta;
+
+            if (typeof meta.form_display_mode === 'string' && meta.form_display_mode.length) {
+                clientConfig.form_display_mode = meta.form_display_mode;
+            }
 
             if (Object.prototype.hasOwnProperty.call(metaConfig, 'numbers_enabled')) {
                 numbersEnabled = !!metaConfig.numbers_enabled;

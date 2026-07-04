@@ -550,10 +550,15 @@ All customization options are available through the main `FastCrud\Crud` class m
   ```php
   $crud->compact_pagination();
   ```
-- **`setPanelWidth(string $width): self`** – Adjust the edit panel width with any CSS length (`'640px'`, `'30%'`, `'40rem'`).
+- **`setFormWidth(string $width): self`** – Adjust the add/edit form width for offcanvas, modal, and side modes with any CSS length (`'640px'`, `'30%'`, `'40rem'`).
   ```php
-  $crud->setPanelWidth('640px');
-  $crud->setPanelWidth('30%');
+  $crud->setFormWidth('640px');
+  $crud->setFormWidth('30%');
+  ```
+- **`setFormDisplayMode(string $mode, ?string $width = null): self`** – Choose how add/edit forms open. Supported modes are `'offcanvas'` (default), `'modal'`, and `'side'`. Pass a width as the second argument to set the form width at the same time.
+  ```php
+  $crud->setFormDisplayMode('modal', '640px');
+  $crud->setFormDisplayMode('side', '50%');
   ```
 
 ---
