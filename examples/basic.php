@@ -227,7 +227,8 @@ DatabaseEditor::init();
                         'icon' => 'fas fa-globe',
                         'label' => '',   
                         'button_class' => 'btn btn-sm btn-success',
-                        'enable_filter' => true
+                        'enable_filter' => true,
+                            'highlight_row_on_open' => true,
                     ], [
                         ['url' => '/customers/{id}', 'label' => 'Profile', 'icon' => 'fas fa-user'],
                         ['type' => 'input', 'url' => '/customers/search/{id}', 'label' => 'Email Lookup', 'input_name' => 'email', 'icon' => 'fas fa-search', 'prompt' => 'Enter email to search'],
