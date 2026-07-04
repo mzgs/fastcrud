@@ -8615,8 +8615,11 @@ SQL;
         }
         $attributesHtml = implode(' ', $attributePairs);
 
-        $tableHtml = <<<HTML
+        $metaHtml = <<<HTML
     <div id="{$id}-meta" class="d-flex flex-wrap align-items-center gap-2 mb-2"></div>
+HTML;
+
+        $tableViewportHtml = <<<HTML
     <div class="table-responsive fastcrud-table-container">
         <table id="$id" class="table align-middle" data-table="$table" data-per-page="$perPage">
             <thead>
@@ -8639,6 +8642,9 @@ $headerHtml
             <tfoot id="{$id}-summary" class="fastcrud-summary"></tfoot>
         </table>
     </div>
+HTML;
+
+        $paginationHtml = <<<HTML
     <nav aria-label="{$paginationText}" class="d-flex flex-wrap align-items-center gap-2 justify-content-between mt-1">
         <div class="d-flex flex-wrap align-items-center gap-2">
             <ul id="{$id}-pagination" class="pagination justify-content-start mb-0 flex-wrap"></ul>
@@ -8648,17 +8654,25 @@ $headerHtml
     </nav>
 HTML;
 
+        $tableHtml = <<<HTML
+$metaHtml
+$tableViewportHtml
+$paginationHtml
+HTML;
+
         if (!$formOnly && $formDisplayMode === 'side') {
             return <<<HTML
 <div {$attributesHtml}>
+{$metaHtml}
     <div class="fastcrud-side-layout">
         <div class="fastcrud-side-table">
-$tableHtml
+{$tableViewportHtml}
         </div>
         <div class="fastcrud-side-panel-slot">
 $editPanel
         </div>
     </div>
+{$paginationHtml}
 </div>
 $queryBuilderModal
 $styles
@@ -9511,7 +9525,7 @@ CSS;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 1rem;
-    align-items: start;
+    align-items: stretch;
 }
 #{$containerId}.fastcrud-has-side-form .fastcrud-side-table {
     min-width: 0;
@@ -9519,18 +9533,22 @@ CSS;
 #{$containerId}.fastcrud-has-side-form .fastcrud-side-panel-slot {
     display: none;
     min-width: 0;
+    min-height: 0;
+    align-items: stretch;
 }
 #{$containerId}.fastcrud-has-side-form.fastcrud-side-open .fastcrud-side-layout {
     grid-template-columns: minmax(0, 1fr) minmax(0, {$sideWidth});
 }
 #{$containerId}.fastcrud-has-side-form.fastcrud-side-open .fastcrud-side-panel-slot {
-    display: block;
+    display: flex;
 }
 #{$editPanelId}.fastcrud-side-panel {
     display: none;
     position: sticky;
     top: 1rem;
-    max-height: calc(100vh - 2rem);
+    width: 100%;
+    max-height: none;
+    min-height: 0;
     overflow: hidden;
     border: 1px solid var(--bs-border-color, #dee2e6);
     background-color: var(--bs-body-bg, #ffffff);
@@ -9541,14 +9559,19 @@ CSS;
     flex-direction: column;
 }
 #{$editPanelId}.fastcrud-side-panel .card-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
     min-height: 0;
     overflow: hidden;
 }
 #{$editPanelId}.fastcrud-side-panel form {
+    flex: 1 1 auto;
     min-height: 0;
 }
 #{$editPanelId}.fastcrud-side-panel .fastcrud-side-fields {
-    min-height: 12rem;
+    min-height: 0;
+    overflow: auto;
 }
 @media (max-width: 991.98px) {
     #{$containerId}.fastcrud-has-side-form.fastcrud-side-open .fastcrud-side-layout {
@@ -9556,7 +9579,7 @@ CSS;
     }
     #{$editPanelId}.fastcrud-side-panel {
         position: static;
-        max-height: none;
+        height: auto !important;
     }
 }
 CSS;
@@ -16467,6 +16490,13 @@ CSS;
         if (!formOnlyMode && container.length && !container.data('fastcrud-offcanvas-cleanup')) {
             container.data('fastcrud-offcanvas-cleanup', true);
             container.on('remove.fastcrudOffcanvasCleanup', function() {
+                if (sidePanelHeightTimer !== null) {
+                    window.clearTimeout(sidePanelHeightTimer);
+                    sidePanelHeightTimer = null;
+                }
+                if (sidePanelResizeNamespace) {
+                    $(window).off('resize' + sidePanelResizeNamespace);
+                }
                 var panels = [editOffcanvasElement, viewOffcanvasElement];
                 panels.forEach(function(panel) {
                     if (!panel || !panel.length) {
@@ -17552,6 +17582,65 @@ CSS;
         }
         window.FastCrudRichEditor = richEditorState;
 
+        var sidePanelHeightTimer = null;
+        var sidePanelResizeNamespace = '.fastcrudSidePanel' + String(tableId || '').replace(/[^A-Za-z0-9]/g, '');
+
+        function syncSidePanelHeight() {
+            if (formDisplayMode !== 'side' || formOnlyMode || !container.length || !editOffcanvasElement.length) {
+                return;
+            }
+
+            var panel = editOffcanvasElement;
+            if (!container.hasClass('fastcrud-side-open') || !panel.hasClass('show')) {
+                panel.css({ height: '', marginTop: '' });
+                return;
+            }
+
+            var tableColumn = container.find('.fastcrud-side-table').first();
+            if (!tableColumn.length) {
+                return;
+            }
+
+            var tableViewport = tableColumn.find('.fastcrud-table-container').first();
+            if (!tableViewport.length) {
+                tableViewport = tableColumn.find('.table-responsive').first();
+            }
+
+            var targetHeight = Math.ceil((tableViewport.length ? tableViewport.outerHeight(true) : 0) || 0);
+            var topOffset = 0;
+            if (tableViewport.length && tableColumn.get(0) && tableViewport.get(0)) {
+                var columnRect = tableColumn.get(0).getBoundingClientRect();
+                var viewportRect = tableViewport.get(0).getBoundingClientRect();
+                topOffset = Math.max(0, Math.round(viewportRect.top - columnRect.top));
+            }
+
+            if (targetHeight > 0) {
+                panel.css({
+                    height: targetHeight + 'px',
+                    marginTop: topOffset > 0 ? topOffset + 'px' : ''
+                });
+            }
+        }
+
+        function scheduleSidePanelHeightSync() {
+            if (formDisplayMode !== 'side' || formOnlyMode) {
+                return;
+            }
+
+            if (sidePanelHeightTimer !== null) {
+                window.clearTimeout(sidePanelHeightTimer);
+            }
+
+            sidePanelHeightTimer = window.setTimeout(function() {
+                sidePanelHeightTimer = null;
+                syncSidePanelHeight();
+            }, 0);
+        }
+
+        if (formDisplayMode === 'side' && !formOnlyMode && sidePanelResizeNamespace !== '.fastcrudSidePanel') {
+            $(window).off('resize' + sidePanelResizeNamespace).on('resize' + sidePanelResizeNamespace, scheduleSidePanelHeightSync);
+        }
+
         function createInlinePanelController(element, callbacks) {
             if (!element) {
                 return null;
@@ -17645,12 +17734,14 @@ CSS;
                     onShow: function() {
                         if (formDisplayMode === 'side') {
                             container.addClass('fastcrud-side-open');
+                            scheduleSidePanelHeightSync();
                         }
                     },
                     onHide: function() {
                         clearRowHighlight();
                         if (formDisplayMode === 'side') {
                             container.removeClass('fastcrud-side-open');
+                            editOffcanvasElement.css({ height: '', marginTop: '' });
                         }
                         if (typeof cleanupEditPanelWidgets === 'function') {
                             cleanupEditPanelWidgets();
@@ -21069,6 +21160,7 @@ CSS;
                 showEmptyRow(totalColumns, t('no_records', 'No records found.'));
                 refreshSelectAllState();
                 updateBatchDeleteButtonState();
+                scheduleSidePanelHeightSync();
                 return;
             }
 
@@ -21313,6 +21405,7 @@ CSS;
             refreshSelectAllState();
             updateBatchDeleteButtonState();
             ensureRowOrderingHandlers();
+            scheduleSidePanelHeightSync();
 
             if (hasNested && expandQueue.length) {
                 expandQueue.forEach(function(entry) {
@@ -21429,9 +21522,11 @@ CSS;
                         var message = response && response.error ? response.error : t('no_records', 'No records found.');
                         container.html('<div class="text-muted">' + escapeHtml(String(message)) + '</div>');
                     }
+                    scheduleSidePanelHeightSync();
                 },
                 error: function(_, __, error) {
                     container.html('<div class="alert alert-danger mb-0">' + escapeHtml(error || 'Failed to load nested records.') + '</div>');
+                    scheduleSidePanelHeightSync();
                 }
             });
         }
@@ -21475,6 +21570,7 @@ CSS;
             var nestedRow = parentRow.next('.fastcrud-nested-row');
             if (nestedRow.length) {
                 nestedRow.remove();
+                scheduleSidePanelHeightSync();
             }
 
             buttonEl.attr('data-fastcrud-expanded', 'false').attr('aria-expanded', 'false').html(actionIcons.expand);
@@ -21500,9 +21596,11 @@ CSS;
                 nestedCell.append(wrapper);
                 nestedRow.append(nestedCell);
                 parentRow.after(nestedRow);
+                scheduleSidePanelHeightSync();
             } else {
                 wrapper = nestedRow.find('.fastcrud-nested-wrapper').first();
                 wrapper.empty();
+                scheduleSidePanelHeightSync();
             }
 
             if (rowKey) {
@@ -21627,6 +21725,7 @@ CSS;
                         }
 
                         tableHasRendered = true;
+                        scheduleSidePanelHeightSync();
                     } else {
                         var errorMessage = response && response.error ? response.error : 'Failed to load data';
                         showError('Error: ' + errorMessage);
@@ -23293,6 +23392,7 @@ CSS;
             var offcanvas = getEditOffcanvasInstance();
             if (offcanvas) {
                 offcanvas.show();
+                scheduleSidePanelHeightSync();
             }
         }
 
