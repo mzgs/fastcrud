@@ -137,6 +137,7 @@ class Crud
         'column_patterns'         => [],
         'column_formatters'       => [],
         'column_callbacks'        => [],
+        'column_tooltips'         => [],
         'custom_columns'          => [],
         'field_callbacks'         => [],
         'custom_fields'           => [],
@@ -1682,6 +1683,81 @@ class Crud
         }
 
         return $class . '::' . $method;
+    }
+
+    /**
+     * @return array{type: string, value?: string, callable?: string}
+     */
+    private function normalizeColumnTooltipDefinition(string|array|null $tooltip): array
+    {
+        if ($tooltip === null) {
+            return ['type' => 'none'];
+        }
+
+        if (is_array($tooltip)) {
+            if (!isset($tooltip['type']) && array_key_exists('callback', $tooltip)) {
+                $callback = $tooltip['callback'];
+                if (!is_string($callback) && !is_array($callback)) {
+                    throw new InvalidArgumentException('Column tooltip callback must be a callable string or [ClassName, method] pair.');
+                }
+
+                $serialized = $this->normalizeCallable($callback);
+                if (!is_callable($serialized)) {
+                    throw new InvalidArgumentException('Provided tooltip callback is not callable: ' . $serialized);
+                }
+
+                return ['type' => 'callback', 'callable' => $serialized];
+            }
+
+            if (!isset($tooltip['type']) && array_key_exists('tooltip', $tooltip)) {
+                $value = is_scalar($tooltip['tooltip']) ? trim((string) $tooltip['tooltip']) : '';
+
+                return $value === '' ? ['type' => 'none'] : ['type' => 'static', 'value' => $value];
+            }
+
+            if (isset($tooltip['type'])) {
+                $type = strtolower(trim((string) $tooltip['type']));
+                if ($type === 'static') {
+                    $value = isset($tooltip['value']) && is_scalar($tooltip['value'])
+                        ? trim((string) $tooltip['value'])
+                        : '';
+
+                    return $value === '' ? ['type' => 'none'] : ['type' => 'static', 'value' => $value];
+                }
+
+                if ($type === 'callback') {
+                    $callback = $tooltip['callable'] ?? $tooltip['callback'] ?? null;
+                    if (!is_string($callback) && !is_array($callback)) {
+                        throw new InvalidArgumentException('Column tooltip callback must be a callable string or [ClassName, method] pair.');
+                    }
+
+                    $serialized = $this->normalizeCallable($callback);
+                    if (!is_callable($serialized)) {
+                        throw new InvalidArgumentException('Provided tooltip callback is not callable: ' . $serialized);
+                    }
+
+                    return ['type' => 'callback', 'callable' => $serialized];
+                }
+            }
+
+            $serialized = $this->normalizeCallable($tooltip);
+            if (!is_callable($serialized)) {
+                throw new InvalidArgumentException('Provided tooltip callback is not callable: ' . $serialized);
+            }
+
+            return ['type' => 'callback', 'callable' => $serialized];
+        }
+
+        $trimmed = trim($tooltip);
+        if ($trimmed === '') {
+            return ['type' => 'none'];
+        }
+
+        if (is_callable($trimmed)) {
+            return ['type' => 'callback', 'callable' => $trimmed];
+        }
+
+        return ['type' => 'static', 'value' => $trimmed];
     }
 
     private function normalizePermissionRule(bool|string|array $condition): bool|string
@@ -3784,6 +3860,37 @@ class Crud
             }
         }
 
+        if (isset($this->config['column_tooltips'][$column])) {
+            $tooltipEntry = $this->config['column_tooltips'][$column];
+            if (is_string($tooltipEntry)) {
+                $tooltip = trim($this->applyPattern($tooltipEntry, $display, $value, $column, $row, $html ?? $display));
+                if ($tooltip === '') {
+                    $tooltip = null;
+                }
+            } elseif (is_array($tooltipEntry)) {
+                $type = isset($tooltipEntry['type']) ? strtolower((string) $tooltipEntry['type']) : '';
+                if ($type === 'static') {
+                    $tooltipValue = isset($tooltipEntry['value']) && is_scalar($tooltipEntry['value'])
+                        ? (string) $tooltipEntry['value']
+                        : '';
+                    $tooltip = trim($this->applyPattern($tooltipValue, $display, $value, $column, $row, $html ?? $display));
+                    if ($tooltip === '') {
+                        $tooltip = null;
+                    }
+                } elseif ($type === 'callback') {
+                    $callable = isset($tooltipEntry['callable']) ? (string) $tooltipEntry['callable'] : '';
+                    if ($callable !== '' && is_callable($callable)) {
+                        $formattedValue = $html !== null ? $html : $display;
+                        $tooltipResult  = call_user_func($callable, $value, $row, $column, $formattedValue);
+                        if ($tooltipResult !== null) {
+                            $tooltipText = trim($this->stringifyValue($tooltipResult));
+                            $tooltip     = $tooltipText === '' ? null : $tooltipText;
+                        }
+                    }
+                }
+            }
+        }
+
         $width = $this->config['column_widths'][$column] ?? null;
 
         return [
@@ -4290,6 +4397,101 @@ class Crud
 
         if (!$applied) {
             throw new InvalidArgumentException('column_callbacks requires at least one valid definition.');
+        }
+
+        return $this;
+    }
+
+    /**
+     * Attach Bootstrap tooltip text to grid cells for one or more columns.
+     *
+     * Pass static text (patterns like `{value}` and `{column}` are supported) or a
+     * callable receiving ($value, array $row, string $column, string $display).
+     *
+     * @param string|array<int, string> $columns
+     * @param string|array<int|string, mixed>|null $tooltip
+     */
+    public function column_tooltip(string|array $columns, string|array|null $tooltip): self
+    {
+        $list = $this->normalizeList($columns);
+        if ($list === []) {
+            throw new InvalidArgumentException('column_tooltip requires at least one column.');
+        }
+
+        $definition = $this->normalizeColumnTooltipDefinition($tooltip);
+        $applied    = false;
+
+        foreach ($list as $column) {
+            $normalized = $this->normalizeColumnReference($column);
+            if ($normalized === '') {
+                continue;
+            }
+
+            if ($definition['type'] === 'none') {
+                unset($this->config['column_tooltips'][$normalized]);
+            } else {
+                $this->config['column_tooltips'][$normalized] = $definition;
+            }
+            $applied = true;
+        }
+
+        if (!$applied) {
+            throw new InvalidArgumentException('column_tooltip requires at least one valid column name.');
+        }
+
+        return $this;
+    }
+
+    /**
+     * Register multiple column tooltips in one call.
+     *
+     * @param array<int|string, mixed> $definitions
+     */
+    public function column_tooltips(array $definitions): self
+    {
+        if ($definitions === []) {
+            throw new InvalidArgumentException('column_tooltips requires at least one definition.');
+        }
+
+        $applied = false;
+        foreach ($definitions as $key => $definition) {
+            $targets = null;
+            $tooltip = null;
+
+            if (is_string($key)) {
+                $targets = $key;
+                $tooltip = $definition;
+            } elseif (is_array($definition)) {
+                if (array_key_exists('columns', $definition) && array_key_exists('tooltip', $definition)) {
+                    $targets = $definition['columns'];
+                    $tooltip = $definition['tooltip'];
+                } elseif (array_key_exists('columns', $definition) && array_key_exists('callback', $definition)) {
+                    $targets = $definition['columns'];
+                    $tooltip = ['type' => 'callback', 'callable' => $definition['callback']];
+                } elseif (array_key_exists(0, $definition) && array_key_exists(1, $definition)) {
+                    $targets = $definition[0];
+                    $tooltip = $definition[1];
+                }
+            }
+
+            if ($targets === null) {
+                throw new InvalidArgumentException('Each column_tooltips entry must provide columns and tooltip.');
+            }
+
+            if (!is_string($targets) && !is_array($targets)) {
+                throw new InvalidArgumentException('Column tooltip targets must be a string or array of column names.');
+            }
+
+            if (!is_string($tooltip) && !is_array($tooltip) && $tooltip !== null) {
+                throw new InvalidArgumentException('Column tooltip must be a string, callable array, tooltip definition array, or null.');
+            }
+
+            $this->column_tooltip($targets, $tooltip);
+            $applied = true;
+        }
+
+        if (!$applied) {
+            throw new InvalidArgumentException('column_tooltips requires at least one valid definition.');
         }
 
         return $this;
@@ -11203,6 +11405,7 @@ HTML;
             'column_patterns'         => $this->config['column_patterns'],
             'column_formatters'       => $this->config['column_formatters'],
             'column_callbacks'        => $this->config['column_callbacks'],
+            'column_tooltips'         => $this->config['column_tooltips'],
             'custom_columns'          => $this->config['custom_columns'],
             'field_callbacks'         => $this->config['field_callbacks'],
             'lifecycle_callbacks'     => $this->config['lifecycle_callbacks'],
@@ -12028,6 +12231,7 @@ HTML;
             'column_patterns',
             'column_formatters',
             'column_callbacks',
+            'column_tooltips',
             'column_classes',
             'column_widths',
             'column_cuts',
@@ -12267,6 +12471,36 @@ HTML;
             if ($normalized !== []) {
                 $this->config['column_callbacks'] = $normalized;
             }
+        }
+
+        if (isset($payload['column_tooltips']) && is_array($payload['column_tooltips'])) {
+            $tooltips = [];
+            foreach ($payload['column_tooltips'] as $column => $entry) {
+                if (!is_string($column)) {
+                    continue;
+                }
+
+                $normalizedColumn = $this->normalizeColumnReference($column);
+                if ($normalizedColumn === '') {
+                    continue;
+                }
+
+                if (!is_string($entry) && !is_array($entry) && $entry !== null) {
+                    continue;
+                }
+
+                try {
+                    $definition = $this->normalizeColumnTooltipDefinition($entry);
+                } catch (InvalidArgumentException) {
+                    continue;
+                }
+
+                if ($definition['type'] !== 'none') {
+                    $tooltips[$normalizedColumn] = $definition;
+                }
+            }
+
+            $this->config['column_tooltips'] = $tooltips;
         }
 
         if (isset($payload['field_callbacks']) && is_array($payload['field_callbacks'])) {

@@ -658,6 +658,22 @@ All customization options are available through the main `FastCrud\Crud` class m
       'total,subtotal' => [InvoicePresenter::class, 'formatCurrency'],
   ]);
   ```
+- **`column_tooltip(string|array $columns, string|array|null $tooltip): self`** – Add Bootstrap tooltip text to grid cells. Pass static text with pattern tokens such as `{value}`/`{status}`, a callable name, or `[ClassName::class, 'method']`. Tooltip callbacks receive `($value, $row, $column, $display)` and should return text or `null`.
+  ```php
+  function order_status_tooltip($value, $row, $column, $display) {
+      return 'Updated by ' . ($row['updated_by'] ?? 'system');
+  }
+
+  $crud->column_tooltip('status', 'order_status_tooltip');
+  $crud->column_tooltip('total', 'Raw total: {raw}');
+  ```
+- **`column_tooltips(array $definitions): self`** – Apply several `column_tooltip()` rules at once.
+  ```php
+  $crud->column_tooltips([
+      'status' => 'order_status_tooltip',
+      'title,slug' => 'Current value: {value}',
+  ]);
+  ```
 - **`custom_column(string $column, string|array $callback): self`** – Add computed virtual columns to the grid; callback forms mirror `column_callback()`.
   ```php
   // Using a named function (function must accept 1 param: $row)

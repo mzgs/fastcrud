@@ -39,6 +39,14 @@ function fc_render_user_role(?string $value, array $row, string $column, string 
     return '<span class="badge bg-' . $variant . ' text-uppercase">' . $label . '</span>';
 }
 
+function fc_post_title_tooltip(?string $value, array $row, string $column, string $formatted): string
+{
+    $author = isset($row['user_id']) ? (string) $row['user_id'] : 'unknown author';
+    $status = isset($row['status']) ? (string) $row['status'] : 'draft';
+
+    return sprintf('Post #%s by %s is currently %s.', (string) ($row['id'] ?? ''), $author, $status);
+}
+
 function render_status_badge(array $row): string
 {
     $isFeatured = !empty($row['is_featured']);
@@ -347,8 +355,10 @@ DatabaseEditor::init();
                    ->column_truncate('content', 30)
                     ->column_pattern('content', 'pattern content| {value}')
                     ->column_callback('content', 'content_callback')
+                    ->column_tooltip('title', 'fc_post_title_tooltip')
                     // Add a custom, computed column that isn't stored in the database
                     ->custom_column('status_label', 'render_status_badge')
+                    ->column_tooltip('status_label', 'Featured flag: {is_featured}')
                     // Render a color swatch in view mode while keeping color picker for forms
                     ->field_callback('color', 'create_color_picker')
                     ->column_class('user_id', 'text-muted')
