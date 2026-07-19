@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🚀 FastCRUD
+# FastCRUD
 
 **A fast and simple CRUD operations library for PHP with built-in pagination and AJAX support**
 
@@ -11,47 +11,47 @@
 
 ---
 
-*✨ Zero-config setup • 🔄 AJAX-powered • 📊 Built-in pagination • 🎨 Bootstrap 5 ready*
+*Zero-config setup • AJAX-powered • Built-in pagination • Bootstrap 5 ready*
 
 </div>
 
-## 📚 Table of Contents
+## Table of Contents
 
-- [🎆 Features](#features)
-- [📦 Installation](#installation)
-- [🚀 Quick Start](#quick-start)
-- [🔧 Configuration](#configuration)
-- [💡 Common Recipes](#common-recipes)
-- [🗃️ Database Editor](#database-editor)
-- [📜 API Reference & Customization](#api-reference--customization)
-- [📝 License](#license)
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [Common Recipes](#common-recipes)
+- [Database Editor](#database-editor)
+- [API Reference & Customization](#api-reference--customization)
+- [License](#license)
 
-## 🎆 Features
+## Features
 
-✨ **Zero-config CRUD** with automatic pagination, search, and column sorting  
-🔄 **AJAX-powered forms**, inline editing, bulk updates, and real-time validation feedback  
-🔗 **Nested tables, relations**, and subselect support for modelling complex data  
-🪝 **Lifecycle callbacks**, custom columns, and field modifiers for fine-grained control  
-📊 **Built-in CSV export**, soft-delete helpers, and configurable action buttons  
-🔍 **Visual query builder** to compose filters & sorts with reusable saved views  
-🎨 **Global styling hooks** and upload helpers so you can align the UI with your project
+**Zero-config CRUD** with automatic pagination, search, and column sorting  
+**AJAX-powered forms**, inline editing, bulk updates, and real-time validation feedback  
+**Nested tables, relations**, and subselect support for modelling complex data  
+**Lifecycle callbacks**, custom columns, and field modifiers for fine-grained control  
+**Built-in CSV export**, soft-delete helpers, and configurable action buttons  
+**Visual query builder** to compose filters & sorts with reusable saved views  
+**Global styling hooks** and upload helpers so you can align the UI with your project
 
-## 📦 Installation
+## Installation
 
 ```bash
 # Install via Composer
 composer require mzgs/fastcrud
 ```
 
-### 📋 Requirements
+### Requirements
 
-✅ **PHP** 8.0 or higher  
-✅ **PDO** extension  
-✅ **Database** - MySQL, PostgreSQL, SQLite, etc.  
-✅ **Bootstrap** 5 for styling  
-✅ **jQuery** for AJAX functionality
+**PHP** 8.0 or higher  
+**PDO** extension  
+**Database** - MySQL, PostgreSQL, SQLite, etc.  
+**Bootstrap** 5 for styling  
+**jQuery** for AJAX functionality
 
-## 🚀 Quick Start
+## Quick Start
 
 ```php
 <?php
@@ -59,7 +59,7 @@ require __DIR__ . '/vendor/autoload.php';
 
 use FastCrud\Crud;
 
-// 🔌 Initialize database connection
+// Initialize database connection
 // Supports: driver, host, port, database, username, password, options
 Crud::init([
     'driver' => 'mysql',        // mysql, pgsql, sqlite
@@ -69,23 +69,23 @@ Crud::init([
     'password' => 'your_password',
 ]);
 
-// ✨ Create and render a CRUD table - that's it!
+// Create and render a CRUD table - that's it!
 echo new Crud('users')->render();
 ```
 
-> 🎉 **That's it!** FastCRUD automatically generates a complete CRUD interface with pagination, search, and AJAX functionality.
+> **That's it!** FastCRUD automatically generates a complete CRUD interface with pagination, search, and AJAX functionality.
 
-### 🖼️ What You Get Out of the Box
+### What You Get Out of the Box
 
 *Example of a fully functional CRUD table generated with just 2 lines of code*
 
-📊 **Data Table** with sorting, searching, and pagination  
-✏️ **Inline Editing** for quick updates  
-📝 **Forms** for create/edit operations  
-📋 **Export** to CSV  
-🗑️ **Bulk Actions** for mass operations
+**Data Table** with sorting, searching, and pagination  
+**Inline Editing** for quick updates  
+**Forms** for create/edit operations  
+**Export** to CSV  
+**Bulk Actions** for mass operations
 
-### 🌍 Complete HTML Example
+### Complete HTML Example
 
 ```html
 <!DOCTYPE html>
@@ -121,9 +121,9 @@ echo new Crud('users')->render();
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
-### 📋 Rendering Multiple Tables
+### Rendering Multiple Tables
 
 ```php
 // Each Crud instance is independent - reuse the same connection
@@ -134,7 +134,7 @@ echo $users->render();
 echo $orders->render();
 ```
 
-### 🧾 Audit Logs
+### Audit Logs
 
 `Crud::init()` automatically ensures the `fastcrud_audit_logs` table exists when a PDO instance or database configuration is available. Enable logging per CRUD table:
 
@@ -178,7 +178,7 @@ $users = (new Crud('users'))->enableAuditLog([
 ]);
 ```
 
-## 💡 Common Recipes
+## Common Recipes
 
 These examples show complete, copy-pasteable patterns for the features most projects configure first.
 
@@ -406,11 +406,11 @@ echo $customers->render();
 
 
 
-## 🗃️ Database Editor
+## Database Editor
 
 FastCRUD includes a visual Database Editor that provides a web-based interface for managing your database schema. Create, modify, and organize tables and columns directly from your browser without writing SQL.
 
-### 🎯 Features
+### Features
 
 - **Visual Schema Management** - Create, rename, and delete tables through an intuitive interface
 - **Column Management** - Add, rename, and modify column types with live feedback
@@ -420,7 +420,7 @@ FastCRUD includes a visual Database Editor that provides a web-based interface f
 - **Real-time Updates** - AJAX-powered interface with instant feedback
 - **Type-safe Operations** - Built-in validation prevents invalid schema changes
 
-### 🚀 Quick Start
+### Quick Start
 
 ```php
 <?php
@@ -452,7 +452,7 @@ echo DatabaseEditor::render();
 
  
 
-### 🛠️ API Reference
+### API Reference
 
 #### Database Editor Class
 
@@ -472,7 +472,7 @@ echo DatabaseEditor::render();
   echo DatabaseEditor::render(false, true);
   ```
 
-### ⚡ Supported Operations
+### Supported Operations
 
 #### Table Management
 - **Create Tables** - Add new tables with auto-generated primary key
@@ -497,19 +497,19 @@ echo DatabaseEditor::render();
 **SQLite Types:**
 `INTEGER`, `REAL`, `TEXT`, `BLOB`, `NUMERIC`
 
-### 💾 Database Export
+### Database Export
 
 - **One-click Export** - Complete SQL dumps with data
 - **Timestamped Files** - Auto-generated filenames
 - **Multi-database Support** - Works with MySQL, PostgreSQL, SQLite
 
-### 🔒 Security Features
+### Security Features
 
 - **SQL Injection Protection** - Input validation and identifier quoting
 - **Type Safety** - Column type validation
 - **Error Handling** - Graceful error recovery
 
-### 💡 Usage Tips
+### Usage Tips
 
 - **Backup First** - Always backup before structural changes
 - **Test on Dev** - Use development databases before production
@@ -518,15 +518,15 @@ echo DatabaseEditor::render();
 
 ---
 
-## 📜 API Reference & Customization
+## API Reference & Customization
 
 All customization options are available through the main `FastCrud\Crud` class methods:
 
-### 🛠️ FastCrud\Crud - Main CRUD Class
+### FastCrud\Crud - Main CRUD Class
 
 ---
 
-#### 🚀 Setup & Bootstrap
+#### Setup & Bootstrap
 
 - **`Crud::init(PDO|array|null $dbConfig = null): void`** – Configure the connection defaults (keys like `driver`, `host`, `port`, `database`, `username`, `password`, `options`) or inject an existing PDO instance. When called without arguments, it reuses the configuration stored in `CrudConfig`.
   ```php
@@ -590,7 +590,7 @@ All customization options are available through the main `FastCrud\Crud` class m
 
 ---
 
-### 📋 Table Display
+### Table Display
 
 - **`inline_edit(string|array $fields): self`** – Enable inline edits for selected columns (pass an array or a comma-separated string).
   ```php
@@ -611,7 +611,7 @@ All customization options are available through the main `FastCrud\Crud` class m
 
 ---
 
-### 📊 Column Presentation
+### Column Presentation
 
 - **`asMoney(string|array $columns, string $currency = '', array $options = []): self`** – Format numeric values as money. Options include `precision`, `decimal_separator`, `thousands_separator`, `position` (`before`/`after`), and `space`.
   ```php
@@ -723,7 +723,7 @@ All customization options are available through the main `FastCrud\Crud` class m
 
 ---
 
-### 📋 Field & Form Customization
+### Field & Form Customization
 
 - **`custom_field(string $field, string|array $callback): self`** – Inject additional, non-database fields into the form; callbacks accept the same shapes as other behaviour hooks.
   ```php
@@ -905,7 +905,7 @@ All customization options are available through the main `FastCrud\Crud` class m
 
 ---
 
-### ✅ Validation Helpers
+### Validation Helpers
 
 - **`validation_required(string|array $fields, int $minLength = 1, string|array $mode = 'all'): self`** – Enforce required fields and minimum length (modes `'create'`, `'edit'`, `'view'`, `'all'`).
   ```php
@@ -927,7 +927,7 @@ All customization options are available through the main `FastCrud\Crud` class m
 
 ---
 
-### 🪝 Lifecycle Hooks
+### Lifecycle Hooks
 
 Lifecycle hook methods accept only serializable callbacks: named functions (`'function_name'`), static method strings (`'Class::method'`), or class/method arrays (`[ClassName::class, 'method']`). Closures are not supported because the configuration is serialized for AJAX.
 
@@ -1100,7 +1100,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 ---
 
-### ⚙️ Actions & Toolbar
+### Actions & Toolbar
 
 - **`table_title(string $title): self`** – Set the headline shown above the table.
   ```php
@@ -1237,7 +1237,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 ---
 
-### 🔍 Sorting, Filtering & Relationships
+### Sorting, Filtering & Relationships
 
 - **`order_by(string|array $fields, string $direction = 'asc'): self`** – Define default ordering for query results; direction must be `'asc'` or `'desc'` (case-insensitive).
   ```php
@@ -1255,7 +1255,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $crud->search_columns(['name', 'email'], 'name');
   ```
-  > 💡 Using MySQL? FastCRUD will automatically apply `JSON_SEARCH()` for any JSON columns so you can search the nested document structure from the quick search box and the Query Builder without extra configuration.
+  > Using MySQL? FastCRUD will automatically apply `JSON_SEARCH()` for any JSON columns so you can search the nested document structure from the quick search box and the Query Builder without extra configuration.
 - **`hide_search(bool $hidden = true): self`** – Hide or show the quick search controls in the toolbar.
   ```php
   $crud->hide_search();
@@ -1283,7 +1283,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 ---
 
-### 📊 Query Extensions
+### Query Extensions
 
 - **`query(string $query): self`** – Replace the default select statement with your own SQL (must select the base table columns required by FastCRUD).
   ```php
@@ -1296,7 +1296,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 ---
 
-### 🔗 Nested Data
+### Nested Data
 
 - **`nested_table(string $instanceName, string $parentColumn, string $innerTable, string $innerTableField, ?callable $configurator = null): self`** – Attach expandable child tables to each row; the method returns the child `Crud` instance so you can continue configuring it.
   ```php
@@ -1307,7 +1307,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 ---
 
-### 🎨 Rendering & Data Access
+### Rendering & Data Access
 
 - **`render(?string $mode = null, mixed $primaryKeyValue = null): string`** – Output the full FastCRUD widget; `$mode` can be `null`, `'create'`, `'edit'`, or `'view'` and `$primaryKeyValue` targets a specific row for non-create modes.
   ```php
@@ -1324,7 +1324,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 ---
 
-### 📄 Record Operations
+### Record Operations
 
 - **`createRecord(array $fields): ?array`** – Insert a new record with behaviour support; pass a column => value array and receive the inserted row or `null` if cancelled.
   ```php
@@ -1357,7 +1357,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 ---
 
-### 🔄 FastCrud\CrudAjax - AJAX Request Handler
+### FastCrud\CrudAjax - AJAX Request Handler
 
 - **`CrudAjax::handle(): void`** – Process the current FastCRUD AJAX request (`fastcrud_ajax=1`) and emit JSON/CSV responses as needed.
   ```php
@@ -1378,7 +1378,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 ---
 
-### ⚙️ FastCrud\CrudConfig - Configuration Manager
+### FastCrud\CrudConfig - Configuration Manager
 
 #### Database Configuration
 
@@ -1465,7 +1465,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
 
 ---
 
-### 🎛️ Per-Table Text and Theme
+### Per-Table Text and Theme
 
 - **`text(array|string $texts, ?string $value = null): self`** – Override UI text for one table.
   ```php
@@ -1589,7 +1589,7 @@ Template-style text values support these placeholders where relevant:
 
 ---
 
-### 🎨 FastCrud\CrudStyle - Global Styling Configuration
+### FastCrud\CrudStyle - Global Styling Configuration
 
 Customize default CSS classes for buttons, rows, and components throughout FastCRUD by modifying these public static properties. All properties use Bootstrap 5 classes by default but can be overridden with any CSS framework.
 
@@ -1635,7 +1635,7 @@ CrudStyle::$x_icon_class;
 CrudStyle::$texts;
 ```
 
-#### 🔘 Toolbar & Action Buttons
+#### Toolbar & Action Buttons
 
 - **`CrudStyle::$add_button_class`** – Add new record button (default: `'btn btn-sm btn-success'`)
 - **`CrudStyle::$toolbar_action_button_global_class`** – Apply the same classes to all toolbar action buttons (default: `''`, values override individual toolbar buttons unless explicitly customised)
@@ -1647,7 +1647,7 @@ CrudStyle::$texts;
 - **`CrudStyle::$bulk_apply_button_class`** – Bulk actions apply button (default: `'btn btn-sm btn-outline-primary'`)
 - **`CrudStyle::$export_csv_button_class`** – CSV export button (default: `'btn btn-sm btn-outline-secondary'`)
 
-#### 🎯 Row Action Buttons
+#### Row Action Buttons
 
 - **`CrudStyle::$action_button_global_class`** – Apply the same classes to all row action buttons (default: `''`, values override individual buttons unless explicitly customised)
 - **`CrudStyle::$view_action_button_class`** – View/read record button (default: `'btn btn-sm btn-secondary'`)
@@ -1657,18 +1657,18 @@ CrudStyle::$texts;
 
 > Tip: Use `CrudStyle::$action_button_global_class` for row action buttons and `CrudStyle::$toolbar_action_button_global_class` for top toolbar actions while still allowing per-button overrides. Setting a toolbar button property to any non-empty string (even the documented default) keeps the global toolbar class from applying to that button.
 
-#### 🗂️ Panel & Form Buttons
+#### Panel & Form Buttons
 
 - **`CrudStyle::$panel_save_button_class`** – Save button in edit/create panels (default: `'btn btn-primary'`)
 - **`CrudStyle::$panel_cancel_button_class`** – Cancel button in edit/create panels (default: `'btn btn-outline-secondary'`)
 
-#### 🌲 Nested Tables & Grid
+#### Nested Tables & Grid
 
 - **`CrudStyle::$nested_toggle_button_classes`** – Expand/collapse buttons for nested tables (default: `'btn btn-link p-0'`)
 - **`CrudStyle::$edit_view_row_highlight_class`** – Table row highlight while editing/viewing (default: `'table-active'`)
 - **`CrudStyle::$bools_in_grid_color`** – Color variant for boolean switches in grid cells (default: `'primary'`)
 
-#### 🎯 Action Button Icons
+#### Action Button Icons
 
 - **`CrudStyle::$view_action_icon`** – Icon class for view/read action buttons (default: `'fas fa-eye'`)
 - **`CrudStyle::$edit_action_icon`** – Icon class for edit action buttons (default: `'fas fa-edit'`)
@@ -1679,36 +1679,36 @@ CrudStyle::$texts;
 - **`CrudStyle::$x_icon_class`** – Icon class for dismiss/remove buttons (default: `'fas fa-xmark'`)
 - **`CrudStyle::$action_icon_size`** – Font size for action button icons (default: `'1.05rem'`)
 
-#### 💡 Usage Examples
+#### Usage Examples
 
 ```php
 use FastCrud\CrudStyle;
 
-// 🎨 Customize for dark theme
+// Customize for dark theme
 CrudStyle::$add_button_class = 'btn btn-sm btn-outline-success';
 CrudStyle::$edit_action_button_class = 'btn btn-sm btn-outline-warning';
 CrudStyle::$delete_action_button_class = 'btn btn-sm btn-outline-danger';
 CrudStyle::$edit_view_row_highlight_class = 'table-dark';
 
-// 🌈 Customize for colorful theme
+// Customize for colorful theme
 CrudStyle::$search_button_class = 'btn btn-info';
 CrudStyle::$export_csv_button_class = 'btn btn-success';
 CrudStyle::$bools_in_grid_color = 'success';
 
-// 📱 Customize for mobile/compact theme
+// Customize for mobile/compact theme
 CrudStyle::$add_button_class = 'btn btn-xs btn-success';
 CrudStyle::$view_action_button_class = 'btn btn-xs btn-outline-secondary';
 CrudStyle::$edit_action_button_class = 'btn btn-xs btn-outline-primary';
 CrudStyle::$delete_action_button_class = 'btn btn-xs btn-outline-danger';
 
-// 🎯 Customize panel buttons
+// Customize panel buttons
 CrudStyle::$panel_save_button_class = 'btn btn-lg btn-success';
 CrudStyle::$panel_cancel_button_class = 'btn btn-lg btn-secondary';
 
-// 🌲 Customize nested table styling
+// Customize nested table styling
 CrudStyle::$nested_toggle_button_classes = 'btn btn-outline-primary btn-sm';
 
-// 🎯 Customize action icons
+// Customize action icons
 CrudStyle::$view_action_icon = 'fas fa-search';
 CrudStyle::$edit_action_icon = 'fas fa-pencil';
 CrudStyle::$delete_action_icon = 'fas fa-times';
@@ -1717,20 +1717,20 @@ CrudStyle::$expand_action_icon = 'fas fa-plus';
 CrudStyle::$collapse_action_icon = 'fas fa-minus';
 CrudStyle::$action_icon_size = '1.2rem';
 
-// 🌐 Using different icon libraries (Bootstrap Icons)
+// Using different icon libraries (Bootstrap Icons)
 CrudStyle::$view_action_icon = 'bi bi-eye';
 CrudStyle::$edit_action_icon = 'bi bi-pencil';
 CrudStyle::$delete_action_icon = 'bi bi-trash';
 CrudStyle::$duplicate_action_icon = 'bi bi-files';
 
-// 💼 Using custom CSS framework (Tailwind CSS example)
+// Using custom CSS framework (Tailwind CSS example)
 CrudStyle::$add_button_class = 'bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded';
 CrudStyle::$edit_action_button_class = 'bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded text-sm';
 ```
 
 ---
 
-### 💾 FastCrud\DB - Database Connection
+### FastCrud\DB - Database Connection
 
 - **`DB::connection(): PDO`** – Access the shared PDO instance used by FastCRUD; connection settings come from `CrudConfig::setDbConfig()`.
   ```php
@@ -1747,7 +1747,7 @@ CrudStyle::$edit_action_button_class = 'bg-blue-500 hover:bg-blue-700 text-white
 
 ---
 
-### ⚠️ FastCrud\ValidationException - Validation Errors
+### FastCrud\ValidationException - Validation Errors
 
 - **`__construct(string $message, array $errors = [], int $code = 0, ?Throwable $previous = null)`** – Create a validation exception with field errors supplied as `['field' => 'message']`.
   ```php
@@ -1760,7 +1760,7 @@ CrudStyle::$edit_action_button_class = 'bg-blue-500 hover:bg-blue-700 text-white
 
 ---
 
-## 📝 License
+## License
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
@@ -1768,10 +1768,10 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 <div align="center">
 
-**Made with ❤️ by the FastCRUD Team**
+**Made by the FastCRUD Team**
 
-🐛 Found a bug? [Report it here](https://github.com/mzgs/fastcrud/issues)  
-⭐ Like this project? Give it a star!  
-💬 Questions? [Start a discussion](https://github.com/mzgs/fastcrud/discussions)
+Found a bug? [Report it here](https://github.com/mzgs/fastcrud/issues)  
+Like this project? Give it a star!  
+Questions? [Start a discussion](https://github.com/mzgs/fastcrud/discussions)
 
 </div>
