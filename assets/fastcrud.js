@@ -2308,13 +2308,18 @@
             if (!document.getElementById('fastcrud-upload-style')) {
                 $('<style id="fastcrud-upload-style"></style>').text(`
 .fastcrud-uploader{container-type:inline-size;color:var(--bs-body-color,#212529);width:100%;min-width:0}
-.fastcrud-upload-drop{position:relative;display:flex;align-items:center;gap:14px;padding:22px;border:1px dashed var(--bs-border-color,#d5d9df);border-radius:12px;background:var(--bs-tertiary-bg,#f8f9fa);transition:border-color .18s,background .18s}
+.fastcrud-upload-drop{padding:16px;border:1px dashed var(--bs-border-color,#d5d9df);border-radius:12px;background:var(--bs-tertiary-bg,#f8f9fa);transition:border-color .18s,background .18s}
+.fastcrud-upload-prompt{position:relative;display:flex;align-items:center;gap:12px;min-width:0;font-size:.875rem;line-height:1.5}
+.fastcrud-uploader:not(.is-disabled) .fastcrud-upload-drop:hover{border-color:var(--bs-primary,#0d6efd)}
 .fastcrud-upload-drop:focus-within,.fastcrud-upload-drop.is-over{border-color:var(--bs-primary,#0d6efd);outline:2px solid var(--bs-primary-bg-subtle,#cfe2ff);outline-offset:2px}
+.fastcrud-upload-drop.is-over{background:var(--bs-primary-bg-subtle,#cfe2ff)}
 .fastcrud-upload-input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
-.fastcrud-upload-symbol{display:grid;place-items:center;width:44px;height:44px;flex:none;border-radius:10px;background:var(--bs-primary-bg-subtle,#cfe2ff);color:var(--bs-primary-text-emphasis,#084298);font-size:24px}
-.fastcrud-upload-copy{min-width:0;font-size:.9rem}.fastcrud-upload-copy strong{display:block;font-weight:600}.fastcrud-upload-copy small{display:block;color:var(--bs-secondary-color,#6c757d);margin-top:4px;overflow-wrap:anywhere}
+.fastcrud-upload-symbol{display:grid;place-items:center;width:36px;height:36px;flex:none;border:1px solid var(--bs-border-color,#dee2e6);border-radius:10px;background:var(--bs-body-bg,#fff);color:var(--bs-secondary-color,#6c757d)}
+.fastcrud-upload-symbol svg{width:19px;height:19px}
+.fastcrud-upload-copy{flex:1;min-width:0}.fastcrud-upload-copy strong{display:block;font-weight:500;overflow-wrap:anywhere}
 .fastcrud-upload-browse{color:var(--bs-primary,#0d6efd);font-weight:600}
-.fastcrud-upload-list{display:flex;flex-direction:column;gap:8px;list-style:none;margin:12px 0 0;padding:0}
+.fastcrud-upload-list{display:flex;flex-direction:column;gap:8px;list-style:none;margin:16px 0 0;padding:0}
+.fastcrud-upload-list:empty{display:none}
 .fastcrud-upload-row{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--bs-border-color,#dee2e6);border-radius:10px;background:var(--bs-body-bg,#fff);min-width:0}
 .fastcrud-upload-ghost{opacity:.3;border-color:var(--bs-primary,#0d6efd)}
 .fastcrud-upload-chosen{border-color:var(--bs-primary,#0d6efd)}
@@ -2326,8 +2331,10 @@
 .fastcrud-upload-row.is-error{border-color:var(--bs-danger,#dc3545)}.fastcrud-upload-row.is-error .fastcrud-upload-status{color:var(--bs-danger,#dc3545)}
 .fastcrud-upload-progress{display:block;width:100%;height:3px;margin-top:7px;accent-color:var(--bs-primary,#0d6efd)}
 .fastcrud-upload-actions{display:flex;gap:2px;flex:none}.fastcrud-upload-button{display:grid;place-items:center;border:0;border-radius:6px;width:28px;height:32px;background:transparent;color:var(--bs-secondary-color,#6c757d);cursor:pointer;padding:0}.fastcrud-upload-button:hover{background:var(--bs-tertiary-bg,#f8f9fa);color:var(--bs-body-color,#212529)}.fastcrud-upload-button:focus-visible{outline:2px solid var(--bs-primary,#0d6efd);outline-offset:1px}.fastcrud-upload-button:disabled{opacity:.35;cursor:default}.fastcrud-upload-handle{touch-action:none;cursor:grab;font-size:20px}.fastcrud-upload-handle:active{cursor:grabbing}
-.fastcrud-upload-summary{font-size:.75rem;color:var(--bs-secondary-color,#6c757d);margin-top:8px}.fastcrud-upload-error{font-size:.8rem;color:var(--bs-danger,#dc3545);margin-top:8px}.fastcrud-uploader.is-disabled{opacity:.6}
-@container(max-width:360px){.fastcrud-upload-drop{padding:16px;gap:10px}.fastcrud-upload-row{gap:8px;padding:8px}.fastcrud-upload-thumb{width:42px;height:42px}.fastcrud-upload-actions{gap:0}.fastcrud-upload-button{width:26px}}
+.fastcrud-upload-error{font-size:.8rem;color:var(--bs-danger,#dc3545);margin-top:8px}.fastcrud-uploader.is-disabled{opacity:.6}
+@container(max-width:360px){.fastcrud-upload-drop{padding:12px}.fastcrud-upload-prompt{gap:8px;font-size:.8125rem}.fastcrud-upload-row{gap:8px;padding:8px}.fastcrud-upload-thumb{width:42px;height:42px}.fastcrud-upload-actions{gap:0}.fastcrud-upload-button{width:26px}}
+@container(max-width:240px){.fastcrud-upload-symbol{display:none}.fastcrud-upload-prompt{flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){.fastcrud-upload-drop{transition:none}}
 `).appendTo(document.head);
             }
             var multiple = type === 'images' || type === 'files';
@@ -2342,30 +2349,28 @@
             var metadataRequest = null;
             var root = $('<div class="fastcrud-uploader"></div>');
             var drop = $('<div class="fastcrud-upload-drop"></div>').appendTo(root);
-            $('<span class="fastcrud-upload-symbol" aria-hidden="true">↑</span>').appendTo(drop);
-            var copy = $('<div class="fastcrud-upload-copy"></div>').appendTo(drop);
+            var prompt = $('<div class="fastcrud-upload-prompt"></div>').appendTo(drop);
+            $('<span class="fastcrud-upload-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V3m-5 5 5-5 5 5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></span>').appendTo(prompt);
+            var copy = $('<div class="fastcrud-upload-copy"></div>').appendTo(prompt);
             $('<strong></strong>').text('Drop ' + (multiple ? (isImage ? 'images' : 'files') : (isImage ? 'an image' : 'a file')) + ' here or ').append($('<span class="fastcrud-upload-browse">browse</span>')).appendTo(copy);
             var hint = (multiple ? 'Select multiple ' : 'Select one ') + (isImage ? 'image' : 'file') + (multiple ? 's' : '');
             if (limit) { hint += ' · Up to ' + formatUploadSize(limit.size) + ' each'; }
             if (params.accept) { hint += ' · ' + params.accept; fileInput.attr('accept', params.accept); }
-            var hintId = fileInput.attr('id') + '-hint';
-            $('<small></small>').attr('id', hintId).text(hint).appendTo(copy);
+            prompt.attr('title', hint);
             fileInput.before(root);
-            fileInput.appendTo(drop).attr('aria-describedby', hintId);
+            fileInput.appendTo(prompt).attr({'title': hint, 'aria-description': hint});
             // Required validation uses the saved value, including files already on the record.
             var requiredMessage = fileInput.attr('data-fastcrud-required');
             if (requiredMessage) { valueInput.attr('data-fastcrud-required', requiredMessage); }
             fileInput.removeAttr('required');
             valueInput.prop('disabled', fileInput.prop('disabled'));
-            var list = $('<ul class="fastcrud-upload-list" aria-label="Selected files"></ul>').appendTo(root);
-            var summary = $('<div class="fastcrud-upload-summary" role="status" aria-live="polite"></div>').appendTo(root);
-            var errorBox = $('<div class="fastcrud-upload-error" role="alert"></div>').hide().appendTo(root);
+            var list = $('<ul class="fastcrud-upload-list" aria-label="Selected files"></ul>').appendTo(drop);
+            var errorBox = $('<div class="fastcrud-upload-error" role="alert"></div>').hide().appendTo(drop);
             function disabled() { return locked || fileInput.prop('disabled') || destroyed; }
             function announceError(message) { errorBox.text(message || '').toggle(!!message); }
             function sync() {
                 var names = items.filter(function(item) { return !!item.stored; }).map(function(item) { return item.stored; });
                 valueInput.val(multiple ? imageNamesToString(names) : (names[0] || '')).trigger('change');
-                summary.text(items.length ? items.length + ' selected' + (multiple ? ' · Drag the handle to reorder' : '') : 'No files selected');
             }
             function button(label, symbol, action) {
                 return $('<button type="button" class="fastcrud-upload-button"></button>').attr({title: label, 'aria-label': label}).text(symbol).on('click', function() {
