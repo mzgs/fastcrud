@@ -2318,7 +2318,7 @@
 .fastcrud-upload-symbol svg{width:19px;height:19px}
 .fastcrud-upload-copy{flex:1;min-width:0}.fastcrud-upload-copy strong{display:block;font-weight:500;overflow-wrap:anywhere}
 .fastcrud-upload-browse{color:var(--bs-primary,#0d6efd);font-weight:600}
-.fastcrud-upload-list{display:flex;flex-direction:column;gap:8px;list-style:none;margin:16px 0 0;padding:0}
+.fastcrud-upload-list{display:flex;flex-direction:column;gap:8px;list-style:none;margin:10px 0 0;padding:0}
 .fastcrud-upload-list:empty{display:none}
 .fastcrud-upload-row{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--bs-border-color,#dee2e6);border-radius:10px;background:var(--bs-body-bg,#fff);min-width:0}
 .fastcrud-upload-ghost{opacity:.3;border-color:var(--bs-primary,#0d6efd)}
