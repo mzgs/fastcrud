@@ -4,16 +4,16 @@
 - Server-side PHP CRUD table builder that renders a Bootstrap 5/jQuery UI and drives it via AJAX
 - Primary entry point is `FastCrud\Crud`; AJAX requests are brokered through `FastCrud\CrudAjax`
 - Database connectivity is provided through `FastCrud\DB` with configuration stored on `FastCrud\CrudConfig`
-- Front-end behaviours (pagination, inline edit, modals, FilePond uploads, rich editor hooks) are generated inside `Crud::generateAjaxScript()`
+- Front-end behaviours (pagination, inline edit, modals, built-in uploader uploads, rich editor hooks) are generated inside `Crud::generateAjaxScript()`
 - PHP strict types, Bootstrap 5 utility classes, and jQuery event delegation are enforced across the project
 
 ## Architecture Overview
-- **`FastCrud\Crud`** – Fluent builder for configuring table columns, field behaviours, validation, relationships, and rendering HTML/JS. Handles SQL generation, pagination, schema caching, data decoration, FilePond integration, and view/edit offcanvas markup.
-- **`FastCrud\CrudAjax`** – HTTP entry point for AJAX actions (`fetch`, `read`, `update`, `delete`, `duplicate`, `upload_image`, `upload_filepond`). Normalises request payloads, instantiates `Crud` via `Crud::fromAjax()`, and serialises JSON responses.
+- **`FastCrud\Crud`** – Fluent builder for configuring table columns, field behaviours, validation, relationships, and rendering HTML/JS. Handles SQL generation, pagination, schema caching, data decoration, built-in uploader integration, and view/edit offcanvas markup.
+- **`FastCrud\CrudAjax`** – HTTP entry point for AJAX actions (`fetch`, `read`, `update`, `delete`, `duplicate`, `upload_image`, `upload_file`). Normalises request payloads, instantiates `Crud` via `Crud::fromAjax()`, and serialises JSON responses.
 - **`FastCrud\DB`** – Creates or stores a shared PDO instance using config from `CrudConfig`. Provides DSN builders for MySQL, PostgreSQL, and SQLite.
 - **`FastCrud\CrudConfig`** – Static configuration: DB credentials, upload path, grid flags, styling defaults. Also exposes setters/getters used by `Crud` and `CrudAjax`.
 - **`FastCrud\ValidationException`** – Custom exception for field validation errors returned by AJAX updates.
-- **Front-end runtime** – `Crud::render()` injects Bootstrap table markup plus a self-contained jQuery script. Script bootstraps pagination, sorting, search, inline editing, duplicate/delete, FilePond widgets, TinyMCE integration, and offcanvas edit/view panels. Client state is exchanged using `data-fastcrud-config` JSON payloads.
+- **Front-end runtime** – `Crud::render()` injects Bootstrap table markup plus a self-contained jQuery script. Script bootstraps pagination, sorting, search, inline editing, duplicate/delete, built-in uploader widgets, TinyMCE integration, and offcanvas edit/view panels. Client state is exchanged using `data-fastcrud-config` JSON payloads.
 
 ## Codegraph
 ```mermaid
@@ -32,7 +32,7 @@ graph TD
 - **Rendering a table** – Instantiate `new Crud('table_name')`, chain configuration (columns, fields, behaviours), then call `render()`. The method emits table HTML and embeds the JS runtime with serialized config.
 - **AJAX fetch cycle** – Client script calls back with `action=fetch`, primary key, pagination, search, and `config` JSON. `Crud::fromAjax()` reconstructs server-side state, applies allow-listed client overrides, runs `getTableData()`, and returns rows + metadata.
 - **Record lifecycle** – `CrudAjax::handleUpdate()` decodes incoming field map, calls `Crud::updateRecord()` (validation, formatting, DB update). `deleteRecord()` and `duplicateRecord()` follow similar flows; `ValidationException` bubbles field-level errors.
-- **Uploads** – `CrudAjax::handleUploadImage()` validates MIME/extension, stores the file under `CrudConfig::getUploadPath()`, and returns a public URL for TinyMCE/FilePond consumers.
+- **Uploads** – `CrudAjax::handleUploadImage()` validates MIME/extension, stores the file under `CrudConfig::getUploadPath()`, and returns a public URL for TinyMCE/built-in uploader consumers.
 
 ## Core Rules
 1. **Bootstrap 5 only** – Use Bootstrap classes, no custom CSS
@@ -87,11 +87,11 @@ $.ajax({
 - Test changes with `examples/basic.php` or automated UI tests under `uitest/`.
 
 ## New Field Types
-- `change_type('image'|'images')` uses FilePond with image preview.
-- `change_type('file')` uses FilePond for a single generic file upload.
-- `change_type('files')` uses FilePond for multi-file uploads (no image preview), storing a comma-separated list of saved filenames in the DB. Restrict types via `['accept' => 'application/pdf,.docx']`; set size limits with `['max_size' => '10MB']` or `CrudConfig::$upload_max_*_size`.
+- `change_type('image'|'images')` uses the built-in uploader with image preview.
+- `change_type('file')` uses the built-in uploader for a single generic file upload.
+- `change_type('files')` uses the built-in uploader for multi-file uploads (image thumbnails or file-type badges), storing a comma-separated list of saved filenames in the DB. Restrict types via `['accept' => 'application/pdf,.docx']`; set size limits with `['max_size' => '10MB']` or `CrudConfig::$upload_max_*_size`.
   - Saved filenames are mirrored into hidden inputs so DB writes happen via form submit.
-  - Server action `upload_filepond` supports both images and generic files; images are validated against expected extensions, generic files block executable/script types.
+  - Server action `upload_file` supports both images and generic files; images are validated against expected extensions, generic files block executable/script types.
 - `change_type('json')` renders a textarea optimized for JSON with live validation and optional pretty-print. Parameters: `['rows' => 6, 'pretty' => true]`.
 
 ## HTML Escaping Pattern

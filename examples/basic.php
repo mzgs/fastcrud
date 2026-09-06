@@ -385,7 +385,7 @@ DatabaseEditor::init();
                         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
                             <div>
                                 <h2 class="h5 mb-1">Posts Table Preview</h2>
-                                <p class="card-text mb-0">Inline editing (title &amp; color), custom callbacks, FilePond uploads, and column patterns are showcased here.</p>
+                                <p class="card-text mb-0">Inline editing (title &amp; color), custom callbacks, built-in uploader uploads, and column patterns are showcased here.</p>
                                 <p class="card-text text-muted small mb-0">Use the chevron in the first column to expand nested comment tables for each post.</p>
                             </div>
                         </div>

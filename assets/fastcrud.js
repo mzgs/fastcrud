@@ -1879,7 +1879,7 @@
                 cancelPendingWidgets(editFieldsContainer);
                 destroyRichEditors(editFieldsContainer);
                 destroySelect2(editFieldsContainer);
-                destroyFilePonds(editFieldsContainer);
+                destroyUploaders(editFieldsContainer);
             };
             var clearEditPanelState = function() {
                 clearRowHighlight();
@@ -1971,37 +1971,6 @@
         }
         var summaryFooter = $('#' + tableId + '-summary');
 
-        // FilePond state and asset loader for image fields
-        var filePondState = window.FastCrudFilePond || {};
-        if (!filePondState.coreScriptUrl) {
-            filePondState.coreScriptUrl = 'https://unpkg.com/filepond/dist/filepond.min.js';
-        }
-        if (!filePondState.coreStyleUrl) {
-            filePondState.coreStyleUrl = 'https://unpkg.com/filepond/dist/filepond.min.css';
-        }
-        if (!filePondState.previewScriptUrl) {
-            filePondState.previewScriptUrl = 'https://unpkg.com/filepond-plugin-image-preview/dist/filepond-plugin-image-preview.min.js';
-        }
-        if (!filePondState.previewStyleUrl) {
-            filePondState.previewStyleUrl = 'https://unpkg.com/filepond-plugin-image-preview/dist/filepond-plugin-image-preview.min.css';
-        }
-        if (!filePondState.posterScriptUrl) {
-            filePondState.posterScriptUrl = 'https://unpkg.com/filepond-plugin-file-poster/dist/filepond-plugin-file-poster.min.js';
-        }
-        if (!filePondState.posterStyleUrl) {
-            filePondState.posterStyleUrl = 'https://unpkg.com/filepond-plugin-file-poster/dist/filepond-plugin-file-poster.min.css';
-        }
-        if (typeof filePondState.loaded === 'undefined') {
-            filePondState.loaded = (typeof window.FilePond !== 'undefined');
-        }
-        if (typeof filePondState.loading === 'undefined') {
-            filePondState.loading = false;
-        }
-        if (!Array.isArray(filePondState.queue)) {
-            filePondState.queue = [];
-        }
-        window.FastCrudFilePond = filePondState;
-
         function getUploadPublicBase() {
             var base = String(richEditorConfig.upload_path || '/public/uploads');
             if (!/^https?:\/\//i.test(base) && base.charAt(0) !== '/') {
@@ -2074,7 +2043,7 @@
                 if (size >= units[i].value) {
                     var amount = size / units[i].value;
                     var precision = amount >= 10 ? 0 : 2;
-                    return amount.toFixed(precision).replace(/\.?0+$/, '') + units[i].suffix;
+                    return String(Number(amount.toFixed(precision))) + units[i].suffix;
                 }
             }
             return Math.round(size) + 'B';
@@ -2128,264 +2097,6 @@
                 return label + ' exceeds the field upload limit of ' + formatted + '.';
             }
             return label + ' exceeds the maximum upload size of ' + formatted + '.';
-        }
-
-        function normalizeFilePondErrorMessage(error, fallback) {
-            var message = '';
-            if (typeof error === 'string') {
-                message = error;
-            } else if (error && typeof error === 'object') {
-                if (typeof error.body === 'string') {
-                    message = error.body;
-                } else if (typeof error.message === 'string') {
-                    message = error.message;
-                } else if (typeof error.main === 'string') {
-                    message = error.main;
-                } else if (typeof error.error === 'string') {
-                    message = error.error;
-                }
-            }
-            message = String(message || '').replace(/\s+/g, ' ').trim();
-            if (message && message !== 'Error during upload') {
-                return message;
-            }
-            return String(fallback || 'Upload failed.').replace(/\s+/g, ' ').trim();
-        }
-
-        function hydrateFilePondInitialSizes(pond, initialFiles) {
-            if (!pond || typeof fetch !== 'function' || typeof FormData === 'undefined' || !Array.isArray(initialFiles) || !initialFiles.length) {
-                return;
-            }
-
-            var entries = initialFiles.map(function(entry) {
-                var storedName = entry && entry.options && entry.options.metadata ? entry.options.metadata.storedName : '';
-                return {
-                    storedName: storedName,
-                    source: entry && entry.source ? entry.source : ''
-                };
-            }).filter(function(entry) {
-                return !!entry.storedName;
-            });
-
-            if (!entries.length) {
-                return;
-            }
-
-            var uniqueNames = [];
-            var seen = Object.create(null);
-            var sourceByName = Object.create(null);
-            entries.forEach(function(entry) {
-                if (!entry.storedName || seen[entry.storedName]) {
-                    return;
-                }
-                seen[entry.storedName] = true;
-                uniqueNames.push(entry.storedName);
-                sourceByName[entry.storedName] = entry.source || toPublicUrl(entry.storedName);
-            });
-
-            if (!uniqueNames.length) {
-                return;
-            }
-
-            function formatReadableFileSize(bytes) {
-                if (!bytes || !Number.isFinite(bytes) || bytes <= 0) {
-                    return '0 B';
-                }
-                var units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-                var exponent = Math.floor(Math.log(bytes) / Math.log(1024));
-                if (!Number.isFinite(exponent) || exponent < 0) {
-                    exponent = 0;
-                }
-                exponent = Math.min(exponent, units.length - 1);
-                var value = bytes / Math.pow(1024, exponent);
-                var precision = (value >= 10 || exponent === 0) ? 0 : 2;
-                return value.toFixed(precision) + ' ' + units[exponent];
-            }
-
-            function filePondItemMatchesStoredName(item, storedName) {
-                if (!item) {
-                    return false;
-                }
-                if (item.getMetadata && typeof item.getMetadata === 'function' && item.getMetadata('storedName') === storedName) {
-                    return true;
-                }
-                return !!(item.source && typeof item.source === 'string' && item.source.indexOf(storedName) !== -1);
-            }
-
-            function updateItemsWithLabel(storedName, label, onlyIfMissing, asBadge) {
-                var files = typeof pond.getFiles === 'function' ? pond.getFiles() : [];
-                if (!files.length) {
-                    return false;
-                }
-                var labelUpdated = false;
-                files.forEach(function(item) {
-                    if (!filePondItemMatchesStoredName(item, storedName)) {
-                        return;
-                    }
-                    try {
-                        if (pond.element && item.id) {
-                            var info = null;
-                            var itemElement = pond.element.querySelector('#filepond--item-' + item.id);
-                            if (itemElement) {
-                                info = itemElement.querySelector('.filepond--file-info-sub');
-                            }
-                            if (!info) {
-                                var selector = '[data-filepond-item-id="' + item.id + '"] .filepond--file-info-sub';
-                                info = pond.element.querySelector(selector);
-                            }
-                            if (info) {
-                                if (onlyIfMissing) {
-                                    var current = String(info.textContent || '').replace(/\s+/g, ' ').trim();
-                                    if (current && current !== '0 bytes' && current !== '0 B' && current !== 'Loading size...') {
-                                        labelUpdated = true;
-                                        return;
-                                    }
-                                }
-                                info.textContent = label;
-                                if (asBadge) {
-                                    info.classList.add('fastcrud-filepond-size-badge');
-                                } else {
-                                    info.classList.remove('fastcrud-filepond-size-badge');
-                                }
-                                labelUpdated = true;
-                            }
-                        }
-                    } catch (e) {}
-                });
-                return labelUpdated;
-            }
-
-            function updateItemsWithSize(storedName, size) {
-                var files = typeof pond.getFiles === 'function' ? pond.getFiles() : [];
-                if (!files.length) {
-                    return false;
-                }
-                files.forEach(function(item) {
-                    if (!filePondItemMatchesStoredName(item, storedName)) {
-                        return;
-                    }
-                    try {
-                        if (item.setMetadata && typeof item.setMetadata === 'function') {
-                            item.setMetadata('size', size, true);
-                            item.setMetadata('filesize', size, true);
-                        }
-                        item.fileSize = size;
-                        if (item.file && typeof item.file === 'object') {
-                            Object.defineProperty(item.file, 'size', { value: size, configurable: true });
-                        }
-                    } catch (e) {}
-                });
-                return updateItemsWithLabel(storedName, formatReadableFileSize(size), false, true);
-            }
-
-            function scheduleLabelUpdates(labelsByName, maxAttempts, delayMs, onlyIfMissing) {
-                var attempts = 0;
-                var applyLabels = function() {
-                    var pending = false;
-                    Object.keys(labelsByName).forEach(function(key) {
-                        if (!updateItemsWithLabel(key, labelsByName[key], onlyIfMissing)) {
-                            pending = true;
-                        }
-                    });
-                    if (pending && attempts < maxAttempts) {
-                        attempts += 1;
-                        setTimeout(applyLabels, delayMs);
-                    }
-                };
-                applyLabels();
-            }
-
-            var loadingLabels = {};
-            uniqueNames.forEach(function(key) {
-                loadingLabels[key] = 'Loading size...';
-            });
-            scheduleLabelUpdates(loadingLabels, 20, 250, true);
-
-            function resolveSizeFromPublicUrl(storedName, callback) {
-                if (typeof fetch !== 'function') {
-                    callback(null, false);
-                    return;
-                }
-
-                var source = sourceByName[storedName] || toPublicUrl(storedName);
-                if (!source) {
-                    callback(null, false);
-                    return;
-                }
-
-                fetch(source, {
-                    method: 'HEAD',
-                    credentials: 'same-origin'
-                }).then(function(response) {
-                    if (!response || !response.ok) {
-                        callback(null, true);
-                        return;
-                    }
-                    var contentLength = response.headers ? response.headers.get('content-length') : null;
-                    var size = contentLength ? Number(contentLength) : NaN;
-                    callback(Number.isFinite(size) && size > 0 ? size : null, false);
-                }).catch(function() {
-                    callback(null, false);
-                });
-            }
-
-            try {
-                var formData = new FormData();
-                formData.append('fastcrud_ajax', '1');
-                formData.append('action', 'file_metadata_bulk');
-                formData.append('names', JSON.stringify(uniqueNames));
-
-                fetch(window.location.pathname, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    body: formData
-                }).then(function(response) {
-                    if (!response || typeof response.json !== 'function') {
-                        throw new Error('invalid_response');
-                    }
-                    return response.json();
-                }).then(function(payload) {
-                    if (!payload || payload.success !== true || typeof payload.sizes !== 'object' || payload.sizes === null) {
-                        return;
-                    }
-                    var attempts = 0;
-                    var applySizes = function() {
-                        var pending = false;
-                        var knownSizes = Object.create(null);
-                        Object.keys(payload.sizes).forEach(function(key) {
-                            if (!Object.prototype.hasOwnProperty.call(payload.sizes, key)) {
-                                return;
-                            }
-                            var size = Number(payload.sizes[key]);
-                            if (!Number.isFinite(size) || size <= 0) {
-                                return;
-                            }
-                            knownSizes[key] = true;
-                            if (!updateItemsWithSize(key, size)) {
-                                pending = true;
-                            }
-                        });
-                        uniqueNames.forEach(function(key) {
-                            if (knownSizes[key]) {
-                                return;
-                            }
-                            resolveSizeFromPublicUrl(key, function(size, missing) {
-                                var label = missing ? 'File missing' : 'Size unavailable';
-                                if (size !== null) {
-                                    updateItemsWithSize(key, size);
-                                } else {
-                                    updateItemsWithLabel(key, label);
-                                }
-                            });
-                        });
-                        if (pending && attempts < 20) {
-                            attempts += 1;
-                            setTimeout(applySizes, 250);
-                        }
-                    };
-                    applySizes();
-                }).catch(function() {});
-            } catch (e) {}
         }
 
         function extractFileName(value) {
@@ -2537,100 +2248,6 @@
             return normalized.join(',');
         }
 
-        function setImageNamesOnInput(input, list) {
-            if (!input || !input.length) {
-                return;
-            }
-            input.val(imageNamesToString(Array.isArray(list) ? list : parseImageNameList(list)));
-        }
-
-        function addImageNameToInput(input, candidate) {
-            if (!input || !input.length) {
-                return;
-            }
-            var name = normalizeStoredImageName(candidate);
-            if (!name) {
-                return;
-            }
-            var current = parseImageNameList(input.val());
-            if (current.indexOf(name) === -1) {
-                current.push(name);
-            }
-            input.val(imageNamesToString(current));
-        }
-
-        function removeImageNameFromInput(input, candidate) {
-            if (!input || !input.length) {
-                return;
-            }
-            var name = normalizeStoredImageName(candidate);
-            if (!name) {
-                return;
-            }
-            var current = parseImageNameList(input.val());
-            var filtered = current.filter(function(entry) {
-                return entry !== name;
-            });
-            if (filtered.length !== current.length) {
-                input.val(imageNamesToString(filtered));
-            }
-        }
-
-        function clearImageNameMap(input) {
-            if (!input || !input.length) {
-                return;
-            }
-            input.removeData('fastcrudNameMap');
-        }
-
-        function ensureImageNameMap(input) {
-            if (!input || !input.length) {
-                return {};
-            }
-            var existing = input.data('fastcrudNameMap');
-            if (!existing || typeof existing !== 'object') {
-                existing = {};
-                input.data('fastcrudNameMap', existing);
-            } else {
-                input.data('fastcrudNameMap', existing);
-            }
-            return existing;
-        }
-
-        function mapImageNameToKey(input, key, name) {
-            if (!input || !input.length || !key) {
-                return;
-            }
-            var map = ensureImageNameMap(input);
-            var normalized = normalizeStoredImageName(name);
-            if (normalized) {
-                map[key] = normalized;
-            }
-            input.data('fastcrudNameMap', map);
-        }
-
-        function removeImageNameForKey(input, key) {
-            if (!input || !input.length || !key) {
-                return;
-            }
-            var map = input.data('fastcrudNameMap');
-            if (map && typeof map === 'object' && Object.prototype.hasOwnProperty.call(map, key)) {
-                delete map[key];
-                input.data('fastcrudNameMap', map);
-            }
-        }
-
-        function findImageNameForKey(input, key) {
-            if (!input || !input.length || !key) {
-                return '';
-            }
-            var map = input.data('fastcrudNameMap');
-            if (map && typeof map === 'object' && Object.prototype.hasOwnProperty.call(map, key)) {
-                return map[key];
-            }
-            return '';
-        }
-
         function appendStylesheetOnce(href, id) {
             if (!href) { return; }
             var markerId = id || ('fastcrud-style-' + Math.random().toString(36).slice(2));
@@ -2645,7 +2262,7 @@
         }
 
         function withSortableAssets(callback) {
-            if (!isRowOrderingActive() || typeof callback !== 'function') {
+            if (typeof callback !== 'function') {
                 return;
             }
             if (typeof window.Sortable !== 'undefined' && typeof window.Sortable.create === 'function') {
@@ -2687,151 +2304,272 @@
             document.head.appendChild(script);
         }
 
-        function withFilePondAssets(callback) {
-            if (typeof callback !== 'function') {
-                return;
+        function initializeUploader(fileInput, valueInput, type, params, column) {
+            if (!document.getElementById('fastcrud-upload-style')) {
+                $('<style id="fastcrud-upload-style"></style>').text(`
+.fastcrud-uploader{container-type:inline-size;color:var(--bs-body-color,#212529);width:100%;min-width:0}
+.fastcrud-upload-drop{position:relative;display:flex;align-items:center;gap:14px;padding:22px;border:1px dashed var(--bs-border-color,#d5d9df);border-radius:12px;background:var(--bs-tertiary-bg,#f8f9fa);transition:border-color .18s,background .18s}
+.fastcrud-upload-drop:focus-within,.fastcrud-upload-drop.is-over{border-color:var(--bs-primary,#0d6efd);outline:2px solid var(--bs-primary-bg-subtle,#cfe2ff);outline-offset:2px}
+.fastcrud-upload-input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.fastcrud-upload-symbol{display:grid;place-items:center;width:44px;height:44px;flex:none;border-radius:10px;background:var(--bs-primary-bg-subtle,#cfe2ff);color:var(--bs-primary-text-emphasis,#084298);font-size:24px}
+.fastcrud-upload-copy{min-width:0;font-size:.9rem}.fastcrud-upload-copy strong{display:block;font-weight:600}.fastcrud-upload-copy small{display:block;color:var(--bs-secondary-color,#6c757d);margin-top:4px;overflow-wrap:anywhere}
+.fastcrud-upload-browse{color:var(--bs-primary,#0d6efd);font-weight:600}
+.fastcrud-upload-list{display:flex;flex-direction:column;gap:8px;list-style:none;margin:12px 0 0;padding:0}
+.fastcrud-upload-row{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--bs-border-color,#dee2e6);border-radius:10px;background:var(--bs-body-bg,#fff);min-width:0}
+.fastcrud-upload-ghost{opacity:.3;border-color:var(--bs-primary,#0d6efd)}
+.fastcrud-upload-chosen{border-color:var(--bs-primary,#0d6efd)}
+.fastcrud-upload-dragging{opacity:1!important;box-shadow:0 8px 24px rgba(0,0,0,.18);cursor:grabbing}
+.fastcrud-upload-thumb{display:grid;place-items:center;flex:none;width:52px;height:52px;border-radius:8px;overflow:hidden;background:var(--bs-tertiary-bg,#f8f9fa);color:var(--bs-secondary-color,#6c757d);font-size:11px;font-weight:700;text-transform:uppercase}
+.fastcrud-upload-thumb img{width:100%;height:100%;object-fit:contain}
+.fastcrud-upload-info{flex:1;min-width:0}.fastcrud-upload-name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:inherit;font-size:.875rem;text-decoration:none;font-weight:500}.fastcrud-upload-name[href]:hover{text-decoration:underline}
+.fastcrud-upload-status{display:block;font-size:.75rem;color:var(--bs-secondary-color,#6c757d);overflow-wrap:anywhere;margin-top:3px}
+.fastcrud-upload-row.is-error{border-color:var(--bs-danger,#dc3545)}.fastcrud-upload-row.is-error .fastcrud-upload-status{color:var(--bs-danger,#dc3545)}
+.fastcrud-upload-progress{display:block;width:100%;height:3px;margin-top:7px;accent-color:var(--bs-primary,#0d6efd)}
+.fastcrud-upload-actions{display:flex;gap:2px;flex:none}.fastcrud-upload-button{display:grid;place-items:center;border:0;border-radius:6px;width:28px;height:32px;background:transparent;color:var(--bs-secondary-color,#6c757d);cursor:pointer;padding:0}.fastcrud-upload-button:hover{background:var(--bs-tertiary-bg,#f8f9fa);color:var(--bs-body-color,#212529)}.fastcrud-upload-button:focus-visible{outline:2px solid var(--bs-primary,#0d6efd);outline-offset:1px}.fastcrud-upload-button:disabled{opacity:.35;cursor:default}.fastcrud-upload-handle{touch-action:none;cursor:grab;font-size:20px}.fastcrud-upload-handle:active{cursor:grabbing}
+.fastcrud-upload-summary{font-size:.75rem;color:var(--bs-secondary-color,#6c757d);margin-top:8px}.fastcrud-upload-error{font-size:.8rem;color:var(--bs-danger,#dc3545);margin-top:8px}.fastcrud-uploader.is-disabled{opacity:.6}
+@container(max-width:360px){.fastcrud-upload-drop{padding:16px;gap:10px}.fastcrud-upload-row{gap:8px;padding:8px}.fastcrud-upload-thumb{width:42px;height:42px}.fastcrud-upload-actions{gap:0}.fastcrud-upload-button{width:26px}}
+`).appendTo(document.head);
             }
-            if (typeof window.FilePond !== 'undefined' && typeof window.FilePond.create === 'function' && typeof window.FilePondPluginImagePreview !== 'undefined') {
-                filePondState.loaded = true;
-                callback();
-                return;
+            var multiple = type === 'images' || type === 'files';
+            var isImage = type === 'image' || type === 'images';
+            var limit = resolveUploadMaxSize(params, isImage);
+            var items = [];
+            var destroyed = false;
+            var locked = false;
+            var uploadSortable = null;
+            var dragging = false;
+            var renderPending = false;
+            var metadataRequest = null;
+            var root = $('<div class="fastcrud-uploader"></div>');
+            var drop = $('<div class="fastcrud-upload-drop"></div>').appendTo(root);
+            $('<span class="fastcrud-upload-symbol" aria-hidden="true">↑</span>').appendTo(drop);
+            var copy = $('<div class="fastcrud-upload-copy"></div>').appendTo(drop);
+            $('<strong></strong>').text('Drop ' + (multiple ? (isImage ? 'images' : 'files') : (isImage ? 'an image' : 'a file')) + ' here or ').append($('<span class="fastcrud-upload-browse">browse</span>')).appendTo(copy);
+            var hint = (multiple ? 'Select multiple ' : 'Select one ') + (isImage ? 'image' : 'file') + (multiple ? 's' : '');
+            if (limit) { hint += ' · Up to ' + formatUploadSize(limit.size) + ' each'; }
+            if (params.accept) { hint += ' · ' + params.accept; fileInput.attr('accept', params.accept); }
+            var hintId = fileInput.attr('id') + '-hint';
+            $('<small></small>').attr('id', hintId).text(hint).appendTo(copy);
+            fileInput.before(root);
+            fileInput.appendTo(drop).attr('aria-describedby', hintId);
+            // Required validation uses the saved value, including files already on the record.
+            var requiredMessage = fileInput.attr('data-fastcrud-required');
+            if (requiredMessage) { valueInput.attr('data-fastcrud-required', requiredMessage); }
+            fileInput.removeAttr('required');
+            valueInput.prop('disabled', fileInput.prop('disabled'));
+            var list = $('<ul class="fastcrud-upload-list" aria-label="Selected files"></ul>').appendTo(root);
+            var summary = $('<div class="fastcrud-upload-summary" role="status" aria-live="polite"></div>').appendTo(root);
+            var errorBox = $('<div class="fastcrud-upload-error" role="alert"></div>').hide().appendTo(root);
+            function disabled() { return locked || fileInput.prop('disabled') || destroyed; }
+            function announceError(message) { errorBox.text(message || '').toggle(!!message); }
+            function sync() {
+                var names = items.filter(function(item) { return !!item.stored; }).map(function(item) { return item.stored; });
+                valueInput.val(multiple ? imageNamesToString(names) : (names[0] || '')).trigger('change');
+                summary.text(items.length ? items.length + ' selected' + (multiple ? ' · Drag the handle to reorder' : '') : 'No files selected');
             }
-            filePondState.queue.push(callback);
-            if (filePondState.loading) {
-                return;
+            function button(label, symbol, action) {
+                return $('<button type="button" class="fastcrud-upload-button"></button>').attr({title: label, 'aria-label': label}).text(symbol).on('click', function() {
+                    if (!disabled()) { action(); }
+                });
             }
-            filePondState.loading = true;
-
-            // Load styles first
-            appendStylesheetOnce(filePondState.coreStyleUrl, 'fastcrud-filepond-core-css');
-            appendStylesheetOnce(filePondState.previewStyleUrl, 'fastcrud-filepond-preview-css');
-            appendStylesheetOnce(filePondState.posterStyleUrl, 'fastcrud-filepond-poster-css');
-
-            // Ensure poster images are contained (avoid cropping)
-            try {
-                var containStyleId = 'fastcrud-filepond-contain-css';
-                if (!document.getElementById(containStyleId)) {
-                    var styleTag = document.createElement('style');
-                    styleTag.id = containStyleId;
-                    // Keep CSS on a single JS line to avoid syntax errors inside heredoc
-                    styleTag.textContent = '.filepond--file-poster img{width:100%;height:100%;object-fit:contain;}';
-                    document.head.appendChild(styleTag);
-                }
-            } catch (e) {}
-
-            // Align FilePond panels/drop areas with the active Bootstrap theme (light/dark)
-            try {
-                var themeStyleId = 'fastcrud-filepond-theme-css';
-                if (!document.getElementById(themeStyleId)) {
-                    var themeStyle = document.createElement('style');
-                    themeStyle.id = themeStyleId;
-                    themeStyle.textContent = ':root{--fastcrud-filepond-panel-bg:var(--bs-body-bg,#fff);--fastcrud-filepond-surface:var(--bs-tertiary-bg,#f8f9fa);--fastcrud-filepond-border-color:var(--bs-border-color,#dee2e6);--fastcrud-filepond-border-hover:var(--bs-primary,#0d6efd);--fastcrud-filepond-label-color:var(--bs-secondary-color,rgba(33,37,41,0.75));--fastcrud-filepond-text-color:var(--bs-body-color,#212529);--fastcrud-filepond-subtle-color:var(--bs-secondary-color,rgba(33,37,41,0.6));--fastcrud-filepond-legend-color:var(--fastcrud-filepond-text-color);--fastcrud-filepond-action-bg:var(--bs-primary-bg-subtle,rgba(13,110,253,0.12));--fastcrud-filepond-action-color:var(--bs-primary,#0d6efd);--fastcrud-filepond-size-bg:rgba(33,37,41,0.82);--fastcrud-filepond-size-color:#fff;--fastcrud-filepond-size-border:rgba(255,255,255,0.35);--fastcrud-filepond-shadow:rgba(15,23,42,0.1);}' +
-                        '[data-bs-theme=light]{--fastcrud-filepond-panel-bg:var(--bs-body-bg,#fff);--fastcrud-filepond-surface:var(--bs-tertiary-bg,#f8f9fa);--fastcrud-filepond-shadow:rgba(15,23,42,0.1);--fastcrud-filepond-text-color:var(--bs-body-color,#212529);--fastcrud-filepond-subtle-color:var(--bs-secondary-color,rgba(73,80,87,0.75));--fastcrud-filepond-legend-color:var(--bs-body-color,#212529);--fastcrud-filepond-size-bg:rgba(33,37,41,0.82);--fastcrud-filepond-size-color:#fff;--fastcrud-filepond-size-border:rgba(255,255,255,0.35);}' +
-                        '[data-bs-theme=dark]{--fastcrud-filepond-panel-bg:var(--bs-body-bg,#212529);--fastcrud-filepond-surface:var(--bs-tertiary-bg,#2b3035);--fastcrud-filepond-border-color:rgba(255,255,255,0.14);--fastcrud-filepond-border-hover:var(--bs-primary,#6ea8fe);--fastcrud-filepond-label-color:var(--bs-secondary-color,#adb5bd);--fastcrud-filepond-text-color:var(--bs-body-color,#dee2e6);--fastcrud-filepond-subtle-color:rgba(222,226,230,0.7);--fastcrud-filepond-legend-color:var(--bs-body-color,#dee2e6);--fastcrud-filepond-action-bg:rgba(110,168,254,0.16);--fastcrud-filepond-action-color:var(--bs-primary,#6ea8fe);--fastcrud-filepond-size-bg:rgba(33,37,41,0.86);--fastcrud-filepond-size-color:#fff;--fastcrud-filepond-size-border:rgba(255,255,255,0.35);--fastcrud-filepond-shadow:rgba(0,0,0,0.35);}' +
-                        '.filepond--root{margin-top:0.25rem;background:var(--fastcrud-filepond-surface)!important;border:1px dashed var(--fastcrud-filepond-border-color)!important;border-radius:0.75rem!important;padding:0.65rem!important;box-shadow:0 0.8rem 1.8rem -1.5rem var(--fastcrud-filepond-shadow);transition:background .2s ease,border-color .2s ease,box-shadow .2s ease;}' +
-                        '.filepond--root:hover,.filepond--root[data-hopper-state=drag-over]{border-color:var(--fastcrud-filepond-border-hover)!important;box-shadow:0 1rem 2rem -1.45rem var(--fastcrud-filepond-shadow);}' +
-                        '.filepond--root[data-hopper-state=drag-over]{background:var(--fastcrud-filepond-panel-bg)!important;}' +
-                        '.filepond--panel-root,.filepond--panel-top,.filepond--panel-center,.filepond--panel-bottom{background-color:transparent!important;border:none!important;box-shadow:none!important;}' +
-                        '.filepond--panel-root::before,.filepond--panel-root::after{background:transparent!important;}' +
-                        '.filepond--drop-label{min-height:6rem;color:var(--fastcrud-filepond-label-color)!important;font-weight:500;line-height:1.35;}' +
-                        '.filepond--drop-label label{padding:0.5rem 0.75rem!important;}' +
-                        '.filepond--drop-label span{color:inherit!important;}' +
-                        '.filepond--label-action{display:inline-flex!important;align-items:center;justify-content:center;margin-left:0.18rem;padding:0.18rem 0.52rem;border-radius:999px;background:var(--fastcrud-filepond-action-bg);color:var(--fastcrud-filepond-action-color)!important;font-weight:700;text-decoration:none!important;}' +
-                        '.filepond legend{color:var(--fastcrud-filepond-legend-color)!important;font-weight:600;}' +
-                        '.filepond--file-info{color:var(--fastcrud-filepond-text-color)!important;position:relative!important;z-index:5!important;}' +
-                        '.filepond--file-info span{color:inherit!important;}' +
-                        '.filepond--file-info-sub{color:var(--fastcrud-filepond-subtle-color)!important;}' +
-                        '.fastcrud-filepond--single-image .filepond--file-info,.fastcrud-filepond--multi-image .filepond--file-info{flex:1 1 auto!important;width:calc(100% - 2.75em)!important;max-width:calc(100% - 2.75em)!important;min-width:0!important;margin-right:2.75em!important;}' +
-                        '.fastcrud-filepond--single-image .filepond--file-info-main,.fastcrud-filepond--multi-image .filepond--file-info-main{display:block!important;width:100%!important;max-width:100%!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;}' +
-                        '.fastcrud-filepond--single-image .filepond--file-status,.fastcrud-filepond--multi-image .filepond--file-status{position:absolute!important;right:0.5625em;bottom:0.5625em;max-width:calc(100% - 1.125em);margin:0!important;}' +
-                        '.filepond--file-poster-wrapper{z-index:1!important;}' +
-                        '.filepond--file .filepond--file-info .filepond--file-info-sub.fastcrud-filepond-size-badge{display:inline-flex!important;align-items:center;max-width:max-content;margin-top:0.2rem;padding:0.12rem 0.42rem;border:1px solid var(--fastcrud-filepond-size-border);border-radius:999px;background:var(--fastcrud-filepond-size-bg)!important;color:var(--fastcrud-filepond-size-color)!important;font-size:0.72rem;font-weight:700;line-height:1.15;letter-spacing:0;white-space:nowrap;text-shadow:none!important;box-shadow:0 0.18rem 0.55rem rgba(15,23,42,0.18);opacity:1!important;visibility:visible!important;}' +
-                        '.filepond--item-panel{background-color:var(--fastcrud-filepond-panel-bg)!important;border:1px solid var(--fastcrud-filepond-border-color)!important;border-radius:0.65rem!important;box-shadow:0 0.55rem 1.2rem -1rem var(--fastcrud-filepond-shadow);}' +
-                        '.filepond--file{border-radius:0.65rem!important;}' +
-                        '.fastcrud-filepond--single-image.filepond--root{max-width:22rem!important;width:100%!important;display:block;}' +
-                        '.fastcrud-filepond--single-image .filepond--drop-label{min-height:9rem;}' +
-                        '.fastcrud-filepond--single-image .filepond--item{width:100%;}' +
-                        '.fastcrud-filepond--multi-image.filepond--root,.fastcrud-filepond--multi-file.filepond--root{width:100%!important;max-width:100%!important;display:block;}' +
-                        '.fastcrud-filepond--multi-image .filepond--drop-label{min-height:7.25rem;}' +
-                        '.fastcrud-filepond--multi-image .filepond--list{left:0.5em;right:0.5em;}' +
-                        '.fastcrud-filepond--multi-image .filepond--item{width:calc(50% - 0.5em);}' +
-                        '@media (min-width: 720px){.fastcrud-filepond--multi-image .filepond--item{width:calc(33.333% - 0.5em);}}' +
-                        '@media (min-width: 1200px){.fastcrud-filepond--multi-image .filepond--item{width:calc(25% - 0.5em);}}' +
-                        '.fastcrud-filepond--file .filepond--drop-label,.fastcrud-filepond--multi-file .filepond--drop-label{min-height:4.75rem;}' +
-                        '.fastcrud-filepond--file .filepond--item,.fastcrud-filepond--multi-file .filepond--item{width:100%;}' +
-                        '.fastcrud-filepond--file .filepond--file,.fastcrud-filepond--multi-file .filepond--file{min-height:3.1rem;}' +
-                        '.fastcrud-filepond--file .filepond--file-info,.fastcrud-filepond--multi-file .filepond--file-info{margin-left:0.75rem;}';
-                    document.head.appendChild(themeStyle);
-                }
-            } catch (e) {}
-
-            // Load FilePond core JS, then plugin JS
-            var coreScript = document.createElement('script');
-            coreScript.src = filePondState.coreScriptUrl;
-            coreScript.referrerPolicy = 'no-referrer';
-            coreScript.onload = function() {
-                var previewScript = document.createElement('script');
-                previewScript.src = filePondState.previewScriptUrl;
-                previewScript.referrerPolicy = 'no-referrer';
-                previewScript.onload = function() {
-                    var posterScript = document.createElement('script');
-                    posterScript.src = filePondState.posterScriptUrl;
-                    posterScript.referrerPolicy = 'no-referrer';
-                    posterScript.onload = function() {
-                        try {
-                            if (window.FilePond && typeof window.FilePond.registerPlugin === 'function') {
-                                if (window.FilePondPluginImagePreview) {
-                                    window.FilePond.registerPlugin(window.FilePondPluginImagePreview);
-                                }
-                                if (window.FilePondPluginFilePoster) {
-                                    window.FilePond.registerPlugin(window.FilePondPluginFilePoster);
-                                }
-                            }
-                        } catch (e) {}
-                        filePondState.loaded = true;
-                        filePondState.loading = false;
-                        var queued = filePondState.queue.slice();
-                        filePondState.queue.length = 0;
-                        queued.forEach(function(fn) {
-                            try { fn(); } catch (error) { if (window.console && console.error) console.error(error); }
-                        });
+            function release(item) {
+                if (item.xhr) { item.xhr.abort(); }
+                if (item.preview) { URL.revokeObjectURL(item.preview); item.preview = null; }
+            }
+            function remove(item) {
+                items = items.filter(function(candidate) { return candidate !== item; });
+                release(item);
+                render(); sync();
+            }
+            function syncUploadOrder() {
+                var ordered = [];
+                list.children('.fastcrud-upload-row').each(function() {
+                    var item = $(this).data('uploadItem');
+                    if (item && item.row.get(0) === this && items.indexOf(item) !== -1) { ordered.push(item); }
+                });
+                // Include newly selected items whose rendering was deferred during a drag.
+                items.forEach(function(item) { if (ordered.indexOf(item) === -1) { ordered.push(item); } });
+                items = ordered;
+                sync();
+            }
+            function updateButtons() {
+                items.forEach(function(item) {
+                    item.row.find('button').prop('disabled', disabled());
+                });
+                if (uploadSortable) { uploadSortable.option('disabled', disabled()); }
+                root.toggleClass('is-disabled', disabled());
+            }
+            function render() {
+                if (dragging) { renderPending = true; return; }
+                renderPending = false;
+                list.empty();
+                items.forEach(function(item) {
+                    var row = $('<li class="fastcrud-upload-row"></li>').toggleClass('is-error', !!item.error).appendTo(list);
+                    item.row = row; row.data('uploadItem', item);
+                    if (multiple) {
+                        button('Drag to reorder ' + item.name, '⠿', function() {}).addClass('fastcrud-upload-handle').appendTo(row);
+                    }
+                    var thumb = $('<span class="fastcrud-upload-thumb" aria-hidden="true"></span>').appendTo(row);
+                    var extension = (item.name.split('.').pop() || 'FILE').slice(0, 5);
+                    thumb.text(extension);
+                    if (item.preview || /\.(jpe?g|jpe|jfi|jfif|png|gif|webp|bmp|svg)$/i.test(item.name)) {
+                        $('<img alt="" loading="lazy" draggable="false">').attr('src', item.preview || toPublicUrl(item.stored)).on('error', function() { $(this).remove(); thumb.text(extension); }).appendTo(thumb.empty());
+                    }
+                    var info = $('<div class="fastcrud-upload-info"></div>').appendTo(row);
+                    var name = $('<a class="fastcrud-upload-name" target="_blank" rel="noopener noreferrer"></a>').text(item.name).attr('title', item.name).appendTo(info);
+                    if (item.stored) { name.attr('href', toPublicUrl(item.stored)); }
+                    item.status = $('<span class="fastcrud-upload-status"></span>').text(item.error || ((item.size !== null ? formatUploadSize(item.size) + ' · ' : '') + (item.stored ? 'Ready' : 'Uploading…'))).appendTo(info);
+                    item.progress = $('<progress class="fastcrud-upload-progress" max="100" aria-label="Upload progress"></progress>').val(item.percent || 0).toggle(!item.stored && !item.error).appendTo(info);
+                    var actions = $('<div class="fastcrud-upload-actions"></div>').appendTo(row);
+                    if (item.error && item.file) { button('Retry ' + item.name, '↻', function() { upload(item); }).appendTo(actions); }
+                    button('Remove ' + item.name, '×', function() { remove(item); }).appendTo(actions);
+                });
+                updateButtons();
+            }
+            function upload(item) {
+                item.error = ''; item.percent = 0;
+                var xhr = new XMLHttpRequest(); item.xhr = xhr;
+                item.pending = new Promise(function(resolve) {
+                    var finished = false;
+                    function finish(message, response) {
+                        if (finished) { return; } finished = true; item.xhr = null;
+                        if (!destroyed && items.indexOf(item) !== -1) {
+                            item.error = message || '';
+                            if (response) { item.stored = normalizeStoredImageName(response.name || extractFileName(response.location)); }
+                            render(); sync();
+                        }
+                        resolve();
+                    }
+                    xhr.open('POST', window.location.pathname);
+                    xhr.withCredentials = true; xhr.timeout = 120000;
+                    xhr.upload.onprogress = function(event) {
+                        if (!event.lengthComputable || destroyed) { return; }
+                        item.percent = Math.round(event.loaded / event.total * 100);
+                        if (item.progress) { item.progress.val(item.percent); item.status.text('Uploading · ' + item.percent + '%'); }
                     };
-                    posterScript.onerror = function() {
-                        filePondState.loading = false;
-                        filePondState.queue.length = 0;
-                        if (window.console && console.error) console.error('FastCrud: failed to load FilePond file poster script');
+                    xhr.onload = function() {
+                        var response;
+                        try { response = JSON.parse(xhr.responseText || '{}'); } catch (e) { finish('Upload returned invalid JSON.'); return; }
+                        if (xhr.status < 200 || xhr.status >= 300 || !response || response.success !== true || !response.location) {
+                            finish((response && response.error) || 'Upload failed (status ' + xhr.status + ').'); return;
+                        }
+                        finish('', response);
                     };
-                    document.head.appendChild(posterScript);
-                };
-                previewScript.onerror = function() {
-                    filePondState.loading = false;
-                    filePondState.queue.length = 0;
-                    if (window.console && console.error) console.error('FastCrud: failed to load FilePond image preview script');
-                };
-                document.head.appendChild(previewScript);
-            };
-            coreScript.onerror = function() {
-                filePondState.loading = false;
-                filePondState.queue.length = 0;
-                if (window.console && console.error) console.error('FastCrud: failed to load FilePond core script');
-            };
-            document.head.appendChild(coreScript);
+                    xhr.onerror = function() { finish('Network error. Retry the upload.'); };
+                    xhr.ontimeout = function() { finish('Upload timed out. Please retry.'); };
+                    xhr.onabort = function() { finish('Upload cancelled.'); };
+                    var data = new FormData();
+                    data.append('file', item.file, item.file.name);
+                    data.append('fastcrud_ajax', '1'); data.append('action', 'upload_file');
+                    data.append('kind', isImage ? 'image' : 'file');
+                    if (tableName) { data.append('table', tableName); }
+                    if (tableId) { data.append('id', tableId); }
+                    data.append('column', column); appendCrudConfigToFormData(data, false);
+                    try { xhr.send(data); } catch (e) { finish('Unable to start upload. Please retry.'); }
+                });
+                render();
+            }
+            function accepts(file) {
+                var rules = String(fileInput.attr('accept') || '').toLowerCase().split(',').map(function(rule) { return rule.trim(); }).filter(Boolean);
+                return !rules.length || rules.some(function(rule) {
+                    if (rule.charAt(0) === '.') { return file.name.toLowerCase().endsWith(rule); }
+                    if (rule === 'image/*' && !file.type) { return /\.(jpe?g|jpe|jfi|jfif|png|gif|webp|bmp|svg)$/i.test(file.name); }
+                    return rule.endsWith('/*') ? file.type.toLowerCase().startsWith(rule.slice(0, -1)) : file.type.toLowerCase() === rule;
+                });
+            }
+            function add(files) {
+                if (disabled()) { return; }
+                var selection = Array.from(files || []);
+                if (!multiple && selection.length > 1) { announceError('Please select one file at a time.'); return; }
+                var errors = [];
+                selection.forEach(function(file) {
+                    if (!accepts(file)) { errors.push(file.name + ': this file type is not accepted.'); return; }
+                    if (limit && file.size > limit.size) { errors.push(file.name + ': ' + buildUploadTooLargeMessage(isImage, limit)); return; }
+                    if (!multiple) { var previous = items; items = []; previous.forEach(release); }
+                    var item = {name: file.name, file: file, size: file.size, stored: '', preview: file.type.indexOf('image/') === 0 ? URL.createObjectURL(file) : null};
+                    items.push(item); upload(item);
+                });
+                announceError(errors.join(' ')); render(); sync();
+            }
+            fileInput.on('change.fastcrudUploader', function() { add(this.files); this.value = ''; });
+            drop.on('dragover.fastcrudUploader', function(event) { event.preventDefault(); if (!disabled()) { drop.addClass('is-over'); } });
+            drop.on('dragleave.fastcrudUploader', function(event) { if (!this.contains(event.relatedTarget)) { drop.removeClass('is-over'); } });
+            drop.on('drop.fastcrudUploader', function(event) { event.preventDefault(); drop.removeClass('is-over'); add(event.originalEvent.dataTransfer.files); });
+            parseImageNameList(valueInput.val()).slice(0, multiple ? undefined : 1).forEach(function(name) {
+                items.push({name: extractFileName(name), stored: name, size: null});
+            });
+            var observer = new MutationObserver(function() { valueInput.prop('disabled', fileInput.prop('disabled')); updateButtons(); });
+            observer.observe(fileInput.get(0), {attributes: true, attributeFilter: ['disabled']});
+            fileInput.data('fastcrudUploader', {
+                wait: function() {
+                    locked = true; updateButtons();
+                    return Promise.all(items.map(function(item) { return item.pending; })).then(function() {
+                        if (destroyed) { throw new Error('Upload form was closed.'); }
+                        var failed = items.some(function(item) { return !!item.error || !item.stored; });
+                        if (failed) { throw new Error('Retry or remove failed uploads before saving.'); }
+                    }).finally(function() { locked = false; if (!destroyed) { updateButtons(); } });
+                },
+                destroy: function() {
+                    destroyed = true; observer.disconnect();
+                    if (uploadSortable) { uploadSortable.destroy(); uploadSortable = null; }
+                    if (metadataRequest) { metadataRequest.abort(); }
+                    items.forEach(release); fileInput.off('.fastcrudUploader').removeData('fastcrudUploader'); root.remove();
+                }
+            });
+            render(); sync();
+            if (multiple) {
+                withSortableAssets(function() {
+                    if (destroyed || disposed || !list.get(0).isConnected) { return; }
+                    uploadSortable = window.Sortable.create(list.get(0), {
+                        handle: '.fastcrud-upload-handle',
+                        draggable: '.fastcrud-upload-row',
+                        direction: 'vertical',
+                        animation: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 200,
+                        easing: 'cubic-bezier(0.2, 0, 0, 1)',
+                        ghostClass: 'fastcrud-upload-ghost',
+                        chosenClass: 'fastcrud-upload-chosen',
+                        fallbackClass: 'fastcrud-upload-dragging',
+                        forceFallback: true,
+                        fallbackOnBody: true,
+                        fallbackTolerance: 3,
+                        scroll: true,
+                        scrollSensitivity: 50,
+                        scrollSpeed: 10,
+                        disabled: disabled(),
+                        onStart: function() { dragging = true; },
+                        onChange: syncUploadOrder,
+                        onEnd: function() {
+                            dragging = false;
+                            if (destroyed) { return; }
+                            syncUploadOrder();
+                            // Let Sortable finish cleanup before applying completed uploads.
+                            if (renderPending) { setTimeout(function() { if (!destroyed) { render(); } }, 0); }
+                        }
+                    });
+                });
+            }
+            if (items.length) {
+                metadataRequest = $.ajax({
+                    url: window.location.pathname, method: 'POST', dataType: 'json',
+                    data: attachCrudConfig({fastcrud_ajax: '1', action: 'file_metadata_bulk', names: JSON.stringify(items.map(function(item) { return item.stored; }))}, false)
+                }).done(function(response) {
+                    if (destroyed || !response || !response.success || !response.sizes) { return; }
+                    items.forEach(function(item) {
+                        if (Object.prototype.hasOwnProperty.call(response.sizes, item.stored)) {
+                            item.size = Number(response.sizes[item.stored]);
+                            item.status.text(formatUploadSize(item.size) + ' · Ready');
+                        }
+                    });
+                });
+            }
         }
 
-        function destroyFilePonds(container) {
-            if (!container || !container.length) {
-                return;
-            }
-            if (typeof window.FilePond === 'undefined' || typeof window.FilePond.find !== 'function') {
-                return;
-            }
-            try {
-                var inputs = container.find('input.fastcrud-filepond').toArray();
-                var ponds = window.FilePond.find(inputs);
-                (ponds || []).forEach(function(pond) {
-                    try { pond.destroy(); } catch (e) {}
-                });
-            } catch (e) {}
+        function destroyUploaders(container) {
+            if (!container || !container.length) { return; }
+            container.find('input.fastcrud-upload-input').each(function() {
+                var uploader = $(this).data('fastcrudUploader');
+                if (uploader) { uploader.destroy(); }
+            });
         }
 
         var select2State = window.FastCrudSelect2 || {};
@@ -2941,14 +2679,6 @@
                     if (widgetObserver) { widgetObserver.unobserve(element); }
                     pendingWidgets.delete(element);
                 }
-            });
-        }
-
-        function withVisibleFilePondAssets(group, callback) {
-            whenWidgetVisible(group.get(0), function() {
-                withFilePondAssets(function() {
-                    if (!disposed && group.get(0).isConnected) { callback(); }
-                });
             });
         }
 
@@ -3249,7 +2979,7 @@
                             cancelPendingWidgets(editFieldsContainer);
                 destroyRichEditors(editFieldsContainer);
                             destroySelect2(editFieldsContainer);
-                            destroyFilePonds(editFieldsContainer);
+                            destroyUploaders(editFieldsContainer);
                         }
                     }
                 });
@@ -5232,66 +4962,6 @@
             if (feedback && feedback.length) {
                 feedback.remove();
             }
-        }
-
-        function setFilePondFieldError(fileInput, valueInput, message) {
-            var jqFileInput = fileInput && fileInput.jquery ? fileInput : $(fileInput || []);
-            var jqValueInput = valueInput && valueInput.jquery ? valueInput : $(valueInput || []);
-            var liveFileInput = $();
-            var fileInputId = jqFileInput.length ? String(jqFileInput.attr('id') || '') : '';
-            if (fileInputId) {
-                liveFileInput = $('#' + $.escapeSelector(fileInputId));
-            }
-            if (!liveFileInput.length) {
-                liveFileInput = jqFileInput;
-            }
-
-            var group = jqValueInput.closest('.mb-3');
-            if (!group.length) {
-                group = liveFileInput.closest('.mb-3');
-            }
-            if (!group.length) {
-                group = jqFileInput.closest('.mb-3');
-            }
-            if (!group.length) {
-                return;
-            }
-
-            var text = String(message || '').trim();
-
-            if (text === '') {
-                liveFileInput.add(jqFileInput).add(jqValueInput).removeClass('is-invalid');
-                group.removeClass('fastcrud-field-invalid');
-                group.removeData('fastcrudFilePondError');
-                group.find('.fastcrud-filepond-feedback').remove();
-                return;
-            }
-
-            group.data('fastcrudFilePondError', text);
-            group.find('.fastcrud-filepond-feedback').remove();
-            var feedback = $('<div class="alert alert-danger py-2 px-3 small mb-2 fastcrud-field-feedback fastcrud-filepond-feedback" data-fastcrud-inline="1" role="alert"></div>').text(text);
-            var pondRoot = group.find('.filepond--root').first();
-            if (pondRoot.length) {
-                pondRoot.before(feedback);
-            } else if (liveFileInput.length) {
-                liveFileInput.before(feedback);
-            } else {
-                jqValueInput.before(feedback);
-            }
-            liveFileInput.add(jqFileInput).add(jqValueInput).addClass('is-invalid');
-            group.addClass('fastcrud-field-invalid');
-
-            [0, 50, 150].forEach(function(delay) {
-                setTimeout(function() {
-                    group.find('.filepond--file-status-main').each(function() {
-                        var status = $(this);
-                        var current = String(status.text() || '').trim();
-                        if (current === '' || current === 'Error during upload' || current === 'Upload complete') {
-                            status.text(text);
-                        }
-                    });
-                }, delay);
-            });
         }
 
         function applyFieldErrors(errors) {
@@ -7357,7 +7027,7 @@
 
             cancelPendingWidgets(editFieldsContainer);
             destroyRichEditors(editFieldsContainer);
-            destroyFilePonds(editFieldsContainer);
+            destroyUploaders(editFieldsContainer);
             destroySelect2(editFieldsContainer);
 
             var editSectionRegistry = editFieldsContainer.data('fastcrud-section-keys');
@@ -7987,13 +7657,13 @@
                     }
                     normalizedValue = initialValueString;
 
-                    // Use FilePond for image uploads with preview; store value in a hidden field
+                    // Use the built-in uploader with image previews; store value in a hidden field
                     var hiddenInput = $('<input type="hidden" />')
                         .attr('id', fieldId)
                         .attr('data-fastcrud-field', saveColumn)
                         .attr('data-fastcrud-type', 'hidden')
                         .val(String(initialValueString || ''));
-                    input = $('<input type="file" class="fastcrud-filepond" accept="image/*" />')
+                    input = $('<input type="file" class="fastcrud-upload-input" accept="image/*" />')
                         .attr('id', fieldId + '-file');
                     if (isMultipleImages) {
                         input.attr('multiple', 'multiple');
@@ -8023,7 +7693,7 @@
                         .attr('data-fastcrud-field', saveColumn)
                         .attr('data-fastcrud-type', 'hidden')
                         .val(String(initialFilesValue || ''));
-                    input = $('<input type="file" class="fastcrud-filepond" />')
+                    input = $('<input type="file" class="fastcrud-upload-input" />')
                         .attr('id', fieldId + '-file');
                     if (isMultipleFiles) {
                         input.attr('multiple', 'multiple');
@@ -8306,554 +7976,8 @@
 
                 targetContainer.append(group);
 
-                if (changeType === 'image' || changeType === 'images') {
-                    // Initialize FilePond after appending to DOM
-                    withVisibleFilePondAssets(group, function() {
-                        var fileInput = group.find('#' + $.escapeSelector(fieldId + '-file'));
-                        var valueInput = group.find('#' + $.escapeSelector(fieldId));
-                        if (!fileInput.length || !valueInput.length || !window.FilePond) {
-                            return;
-                        }
-
-                        try {
-                            var isMultipleImages = changeType === 'images';
-                            if (isMultipleImages) {
-                                setImageNamesOnInput(valueInput, valueInput.val());
-                            } else {
-                                var singleNames = parseImageNameList(valueInput.val());
-                                if (singleNames.length > 1) {
-                                    valueInput.val(singleNames[0]);
-                                } else if (singleNames.length === 1) {
-                                    valueInput.val(singleNames[0]);
-                                } else {
-                                    valueInput.val('');
-                                }
-                                clearImageNameMap(valueInput);
-                            }
-
-                            var currentNames = parseImageNameList(valueInput.val());
-                            var initialFiles = currentNames.map(function(name) {
-                                var url = toPublicUrl(name);
-                                return {
-                                    source: url,
-                                    options: {
-                                        type: 'local',
-                                        file: { name: name, size: 0 },
-                                        metadata: { poster: url, storedName: name }
-                                    }
-                                };
-                            });
-
-                            if (isMultipleImages) {
-                                var initialMap = ensureImageNameMap(valueInput);
-                                initialFiles.forEach(function(item) {
-                                    var key = item && item.source ? item.source : '';
-                                    var storedName = item && item.options && item.options.metadata ? item.options.metadata.storedName : '';
-                                    if (key && storedName) {
-                                        initialMap[key] = storedName;
-                                    }
-                                });
-                            }
-
-                            var showFilePondUploadError = function(message) {
-                                setFilePondFieldError(fileInput, valueInput, message);
-                            };
-                            var clearFilePondUploadError = function() {
-                                setFilePondFieldError(fileInput, valueInput, '');
-                            };
-                            var uploadMaxSize = resolveUploadMaxSize(params, true);
-
-                            var stylePanelAspect = (params.panelAspectRatio || params.aspectRatio);
-                            var imageIdleLabel = isMultipleImages
-                                ? 'Drop images here or <span class="filepond--label-action">Browse</span>'
-                                : 'Drop an image here or <span class="filepond--label-action">Browse</span>';
-                            var pond = window.FilePond.create(fileInput.get(0), {
-                                allowMultiple: isMultipleImages,
-                                allowReorder: isMultipleImages,
-                                allowImagePreview: true,
-                                imagePreviewHeight: params.previewHeight ? Number(params.previewHeight) : (isMultipleImages ? 150 : 190),
-                                allowFilePoster: true,
-                                filePosterHeight: params.posterHeight ? Number(params.posterHeight) : (isMultipleImages ? 120 : 170),
-                                stylePanelAspectRatio: stylePanelAspect || undefined,
-                                labelIdle: imageIdleLabel,
-                                labelFileLoading: 'Loading',
-                                labelFileProcessing: 'Uploading',
-                                labelFileProcessingComplete: 'Uploaded',
-                                labelFileProcessingAborted: 'Upload cancelled',
-                                labelFileProcessingError: 'Upload failed',
-                                labelTapToCancel: 'tap to cancel',
-                                labelTapToRetry: 'tap to retry',
-                                labelTapToUndo: 'tap to remove',
-                                labelButtonRemoveItem: 'Remove',
-                                credits: false,
-                                files: initialFiles,
-                                server: {
-                                    process: function(fieldName, file, metadata, load, error, progress, abort) {
-                                        if (uploadMaxSize && file && typeof file.size === 'number' && file.size > uploadMaxSize.size) {
-                                            var sizeMessage = buildUploadTooLargeMessage(true, uploadMaxSize);
-                                            showFilePondUploadError(sizeMessage);
-                                            error(sizeMessage);
-                                            return { abort: function() { abort(); } };
-                                        }
-                                        var xhr = new XMLHttpRequest();
-                                        xhr.open('POST', window.location.pathname);
-                                        xhr.withCredentials = true;
-                                        xhr.upload.onprogress = function(e) {
-                                            progress(e.lengthComputable, e.loaded, e.total);
-                                        };
-                                        xhr.onload = function() {
-                                            if (xhr.status < 200 || xhr.status >= 300) {
-                                                var statusMessage = 'Upload failed with status ' + xhr.status;
-                                                showFilePondUploadError(statusMessage);
-                                                error(statusMessage);
-                                                return;
-                                            }
-                                            var response;
-                                            var raw = xhr.responseText || '';
-                                            try { response = JSON.parse(raw || '{}'); } catch (e) {
-                                                showFilePondUploadError('Upload returned invalid JSON.');
-                                                error('Upload returned invalid JSON.');
-                                                return;
-                                            }
-                                            if (!response || response.success !== true || !response.location) {
-                                                var responseMessage = response && response.error ? response.error : 'Upload failed.';
-                                                showFilePondUploadError(responseMessage);
-                                                error(responseMessage);
-                                                return;
-                                            }
-                                            clearFilePondUploadError();
-
-                                            var storedName = '';
-                                            if (response.name) {
-                                                storedName = String(response.name);
-                                            }
-                                            if (!storedName && response.location) {
-                                                storedName = extractFileName(response.location);
-                                            }
-                                            if (!storedName && file && file.name) {
-                                                storedName = extractFileName(file.name);
-                                            }
-
-                                                if (storedName) {
-                                                    if (isMultipleImages) {
-                                                        addImageNameToInput(valueInput, storedName);
-                                                    } else {
-                                                        valueInput.val(normalizeStoredImageName(storedName));
-                                                    }
-                                                valueInput.trigger('change');
-                                            }
-
-                                            var serverKey = response.location ? String(response.location) : storedName;
-                                            if (isMultipleImages && serverKey) {
-                                                mapImageNameToKey(valueInput, serverKey, storedName);
-                                            }
-
-                                            load(serverKey || storedName || '');
-                                        };
-                                        xhr.onerror = function() {
-                                            showFilePondUploadError('Upload failed due to a network error.');
-                                            error('Upload failed due to a network error.');
-                                        };
-                                        var formData = new FormData();
-                                        formData.append('file', file, file.name);
-                                        formData.append('fastcrud_ajax', '1');
-                                        formData.append('action', 'upload_filepond');
-                                        formData.append('kind', 'image');
-                                        if (tableName) { formData.append('table', tableName); }
-                                        if (tableId) { formData.append('id', tableId); }
-                                        formData.append('column', saveColumn);
-                                        appendCrudConfigToFormData(formData, false);
-                                        xhr.send(formData);
-                                        return { abort: function() { xhr.abort(); abort(); } };
-                                    },
-                                    fetch: function(url, load, error, progress, abort) {
-                                        try {
-                                            var target = url;
-                                            if (target && typeof target === 'string' && !/^https?:\/\//i.test(target) && target.charAt(0) !== '/' && !/^blob:/i.test(target) && !/^data:/i.test(target)) {
-                                                target = toPublicUrl(target);
-                                            }
-                                            var xhr = new XMLHttpRequest();
-                                            xhr.open('GET', target);
-                                            xhr.responseType = 'blob';
-                                            xhr.onload = function() { load(xhr.response); };
-                                            xhr.onerror = function() { error('Failed to fetch image.'); };
-                                            xhr.onprogress = function(e) { progress(e.lengthComputable, e.loaded, e.total); };
-                                            xhr.send();
-                                            return { abort: function() { try { xhr.abort(); } catch (e) {} abort(); } };
-                                        } catch (e) {
-                                            error('Failed to fetch image.');
-                                            abort();
-                                        }
-                                    },
-                                    revert: function(uniqueId, load, error) {
-                                        if (isMultipleImages) {
-                                            removeImageNameFromInput(valueInput, uniqueId);
-                                            removeImageNameForKey(valueInput, uniqueId);
-                                            valueInput.trigger('change');
-                                        } else {
-                                            valueInput.val('');
-                                            valueInput.trigger('change');
-                                            clearImageNameMap(valueInput);
-                                        }
-                                        load();
-                                    },
-                                    load: function(source, load, error, progress, abort) {
-                                        try {
-                                            var target = source;
-                                            if (target && typeof target === 'string' && !/^https?:\/\//i.test(target) && target.charAt(0) !== '/' && !/^blob:/i.test(target) && !/^data:/i.test(target)) {
-                                                target = toPublicUrl(target);
-                                            }
-                                            var xhr = new XMLHttpRequest();
-                                            xhr.open('GET', target);
-                                            xhr.responseType = 'blob';
-                                            xhr.onload = function() { load(xhr.response); };
-                                            xhr.onerror = function() { error('Failed to load image.'); };
-                                            xhr.onprogress = function(e) { progress(e.lengthComputable, e.loaded, e.total); };
-                                            xhr.send();
-                                            return { abort: function() { xhr.abort(); abort(); } };
-                                        } catch (e) {
-                                            error('Failed to load image.');
-                                            abort();
-                                        }
-                                    }
-                                }
-                            });
-                            hydrateFilePondInitialSizes(pond, initialFiles);
-                            try {
-                                $(pond.element)
-                                    .addClass('fastcrud-filepond-uploader')
-                                    .addClass(isMultipleImages ? 'fastcrud-filepond--multi-image' : 'fastcrud-filepond--single-image');
-                            } catch (e) {}
-                            pond.on('addfile', function() {
-                                clearFilePondUploadError();
-                            });
-                            pond.on('removefile', function() {
-                                clearFilePondUploadError();
-                            });
-
-                            // Apply width: use full width for multi-image grids by default
-                            var pondWidth = (function() {
-                                var explicit = (params.width || params.pondWidth || params.previewWidth || '').toString().trim();
-                                if (explicit) return explicit;
-                                return isMultipleImages ? '100%' : '22rem';
-                            })();
-                            // Try to enforce max width robustly (some FilePond updates adjust inline styles)
-                            try {
-                                var applyPondWidth = function(el, value) {
-                                    try {
-                                        el.style.setProperty('max-width', String(value), 'important');
-                                        el.style.setProperty('width', '100%', 'important');
-                                        // ensure it can shrink from block-level width if needed
-                                        el.style.setProperty('display', 'block');
-                                    } catch (e) {}
-                                };
-                                applyPondWidth(pond.element, pondWidth);
-                                // Re-apply on next tick and when pond is ready (in case FilePond mutates styles)
-                                setTimeout(function() { applyPondWidth(pond.element, pondWidth); }, 0);
-                                if (pond && typeof pond.on === 'function') {
-                                    pond.on('ready', function() { applyPondWidth(pond.element, pondWidth); });
-                                }
-                            } catch (e) {}
-
-                            if (isMultipleImages) {
-                                pond.on('removefile', function(error, file) {
-                                    if (!file) {
-                                        return;
-                                    }
-                                    var key = file.serverId || file.source || '';
-                                    var storedName = '';
-                                    if (file.getMetadata && typeof file.getMetadata === 'function') {
-                                        storedName = file.getMetadata('storedName') || '';
-                                    }
-                                    if (!storedName) {
-                                        storedName = findImageNameForKey(valueInput, key) || extractFileName(key || file.filename);
-                                    }
-                                    if (storedName) {
-                                        removeImageNameFromInput(valueInput, storedName);
-                                        valueInput.trigger('change');
-                                    }
-                                    if (key) {
-                                        removeImageNameForKey(valueInput, key);
-                                    }
-                                });
-                                // Keep hidden input order in sync when user reorders items
-                                pond.on('reorderfiles', function(files) {
-                                    try {
-                                        var ordered = [];
-                                        (files || pond.getFiles() || []).forEach(function(item) {
-                                            if (!item) return;
-                                            var key = item.serverId || item.source || '';
-                                            var name = '';
-                                            if (item.getMetadata && typeof item.getMetadata === 'function') {
-                                                name = item.getMetadata('storedName') || '';
-                                            }
-                                            if (!name) {
-                                                name = findImageNameForKey(valueInput, key) || extractFileName(key || item.filename);
-                                            }
-                                            if (name && ordered.indexOf(name) === -1) {
-                                                ordered.push(name);
-                                            }
-                                        });
-                                        setImageNamesOnInput(valueInput, ordered);
-                                        valueInput.trigger('change');
-                                    } catch (e) {}
-                                });
-                            } else {
-                                pond.on('removefile', function() {
-                                    valueInput.val('').trigger('change');
-                                    clearImageNameMap(valueInput);
-                                });
-                            }
-
-                            pond.on('processfile', function(error, file) {
-                                if (error) {
-                                    showFilePondUploadError(normalizeFilePondErrorMessage(error, group.data('fastcrudFilePondError') || 'Upload failed.'));
-                                    return;
-                                }
-                                if (!file) {
-                                    return;
-                                }
-                                var key = file.serverId || file.source || '';
-                                var storedName = '';
-                                if (file.getMetadata && typeof file.getMetadata === 'function') {
-                                    storedName = file.getMetadata('storedName') || '';
-                                }
-                                if (!storedName) {
-                                    storedName = findImageNameForKey(valueInput, key) || extractFileName(key || file.filename);
-                                    if (file.setMetadata && storedName) {
-                                        file.setMetadata('storedName', storedName, true);
-                                    }
-                                }
-                                if (file.setMetadata) {
-                                    var posterCandidate = key && (/^https?:\/\//i.test(key) || key.charAt(0) === '/' || /^blob:/i.test(key) || /^data:/i.test(key))
-                                        ? key
-                                        : (storedName ? toPublicUrl(storedName) : '');
-                                    if (posterCandidate) {
-                                        file.setMetadata('poster', posterCandidate, true);
-                                    }
-                                }
-                                if (isMultipleImages && key && storedName) {
-                                    mapImageNameToKey(valueInput, key, storedName);
-                                }
-                            });
-                        } catch (e) {}
-                    });
-                } else if (changeType === 'file' || changeType === 'files') {
-                    // Initialize FilePond for generic files (with optional multi-select, no image preview)
-                    withVisibleFilePondAssets(group, function() {
-                        var fileInput = group.find('#' + $.escapeSelector(fieldId + '-file'));
-                        var valueInput = group.find('#' + $.escapeSelector(fieldId));
-                        if (!fileInput.length || !valueInput.length || !window.FilePond) {
-                            return;
-                        }
-
-                        try {
-                            var isMultipleFiles = (changeType === 'files');
-                            var initialFiles = [];
-                            if (isMultipleFiles) {
-                                var list = parseImageNameList(valueInput.val());
-                                initialFiles = list.map(function(fname) {
-                                    return {
-                                        source: toPublicUrl(fname),
-                                        options: {
-                                            type: 'local',
-                                            file: { name: fname, size: 0 },
-                                            metadata: { storedName: fname }
-                                        }
-                                    };
-                                });
-                            } else {
-                                var name = String(valueInput.val() || '').trim();
-                                if (name) {
-                                    initialFiles = [{
-                                        source: toPublicUrl(name),
-                                        options: {
-                                            type: 'local',
-                                            file: { name: name, size: 0 },
-                                            metadata: { storedName: name }
-                                        }
-                                    }];
-                                }
-                            }
-
-                            var showFilePondUploadError = function(message) {
-                                setFilePondFieldError(fileInput, valueInput, message);
-                            };
-                            var clearFilePondUploadError = function() {
-                                setFilePondFieldError(fileInput, valueInput, '');
-                            };
-                            var uploadMaxSize = resolveUploadMaxSize(params, false);
-
-                            var fileIdleLabel = isMultipleFiles
-                                ? 'Drop files here or <span class="filepond--label-action">Browse</span>'
-                                : 'Drop a file here or <span class="filepond--label-action">Browse</span>';
-                            var pond = window.FilePond.create(fileInput.get(0), {
-                                allowMultiple: isMultipleFiles,
-                                allowReorder: isMultipleFiles,
-                                allowImagePreview: false,
-                                allowFilePoster: false,
-                                labelIdle: fileIdleLabel,
-                                labelFileLoading: 'Loading',
-                                labelFileProcessing: 'Uploading',
-                                labelFileProcessingComplete: 'Uploaded',
-                                labelFileProcessingAborted: 'Upload cancelled',
-                                labelFileProcessingError: 'Upload failed',
-                                labelTapToCancel: 'tap to cancel',
-                                labelTapToRetry: 'tap to retry',
-                                labelTapToUndo: 'tap to remove',
-                                labelButtonRemoveItem: 'Remove',
-                                credits: false,
-                                files: initialFiles,
-                                server: {
-                                    process: function(fieldName, file, metadata, load, error, progress, abort) {
-                                        if (uploadMaxSize && file && typeof file.size === 'number' && file.size > uploadMaxSize.size) {
-                                            var sizeMessage = buildUploadTooLargeMessage(false, uploadMaxSize);
-                                            showFilePondUploadError(sizeMessage);
-                                            error(sizeMessage);
-                                            return { abort: function() { abort(); } };
-                                        }
-                                        var xhr = new XMLHttpRequest();
-                                        xhr.open('POST', window.location.pathname);
-                                        xhr.withCredentials = true;
-                                        xhr.upload.onprogress = function(e) { progress(e.lengthComputable, e.loaded, e.total); };
-                                        xhr.onload = function() {
-                                            if (xhr.status < 200 || xhr.status >= 300) {
-                                                var statusMessage = 'Upload failed with status ' + xhr.status;
-                                                showFilePondUploadError(statusMessage);
-                                                error(statusMessage);
-                                                return;
-                                            }
-                                            var response; var raw = xhr.responseText || '';
-                                            try { response = JSON.parse(raw || '{}'); } catch (e) {
-                                                showFilePondUploadError('Upload returned invalid JSON.');
-                                                error('Upload returned invalid JSON.');
-                                                return;
-                                            }
-                                            if (!response || response.success !== true || !response.location) {
-                                                var responseMessage = response && response.error ? response.error : 'Upload failed.';
-                                                showFilePondUploadError(responseMessage);
-                                                error(responseMessage);
-                                                return;
-                                            }
-                                            clearFilePondUploadError();
-
-                                            var storedName = '';
-                                            if (response.name) { storedName = String(response.name); }
-                                            if (!storedName && response.location) { storedName = extractFileName(response.location); }
-                                            if (!storedName && file && file.name) { storedName = extractFileName(file.name); }
-
-                                            if (storedName) {
-                                                if (isMultipleFiles) { addImageNameToInput(valueInput, storedName); }
-                                                else { valueInput.val(normalizeStoredImageName(storedName)); }
-                                                valueInput.trigger('change');
-                                            }
-                                            var serverKey = response.location ? String(response.location) : storedName;
-                                            if (isMultipleFiles && serverKey) { mapImageNameToKey(valueInput, serverKey, storedName); }
-                                            load(serverKey || storedName || '');
-                                        };
-                                        xhr.onerror = function() {
-                                            showFilePondUploadError('Upload failed due to a network error.');
-                                            error('Upload failed due to a network error.');
-                                        };
-                                        var formData = new FormData();
-                                        formData.append('file', file, file.name);
-                                        formData.append('fastcrud_ajax', '1');
-                                        formData.append('action', 'upload_filepond');
-                                        formData.append('kind', 'file');
-                                        if (tableName) { formData.append('table', tableName); }
-                                        if (tableId) { formData.append('id', tableId); }
-                                        formData.append('column', saveColumn);
-                                        appendCrudConfigToFormData(formData, false);
-                                        xhr.send(formData);
-                                        return { abort: function() { xhr.abort(); abort(); } };
-                                    },
-                                    fetch: function(url, load, error, progress, abort) {
-                                        try {
-                                            var target = url;
-                                            if (target && typeof target === 'string' && !/^https?:\/\//i.test(target) && target.charAt(0) !== '/' && !/^blob:/i.test(target) && !/^data:/i.test(target)) {
-                                                target = toPublicUrl(target);
-                                            }
-                                            var xhr = new XMLHttpRequest();
-                                            xhr.open('GET', target);
-                                            xhr.responseType = 'blob';
-                                            xhr.onload = function() { if (xhr.status >= 200 && xhr.status < 300) { load(xhr.response); } else { error('Failed to fetch file'); } };
-                                            xhr.onerror = function() { error('Network error while fetching file'); };
-                                            xhr.send();
-                                            return { abort: function() { try { xhr.abort(); } catch (e) {} abort(); } };
-                                        } catch (e) { error('Failed to fetch file'); }
-                                    }
-                                }
-                            });
-                            hydrateFilePondInitialSizes(pond, initialFiles);
-                            try {
-                                $(pond.element)
-                                    .addClass('fastcrud-filepond-uploader')
-                                    .addClass(isMultipleFiles ? 'fastcrud-filepond--multi-file' : 'fastcrud-filepond--file');
-                            } catch (e) {}
-                            pond.on('addfile', function() {
-                                clearFilePondUploadError();
-                            });
-                            pond.on('removefile', function() {
-                                clearFilePondUploadError();
-                            });
-
-                            if (isMultipleFiles) {
-                                pond.on('removefile', function(error, file) {
-                                    if (!file) { return; }
-                                    var key = file.serverId || file.source || '';
-                                    var storedName = '';
-                                    if (file.getMetadata && typeof file.getMetadata === 'function') {
-                                        storedName = file.getMetadata('storedName') || '';
-                                    }
-                                    if (!storedName) {
-                                        storedName = findImageNameForKey(valueInput, key) || extractFileName(key || file.filename);
-                                    }
-                                    if (storedName) { removeImageNameFromInput(valueInput, storedName); valueInput.trigger('change'); }
-                                    if (key) { removeImageNameForKey(valueInput, key); }
-                                });
-                                pond.on('reorderfiles', function(files) {
-                                    try {
-                                        var ordered = [];
-                                        (files || pond.getFiles() || []).forEach(function(item) {
-                                            if (!item) return;
-                                            var key = item.serverId || item.source || '';
-                                            var name = '';
-                                            if (item.getMetadata && typeof item.getMetadata === 'function') {
-                                                name = item.getMetadata('storedName') || '';
-                                            }
-                                            if (!name) { name = findImageNameForKey(valueInput, key) || extractFileName(key || item.filename); }
-                                            if (name && ordered.indexOf(name) === -1) { ordered.push(name); }
-                                        });
-                                        setImageNamesOnInput(valueInput, ordered);
-                                        valueInput.trigger('change');
-                                    } catch (e) {}
-                                });
-                            } else {
-                                pond.on('removefile', function() { valueInput.val('').trigger('change'); });
-                            }
-
-                            pond.on('processfile', function(error, file) {
-                                if (error) {
-                                    showFilePondUploadError(normalizeFilePondErrorMessage(error, group.data('fastcrudFilePondError') || 'Upload failed.'));
-                                    return;
-                                }
-                                if (!file) { return; }
-                                var key = file.serverId || file.source || '';
-                                var storedName = '';
-                                if (file.getMetadata && typeof file.getMetadata === 'function') { storedName = file.getMetadata('storedName') || ''; }
-                                if (!storedName) {
-                                    storedName = findImageNameForKey(valueInput, key) || extractFileName(key || (file.filename || ''));
-                                    if (file.setMetadata && storedName) { file.setMetadata('storedName', storedName, true); }
-                                }
-                                if (isMultipleFiles && key && storedName) { mapImageNameToKey(valueInput, key, storedName); }
-                                if (storedName) {
-                                    if (isMultipleFiles) { addImageNameToInput(valueInput, storedName); }
-                                    else { valueInput.val(normalizeStoredImageName(storedName)); }
-                                    valueInput.trigger('change');
-                                }
-                            });
-                        } catch (e) {}
-                    });
+                if (['image', 'images', 'file', 'files'].indexOf(changeType) !== -1) {
+                    initializeUploader(input, hiddenInput, changeType, params, saveColumn);
                 }
             });
 
@@ -9466,31 +8590,14 @@
                 });
             }
 
-            // Ensure FilePond uploads (if any) finish before collecting values
-            function waitForFilePondUploads() {
-                return new Promise(function(resolve, reject) {
-                    if (!window.FilePond || typeof window.FilePond.find !== 'function') {
-                        resolve();
-                        return;
-                    }
-                    var inputs = editForm.find('input.fastcrud-filepond').toArray();
-                    var ponds = window.FilePond.find(inputs);
-                    if (!ponds || !ponds.length) {
-                        resolve();
-                        return;
-                    }
-                    var tasks = [];
-                    ponds.forEach(function(pond) {
-                        try {
-                            tasks.push(pond.processFiles());
-                        } catch (e) {}
-                    });
-                    if (!tasks.length) {
-                        resolve();
-                        return;
-                    }
-                    Promise.all(tasks).then(function() { resolve(); }).catch(function(error) { reject(error); });
+            // Wait for every current selection before collecting the ordered filenames.
+            function waitForUploads() {
+                var tasks = [];
+                editForm.find('input.fastcrud-upload-input').each(function() {
+                    var uploader = $(this).data('fastcrudUploader');
+                    if (uploader && !this.disabled) { tasks.push(uploader.wait()); }
                 });
+                return Promise.all(tasks);
             }
 
             function collectAndSubmit() {
@@ -9761,7 +8868,7 @@
                 return false;
             }
 
-            waitForFilePondUploads().then(collectAndSubmit).catch(function(error) {
+            waitForUploads().then(collectAndSubmit).catch(function(error) {
                 var message = 'Please fix the highlighted uploads.';
                 if (error && typeof error.message === 'string' && error.message.trim() !== '') {
                     message = error.message.trim();
@@ -10715,7 +9822,7 @@
                 if (widgetObserver) { widgetObserver.disconnect(); }
                 destroyRichEditors(editFieldsContainer);
                 destroySelect2(editFieldsContainer);
-                destroyFilePonds(editFieldsContainer);
+                destroyUploaders(editFieldsContainer);
                 destroyRowOrderingSortable();
                 if (sidePanelHeightTimer !== null) {
                     window.clearTimeout(sidePanelHeightTimer);

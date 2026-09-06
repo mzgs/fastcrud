@@ -849,15 +849,17 @@ All customization options are available through the main `FastCrud\Crud` class m
   // Image upload (basic)
   $crud->change_type('avatar', 'image', '', ['path' => 'avatars']);
   
-  // Image upload with all options
+  // Multiple images and files: thumbnail lists with drag-and-drop reordering
+  $crud->change_type('gallery', 'images', '', ['path' => 'gallery']);
+  $crud->change_type('attachments', 'files', '', ['accept' => '.pdf,.docx', 'max_size' => '10MB']);
+
+  // Image upload with transforms
   $crud->change_type('product_image', 'image', '', [
       'path' => 'products',
       'max_size' => '5MB',
       'width' => 1200,
       'height' => 800,
       'crop' => false,
-      'previewHeight' => 200,
-      'aspectRatio' => '3:2',
       'thumbs' => [
           [
               'width' => 300,
@@ -1437,6 +1439,8 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $path = CrudConfig::getUploadPath();
   ```
+Upload fields use the built-in uploader with image thumbnails, file-type badges, progress, retry, and removal. Use `image` or `file` for one selection, and `images` or `files` for multiple selections. Drag the handle to reorder multiple files; the saved comma-separated filenames follow that order. Saving waits for uploads to finish.
+
 - **`CrudConfig::$upload_path`** – Set the default filesystem destination for uploads (default: `'public/uploads'`).
   ```php
   CrudConfig::$upload_path = 'assets/uploads';

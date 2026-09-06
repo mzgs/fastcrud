@@ -57,7 +57,7 @@ class CrudAjax
                 case 'upload_image':
                     self::handleUploadImage($request);
                     break;
-                case 'upload_filepond':
+                case 'upload_file':
                     // Reuse the same secure image upload flow used by TinyMCE
                     self::handleUploadImage($request);
                     break;
@@ -997,7 +997,7 @@ class CrudAjax
     }
 
     /**
-     * Handle FilePond/TinyMCE uploads (images and generic files).
+     * Handle CRUD/TinyMCE uploads (images and generic files).
      */
     private static function handleUploadImage(array $request): void
     {
