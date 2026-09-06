@@ -11,6 +11,45 @@ use RuntimeException;
 class Database
 {
     private static ?PDO $connection = null;
+    /** @var \WeakMap<PDO, array<string, array>>|null */
+    private static ?\WeakMap $schemaMetadataCache = null;
+
+    /**
+     * Reuse schema metadata across instances during this PHP request.
+     * Empty results are retried so a failed lookup cannot poison the cache.
+     *
+     * @internal
+     */
+    public static function rememberSchemaMetadata(PDO $connection, string $key, callable $loader): array
+    {
+        self::$schemaMetadataCache ??= new \WeakMap();
+        $cached = self::$schemaMetadataCache[$connection][$key] ?? null;
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $metadata = $loader();
+        if ($metadata !== []) {
+            $entries = self::$schemaMetadataCache[$connection] ?? [];
+            $entries[$key] = $metadata;
+            self::$schemaMetadataCache[$connection] = $entries;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * Clear after manual DDL, changing the active schema, or between worker requests.
+     * Omit the connection to clear all cached schema metadata.
+     */
+    public static function clearSchemaCache(?PDO $connection = null): void
+    {
+        if ($connection === null) {
+            self::$schemaMetadataCache = null;
+        } elseif (self::$schemaMetadataCache !== null) {
+            unset(self::$schemaMetadataCache[$connection]);
+        }
+    }
 
     /**
      * Retrieve a shared PDO connection using the stored CrudConfig settings.
@@ -62,6 +101,9 @@ class Database
      */
     public static function disconnect(): void
     {
+        if (self::$connection !== null) {
+            self::clearSchemaCache(self::$connection);
+        }
         self::$connection = null;
     }
 

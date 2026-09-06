@@ -123,7 +123,39 @@ echo new Crud('users')->render();
 
 ## Configuration
 
+### Optional Cacheable JavaScript
+
+By default, FastCRUD embeds its JavaScript in the rendered HTML. To let browsers cache the shared runtime, publish the package asset into your application's public directory:
+
+```bash
+vendor/bin/fastcrud-assets public/vendor/fastcrud
+```
+
+When working in this library's own checkout, use `php bin/fastcrud-assets public/vendor/fastcrud` instead.
+
+Configure the browser URL before calling `Crud::init()` or rendering tables:
+
+```php
+use FastCrud\CrudConfig;
+
+CrudConfig::$script_url = '/vendor/fastcrud/fastcrud.js';
+```
+
+The URL must map to the published file through your web server; it is not a filesystem path. FastCRUD loads the runtime once per page and initializes each table with its own configuration, including nested tables loaded through AJAX. Continue including jQuery and Bootstrap as in the normal setup. No Node.js or JavaScript build step is required.
+
+Run the publishing command again after Composer installs a new FastCRUD version, preferably as part of deployment. FastCRUD appends a content hash to the URL to invalidate the browser cache when the packaged script changes. Configure static-file caching in your web server as appropriate; the publishing command does not change server headers. Set `CrudConfig::$script_url = null` to return to inline mode. Small inline initialization scripts remain in external mode.
+
 ### Rendering Multiple Tables
+
+Performance improvements apply automatically in both inline and external JavaScript modes:
+
+- Header discovery fetches metadata without evaluating a data row.
+- Short first pages and unpaginated listings avoid a separate count query where totals can be inferred safely. Joins retain their distinct-record counts.
+- Summary aggregates share one query; equivalent relation definitions share page-label lookups, batched into groups of at most 500 keys.
+- AJAX clients reuse unchanged metadata using `meta_hash`. Full metadata is still computed each request so permission, callback, and relation-option changes are detected. Summaries and record values remain fresh; clients that omit `meta_hash` receive full metadata.
+- Rich editors, Select2, and file widgets wait until their fields become visible. Nested table refreshes release widgets and panels, and outdated table responses are ignored.
+
+Search matching and page-number pagination retain their existing behavior. Database-specific indexes and query-plan tuning depend on your application's tables and workload; the library does not create application indexes automatically.
 
 ```php
 // Each Crud instance is independent - reuse the same connection
@@ -134,9 +166,11 @@ echo $users->render();
 echo $orders->render();
 ```
 
+Column names, schema types, and PostgreSQL enum metadata are cached per PDO connection during each PHP request and shared across CRUD instances. The database editor clears this cache after schema changes. If your application executes DDL or switches the active database/schema itself, call `\FastCrud\Database::clearSchemaCache($pdo)` afterward. Long-running workers should call `\FastCrud\Database::clearSchemaCache()` between requests and create fresh CRUD instances.
+
 ### Audit Logs
 
-`Crud::init()` automatically ensures the `fastcrud_audit_logs` table exists when a PDO instance or database configuration is available. Enable logging per CRUD table:
+`Crud::init()` automatically ensures the `fastcrud_audit_logs` table exists on normal page requests when a PDO instance or database configuration is available. AJAX requests reuse that schema without repeating table or index creation. Initialize a normal page first, or call `Database::ensureAuditLogTable($pdo)` during setup for integrations that send AJAX requests directly. Enable logging per CRUD table:
 
 ```php
 $users = (new Crud('users'))->enableAuditLog([

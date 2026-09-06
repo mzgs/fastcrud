@@ -11,6 +11,9 @@ class CrudConfig
         'port' => 3306,
     ];
 
+    // Public URL of the published runtime; null preserves inline JavaScript.
+    public static ?string $script_url = null;
+
     public static string $upload_path = 'public/uploads';
     public static ?string $upload_serve_path = null;
     public static int|string|null $upload_max_image_size = 16 * 1024 * 1024;

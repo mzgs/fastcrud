@@ -131,6 +131,14 @@ class DatabaseEditor
             };
         } catch (PDOException | RuntimeException $exception) {
             self::recordException($exception);
+        } finally {
+            if (in_array($action, [
+                'add_table', 'rename_table', 'delete_table', 'add_column',
+                'rename_column', 'change_column_type', 'delete_column', 'reorder_columns',
+            ], true)) {
+                // Also clear after a failed operation that may have partially applied DDL.
+                Database::clearSchemaCache($connection);
+            }
         }
 
         self::respondJsonIfNeeded();
@@ -788,11 +796,15 @@ class DatabaseEditor
 
     private static function fetchColumns(PDO $connection, string $driver, string $table): array
     {
-        return match ($driver) {
-            'pgsql' => self::fetchPgsqlColumns($connection, $table),
-            'sqlite' => self::fetchSqliteColumns($connection, $table),
-            default => self::fetchMysqlColumns($connection, $table),
-        };
+        return Database::rememberSchemaMetadata(
+            $connection,
+            'editor:columns:' . $driver . ':' . $table,
+            static fn(): array => match ($driver) {
+                'pgsql' => self::fetchPgsqlColumns($connection, $table),
+                'sqlite' => self::fetchSqliteColumns($connection, $table),
+                default => self::fetchMysqlColumns($connection, $table),
+            }
+        );
     }
 
     private static function resolvePrimaryKeyColumn(PDO $connection, string $driver, string $table): ?string

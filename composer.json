@@ -13,6 +13,7 @@
         }
     ],
     "require": {},
+    "bin": ["bin/fastcrud-assets"],
     "autoload": {
         "psr-4": {
             "FastCrud\\": "src/"

@@ -1,0 +1,32 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+if ($argc !== 2 || in_array($argv[1], ['--help', '-h'], true)) {
+    fwrite($argc === 2 ? STDOUT : STDERR, "Usage: fastcrud-assets <public-directory>\nExample: vendor/bin/fastcrud-assets public/vendor/fastcrud\n");
+    exit($argc === 2 ? 0 : 1);
+}
+
+$destination = $argv[1];
+if (trim($destination) === '') {
+    fwrite(STDERR, "A destination directory is required.\n");
+    exit(1);
+}
+if (!is_dir($destination) && !@mkdir($destination, 0755, true) && !is_dir($destination)) {
+    fwrite(STDERR, "Unable to create asset directory: {$destination}\n");
+    exit(1);
+}
+
+$target = rtrim($destination, '/\\') . DIRECTORY_SEPARATOR . 'fastcrud.js';
+// Copy atomically so concurrent requests cannot receive a partially written asset.
+$temporary = tempnam($destination, '.fastcrud-');
+if ($temporary === false || !@copy(__DIR__ . '/../assets/fastcrud.js', $temporary)
+    || !@chmod($temporary, 0644) || !@rename($temporary, $target)) {
+    if (is_string($temporary) && is_file($temporary)) {
+        @unlink($temporary);
+    }
+    fwrite(STDERR, "Unable to publish FastCrud JavaScript to: {$target}\n");
+    exit(1);
+}
+
+fwrite(STDOUT, "Published: {$target}\nRepublish after updating FastCrud. Set CrudConfig::\$script_url to this file's public URL.\n");

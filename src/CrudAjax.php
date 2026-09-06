@@ -116,14 +116,28 @@ class CrudAjax
         $crud = self::createCrudFromRequest($table, $request);
         $data = $crud->getTableData($page, $perPage, $searchTerm, $searchColumn);
 
-        self::respond([
+        self::respond(self::buildFetchResponse($data, $request));
+    }
+
+    private static function buildFetchResponse(array $data, array $request): array
+    {
+        $meta = $data['meta'] ?? [];
+        $stableMeta = $meta;
+        unset($stableMeta['summaries']);
+        $hash = hash('sha256', json_encode($stableMeta, JSON_THROW_ON_ERROR));
+        $unchanged = isset($request['meta_hash']) && is_string($request['meta_hash'])
+            && hash_equals($hash, $request['meta_hash']);
+
+        return [
             'success' => true,
             'data' => $data['rows'],
             'columns' => $data['columns'],
             'pagination' => $data['pagination'],
-            'meta' => $data['meta'] ?? [],
+            'meta' => $unchanged ? null : $meta,
+            'meta_hash' => $hash,
+            'summaries' => $meta['summaries'] ?? [],
             'id' => $request['id'] ?? null,
-        ]);
+        ];
     }
 
     /**
