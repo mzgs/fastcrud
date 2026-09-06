@@ -219,6 +219,7 @@ class CrudAjax
         }
 
         $sizes = [];
+        $missing = [];
         foreach ($names as $name) {
             if (!is_string($name)) {
                 continue;
@@ -230,6 +231,7 @@ class CrudAjax
 
             $absolutePath = self::resolveStoredFileAbsolutePath($trimmed);
             if ($absolutePath === null || !is_file($absolutePath)) {
+                $missing[] = $trimmed;
                 continue;
             }
 
@@ -244,6 +246,7 @@ class CrudAjax
         self::respond([
             'success' => true,
             'sizes' => $sizes,
+            'missing' => $missing,
         ]);
     }
 

@@ -2404,6 +2404,12 @@
                 if (uploadSortable) { uploadSortable.option('disabled', disabled()); }
                 root.toggleClass('is-disabled', disabled());
             }
+            function updateStatus(item) {
+                var message = item.error || (item.missing ? (isImage ? 'Image does not exist' : 'File does not exist') : '');
+                item.row.toggleClass('is-error', !!message);
+                item.status.text(message || (item.checking ? 'Checking…' : (item.unavailable ? 'Unable to check file' :
+                    ((item.size !== null ? formatUploadSize(item.size) + ' · ' : '') + (item.stored ? 'Ready' : 'Uploading…')))));
+            }
             function render() {
                 if (dragging) { renderPending = true; return; }
                 renderPending = false;
@@ -2423,7 +2429,8 @@
                     var info = $('<div class="fastcrud-upload-info"></div>').appendTo(row);
                     var name = $('<a class="fastcrud-upload-name" target="_blank" rel="noopener noreferrer"></a>').text(item.name).attr('title', item.name).appendTo(info);
                     if (item.stored) { name.attr('href', toPublicUrl(item.stored)); }
-                    item.status = $('<span class="fastcrud-upload-status"></span>').text(item.error || ((item.size !== null ? formatUploadSize(item.size) + ' · ' : '') + (item.stored ? 'Ready' : 'Uploading…'))).appendTo(info);
+                    item.status = $('<span class="fastcrud-upload-status"></span>').appendTo(info);
+                    updateStatus(item);
                     item.progress = $('<progress class="fastcrud-upload-progress" max="100" aria-label="Upload progress"></progress>').val(item.percent || 0).toggle(!item.stored && !item.error).appendTo(info);
                     var actions = $('<div class="fastcrud-upload-actions"></div>').appendTo(row);
                     if (item.error && item.file) { button('Retry ' + item.name, '↻', function() { upload(item); }).appendTo(actions); }
@@ -2501,7 +2508,7 @@
             drop.on('dragleave.fastcrudUploader', function(event) { if (!this.contains(event.relatedTarget)) { drop.removeClass('is-over'); } });
             drop.on('drop.fastcrudUploader', function(event) { event.preventDefault(); drop.removeClass('is-over'); add(event.originalEvent.dataTransfer.files); });
             parseImageNameList(valueInput.val()).slice(0, multiple ? undefined : 1).forEach(function(name) {
-                items.push({name: extractFileName(name), stored: name, size: null});
+                items.push({name: extractFileName(name), stored: name, size: null, checking: true});
             });
             var observer = new MutationObserver(function() { valueInput.prop('disabled', fileInput.prop('disabled')); updateButtons(); });
             observer.observe(fileInput.get(0), {attributes: true, attributeFilter: ['disabled']});
@@ -2554,16 +2561,30 @@
                 });
             }
             if (items.length) {
+                var metadataItems = items.slice();
                 metadataRequest = $.ajax({
                     url: window.location.pathname, method: 'POST', dataType: 'json',
-                    data: attachCrudConfig({fastcrud_ajax: '1', action: 'file_metadata_bulk', names: JSON.stringify(items.map(function(item) { return item.stored; }))}, false)
+                    data: attachCrudConfig({fastcrud_ajax: '1', action: 'file_metadata_bulk', names: JSON.stringify(metadataItems.map(function(item) { return item.stored; }))}, false)
                 }).done(function(response) {
                     if (destroyed || !response || !response.success || !response.sizes) { return; }
-                    items.forEach(function(item) {
+                    metadataItems.forEach(function(item) {
+                        if (items.indexOf(item) === -1) { return; }
                         if (Object.prototype.hasOwnProperty.call(response.sizes, item.stored)) {
                             item.size = Number(response.sizes[item.stored]);
-                            item.status.text(formatUploadSize(item.size) + ' · Ready');
+                            item.checking = false;
+                        } else if (Array.isArray(response.missing) && response.missing.indexOf(item.stored) !== -1) {
+                            item.missing = true;
+                            item.checking = false;
                         }
+                        updateStatus(item);
+                    });
+                }).always(function() {
+                    if (destroyed) { return; }
+                    metadataItems.forEach(function(item) {
+                        if (items.indexOf(item) === -1 || !item.checking) { return; }
+                        item.checking = false;
+                        item.unavailable = true;
+                        updateStatus(item);
                     });
                 });
             }
