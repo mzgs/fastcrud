@@ -54,6 +54,16 @@ final class CrudAssetsTest extends TestCase
         self::assertStringContainsString('custom-edit', $second);
     }
 
+    public function testBatchSelectionSupportsShiftClickRanges(): void
+    {
+        $script = file_get_contents(__DIR__ . '/../assets/fastcrud.js');
+
+        self::assertStringContainsString('function selectRowRange(checkbox, selected)', $script);
+        self::assertStringContainsString("table.on('click', '.fastcrud-select-row'", $script);
+        self::assertStringContainsString('if (event.shiftKey)', $script);
+        self::assertStringContainsString('applyRowSelection($(this), selected);', $script);
+    }
+
     public function testPublisherCopiesAndRefreshesTheAsset(): void
     {
         $directory = sys_get_temp_dir() . '/fastcrud-publish-' . bin2hex(random_bytes(6));

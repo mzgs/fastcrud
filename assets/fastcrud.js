@@ -1503,6 +1503,7 @@
         var batchDeleteButton = null;
         var selectAllCheckbox = null;
         var selectedRows = {};
+        var lastSelectedRowKey = null;
         var bulkActions = [];
         var allowBatchDeleteButton = false;
         var formConfig = {
@@ -3101,6 +3102,7 @@
 
         function clearSelection() {
             selectedRows = {};
+            lastSelectedRowKey = null;
             table.find('tbody .fastcrud-select-row').each(function() {
                 $(this).prop('checked', false);
             });
@@ -3182,7 +3184,9 @@
                 return;
             }
 
-            var checkboxes = table.find('tbody .fastcrud-select-row').filter(':not(:disabled)');
+            var checkboxes = table.find('tbody .fastcrud-select-row').filter(':not(:disabled)').filter(function() {
+                return $(this).closest('table')[0] === table[0];
+            });
             checkboxes.each(function() {
                 var checkbox = $(this);
                 var pkCol = checkbox.attr('data-fastcrud-pk');
@@ -3197,6 +3201,52 @@
 
             refreshSelectAllState();
             updateBatchDeleteButtonState();
+        }
+
+        function applyRowSelection(checkbox, selected) {
+            var pkCol = checkbox.attr('data-fastcrud-pk');
+            var pkVal = checkbox.attr('data-fastcrud-pk-value');
+            if (!pkCol || typeof pkVal === 'undefined') {
+                checkbox.prop('checked', false);
+                return false;
+            }
+
+            checkbox.prop('checked', selected);
+            setSelection(pkCol, pkVal, selected);
+            return true;
+        }
+
+        function selectRowRange(checkbox, selected) {
+            var currentKey = checkbox.attr('data-fastcrud-key');
+            if (!currentKey || !lastSelectedRowKey) {
+                return false;
+            }
+
+            var checkboxes = table.find('tbody .fastcrud-select-row').filter(':not(:disabled)');
+            var startIndex = -1;
+            var endIndex = -1;
+
+            checkboxes.each(function(index) {
+                var key = $(this).attr('data-fastcrud-key');
+                if (key === lastSelectedRowKey) {
+                    startIndex = index;
+                }
+                if (key === currentKey) {
+                    endIndex = index;
+                }
+            });
+
+            if (startIndex === -1 || endIndex === -1) {
+                return false;
+            }
+
+            var firstIndex = Math.min(startIndex, endIndex);
+            var lastIndex = Math.max(startIndex, endIndex);
+            checkboxes.slice(firstIndex, lastIndex + 1).each(function() {
+                applyRowSelection($(this), selected);
+            });
+
+            return true;
         }
 
         function applyMeta(meta) {
@@ -9633,7 +9683,33 @@
             window.open(url, '_blank');
         }
 
+        table.on('click', '.fastcrud-select-row', function(event) {
+            if (!batchDeleteEnabled || this.disabled) {
+                return;
+            }
+
+            var checkbox = $(this);
+            if (checkbox.closest('table')[0] !== table[0]) {
+                return;
+            }
+
+            var checked = checkbox.is(':checked');
+            if (event.shiftKey) {
+                selectRowRange(checkbox, checked);
+            } else {
+                applyRowSelection(checkbox, checked);
+            }
+
+            lastSelectedRowKey = checkbox.attr('data-fastcrud-key') || null;
+            refreshSelectAllState();
+            updateBatchDeleteButtonState();
+        });
+
         table.on('change', '.fastcrud-select-row', function() {
+            if ($(this).closest('table')[0] !== table[0]) {
+                return;
+            }
+
             if (!batchDeleteEnabled) {
                 $(this).prop('checked', false);
                 return;
@@ -9647,8 +9723,7 @@
                 return;
             }
 
-            var checked = checkbox.is(':checked');
-            setSelection(pkCol, pkVal, checked);
+            setSelection(pkCol, pkVal, checkbox.is(':checked'));
             refreshSelectAllState();
             updateBatchDeleteButtonState();
         });
