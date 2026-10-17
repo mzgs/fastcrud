@@ -1183,7 +1183,6 @@ class CrudAjax
         }
 
         $mime = finfo_file($finfo, $path) ?: null;
-        finfo_close($finfo);
 
         return $mime === false ? null : $mime;
     }
