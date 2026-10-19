@@ -7117,6 +7117,10 @@ class Crud
 
     private function quotePrimaryKeyColumnName(string $column): string
     {
+        if ($column !== $this->getPrimaryKeyColumn()) {
+            throw new InvalidArgumentException('Record operations require the configured primary key column.');
+        }
+
         return $this->quoteQualifiedIdentifier($column);
     }
 
@@ -7429,11 +7433,7 @@ class Crud
      */
     private function buildCountQuery(?string $searchTerm = null, ?string $searchColumn = null): array
     {
-        // Use COUNT(DISTINCT main.pk) when joins are present to avoid overcounting
-        $useDistinct = $this->config['joins'] !== [];
-        $pkExpr      = $this->quoteQualifiedIdentifier('main.' . $this->getPrimaryKeyColumn());
-        $countExpr   = $useDistinct ? ('COUNT(DISTINCT ' . $pkExpr . ')') : 'COUNT(*)';
-        $sql         = sprintf('SELECT %s FROM %s', $countExpr, $this->buildFromClause());
+        $sql = sprintf('SELECT COUNT(*) FROM %s', $this->buildFromClause());
 
         $joins = $this->buildJoinClauses();
         if ($joins !== '') {
@@ -10245,7 +10245,6 @@ HTML;
         $limitValue = ($perPage !== null && $perPage > 0) ? $perPage : null;
         $prefetched = null;
         $totalRows = null;
-        // Joins have distinct-record count semantics, so retain their count query.
         if ($this->config['joins'] === [] && $this->config['custom_columns'] === []
             && $this->config['column_callbacks'] === [] && ($page === 1 || $limitValue === null)) {
             $prefetched = $this->fetchData($limitValue, $limitValue === null ? null : 0, $searchTerm, $searchColumn);
@@ -13410,8 +13409,7 @@ HTML;
                 continue;
             }
 
-            $permissionContext = array_merge($currentRow, $fields);
-            if (!$this->isFieldVisible($normalizedColumn, $mode, $permissionContext) || !$this->isFieldEditable($normalizedColumn, $mode, $permissionContext)) {
+            if (!$this->isFieldVisible($normalizedColumn, $mode, $currentRow) || !$this->isFieldEditable($normalizedColumn, $mode, $currentRow)) {
                 continue;
             }
 
@@ -14638,6 +14636,11 @@ HTML;
         }
 
         $row = $this->findRowByPrimaryKey($primaryKeyColumn, $primaryKeyValue, $resolvedMode);
+
+        $action = $resolvedMode === 'edit' ? 'edit' : 'view';
+        if ($row !== null && !$this->isActionAllowedForRow($action, $row)) {
+            throw new RuntimeException(ucfirst($action) . ' action is not permitted for this record.');
+        }
 
         $afterPayload = [
             'row'                => $row,

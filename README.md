@@ -150,7 +150,7 @@ Run the publishing command again after Composer installs a new FastCRUD version,
 Performance improvements apply automatically in both inline and external JavaScript modes:
 
 - Header discovery fetches metadata without evaluating a data row.
-- Short first pages and unpaginated listings avoid a separate count query where totals can be inferred safely. Joins retain their distinct-record counts.
+- Short first pages and unpaginated listings avoid a separate count query where totals can be inferred safely. Join totals count displayed rows, including multiple matches for the same parent, so every result remains reachable through pagination.
 - Summary aggregates share one query; equivalent relation definitions share page-label lookups, batched into groups of at most 500 keys.
 - AJAX clients reuse unchanged metadata using `meta_hash`. Full metadata is still computed each request so permission, callback, and relation-option changes are detected. Summaries and record values remain fresh; clients that omit `meta_hash` receive full metadata.
 - Rich editors, Select2, and file widgets wait until their fields become visible. Nested table refreshes release widgets and panels, and outdated table responses are ignored.
@@ -590,7 +590,7 @@ All customization options are available through the main `FastCrud\Crud` class m
   ```php
   $tableName = $crud->getTable();
   ```
-- **`primary_key(string $column): self`** – Override the primary key column that FastCRUD uses.
+- **`primary_key(string $column): self`** – Override the unique record key that FastCRUD uses. Record operations must receive this configured column (default: `id`), not another table column.
   ```php
   $crud->primary_key('user_id');
   ```
@@ -1386,7 +1386,7 @@ Lifecycle hook methods accept only serializable callbacks: named functions (`'fu
   ```php
   $copy = $crud->duplicateRecord('id', 7);
   ```
-- **`getRecord(string $primaryKeyColumn, mixed $primaryKeyValue): ?array`** – Retrieve a single record with presentation rules applied.
+- **`getRecord(string $primaryKeyColumn, mixed $primaryKeyValue, string $mode = 'edit'): ?array`** – Retrieve a single record with presentation rules applied. Edit mode requires edit permission; view and create modes require view permission when reading an existing record. Disallowed reads throw a `RuntimeException`.
   ```php
   $record = $crud->getRecord('id', 7);
   ```

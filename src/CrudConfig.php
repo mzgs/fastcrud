@@ -53,7 +53,7 @@ class CrudConfig
 
     /**
      * Store database configuration values for later use.
-     * Missing keys default to MySQL on localhost port 3306.
+     * Missing keys default to MySQL on localhost; PostgreSQL uses port 5432.
      *
      * Example usage:
      *     use FastCrud\CrudConfig;
@@ -69,7 +69,7 @@ class CrudConfig
         $defaults = [
             'driver' => 'mysql',
             'host' => '127.0.0.1',
-            'port' => 3306,
+            'port' => ($configuration['driver'] ?? 'mysql') === 'pgsql' ? 5432 : 3306,
         ];
 
         self::$dbConfig = array_replace($defaults, $configuration);

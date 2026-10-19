@@ -114,30 +114,62 @@ final class QueryPerformanceTest extends TestCase
 
     public function testHeaderDiscoveryDoesNotEvaluateRowExpressions(): void
     {
-        $pdo = new PerformancePDO();
+        $pdo = class_exists(Pdo\Sqlite::class)
+            ? new Pdo\Sqlite('sqlite::memory:')
+            : new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE items AS SELECT 1 AS id');
         $calls = 0;
-        $pdo->sqliteCreateFunction('expensive', function() use (&$calls) { $calls++; return 1; });
+        $callback = function() use (&$calls) { $calls++; return 1; };
+        if ($pdo instanceof Pdo\Sqlite) {
+            $pdo->createFunction('expensive', $callback);
+        } else {
+            $pdo->sqliteCreateFunction('expensive', $callback);
+        }
         $pdo->exec('CREATE VIEW calculated AS SELECT id, expensive() AS calculated FROM items');
         $crud = new Crud('calculated', $pdo);
         $columns = (new ReflectionMethod($crud, 'getColumnNames'))->invoke($crud);
         self::assertSame(['id', 'calculated'], $columns);
         self::assertSame(0, $calls);
+        self::assertSame(1, (int) $pdo->query('SELECT calculated FROM calculated')->fetchColumn());
+        self::assertSame(1, $calls);
     }
 
-    public function testJoinsRetainDistinctCountsAndSearchAndSortingStayCorrect(): void
+    public function testJoinsCountDisplayedRowsAndSearchAndSortingStayCorrect(): void
     {
         $pdo = new PerformancePDO();
         $pdo->exec('CREATE TABLE details (id INTEGER PRIMARY KEY, item_id INTEGER)');
         $pdo->exec('INSERT INTO details VALUES (1,1),(2,1),(3,2)');
         $crud = (new Crud('items', $pdo))->join('id', 'details', 'item_id');
         $result = $crud->getTableData(1, 10);
-        self::assertSame(3, $result['pagination']['total_rows']);
+        self::assertSame(4, $result['pagination']['total_rows']);
         self::assertCount(4, $result['rows']);
         self::assertCount(1, $this->countQueries($pdo));
         $crud = (new Crud('items', $pdo))->where('amount >= 20')->order_by('amount', 'desc');
         $result = $crud->getTableData(1, 10, 'a', 'name');
         self::assertSame(2, $result['pagination']['total_rows']);
         self::assertSame([3, 2], array_column($result['rows'], 'id'));
+    }
+
+    public function testJoinPaginationCanReachEveryMatchingRow(): void
+    {
+        $pdo = new PerformancePDO();
+        $pdo->exec('CREATE TABLE details (id INTEGER PRIMARY KEY, item_id INTEGER)');
+        $pdo->exec('INSERT INTO details VALUES (1,1),(2,1),(3,1),(4,1),(5,2)');
+        $crud = (new Crud('items', $pdo))->join('id', 'details', 'item_id')->order_by('id');
+        $ids = [];
+        for ($page = 1; $page <= 3; $page++) {
+            $result = $crud->getTableData($page, 2);
+            self::assertSame(6, $result['pagination']['total_rows']);
+            self::assertSame(3, $result['pagination']['total_pages']);
+            self::assertSame($page, $result['pagination']['current_page']);
+            array_push($ids, ...array_column($result['rows'], 'id'));
+        }
+        self::assertSame([1, 1, 1, 1, 2, 3], $ids);
+        $filtered = $crud->getTableData(2, 2, 'Alpha', 'name');
+        self::assertSame(4, $filtered['pagination']['total_rows']);
+        self::assertSame(2, $filtered['pagination']['total_pages']);
+        self::assertCount(2, $filtered['rows']);
+        self::assertCount(6, $crud->getTableData(1, 0)['rows']);
     }
 
     public function testPartialClientStatePreservesNestedTables(): void

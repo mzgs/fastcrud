@@ -3,7 +3,7 @@ set -uo pipefail
 
 # Execute Playwright tests and display the HTML report from the uitest/ project.
 repo_root="$(cd "$(dirname "$0")" && pwd)"
-cd "$repo_root/uitest"
+cd "$repo_root/uitest" || exit 1
 
 headed_run=false
 video_mode=""
@@ -45,9 +45,7 @@ else
 fi
 
 test_exit=0
-if ! "${command[@]}"; then
-  test_exit=$?
-fi
+"${command[@]}" || test_exit=$?
 
 # Print report location instead of launching the long-lived viewer so the
 # script exits promptly. Users can run `npx playwright show-report` manually
