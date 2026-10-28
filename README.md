@@ -123,9 +123,11 @@ echo new Crud('users')->render();
 
 ## Configuration
 
-### Optional Cacheable JavaScript
+### Cacheable JavaScript
 
-By default, FastCRUD embeds its JavaScript in the rendered HTML. To let browsers cache the shared runtime, publish the package asset into your application's public directory:
+After `Crud::init()`, FastCRUD loads its shared JavaScript once from a versioned runtime URL on the same page endpoint. Browsers can cache it across tables and page loads; no asset publishing is required. This request serves only the packaged JavaScript and does not open a database connection.
+
+To serve the asset directly through your web server instead, publish it into your application's public directory:
 
 ```bash
 vendor/bin/fastcrud-assets public/vendor/fastcrud
@@ -143,7 +145,7 @@ CrudConfig::$script_url = '/vendor/fastcrud/fastcrud.js';
 
 The URL must map to the published file through your web server; it is not a filesystem path. FastCRUD loads the runtime once per page and initializes each table with its own configuration, including nested tables loaded through AJAX. Continue including jQuery and Bootstrap as in the normal setup. No Node.js or JavaScript build step is required.
 
-Run the publishing command again after Composer installs a new FastCRUD version, preferably as part of deployment. FastCRUD appends a content hash to the URL to invalidate the browser cache when the packaged script changes. Configure static-file caching in your web server as appropriate; the publishing command does not change server headers. Set `CrudConfig::$script_url = null` to return to inline mode. Small inline initialization scripts remain in external mode.
+Run the publishing command again after Composer installs a new FastCRUD version, preferably as part of deployment. FastCRUD appends a content hash to the URL to invalidate the browser cache when the packaged script changes. Configure static-file caching in your web server as appropriate; the publishing command does not change server headers. Set `CrudConfig::$script_url = null` to use the automatic runtime URL again. Set it to an empty string (`''`) to embed the runtime once per PHP response. Rendering without `Crud::init()` also uses this inline fallback. Small inline initialization scripts remain in external mode.
 
 ### Rendering Multiple Tables
 
@@ -152,8 +154,11 @@ Performance improvements apply automatically in both inline and external JavaScr
 - Header discovery fetches metadata without evaluating a data row.
 - Short first pages and unpaginated listings avoid a separate count query where totals can be inferred safely. Join totals count displayed rows, including multiple matches for the same parent, so every result remains reachable through pagination.
 - Summary aggregates share one query; equivalent relation definitions share page-label lookups, batched into groups of at most 500 keys.
-- AJAX clients reuse unchanged metadata using `meta_hash`. Full metadata is still computed each request so permission, callback, and relation-option changes are detected. Summaries and record values remain fresh; clients that omit `meta_hash` receive full metadata.
+- Relation choices are fetched only when needed, in searchable pages of 50 options. Relation selectors use the existing Select2 widget even when Select2 is disabled for ordinary dropdowns. Current selections are loaded separately, including selections outside the first page. Form fields, inline editors, and query-builder filters share these lookups.
+- AJAX clients reuse unchanged metadata using `meta_hash`. Full metadata is still computed each request so permission and callback changes are detected; relation choices are fetched fresh when used. Summaries and record values remain fresh; clients that omit `meta_hash` receive full metadata.
 - Rich editors, Select2, and file widgets wait until their fields become visible. Nested table refreshes release widgets and panels, and outdated table responses are ignored.
+
+CSV exports filter selected record keys in SQL before formatting rows. Full exports format up to 500 records at a time and spool CSV to a temporary stream, which spills to disk after 2 MB. Existing filters, visible columns, relation labels, row callbacks, CSV labels, and selection order are preserved. Whole-dataset `before_fetch` / `after_fetch` callbacks retain the previous in-memory path and run once; exports using those callbacks still require memory proportional to their result size. Batch exports do not provide a snapshot across concurrent database writes.
 
 Search matching and page-number pagination retain their existing behavior. Database-specific indexes and query-plan tuning depend on your application's tables and workload; the library does not create application indexes automatically.
 

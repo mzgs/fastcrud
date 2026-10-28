@@ -1062,7 +1062,7 @@
                 var fieldOptions = Array.isArray(fieldInfo.options) ? fieldInfo.options : [];
                 var needsValue = operatorInfo.requires_value !== false;
                 var optionOperators = ['equals', 'not_equals', 'in', 'not_in'];
-                var supportsOptionSelect = needsValue && fieldOptions.length && optionOperators.indexOf(currentFilter.operator) !== -1;
+                var supportsOptionSelect = needsValue && (fieldOptions.length || fieldInfo.relation_field) && optionOperators.indexOf(currentFilter.operator) !== -1;
                 var valueInput;
 
                 if (!needsValue) {
@@ -1098,6 +1098,10 @@
                         valueInput.val(selectedValues);
                     } else {
                         valueInput.val(currentFilter.value || '');
+                    }
+
+                    if (fieldInfo.relation_field) {
+                        setRelationValue(valueInput, fieldInfo.relation_field, currentFilter.value || '');
                     }
 
                     valueInput.on('change', function() {
@@ -1179,9 +1183,7 @@
             addBtnWrapper.append(addBtn);
             queryBuilderFiltersContainer.append(addBtnWrapper);
 
-            if (select2Enabled) {
-                initializeSelect2(queryBuilderFiltersContainer);
-            }
+            initializeSelect2(queryBuilderFiltersContainer);
         }
 
         function renderQueryBuilderSorts() {
@@ -2619,8 +2621,8 @@
         }
         window.FastCrudSelect2 = select2State;
 
-        function withSelect2Assets(callback) {
-            if (!select2Enabled || typeof callback !== 'function') {
+        function withSelect2Assets(callback, required) {
+            if ((!select2Enabled && !required) || typeof callback !== 'function') {
                 return;
             }
             if (typeof $.fn !== 'undefined' && typeof $.fn.select2 === 'function') {
@@ -2709,15 +2711,34 @@
             });
         }
 
-        function initializeSelect2(container, visible) {
-            if (!select2Enabled) {
-                return;
+        function relationRequest(field, parameters) {
+            return attachCrudConfig($.extend({
+                fastcrud_ajax: '1', action: 'relation_options', table: tableName,
+                id: tableId, field: field
+            }, parameters), false);
+        }
+
+        function setRelationValue(select, field, value) {
+            select.attr('data-fastcrud-relation', field);
+            var values = Array.isArray(value) ? value : (select.prop('multiple') ? String(value == null ? '' : value).split(',').map(function(item) { return item.trim(); }) : [value]);
+            values = values.filter(function(item) { return item != null && String(item) !== ''; }).map(String);
+            if (!select.prop('multiple') && !select.find('option[value=""]').length) {
+                select.append($('<option value=""></option>'));
             }
+            values.forEach(function(value) {
+                var exists = select.find('option').filter(function() { return this.value === value; }).length;
+                if (!exists) { select.append($('<option></option>').val(value).text(value)); }
+            });
+            select.val(select.prop('multiple') ? values : (values[0] || ''));
+        }
+
+        function initializeSelect2(container, visible) {
             if (!container || !container.length) {
                 return;
             }
             var selectors = 'select[data-fastcrud-type="select"], select[data-fastcrud-type="multiselect"], select.fastcrud-inline-input';
             var elements = container.is('select') ? container.filter(selectors) : container.find(selectors);
+            if (!select2Enabled) { elements = elements.filter('[data-fastcrud-relation]'); }
             if (!elements.length) {
                 return;
             }
@@ -2762,15 +2783,39 @@
                     } else if (!isMultiple && select.find('option[value=""]').length) {
                         options.allowClear = true;
                     }
+                    var relationField = select.attr('data-fastcrud-relation');
+                    if (relationField) {
+                        options.ajax = {
+                            url: window.location.pathname, type: 'POST', dataType: 'json', delay: 250,
+                            data: function(params) {
+                                return relationRequest(relationField, { search: params.term || '', page: params.page || 1 });
+                            }
+                        };
+                    }
                     try {
                         select.select2(options);
+                        if (relationField) {
+                            var selected = select.find('option:selected').map(function() { return this.value; }).get().filter(Boolean);
+                            for (var offset = 0; offset < selected.length; offset += 500) {
+                                $.ajax({
+                                    url: window.location.pathname, type: 'POST', dataType: 'json',
+                                    data: relationRequest(relationField, { values: selected.slice(offset, offset + 500) })
+                                }).done(function(response) {
+                                    if (disposed || !select.get(0).isConnected) { return; }
+                                    (response.results || []).forEach(function(option) {
+                                        select.find('option').filter(function() { return this.value === option.id; }).text(option.text);
+                                    });
+                                    select.trigger('change.select2');
+                                });
+                            }
+                        }
                     } catch (error) {
                         if (window.console && console.error) {
                             console.error('FastCrud: failed to initialize Select2', error);
                         }
                     }
                 });
-            });
+            }, true);
         }
 
         function destroySelect2(container) {
@@ -7943,6 +7988,10 @@
                     }
                 }
 
+                if (params.relation_field && input.is('select')) {
+                    setRelationValue(input, params.relation_field, normalizedValue);
+                }
+
                 if (params.placeholder && input.is('input, textarea')) {
                     input.attr('placeholder', params.placeholder);
                 }
@@ -9095,7 +9144,7 @@
             wrapper.append(input);
             cell.append(wrapper);
 
-            if (input.is('select')) {
+            if (input.is('select') && !params.relation_field) {
                 initializeSelect2(wrapper);
             }
 
@@ -9130,6 +9179,10 @@
                 if (changeType === 'color') {
                     input.val(ensureColor(startValue)).focus();
                 } else if (input.is('select')) {
+                    if (params.relation_field) {
+                        setRelationValue(input, params.relation_field, startValue);
+                        initializeSelect2(wrapper);
+                    }
                     if (input.prop('multiple')) {
                         var parts = String(startValue).split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s.length; });
                         input.val(parts);

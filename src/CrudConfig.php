@@ -11,7 +11,7 @@ class CrudConfig
         'port' => 3306,
     ];
 
-    // Public URL of the published runtime; null preserves inline JavaScript.
+    // Public runtime URL; null uses Crud::init()'s endpoint, '' embeds it inline.
     public static ?string $script_url = null;
 
     public static string $upload_path = 'public/uploads';

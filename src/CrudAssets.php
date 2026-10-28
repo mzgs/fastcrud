@@ -8,31 +8,46 @@ use RuntimeException;
 /** @internal Shared browser runtime and per-table initialization. */
 final class CrudAssets
 {
+    /** @internal Enabled by Crud::init(), which serves the cacheable runtime URL. */
+    public static bool $runtimeEndpointEnabled = false;
+    private static bool $inlineRuntimeRendered = false;
+
+    public static function version(): string
+    {
+        static $version = null;
+        $version ??= hash_file('sha256', __DIR__ . '/../assets/fastcrud.js');
+        if ($version === false) {
+            throw new RuntimeException('Unable to version the FastCrud JavaScript asset.');
+        }
+        return substr($version, 0, 16);
+    }
+
     public static function renderInitializer(array $options): string
     {
         $flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_THROW_ON_ERROR;
         $optionsJson = json_encode($options, $flags);
-        $scriptUrl = trim(CrudConfig::$script_url ?? '');
+        $scriptUrl = CrudConfig::$script_url;
+        if ($scriptUrl === null && self::$runtimeEndpointEnabled) {
+            $scriptUrl = '?' . http_build_query(array_replace($_GET, ['fastcrud_ajax' => '1', 'action' => 'runtime']));
+        }
+        $scriptUrl = trim($scriptUrl ?? '');
         $runtime = '';
-        if ($scriptUrl === '') {
+        if ($scriptUrl === '' && !self::$inlineRuntimeRendered) {
             $source = file_get_contents(__DIR__ . '/../assets/fastcrud.js');
             if ($source === false) {
                 throw new RuntimeException('Unable to read the FastCrud JavaScript asset.');
             }
             $runtime = "<script>\n" . $source . "</script>\n";
-        } else {
-            static $version = null;
-            $version ??= hash_file('sha256', __DIR__ . '/../assets/fastcrud.js');
-            if ($version === false) {
-                throw new RuntimeException('Unable to version the FastCrud JavaScript asset.');
-            }
+            self::$inlineRuntimeRendered = true;
+        } elseif ($scriptUrl !== '') {
+            $version = self::version();
             $fragment = '';
             $fragmentAt = strpos($scriptUrl, '#');
             if ($fragmentAt !== false) {
                 $fragment = substr($scriptUrl, $fragmentAt);
                 $scriptUrl = substr($scriptUrl, 0, $fragmentAt);
             }
-            $scriptUrl .= (str_contains($scriptUrl, '?') ? '&' : '?') . 'v=' . substr($version, 0, 16) . $fragment;
+            $scriptUrl .= (str_contains($scriptUrl, '?') ? '&' : '?') . 'v=' . $version . $fragment;
         }
         $urlJson = json_encode($scriptUrl, $flags);
 
@@ -53,7 +68,7 @@ final class CrudAssets
         script.onerror = function() {
             window.FastCrudScriptLoading = false;
             if (window.console) {
-                console.error('FastCrud script could not load. Check script_url and publish the assets.', url);
+                console.error('FastCrud script could not load. Check the runtime URL or script_url.', url);
             }
         };
         document.head.appendChild(script);

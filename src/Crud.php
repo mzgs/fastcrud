@@ -23,9 +23,9 @@ class Crud
     private string $id;
     private int $perPage = 5;
     /**
-     * @var array<string, array<string, string>>
+     * @var array<int, scalar>
      */
-    private array $relationOptionsCache = [];
+    private array $exportPrimaryKeyValues = [];
     /**
      * @var array<string, array<string, mixed>>|null
      */
@@ -243,6 +243,7 @@ class Crud
             Database::ensureAuditLogTable();
         }
 
+        CrudAssets::$runtimeEndpointEnabled = true;
         CrudAjax::autoHandle();
     }
 
@@ -6821,7 +6822,8 @@ class Crud
      */
     private function buildWhereClause(array &$parameters, ?string $searchTerm = null, ?string $searchColumn = null): string
     {
-        if ($this->config['where'] === [] && ($searchTerm === null || $searchTerm === '')) {
+        if ($this->config['where'] === [] && ($searchTerm === null || $searchTerm === '')
+            && $this->exportPrimaryKeyValues === [] && empty($this->config['query_builder']['filters'])) {
             return '';
         }
 
@@ -7000,14 +7002,22 @@ class Crud
             }
         }
 
-        if ($clauses === []) {
-            return '';
-        }
-
         $sql = '';
         foreach ($clauses as $index => $entry) {
             $prefix = $index === 0 ? '' : ' ' . $entry['glue'] . ' ';
             $sql .= $prefix . $entry['clause'];
+        }
+
+        if ($this->exportPrimaryKeyValues !== []) {
+            $placeholders = [];
+            foreach ($this->exportPrimaryKeyValues as $index => $value) {
+                $placeholder = ':export_pk_' . $index;
+                $placeholders[] = $placeholder;
+                $parameters[$placeholder] = $value;
+            }
+            $selection = $this->quoteQualifiedIdentifier('main.' . $this->getPrimaryKeyColumn())
+                . ' IN (' . implode(', ', $placeholders) . ')';
+            $sql = $sql === '' ? $selection : '(' . $sql . ') AND ' . $selection;
         }
 
         return $sql;
@@ -8244,11 +8254,7 @@ SQL;
 
             $originalField = $columnMap[$field];
 
-            $options = $this->fetchRelationOptions($relation);
-            $params  = [];
-            if ($options !== []) {
-                $params['values'] = $options;
-            }
+            $params = ['relation_field' => $originalField];
 
             $defaults[$originalField] = [
                 'type'    => !empty($relation['multi']) ? 'multiselect' : 'select',
@@ -8260,103 +8266,86 @@ SQL;
         return $defaults;
     }
 
-    /**
-     * @param array<string, mixed> $relation
-     * @return array<string, string>
-     */
-    private function fetchRelationOptions(array $relation): array
+    /** @internal Search relation choices without loading the whole related table. */
+    public function getRelationOptions(string $field, string $search = '', int $page = 1, ?array $values = null): array
     {
-        $field        = isset($relation['field']) ? (string) $relation['field'] : '';
-        $table        = isset($relation['table']) ? (string) $relation['table'] : '';
-        $relatedField = isset($relation['related_field']) ? (string) $relation['related_field'] : '';
-        $nameFields   = isset($relation['related_name']) ? (array) $relation['related_name'] : [];
-
-        if ($field === '' || $table === '' || $relatedField === '') {
-            return [];
-        }
-
-        $cacheKeyParts = [$table, $relatedField, $nameFields, $relation['where'] ?? [], $relation['order_by'] ?? null];
-        $cacheKey      = md5(json_encode($cacheKeyParts) ?: serialize($cacheKeyParts));
-        if (isset($this->relationOptionsCache[$cacheKey])) {
-            return $this->relationOptionsCache[$cacheKey];
-        }
-
-        $selectColumns = [$relatedField . ' AS relation_key'];
-        foreach ($nameFields as $index => $nameField) {
-            if (!is_string($nameField) || trim($nameField) === '') {
-                continue;
-            }
-            $alias           = sprintf('relation_value_%d', $index);
-            $selectColumns[] = sprintf('%s AS %s', $nameField, $alias);
-        }
-
-        $sql        = sprintf('SELECT %s FROM %s', implode(', ', $selectColumns), $table);
-        $parameters = [];
-        $conditions = [];
-
-        if (!empty($relation['where']) && is_array($relation['where'])) {
-            foreach ($relation['where'] as $whereField => $whereValue) {
-                if (!is_string($whereField) || trim($whereField) === '') {
-                    continue;
-                }
-                $placeholder              = sprintf(':relopt_%s_%d', preg_replace('/[^a-z0-9_]+/i', '_', $field), count($parameters));
-                $parameters[$placeholder] = $whereValue;
-                $conditions[]             = sprintf('%s = %s', $whereField, $placeholder);
-            }
-        }
-
-        if ($conditions !== []) {
-            $sql .= ' WHERE ' . implode(' AND ', $conditions);
-        }
-
-        if (!empty($relation['order_by']) && is_string($relation['order_by'])) {
-            $sql .= ' ORDER BY ' . $relation['order_by'];
-        }
-
-        $statement = $this->connection->prepare($sql);
-        if ($statement === false) {
-            $this->relationOptionsCache[$cacheKey] = [];
-            return [];
-        }
-
-        try {
-            $statement->execute($parameters);
-        } catch (PDOException) {
-            $this->relationOptionsCache[$cacheKey] = [];
-            return [];
-        }
-
-        $options = [];
-        while ($row = $statement->fetch(PDO::FETCH_ASSOC)) {
-            if ($row === false) {
+        $relation = null;
+        foreach ($this->config['relations'] as $candidate) {
+            if ($candidate['field'] === $field) {
+                $relation = $candidate;
                 break;
             }
-
-            $key = $row['relation_key'] ?? null;
-            if ($key === null) {
-                continue;
-            }
-
-            $parts = [];
-            foreach ($nameFields as $index => $nameField) {
-                if (!is_string($nameField) || trim($nameField) === '') {
-                    continue;
-                }
-                $alias   = sprintf('relation_value_%d', $index);
-                $parts[] = $row[$alias] ?? '';
-            }
-
-            $label = trim(implode(' ', array_filter($parts, static fn($part) => $part !== null && $part !== '')));
-            if ($label === '') {
-                $label = (string) $key;
-            }
-
-            $options[(string) $key] = $label;
+        }
+        if ($relation === null) {
+            throw new InvalidArgumentException('Unknown relation field.');
         }
 
-        $this->relationOptionsCache[$cacheKey] = $options;
+        if ($values !== null) {
+            foreach ($values as $value) {
+                if (!is_scalar($value)) {
+                    throw new InvalidArgumentException('Relation values must be scalar.');
+                }
+            }
+            $labels = $this->loadRelationLabels($relation, $values);
+            if ($labels === null) {
+                throw new RuntimeException('Failed to load relation choices.');
+            }
+            $more = false;
+        } else {
+            $names = (array) $relation['related_name'];
+            $select = [$relation['related_field'] . ' AS relation_key'];
+            foreach ($names as $index => $name) {
+                $select[] = $name . ' AS relation_value_' . $index;
+            }
+            $parameters = [];
+            $conditions = [];
+            foreach (($relation['where'] ?? []) as $column => $value) {
+                $placeholder = ':rel_where_' . count($parameters);
+                $conditions[] = $column . ' = ' . $placeholder;
+                $parameters[$placeholder] = $value;
+            }
+            if ($search !== '') {
+                $expressions = [];
+                foreach ($names as $name) {
+                    $expressions[] = "COALESCE(CAST(" . $name . ' AS '
+                        . ($this->getConnectionDriver() === 'mysql' ? 'CHAR' : 'TEXT') . "), '')";
+                }
+                $label = $this->getConnectionDriver() === 'mysql'
+                    ? "CONCAT_WS(' ', " . implode(', ', $expressions) . ')'
+                    : implode(" || ' ' || ", $expressions);
+                $conditions[] = '(' . $label . ' LIKE :rel_search)';
+                $parameters[':rel_search'] = '%' . $search . '%';
+            }
+            $sql = 'SELECT ' . implode(', ', $select) . ' FROM ' . $relation['table'];
+            if ($conditions !== []) {
+                $sql .= ' WHERE ' . implode(' AND ', $conditions);
+            }
+            $sql .= ' ORDER BY ' . ($relation['order_by'] ? $relation['order_by'] . ', ' : '') . $relation['related_field'];
+            $sql .= ' LIMIT 51 OFFSET ' . ((max(1, $page) - 1) * 50);
+            $statement = $this->connection->prepare($sql);
+            if ($statement === false || !$statement->execute($parameters)) {
+                throw new RuntimeException('Failed to load relation choices.');
+            }
+            $rows = $statement->fetchAll(PDO::FETCH_ASSOC);
+            $more = count($rows) > 50;
+            $labels = [];
+            foreach (array_slice($rows, 0, 50) as $row) {
+                if ($row['relation_key'] === null) {
+                    continue;
+                }
+                $parts = [];
+                foreach ($names as $index => $_name) {
+                    $parts[] = $row['relation_value_' . $index] ?? '';
+                }
+                $labels[(string) $row['relation_key']] = trim(implode(' ', $parts));
+            }
+        }
 
-        return $options;
+        $results = [];
+        foreach ($labels as $value => $label) {
+            $results[] = ['id' => (string) $value, 'text' => $label];
+        }
+        return ['results' => $results, 'pagination' => ['more' => $more]];
     }
 
     /**
@@ -10309,6 +10298,65 @@ HTML;
         return $result;
     }
 
+    /** @internal Yield bounded export batches using the normal row formatting and permissions. */
+    public function getExportBatches(?string $searchTerm = null, ?string $searchColumn = null, array $selectedValues = []): \Generator
+    {
+        foreach ($selectedValues as $value) {
+            if (!is_scalar($value)) {
+                throw new InvalidArgumentException('Selected record keys must be scalar.');
+            }
+        }
+        $crud = clone $this;
+        $wholeDatasetCallbacks = $this->config['lifecycle_callbacks']['before_fetch'] !== []
+            || $this->config['lifecycle_callbacks']['after_fetch'] !== [];
+        $selections = $selectedValues === [] ? [[]] : array_chunk($selectedValues, 500);
+        if ($wholeDatasetCallbacks) {
+            // shortcut: whole-dataset callbacks need all rows; batch only when their contract supports it.
+            $selections = [$selectedValues];
+        } elseif ($selectedValues === []) {
+            $crud->config['order_by'][] = ['field' => $crud->getPrimaryKeyColumn(), 'direction' => 'ASC'];
+        }
+
+        foreach ($selections as $selection) {
+            $crud->exportPrimaryKeyValues = count($selection) <= 500 ? $selection : [];
+            $selectedRows = [];
+            $offset = 0;
+            do {
+                if ($wholeDatasetCallbacks) {
+                    $data = $crud->getTableData(1, 0, $searchTerm, $searchColumn);
+                    $rows = $data['rows'];
+                    $columns = $data['columns'];
+                    $labels = $data['meta']['labels'] ?? [];
+                } else {
+                    [$rows, $columns] = $crud->fetchData(500, $offset, $searchTerm, $searchColumn);
+                    $labels = array_intersect_key($crud->config['column_labels'], array_fill_keys($columns, true));
+                }
+                $count = count($rows);
+                if ($selection === []) {
+                    yield ['columns' => $columns, 'rows' => $rows, 'labels' => $labels];
+                } else {
+                    foreach ($rows as $row) {
+                        $key = (string) ($row['__fastcrud_primary_value'] ?? $row[$crud->getPrimaryKeyColumn()] ?? '');
+                        if (!isset($selectedRows[$key])) {
+                            $selectedRows[$key] = $row;
+                        }
+                    }
+                }
+                $offset += 500;
+            } while (!$wholeDatasetCallbacks && $count === 500);
+
+            if ($selection !== []) {
+                $rows = [];
+                foreach ($selection as $value) {
+                    if (isset($selectedRows[(string) $value])) {
+                        $rows[] = $selectedRows[(string) $value];
+                    }
+                }
+                yield ['columns' => $columns, 'rows' => $rows, 'labels' => $labels];
+            }
+        }
+    }
+
     private function buildMetaWithSummaries(array $columns, ?string $searchTerm, ?string $searchColumn): array
     {
         $meta              = $this->buildMeta($columns);
@@ -11666,12 +11714,7 @@ HTML;
                 continue;
             }
 
-            $options = $this->fetchRelationOptions($relation);
-            if ($options === []) {
-                continue;
-            }
-
-            $fields[$field]['options'] = $options;
+            $fields[$field]['relation_field'] = $field;
         }
 
         $this->queryBuilderFieldCache = $fields;

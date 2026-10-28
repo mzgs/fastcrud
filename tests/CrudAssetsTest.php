@@ -9,9 +9,52 @@ use PHPUnit\Framework\TestCase;
 
 final class CrudAssetsTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        CrudAssets::$runtimeEndpointEnabled = false;
+        (new ReflectionProperty(CrudAssets::class, 'inlineRuntimeRendered'))->setValue(null, false);
+    }
+
     protected function tearDown(): void
     {
         CrudConfig::$script_url = null;
+        CrudAssets::$runtimeEndpointEnabled = false;
+        (new ReflectionProperty(CrudAssets::class, 'inlineRuntimeRendered'))->setValue(null, false);
+    }
+
+    public function testInlineFallbackIncludesRuntimeOnlyOncePerResponse(): void
+    {
+        CrudConfig::$script_url = '';
+        $first = CrudAssets::renderInitializer(['id' => 'first']);
+        $second = CrudAssets::renderInitializer(['id' => 'second']);
+        self::assertSame(1, substr_count($first . $second, 'function FastCrudInit'));
+        self::assertLessThan(2000, strlen($second));
+        self::assertStringContainsString('"id":"second"', $second);
+    }
+
+    public function testInitializedPagesUseTheVersionedRuntimeEndpointByDefault(): void
+    {
+        CrudAssets::$runtimeEndpointEnabled = true;
+        CrudConfig::$script_url = null;
+        $html = CrudAssets::renderInitializer(['id' => 'example']);
+        self::assertStringContainsString('action=runtime', $html);
+        self::assertStringContainsString('v=' . CrudAssets::version(), $html);
+        self::assertStringNotContainsString('function FastCrudInit', $html);
+        self::assertLessThan(2000, strlen($html));
+    }
+
+    public function testRuntimeEndpointServesTheAssetWithoutADatabase(): void
+    {
+        $script = 'require ' . var_export(__DIR__ . '/../vendor/autoload.php', true) . ';'
+            . '$_GET = ["fastcrud_ajax" => "1", "action" => "runtime"]; FastCrud\\Crud::init();';
+        $process = proc_open([PHP_BINARY, '-r', $script], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        self::assertIsResource($process);
+        $output = stream_get_contents($pipes[1]);
+        $error = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        self::assertSame(0, proc_close($process), $error);
+        self::assertSame(file_get_contents(__DIR__ . '/../assets/fastcrud.js'), $output);
     }
 
     public function testInlineModeIncludesTheSharedRuntime(): void

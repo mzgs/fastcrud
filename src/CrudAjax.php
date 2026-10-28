@@ -21,6 +21,12 @@ class CrudAjax
             $action = $request['action'] ?? 'fetch';
             
             switch ($action) {
+                case 'runtime':
+                    self::handleRuntime();
+                    break;
+                case 'relation_options':
+                    self::handleRelationOptions($request);
+                    break;
                 case 'fetch':
                     self::handleFetchTable($request);
                     break;
@@ -83,9 +89,41 @@ class CrudAjax
         exit;
     }
     
-    /**
-     * Handle fetching table data.
-     */
+    private static function handleRuntime(): void
+    {
+        $version = CrudAssets::version();
+        if (ob_get_level() > 0) {
+            ob_clean();
+        }
+        header('Content-Type: application/javascript; charset=utf-8');
+        header('Cache-Control: public, max-age=31536000, immutable');
+        header('ETag: "' . $version . '"');
+        if (($_SERVER['HTTP_IF_NONE_MATCH'] ?? '') === '"' . $version . '"') {
+            http_response_code(304);
+        } else {
+            readfile(__DIR__ . '/../assets/fastcrud.js');
+        }
+        exit;
+    }
+
+    private static function handleRelationOptions(array $request): void
+    {
+        if (!isset($request['table'], $request['field']) || !is_string($request['table']) || !is_string($request['field'])) {
+            throw new InvalidArgumentException('Table and relation field are required.');
+        }
+        $values = $request['values'] ?? null;
+        if ($values !== null && !is_array($values)) {
+            throw new InvalidArgumentException('Relation values must be an array.');
+        }
+        $search = $request['search'] ?? '';
+        if (!is_string($search)) {
+            throw new InvalidArgumentException('Relation search must be a string.');
+        }
+        $crud = self::createCrudFromRequest($request['table'], $request);
+        self::respond($crud->getRelationOptions($request['field'], $search,
+            max(1, (int) ($request['page'] ?? 1)), $values));
+    }
+
     private static function handleFetchTable(array $request): void
     {
         if (!isset($request['table'])) {
@@ -695,183 +733,81 @@ class CrudAjax
      */
     private static function handleExportCsv(array $request): void
     {
-        $dataset = self::buildExportDataset($request);
-        $content = self::generateCsvContent($dataset['columns'], $dataset['rows'], $dataset['labels']);
-        $filename = self::buildExportFilename($dataset['table'], 'csv');
-
-        self::respondFile($filename, 'text/csv; charset=utf-8', $content);
+        $stream = fopen('php://temp/maxmemory:2097152', 'w+');
+        if ($stream === false) {
+            throw new RuntimeException('Unable to generate export content.');
+        }
+        try {
+            self::writeCsv($stream, self::buildExportDataset($request));
+            rewind($stream);
+            // Release application buffers so the download cannot accumulate another full CSV copy.
+            while (ob_get_level() > 0 && (ob_get_status()['flags'] & PHP_OUTPUT_HANDLER_REMOVABLE)) {
+                ob_end_clean();
+            }
+            if (!headers_sent()) {
+                header('Content-Type: text/csv; charset=utf-8');
+                header('Content-Disposition: attachment; filename="' . self::buildExportFilename($request['table'], 'csv') . '"');
+                header('Content-Length: ' . fstat($stream)['size']);
+                header('Cache-Control: no-store, no-cache, must-revalidate');
+            }
+            fpassthru($stream);
+        } finally {
+            fclose($stream);
+        }
+        exit;
     }
 
-    /**
-     * @param array<string, mixed> $request
-     * @return array{table: string, columns: array<int, string>, rows: array<int, array<string, mixed>>, labels: array<string, string>}
-     */
-    private static function buildExportDataset(array $request): array
+    /** @return \Generator<int, array{columns: array, rows: array, labels: array}> */
+    private static function buildExportDataset(array $request): \Generator
     {
         if (!isset($request['table']) || !is_string($request['table']) || trim($request['table']) === '') {
             throw new InvalidArgumentException('Table parameter is required.');
         }
-
-        $table = trim($request['table']);
-
-        $crud = self::createCrudFromRequest($table, $request);
-
-        $searchTerm = isset($request['search_term']) ? (string) $request['search_term'] : null;
-        if ($searchTerm !== null) {
-            $searchTerm = trim($searchTerm);
-            if ($searchTerm === '') {
-                $searchTerm = null;
-            }
+        $crud = self::createCrudFromRequest(trim($request['table']), $request);
+        $searchTerm = isset($request['search_term']) ? trim((string) $request['search_term']) : null;
+        $searchColumn = isset($request['search_column']) ? trim((string) $request['search_column']) : null;
+        $values = $request['primary_key_values'] ?? [];
+        if (is_string($values)) {
+            $values = [$values];
         }
-
-        $searchColumn = isset($request['search_column']) ? (string) $request['search_column'] : null;
-        if ($searchColumn !== null) {
-            $searchColumn = trim($searchColumn);
-            if ($searchColumn === '') {
-                $searchColumn = null;
-            }
+        if (!is_array($values)) {
+            throw new InvalidArgumentException('Selected record keys must be an array.');
         }
-
-        $data = $crud->getTableData(1, 0, $searchTerm, $searchColumn);
-        $columns = isset($data['columns']) && is_array($data['columns']) ? array_values($data['columns']) : [];
-        $rows = isset($data['rows']) && is_array($data['rows']) ? $data['rows'] : [];
-
-        $meta = isset($data['meta']) && is_array($data['meta']) ? $data['meta'] : [];
-        $labels = isset($meta['labels']) && is_array($meta['labels']) ? $meta['labels'] : [];
-        $primaryKeyColumn = isset($meta['primary_key']) ? (string) $meta['primary_key'] : null;
-        if ($primaryKeyColumn === null || $primaryKeyColumn === '') {
-            $primaryKeyColumn = isset($request['primary_key_column']) && is_string($request['primary_key_column'])
-                ? trim($request['primary_key_column'])
-                : null;
-        }
-
-        $selectedValues = null;
-        if (array_key_exists('primary_key_values', $request)) {
-            $rawValues = $request['primary_key_values'];
-            if (is_string($rawValues)) {
-                $rawValues = [$rawValues];
-            }
-
-            if (is_array($rawValues)) {
-                $selectedValues = array_values($rawValues);
-            }
-        }
-
-        if ($selectedValues !== null && $selectedValues !== []) {
-            $map = [];
-            foreach ($rows as $row) {
-                if (!is_array($row)) {
-                    continue;
-                }
-
-                $value = null;
-                if (isset($row['__fastcrud_primary_value'])) {
-                    $value = $row['__fastcrud_primary_value'];
-                } elseif ($primaryKeyColumn !== null && isset($row[$primaryKeyColumn])) {
-                    $value = $row[$primaryKeyColumn];
-                }
-
-                if ($value === null) {
-                    continue;
-                }
-
-                $key = (string) $value;
-                if (!isset($map[$key])) {
-                    $map[$key] = $row;
-                }
-            }
-
-            $filtered = [];
-            foreach ($selectedValues as $value) {
-                $key = (string) $value;
-                if (isset($map[$key])) {
-                    $filtered[] = $map[$key];
-                }
-            }
-
-            $rows = $filtered;
-        }
-
-        return [
-            'table'   => $table,
-            'columns' => $columns,
-            'rows'    => $rows,
-            'labels'  => $labels,
-        ];
+        yield from $crud->getExportBatches($searchTerm === '' ? null : $searchTerm, $searchColumn === '' ? null : $searchColumn, array_values($values));
     }
 
-    /**
-     * @param array<int, string> $columns
-     * @param array<int, array<string, mixed>> $rows
-     * @param array<string, string> $labels
-     */
-    private static function generateCsvContent(
-        array $columns,
-        array $rows,
-        array $labels,
-        string $delimiter = ',',
-        string $enclosure = '"',
-        ?string $preamble = null
-    ): string
+    /** @param resource $stream */
+    private static function writeCsv($stream, iterable $batches): void
     {
-        $stream = fopen('php://temp', 'w+');
-        if ($stream === false) {
-            throw new RuntimeException('Unable to generate export content.');
+        if (fwrite($stream, "\xEF\xBB\xBF") === false) {
+            throw new RuntimeException('Unable to write export content.');
         }
-
-        fwrite($stream, "\xEF\xBB\xBF");
-
-        if ($preamble !== null && $preamble !== '') {
-            fwrite($stream, $preamble . "\r\n");
-        }
-
-        $header = [];
-        foreach ($columns as $column) {
-            if (!is_string($column) || $column === '') {
-                continue;
-            }
-            $header[] = isset($labels[$column]) ? (string) $labels[$column] : $column;
-        }
-        $escape = '\\';
-
-        if ($header !== []) {
-            fputcsv($stream, $header, $delimiter, $enclosure, $escape);
-        }
-
-        foreach ($rows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-
-            $line = [];
-            foreach ($columns as $column) {
-                if (!is_string($column) || $column === '') {
-                    $line[] = '';
-                    continue;
+        $columns = null;
+        foreach ($batches as $batch) {
+            if ($columns === null) {
+                $columns = $batch['columns'];
+                $header = [];
+                foreach ($columns as $column) {
+                    $header[] = (string) ($batch['labels'][$column] ?? $column);
                 }
-
-                $value = $row[$column] ?? '';
-                if ($value === null) {
-                    $value = '';
-                } elseif (is_array($value)) {
-                    try {
-                        $value = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-                    } catch (JsonException) {
-                        $value = '[object]';
+                if ($header !== [] && fputcsv($stream, $header, ',', '"', '\\') === false) {
+                    throw new RuntimeException('Unable to write export header.');
+                }
+            }
+            foreach ($batch['rows'] as $row) {
+                $line = [];
+                foreach ($columns as $column) {
+                    $value = $row[$column] ?? '';
+                    if (is_array($value)) {
+                        $value = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '[object]';
                     }
+                    $line[] = is_scalar($value) ? (string) $value : '';
                 }
-
-                $line[] = is_scalar($value) ? (string) $value : '';
+                if (fputcsv($stream, $line, ',', '"', '\\') === false) {
+                    throw new RuntimeException('Unable to write export row.');
+                }
             }
-
-            fputcsv($stream, $line, $delimiter, $enclosure, $escape);
         }
-
-        rewind($stream);
-        $content = stream_get_contents($stream);
-        fclose($stream);
-
-        return $content === false ? '' : $content;
     }
 
     private static function buildExportFilename(string $table, string $extension): string
@@ -1880,23 +1816,6 @@ class CrudAjax
         }
 
         echo $json;
-        exit;
-    }
-
-    private static function respondFile(string $filename, string $mimeType, string $content): void
-    {
-        if (ob_get_level() > 0) {
-            @ob_clean();
-        }
-
-        if (!headers_sent()) {
-            header('Content-Type: ' . $mimeType);
-            header('Content-Disposition: attachment; filename="' . $filename . '"');
-            header('Content-Length: ' . (string) strlen($content));
-            header('Cache-Control: no-store, no-cache, must-revalidate');
-        }
-
-        echo $content;
         exit;
     }
 }
